@@ -1,0 +1,254 @@
+﻿import { Link, usePage } from '@inertiajs/react';
+import { PropsWithChildren, useState } from 'react';
+import axios from 'axios';
+import { colors } from '@/lib/colors';
+import {
+    Home,
+    Users,
+    Calendar,
+    FileText,
+    Package,
+    LogIn,
+    LogOut as LogOutIcon,
+    BarChart3,
+    FileBarChart,
+    Layers,
+    Ban,
+    ChevronLeft,
+    ChevronRight,
+    Settings,
+    Bell,
+    Container,
+} from 'lucide-react';
+
+interface User {
+    user_id: number;
+    username: string;
+    full_name: string;
+    email: string;
+    priv_id: number;
+}
+
+interface Permission {
+    p_id: number;
+    page: string;
+    page_name: string;
+    page_icon: string;
+    acs_edit: number;
+    acs_delete: number;
+}
+
+const iconMap: Record<string, React.ReactNode> = {
+    dashboard: <Home className="h-5 w-5" />,
+    clients: <Users className="h-5 w-5" />,
+    users: <Users className="h-5 w-5" />,
+    booking: <Calendar className="h-5 w-5" />,
+    billing: <FileText className="h-5 w-5" />,
+    inventory: <Package className="h-5 w-5" />,
+    gateinout: <LogIn className="h-5 w-5" />,
+    audit: <BarChart3 className="h-5 w-5" />,
+    reports: <FileBarChart className="h-5 w-5" />,
+    sizetype: <Layers className="h-5 w-5" />,
+    bancontainers: <Ban className="h-5 w-5" />,
+};
+
+export default function Authenticated({ children }: PropsWithChildren) {
+    const page = usePage();
+    const auth = (page.props as Record<string, unknown>).auth as { user: User; permissions: Permission[] };
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const currentPath = page.url;
+
+    const handleLogout = async () => {
+        try {
+            // Get fresh CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
+            await axios.post('/api/logout', {}, {
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken || '',
+                }
+            });
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Logout failed:', error);
+            // Even if logout fails, redirect to login (session might already be expired)
+            window.location.href = '/login';
+        }
+    };
+
+    const isActivePath = (path: string) => {
+        return currentPath === path || currentPath.startsWith(`${path}/`);
+    };
+
+    return (
+        <div className="min-h-screen" style={{ backgroundColor: colors.secondary }}>
+            {/* Modern Professional Header */}
+            <nav 
+                className="fixed w-full z-30 top-0 shadow-lg"
+                style={{ 
+                    backgroundColor: colors.brand.primary,
+                    borderBottom: `1px solid ${colors.brand.primary}`,
+                }}
+            >
+                <div className="px-6 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                            className="text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                        >
+                            {sidebarCollapsed ? (
+                                <ChevronRight className="w-5 h-5" />
+                            ) : (
+                                <ChevronLeft className="w-5 h-5" />
+                            )}
+                        </button>
+                        <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+                            <Container className="h-8 w-8 text-white" />
+                            <div className="text-white">
+                                <div className="text-lg font-bold tracking-wide">FJPWL</div>
+                                <div className="text-xs opacity-90 -mt-1">Container Management System</div>
+                            </div>
+                        </Link>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* Notifications */}
+                        <button className="relative text-white hover:bg-white/10 p-2.5 rounded-lg transition-all duration-200">
+                            <Bell className="h-5 w-5" />
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                        </button>
+
+                        {/* User Profile */}
+                        <div className="flex items-center gap-3 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-all duration-200">
+                            <div 
+                                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-sm shadow-md"
+                                style={{ backgroundColor: colors.brand.secondary }}
+                            >
+                                {auth.user?.username?.charAt(0).toUpperCase() || 'A'}
+                            </div>
+                            <div className="hidden lg:block text-white">
+                                <div className="text-sm font-semibold">{auth.user?.full_name || auth.user?.username || 'Admin'}</div>
+                                <div className="text-xs opacity-80 -mt-0.5">{auth.user?.email || 'admin@fjpwl.com'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div className="flex pt-16">
+                {/* Modern Professional Sidebar */}
+                <aside
+                    className={`fixed left-0 top-16 h-[calc(100vh-4rem)] z-100 transition-all duration-300 shadow-2xl flex flex-col ${
+                        sidebarCollapsed ? 'w-16' : 'w-64'
+                    }`}
+                    style={{
+                        backgroundColor: colors.sidebar.background,
+                    }}
+                >
+                    {/* Scrollable Menu Section */}
+                    <nav className="flex-1 py-4 overflow-hidden">
+                        <ul className="space-y-1 px-2">
+                            {/* Dashboard */}
+                            <li>
+                                <Link
+                                    href="/dashboard"
+                                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                        isActivePath('/dashboard')
+                                            ? 'shadow-lg'
+                                            : 'hover:bg-white/10'
+                                    }`}
+                                    style={{
+                                        backgroundColor: isActivePath('/dashboard') ? colors.sidebar.active : 'transparent',
+                                        color: colors.sidebar.text,
+                                    }}
+                                >
+                                    <Home className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard') ? 'scale-110' : 'group-hover:scale-110'} transition-transform`} />
+                                    {!sidebarCollapsed && (
+                                        <div className="flex-1">
+                                            <div className="text-sm font-semibold">Dashboard</div>
+                                        </div>
+                                    )}
+                                    {!sidebarCollapsed && isActivePath('/dashboard') && (
+                                        <div className="w-1 h-6 rounded-full bg-white"></div>
+                                    )}
+                                </Link>
+                            </li>
+
+                            {/* Dynamic Menu Items */}
+                            {auth.permissions?.map((permission) => {
+                                const icon = iconMap[permission.page.toLowerCase()] || <Package className="h-5 w-5" />;
+                                const isActive = isActivePath(`/${permission.page}`);
+
+                                return (
+                                    <li key={permission.p_id}>
+                                        <Link
+                                            href={`/${permission.page}`}
+                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                isActive
+                                                    ? 'shadow-lg'
+                                                    : 'hover:bg-white/10'
+                                            }`}
+                                            style={{
+                                                backgroundColor: isActive ? colors.sidebar.active : 'transparent',
+                                                color: colors.sidebar.text,
+                                            }}
+                                        >
+                                            <span className={`${isActive ? 'scale-110' : 'group-hover:scale-110'} transition-transform`}>
+                                                {icon}
+                                            </span>
+                                            {!sidebarCollapsed && (
+                                                <span className="text-sm font-medium flex-1">
+                                                    {permission.page_name}
+                                                </span>
+                                            )}
+                                            {!sidebarCollapsed && isActive && (
+                                                <div className="w-1 h-6 rounded-full bg-white"></div>
+                                            )}
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+
+                            {/* Settings */}
+                            <li>
+                                <Link
+                                    href="/settings"
+                                    className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-white/10 hover:text-white transition-all duration-200 group"
+                                >
+                                    <Settings className="h-5 w-5 flex-shrink-0 group-hover:rotate-90 transition-transform duration-300" />
+                                    {!sidebarCollapsed && (
+                                        <span className="text-sm font-medium">Settings</span>
+                                    )}
+                                </Link>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    {/* Logout Button at Bottom */}
+                    <div className="border-t border-white/10 p-2">
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-white transition-all duration-200 group w-full"
+                        >
+                            <LogOutIcon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                            {!sidebarCollapsed && (
+                                <span className="text-sm font-medium">Logout</span>
+                            )}
+                        </button>
+                    </div>
+                </aside>
+
+                {/* Main Content Area */}
+                <main
+                    className={`flex-1 transition-all duration-300 ${
+                        sidebarCollapsed ? 'ml-16' : 'ml-64'
+                    }`}
+                >
+                    <div className="p-8" style={{ backgroundColor: colors.secondary, minHeight: 'calc(100vh - 4rem)' }}>
+                        {children}
+                    </div>
+                </main>
+            </div>
+        </div>
+    );
+}
