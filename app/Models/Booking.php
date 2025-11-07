@@ -107,7 +107,10 @@ class Booking extends Model
      */
     public function hasAvailableContainers()
     {
-        return ($this->twenty_rem > 0 || $this->fourty_rem > 0 || $this->fourty_five_rem > 0);
+        return ($this->twenty > 0 || $this->fourty > 0 || $this->fourty_five > 0 ||
+                $this->twenty_rem > 0 || $this->fourty_rem > 0 || $this->fourty_five_rem > 0 ||
+                (!empty($this->cont_list) && $this->cont_list !== '') ||
+                (!empty($this->cont_list_rem) && $this->cont_list_rem !== ''));
     }
 
     /**
@@ -151,15 +154,26 @@ class Booking extends Model
     }
 
     /**
-     * Scope for active bookings.
+     * Scope for active bookings (not expired with at least 1 container).
      */
     public function scopeActive($query)
     {
         return $query->where('expiration_date', '>=', now()->toDateString())
                      ->where(function($q) {
-                         $q->where('twenty_rem', '>', 0)
+                         $q->where('twenty', '>', 0)
+                           ->orWhere('fourty', '>', 0)
+                           ->orWhere('fourty_five', '>', 0)
+                           ->orWhere('twenty_rem', '>', 0)
                            ->orWhere('fourty_rem', '>', 0)
-                           ->orWhere('fourty_five_rem', '>', 0);
+                           ->orWhere('fourty_five_rem', '>', 0)
+                           ->orWhere(function($q2) {
+                               $q2->whereNotNull('cont_list')
+                                  ->where('cont_list', '!=', '');
+                           })
+                           ->orWhere(function($q2) {
+                               $q2->whereNotNull('cont_list_rem')
+                                  ->where('cont_list_rem', '!=', '');
+                           });
                      });
     }
 

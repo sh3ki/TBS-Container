@@ -193,6 +193,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [SizeTypeController::class, 'show']);
         Route::put('/{id}', [SizeTypeController::class, 'update']);
         Route::delete('/{id}', [SizeTypeController::class, 'destroy']);
+        Route::post('/{id}/toggle-status', [SizeTypeController::class, 'toggleStatus']);
     });
 
     // Ban Containers - Complete ban management

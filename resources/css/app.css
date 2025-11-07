@@ -140,4 +140,29 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    /* Force light mode for date picker calendar */
+    input[type="date"] {
+        color-scheme: light;
+        position: relative;
+    }
+    
+    /* Hide the default calendar icon */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: auto;
+        height: auto;
+        color: transparent;
+        background: transparent;
+        cursor: pointer;
+        opacity: 0;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit {
+        color: #111827;
+    }
 }

@@ -22,8 +22,7 @@ class SizeTypeController extends Controller
                 'description',
                 'archived',
                 'date_added',
-                'iso_code',
-                DB::raw('(SELECT COUNT(*) FROM ' . config('database.connections.mysql.prefix') . 'inventory WHERE size_type = ' . config('database.connections.mysql.prefix') . 'container_size_type.s_id) as usage_count')
+                'iso_code'
             )
             ->orderBy('size', 'asc')
             ->orderBy('type', 'asc');
@@ -151,7 +150,7 @@ class SizeTypeController extends Controller
         $validator = Validator::make($request->all(), [
             'size' => 'required|string|max:2',
             'type' => 'required|string|max:3',
-            'description' => 'required|string|max:45',
+            'description' => 'nullable|string|max:45',
             'iso_code' => 'nullable|string|max:100',
         ]);
 
@@ -191,7 +190,7 @@ class SizeTypeController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'CREATE',
                 'description' => 'Added new size/type: ' . $request->size . '/' . strtoupper($request->type),
-                'user_id' => auth()->id(),
+                'user_id' => session('user_id') ?? 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -242,7 +241,7 @@ class SizeTypeController extends Controller
         $validator = Validator::make($request->all(), [
             'size' => 'required|string|max:2',
             'type' => 'required|string|max:3',
-            'description' => 'required|string|max:45',
+            'description' => 'nullable|string|max:45',
             'iso_code' => 'nullable|string|max:100',
         ]);
 
@@ -294,7 +293,7 @@ class SizeTypeController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'UPDATE',
                 'description' => 'Updated size/type: ' . $request->size . '/' . strtoupper($request->type),
-                'user_id' => auth()->id(),
+                'user_id' => session('user_id') ?? 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -352,7 +351,7 @@ class SizeTypeController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'DELETE',
                 'description' => 'Deleted size/type: ' . $sizeType->size . '/' . $sizeType->type,
-                'user_id' => auth()->id(),
+                'user_id' => session('user_id') ?? 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -368,6 +367,55 @@ class SizeTypeController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete size/type: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle status of a single size/type combination
+     */
+    public function toggleStatus(Request $request, $id)
+    {
+        $sizeType = DB::table('container_size_type')
+            ->where('s_id', $id)
+            ->first();
+
+        if (!$sizeType) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Size/Type not found'
+            ], 404);
+        }
+
+        $newStatus = $sizeType->archived == 0 ? 1 : 0;
+
+        DB::beginTransaction();
+        try {
+            DB::table('container_size_type')
+                ->where('s_id', $id)
+                ->update(['archived' => $newStatus]);
+
+            // Log to audit
+            DB::table('audit_logs')->insert([
+                'action' => 'UPDATE',
+                'description' => ($newStatus == 1 ? 'Deactivated' : 'Activated') . ' size/type: ' . $sizeType->size . '/' . $sizeType->type,
+                'user_id' => session('user_id') ?? 0,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Size/Type ' . ($newStatus == 1 ? 'deactivated' : 'activated') . ' successfully',
+                'new_status' => $newStatus == 0 ? 'Active' : 'Inactive'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to toggle status: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -415,7 +463,7 @@ class SizeTypeController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'UPDATE',
                 'description' => ($newStatus == 0 ? 'Activated' : 'Deactivated') . ' size: ' . $size,
-                'user_id' => auth()->id(),
+                'user_id' => session('user_id') ?? 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -479,7 +527,7 @@ class SizeTypeController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'UPDATE',
                 'description' => ($newStatus == 0 ? 'Activated' : 'Deactivated') . ' type: ' . $type,
-                'user_id' => auth()->id(),
+                'user_id' => session('user_id') ?? 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);

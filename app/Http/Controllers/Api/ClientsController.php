@@ -32,9 +32,8 @@ class ClientsController extends Controller
 
     public function index(Request $request)
     {
-        // Fetch ALL clients (both active and inactive) but exclude archived
-        $query = DB::table('clients')
-            ->where('archived', 0);  // Exclude archived clients
+        // Fetch ALL clients (both active and inactive, including archived)
+        $query = DB::table('clients');
 
         // Search functionality
         if ($request->has('search') && $request->search) {

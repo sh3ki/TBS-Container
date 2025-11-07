@@ -112,7 +112,7 @@ class BookingController extends Controller
             'fourty_five_rem' => $request->fourf ?? 0,
             'expiration_date' => $request->exp,
             'date_added' => now(),
-            'user_id' => auth()->user()->user_id ?? null,
+            'user_id' => auth()->id() ?? null,
         ];
 
         // Process container list if provided

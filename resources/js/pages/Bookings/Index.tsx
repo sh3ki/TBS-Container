@@ -1,854 +1,910 @@
-﻿import React, { useState, useEffect } from 'react';
+import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ModernButton, ModernCard, ModernTable, ModernBadge } from '@/components/modern';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar, Plus, Edit, Eye, Search, Ship, Package } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { colors } from '@/lib/colors';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { ModernButton, ModernCard, ModernTable, ModernBadge, ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, Ship } from 'lucide-react';
+import { colors } from '@/lib/colors';
 
 interface Client {
-    id: string;
-    text: string;
-    code: string;
-    name: string;
+  id: string;
+  text: string;
+  code: string;
+  name: string;
 }
 
 interface Booking extends Record<string, unknown> {
-    b_id: number;
-    hashed_id: string;
-    book_no: string;
-    client: {
-        c_id: number;
-        client_name: string;
-        client_code: string;
-    };
-    shipper: string;
-    twenty: number;
-    fourty: number;
-    fourty_five: number;
-    twenty_rem: number;
-    fourty_rem: number;
-    fourty_five_rem: number;
-    cont_list: string;
-    cont_list_rem: string;
-    expiration_date: string;
-    status_text: string;
-    date_added: string;
+  b_id: number;
+  hashed_id: string;
+  book_no: string;
+  client: {
+    c_id: number;
+    client_name: string;
+    client_code: string;
+  };
+  shipper: string;
+  twenty: number;
+  fourty: number;
+  fourty_five: number;
+  twenty_rem: number;
+  fourty_rem: number;
+  fourty_five_rem: number;
+  cont_list: string;
+  cont_list_rem: string;
+  expiration_date: string;
+  status_text: string;
+  date_added: string;
+}
+
+interface FormData {
+  bnum: string;
+  cid: string;
+  shipper: string;
+  two: number;
+  four: number;
+  fourf: number;
+  cnums: string;
+  exp: string;
 }
 
 export default function Index() {
-    const { toast } = useToast();
+  const { toasts, removeToast, success, error } = useModernToast();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [bookingType, setBookingType] = useState<'with' | 'without'>('without');
+  
+  const [confirmAddBooking, setConfirmAddBooking] = useState(false);
+  const [confirmUpdateBooking, setConfirmUpdateBooking] = useState(false);
+  const [confirmDeleteBooking, setConfirmDeleteBooking] = useState(false);
+  const [bookingToDelete, setBookingToDelete] = useState<Booking | null>(null);
+  
+  const [formData, setFormData] = useState<FormData>({
+    bnum: '',
+    cid: '',
+    shipper: '',
+    two: 0,
+    four: 0,
+    fourf: 0,
+    cnums: '',
+    exp: '',
+  });
+  
+  const [editFormData, setEditFormData] = useState<FormData & { id: string; clientid: string; ship: string }>({
+    id: '',
+    bnum: '',
+    cid: '',
+    shipper: '',
+    two: 0,
+    four: 0,
+    fourf: 0,
+    cnums: '',
+    exp: '',
+    clientid: '',
+    ship: '',
+  });
+  
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [viewContainers, setViewContainers] = useState<string[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [shipperSuggestions, setShipperSuggestions] = useState<string[]>([]);
+  const [showShipperSuggestions, setShowShipperSuggestions] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});
+
+  useEffect(() => {
+    fetchBookings();
+    fetchClients();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookings, searchTerm, clientFilter]);
+
+  const applyFilters = () => {
+    let filtered = [...bookings];
     
-    const [bookings, setBookings] = useState<Booking[]>([]);
-    const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchKey, setSearchKey] = useState('');
-    const [totalCount, setTotalCount] = useState(0);
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(booking => 
+        booking.book_no.toLowerCase().includes(search) ||
+        booking.shipper.toLowerCase().includes(search) ||
+        booking.client.client_name.toLowerCase().includes(search) ||
+        booking.client.client_code.toLowerCase().includes(search)
+      );
+    }
     
-    const [showAddDialog, setShowAddDialog] = useState(false);
-    const [showEditDialog, setShowEditDialog] = useState(false);
-    const [showViewDialog, setShowViewDialog] = useState(false);
-    const [bookingType, setBookingType] = useState<'with' | 'without'>('without');
+    // Client filter
+    if (clientFilter !== 'all') {
+      filtered = filtered.filter(booking => booking.client.c_id.toString() === clientFilter);
+    }
     
-    const [formData, setFormData] = useState({
-        id: '',
-        bnum: '',
-        cid: '',
-        shipper: '',
-        two: 0,
-        four: 0,
-        fourf: 0,
-        cnums: '',
-        exp: '',
-        isc: '0',
-        clientid: '',
-        ship: '',
-    });
+    setFilteredBookings(filtered);
+  };
+
+  const fetchBookings = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('/api/bookings', {
+        params: { 
+          per_page: 1000
+        }
+      });
+      if (response.data.success) {
+        setBookings(response.data.data);
+      }
+    } catch {
+      error('Failed to load bookings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const response = await axios.get('/api/bookings/helpers/clients');
+      if (response.data.success) {
+        setClients(response.data.data);
+      }
+    } catch {
+      console.error('Failed to fetch clients');
+    }
+  };
+
+  const handleShipperInput = async (value: string) => {
+    setFormData({ ...formData, shipper: value });
     
-    const [clients, setClients] = useState<Client[]>([]);
-    const [shipperSuggestions, setShipperSuggestions] = useState<string[]>([]);
-    const [showShipperSuggestions, setShowShipperSuggestions] = useState(false);
-    const [viewContainers, setViewContainers] = useState<string[]>([]);
-
-    useEffect(() => {
-        fetchBookings();
-        fetchClients();
-    }, []);
-
-    useEffect(() => {
-        if (searchKey) {
-            setFilteredBookings(bookings.filter(b => 
-                b.book_no.toLowerCase().includes(searchKey.toLowerCase()) ||
-                b.shipper.toLowerCase().includes(searchKey.toLowerCase()) ||
-                b.client.client_name.toLowerCase().includes(searchKey.toLowerCase())
-            ));
-        } else {
-            setFilteredBookings(bookings);
-        }
-    }, [searchKey, bookings]);
-
-    const fetchBookings = async () => {
-        setLoading(true);
-        try {
-            const response = await axios.get('/api/bookings');
-            if (response.data.success) {
-                setBookings(response.data.data);
-                setFilteredBookings(response.data.data);
-                setTotalCount(response.data.total);
-            }
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast({
-                title: 'Error',
-                description: err.response?.data?.message || 'Failed to fetch bookings',
-                variant: 'destructive',
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchClients = async () => {
-        try {
-            const response = await axios.get('/api/bookings/helpers/clients');
-            if (response.data.success) {
-                setClients(response.data.data);
-            }
-        } catch (error: unknown) {
-            console.error('Failed to fetch clients:', error);
-        }
-    };
-
-    const handleShipperInput = async (value: string) => {
-        setFormData({ ...formData, shipper: value, ship: value });
-        
-        if (value.length > 1) {
-            try {
-                const response = await axios.get('/api/bookings/helpers/shipper-autocomplete', {
-                    params: { key: value }
-                });
-                if (response.data.success) {
-                    setShipperSuggestions(response.data.data);
-                    setShowShipperSuggestions(true);
-                }
-            } catch (error: unknown) {
-                console.error('Failed to fetch shipper suggestions:', error);
-            }
-        } else {
-            setShowShipperSuggestions(false);
-        }
-    };
-
-    const handleAddBooking = () => {
-        setShowAddDialog(true);
-        setShowEditDialog(false);
-        setBookingType('without');
-        setFormData({
-            id: '',
-            bnum: '',
-            cid: '',
-            shipper: '',
-            two: 0,
-            four: 0,
-            fourf: 0,
-            cnums: '',
-            exp: '',
-            isc: '0',
-            clientid: '',
-            ship: '',
+    if (value.length > 1) {
+      try {
+        const response = await axios.get('/api/bookings/helpers/shipper-autocomplete', {
+          params: { key: value }
         });
-    };
-
-    const handleSubmitAdd = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!formData.bnum || !formData.cid || !formData.shipper || !formData.exp) {
-            toast({
-                title: 'Validation Error',
-                description: 'Please fill out all required fields',
-                variant: 'destructive',
-            });
-            return;
+        if (response.data.success) {
+          setShipperSuggestions(response.data.data);
+          setShowShipperSuggestions(true);
         }
+      } catch {
+        console.error('Failed to fetch shipper suggestions');
+      }
+    } else {
+      setShowShipperSuggestions(false);
+    }
+  };
 
-        if (bookingType === 'with' && !formData.cnums) {
-            toast({
-                title: 'Validation Error',
-                description: 'Please enter container numbers',
-                variant: 'destructive',
-            });
-            return;
-        }
+  const submitAddBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    setConfirmAddBooking(true);
+  };
 
-        if (bookingType === 'without' && formData.two === 0 && formData.four === 0 && formData.fourf === 0) {
-            toast({
-                title: 'Validation Error',
-                description: 'Please enter at least one container quantity',
-                variant: 'destructive',
-            });
-            return;
-        }
+  const handleAddBooking = async () => {
+    try {
+      const payload = {
+        ...formData,
+        isc: bookingType === 'with' ? '1' : '0'
+      };
+      
+      console.log('Sending booking data:', payload);
+      console.log('Client selected:', clients.find(c => c.id === formData.cid));
+      
+      const response = await axios.post('/api/bookings', payload);
+      if (response.data.success) {
+        success('Booking created successfully');
+        setShowAddModal(false);
+        setConfirmAddBooking(false);
+        setFormData({
+          bnum: '',
+          cid: '',
+          shipper: '',
+          two: 0,
+          four: 0,
+          fourf: 0,
+          cnums: '',
+          exp: '',
+        });
+        setErrors({});
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      setConfirmAddBooking(false);
+      const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } };
+      if (e.response?.data?.errors) {
+        setErrors(e.response.data.errors);
+        error('Please check the form for errors');
+      } else {
+        error(e.response?.data?.message || 'Failed to create booking');
+      }
+    }
+  };
 
-        try {
-            const response = await axios.post('/api/bookings', formData);
-            if (response.data.success) {
-                toast({
-                    title: 'Success',
-                    description: 'Booking has been saved successfully',
-                });
-                setShowAddDialog(false);
-                fetchBookings();
-            }
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast({
-                title: 'Error',
-                description: err.response?.data?.message || 'Failed to save booking',
-                variant: 'destructive',
-            });
-        }
-    };
+  const handleEditBooking = useCallback(async (booking: Booking) => {
+    const loadingKey = `edit-${booking.hashed_id}`;
+    if (actionLoading[loadingKey]) return; // Prevent double-click
+    
+    setActionLoading(prev => ({ ...prev, [loadingKey]: true }));
+    try {
+      const response = await axios.get(`/api/bookings/${booking.hashed_id}/edit`);
+      if (response.data.success) {
+        const data = response.data.data;
+        const client = clients.find(c => c.code === data.client_code);
+        
+        setEditFormData({
+          id: booking.hashed_id,
+          bnum: data.book_no,
+          cid: client?.id || '',
+          shipper: data.shipper,
+          two: data.twenty,
+          four: data.fourty,
+          fourf: data.fourty_five,
+          cnums: '',
+          exp: data.expiration_date,
+          clientid: client?.id || '',
+          ship: data.shipper,
+        });
+        
+        setBookingType(data.has_container_list ? 'with' : 'without');
+        setShowEditModal(true);
+      }
+    } catch {
+      error('Failed to load booking data');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [loadingKey]: false }));
+    }
+  }, [clients, error, actionLoading]);
 
-    const handleEdit = async (hashedId: string) => {
-        try {
-            const response = await axios.get(`/api/bookings/${hashedId}/edit`);
-            if (response.data.success) {
-                const data = response.data.data;
-                setFormData({
-                    id: hashedId,
-                    bnum: data.book_no,
-                    cid: '',
-                    shipper: data.shipper,
-                    two: data.twenty,
-                    four: data.fourty,
-                    fourf: data.fourty_five,
-                    cnums: '',
-                    exp: data.expiration_date,
-                    isc: data.has_container_list ? '1' : '0',
-                    clientid: '',
-                    ship: data.shipper,
-                });
-                
-                const client = clients.find(c => c.code === data.client_code);
-                if (client) {
-                    setFormData(prev => ({ ...prev, clientid: client.id, cid: client.id }));
-                }
-                
-                setBookingType(data.has_container_list ? 'with' : 'without');
-                setShowEditDialog(true);
-                setShowAddDialog(false);
-            }
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast({
-                title: 'Error',
-                description: err.response?.data?.message || 'Failed to load booking data',
-                variant: 'destructive',
-            });
-        }
-    };
+  const submitUpdateBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    setConfirmUpdateBooking(true);
+  };
 
-    const handleSubmitEdit = async (e: React.FormEvent) => {
-        e.preventDefault();
+  const handleUpdateBooking = async () => {
+    try {
+      const response = await axios.put(`/api/bookings/${editFormData.id}`, {
+        bnum: editFormData.bnum,
+        ship: editFormData.ship,
+        exp: editFormData.exp,
+        two: editFormData.two,
+        four: editFormData.four,
+        fourf: editFormData.fourf,
+        clientid: editFormData.clientid,
+        isc: bookingType === 'with' ? '1' : '0',
+      });
+      if (response.data.success) {
+        success('Booking updated successfully');
+        setShowEditModal(false);
+        setConfirmUpdateBooking(false);
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      setConfirmUpdateBooking(false);
+      const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } };
+      if (e.response?.data?.errors) {
+        setErrors(e.response.data.errors);
+        error('Please check the form for errors');
+      } else {
+        error(e.response?.data?.message || 'Failed to update booking');
+      }
+    }
+  };
 
-        if (!formData.bnum || !formData.clientid || !formData.ship || !formData.exp) {
-            toast({
-                title: 'Validation Error',
-                description: 'Please fill out all required fields',
-                variant: 'destructive',
-            });
-            return;
-        }
+  const handleDeleteBooking = async () => {
+    if (!bookingToDelete) return;
+    
+    try {
+      const response = await axios.delete(`/api/bookings/${bookingToDelete.hashed_id}`);
+      if (response.data.success) {
+        success('Booking deleted successfully');
+        setBookingToDelete(null);
+        setConfirmDeleteBooking(false);
+        fetchBookings();
+      }
+    } catch {
+      setConfirmDeleteBooking(false);
+      error('Failed to delete booking');
+    }
+  };
 
-        try {
-            const response = await axios.put(`/api/bookings/${formData.id}`, {
-                bnum: formData.bnum,
-                ship: formData.ship,
-                exp: formData.exp,
-                two: formData.two,
-                four: formData.four,
-                fourf: formData.fourf,
-                clientid: formData.clientid,
-                isc: formData.isc,
-            });
-            
-            if (response.data.success) {
-                toast({
-                    title: 'Success',
-                    description: 'Booking updated successfully',
-                });
-                setShowEditDialog(false);
-                fetchBookings();
-            }
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast({
-                title: 'Error',
-                description: err.response?.data?.message || 'Failed to update booking',
-                variant: 'destructive',
-            });
-        }
-    };
+  const handleViewContainers = useCallback(async (booking: Booking) => {
+    const loadingKey = `view-${booking.hashed_id}`;
+    if (actionLoading[loadingKey]) return; // Prevent double-click
+    
+    setActionLoading(prev => ({ ...prev, [loadingKey]: true }));
+    try {
+      const response = await axios.get(`/api/bookings/${booking.hashed_id}/containers`);
+      if (response.data.success) {
+        setViewContainers(response.data.data);
+        setSelectedBooking(booking);
+        setShowViewModal(true);
+      }
+    } catch {
+      error('Failed to fetch containers');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [loadingKey]: false }));
+    }
+  }, [error, actionLoading]);
 
-    const handleViewContainers = async (hashedId: string) => {
-        try {
-            const response = await axios.get(`/api/bookings/${hashedId}/containers`);
-            if (response.data.success) {
-                setViewContainers(response.data.data);
-                setShowViewDialog(true);
-            }
-        } catch (error: unknown) {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast({
-                title: 'Error',
-                description: err.response?.data?.message || 'Failed to fetch containers',
-                variant: 'destructive',
-            });
-        }
-    };
+  const getContainerListArray = (contList: string) => {
+    if (!contList) return [];
+    return contList.split(',').filter(c => c.trim());
+  };
 
-    const getContainerListArray = (contList: string) => {
-        if (!contList) return [];
-        return contList.split(',').filter(c => c.trim());
-    };
+  // Pagination
+  const paginatedBookings = filteredBookings.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+  const totalPages = Math.ceil(filteredBookings.length / pageSize);
 
-    return (
-        <AuthenticatedLayout>
-            <Head title="Bookings" />
-
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 rounded-xl" style={{ backgroundColor: colors.brand.primary }}>
-                            <Calendar className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-bold" style={{ color: colors.text.primary }}>
-                                Booking Management
-                            </h1>
-                            <p className="text-sm mt-1" style={{ color: colors.text.secondary }}>
-                                Manage container booking and reservations
-                            </p>
-                        </div>
-                    </div>
-                    <ModernButton variant="add" onClick={handleAddBooking}>
-                        <Plus className="w-4 h-4" />
-                        Book Containers
-                    </ModernButton>
-                </div>
-
-                <ModernCard 
-                    title="Booking List" 
-                    subtitle={`${totalCount} booking(s) found`}
-                >
-                    <div className="mb-6">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <Input
-                                placeholder="Search by booking number, shipper, or client..."
-                                value={searchKey}
-                                onChange={(e) => setSearchKey(e.target.value)}
-                                className="pl-10"
-                            />
-                        </div>
-                    </div>
-
-                    <ModernTable
-                        columns={[
-                            {
-                                key: 'book_no',
-                                label: 'BookNo',
-                                render: (item: Booking) => (
-                                    <div className="font-bold" style={{ color: colors.brand.primary }}>
-                                        {item.book_no}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'client',
-                                label: 'Client',
-                                render: (item: Booking) => (
-                                    <div className="text-sm" style={{ color: colors.text.primary }}>
-                                        {item.client.client_code}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'shipper',
-                                label: 'Shipper',
-                                render: (item: Booking) => (
-                                    <div className="flex items-center gap-2">
-                                        <Ship className="w-4 h-4" style={{ color: colors.text.secondary }} />
-                                        <span className="text-sm" style={{ color: colors.text.primary }}>
-                                            {item.shipper}
-                                        </span>
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'x20',
-                                label: 'X20',
-                                render: (item: Booking) => (
-                                    <div className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                                        {item.twenty}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'x40',
-                                label: 'X40',
-                                render: (item: Booking) => (
-                                    <div className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                                        {item.fourty}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'x45',
-                                label: 'X45',
-                                render: (item: Booking) => (
-                                    <div className="text-sm font-medium" style={{ color: colors.text.primary }}>
-                                        {item.fourty_five}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'x20_rem',
-                                label: 'X20 REM',
-                                render: (item: Booking) => (
-                                    <ModernBadge variant="info">
-                                        {item.twenty_rem}
-                                    </ModernBadge>
-                                ),
-                            },
-                            {
-                                key: 'x40_rem',
-                                label: 'X40 REM',
-                                render: (item: Booking) => (
-                                    <ModernBadge variant="info">
-                                        {item.fourty_rem}
-                                    </ModernBadge>
-                                ),
-                            },
-                            {
-                                key: 'x45_rem',
-                                label: 'X45 REM',
-                                render: (item: Booking) => (
-                                    <ModernBadge variant="info">
-                                        {item.fourty_five_rem}
-                                    </ModernBadge>
-                                ),
-                            },
-                            {
-                                key: 'clist',
-                                label: 'CLIST',
-                                render: (item: Booking) => {
-                                    const containers = getContainerListArray(item.cont_list);
-                                    return (
-                                        <div className="text-xs font-mono" style={{ color: colors.text.secondary }}>
-                                            {containers.length > 0 ? (
-                                                <div>
-                                                    {containers.slice(0, 2).map((c, i) => (
-                                                        <div key={i}>{c}</div>
-                                                    ))}
-                                                    {containers.length > 2 && <div>+{containers.length - 2} more</div>}
-                                                </div>
-                                            ) : '-'}
-                                        </div>
-                                    );
-                                },
-                            },
-                            {
-                                key: 'clistrem',
-                                label: 'CLISTREM',
-                                render: (item: Booking) => {
-                                    const containers = getContainerListArray(item.cont_list_rem);
-                                    return (
-                                        <div className="text-xs font-mono" style={{ color: colors.text.secondary }}>
-                                            {containers.length > 0 ? `${containers.length} left` : '-'}
-                                        </div>
-                                    );
-                                },
-                            },
-                            {
-                                key: 'exp',
-                                label: 'EXP',
-                                render: (item: Booking) => (
-                                    <div className="text-sm" style={{ color: colors.text.secondary }}>
-                                        {new Date(item.expiration_date).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'short',
-                                            day: 'numeric'
-                                        })}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'status',
-                                label: 'STATUS',
-                                render: (item: Booking) => (
-                                    <ModernBadge 
-                                        variant={item.status_text === 'Active' ? 'success' : 'error'}
-                                    >
-                                        {item.status_text}
-                                    </ModernBadge>
-                                ),
-                            },
-                            {
-                                key: 'date',
-                                label: 'DATE',
-                                render: (item: Booking) => (
-                                    <div className="text-sm" style={{ color: colors.text.secondary }}>
-                                        {new Date(item.date_added).toLocaleDateString('en-US', {
-                                            month: 'short',
-                                            day: 'numeric'
-                                        })}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'actions',
-                                label: 'ACTIONS',
-                                render: (item: Booking) => (
-                                    <div className="flex items-center gap-2">
-                                        <ModernButton 
-                                            variant="secondary" 
-                                            size="sm"
-                                            onClick={() => handleViewContainers(item.hashed_id)}
-                                        >
-                                            <Eye className="w-3 h-3" />
-                                        </ModernButton>
-                                        <ModernButton 
-                                            variant="edit" 
-                                            size="sm"
-                                            onClick={() => handleEdit(item.hashed_id)}
-                                        >
-                                            <Edit className="w-3 h-3" />
-                                        </ModernButton>
-                                    </div>
-                                ),
-                            },
-                        ]}
-                        data={filteredBookings}
-                        loading={loading}
-                        emptyMessage="No bookings found"
-                    />
-                </ModernCard>
+  return (
+    <AuthenticatedLayout>
+      <Head title="Booking Management" />
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl" style={{ backgroundColor: colors.brand.primary }}>
+              <Package className="w-6 h-6 text-white" />
             </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Booking Management</h1>
+              <p className="text-sm mt-1 text-gray-600">Manage container booking and reservations</p>
+            </div>
+          </div>
+          <ModernButton variant="add" size="lg" onClick={() => setShowAddModal(true)}>
+            <Plus className="w-4 h-4" />
+            Book Containers
+          </ModernButton>
+        </div>
 
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <div className="p-2 rounded" style={{ backgroundColor: colors.actions.add + '20' }}>
-                                <Plus className="w-5 h-5" style={{ color: colors.actions.add }} />
-                            </div>
-                            Book Containers
-                        </DialogTitle>
-                        <DialogDescription>
-                            Create a new booking for container reservations
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSubmitAdd}>
-                        <div className="space-y-4">
-                            <div>
-                                <Label className="text-base font-medium mb-2 block">Booking Type</Label>
-                                <div className="flex gap-4">
-                                    <label className="inline-flex items-center">
-                                        <input 
-                                            type="radio" 
-                                            checked={bookingType === 'with'} 
-                                            onChange={() => setBookingType('with')} 
-                                            className="form-radio h-4 w-4"
-                                            style={{ color: colors.brand.primary }}
-                                        />
-                                        <span className="ml-2">With Container List</span>
-                                    </label>
-                                    <label className="inline-flex items-center">
-                                        <input 
-                                            type="radio" 
-                                            checked={bookingType === 'without'} 
-                                            onChange={() => setBookingType('without')} 
-                                            className="form-radio h-4 w-4"
-                                            style={{ color: colors.brand.primary }}
-                                        />
-                                        <span className="ml-2">Without Container List</span>
-                                    </label>
-                                </div>
-                            </div>
+        <div className="relative" style={{ zIndex: 0 }}>
+          <ModernCard title="Search & Filter Bookings" subtitle="Find bookings quickly" icon={<Search className="w-5 h-5" />}>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-2">
+                <Label className="text-sm font-semibold mb-2 text-gray-900">Search Bookings</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <Input
+                    type="text"
+                    placeholder="Search by booking number, shipper, or client..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 h-11"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold mb-2 text-gray-900">Client Filter</Label>
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients.filter(client => client.name && client.name.trim() !== '').map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold text-gray-900">{filteredBookings.length}</span> bookings found
+                {searchTerm || clientFilter !== 'all' ? (
+                  <span> (filtered from {bookings.length} total)</span>
+                ) : null}
+              </p>
+            </div>
+          </ModernCard>
+        </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label>Booking Number <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        value={formData.bnum}
-                                        onChange={(e) => setFormData({ ...formData, bnum: e.target.value })}
-                                        placeholder="Enter booking number"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <Label>Client <span className="text-red-500">*</span></Label>
-                                    <select 
-                                        value={formData.cid}
-                                        onChange={(e) => setFormData({ ...formData, cid: e.target.value, clientid: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                                        style={{ '--tw-ring-color': colors.brand.primary } as React.CSSProperties}
-                                        required
-                                    >
-                                        <option value="">Select Client</option>
-                                        {clients.map((client) => (
-                                            <option key={client.id} value={client.id}>{client.text}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="relative">
-                                    <Label>Shipper <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        value={formData.shipper}
-                                        onChange={(e) => handleShipperInput(e.target.value)}
-                                        placeholder="Enter shipper name"
-                                        required
-                                    />
-                                    {showShipperSuggestions && shipperSuggestions.length > 0 && (
-                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                                            {shipperSuggestions.map((shipper, idx) => (
-                                                <div 
-                                                    key={idx} 
-                                                    onClick={() => { 
-                                                        setFormData({ ...formData, shipper, ship: shipper }); 
-                                                        setShowShipperSuggestions(false); 
-                                                    }} 
-                                                    className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                                                >
-                                                    {shipper}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div>
-                                    <Label>Expiration Date <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={formData.exp}
-                                        onChange={(e) => setFormData({ ...formData, exp: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            {bookingType === 'with' ? (
-                                <div>
-                                    <Label>Container Numbers (comma-separated, 11 chars each) <span className="text-red-500">*</span></Label>
-                                    <Textarea
-                                        value={formData.cnums}
-                                        onChange={(e) => setFormData({ ...formData, cnums: e.target.value })}
-                                        rows={4}
-                                        placeholder="ABCD1234567,EFGH8901234,..."
-                                        required
-                                        className="font-mono"
-                                    />
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div>
-                                        <Label>20' Containers</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={formData.two}
-                                            onChange={(e) => setFormData({ ...formData, two: parseInt(e.target.value) || 0 })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label>40' Containers</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={formData.four}
-                                            onChange={(e) => setFormData({ ...formData, four: parseInt(e.target.value) || 0 })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label>45' Containers</Label>
-                                        <Input
-                                            type="number"
-                                            min="0"
-                                            value={formData.fourf}
-                                            onChange={(e) => setFormData({ ...formData, fourf: parseInt(e.target.value) || 0 })}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <DialogFooter className="mt-6">
-                            <ModernButton 
-                                variant="secondary" 
-                                type="button"
-                                onClick={() => setShowAddDialog(false)}
-                            >
-                                Cancel
-                            </ModernButton>
-                            <ModernButton variant="add" type="submit">
-                                <Plus className="w-4 h-4" />
-                                Save Booking
-                            </ModernButton>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <div className="p-2 rounded" style={{ backgroundColor: colors.actions.edit + '20' }}>
-                                <Edit className="w-5 h-5" style={{ color: colors.actions.edit }} />
-                            </div>
-                            Edit Booking
-                        </DialogTitle>
-                        <DialogDescription>
-                            Update booking information
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSubmitEdit}>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label>Booking Number <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        value={formData.bnum}
-                                        onChange={(e) => setFormData({ ...formData, bnum: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <Label>Client <span className="text-red-500">*</span></Label>
-                                    <select 
-                                        value={formData.clientid}
-                                        onChange={(e) => setFormData({ ...formData, clientid: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                                        style={{ '--tw-ring-color': colors.brand.primary } as React.CSSProperties}
-                                        required
-                                    >
-                                        <option value="">Select Client</option>
-                                        {clients.map((client) => (
-                                            <option key={client.id} value={client.id}>{client.text}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <Label>Shipper <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        value={formData.ship}
-                                        onChange={(e) => setFormData({ ...formData, ship: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <Label>Expiration Date <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={formData.exp}
-                                        onChange={(e) => setFormData({ ...formData, exp: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <Label>20' Containers</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        value={formData.two}
-                                        onChange={(e) => setFormData({ ...formData, two: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                                <div>
-                                    <Label>40' Containers</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        value={formData.four}
-                                        onChange={(e) => setFormData({ ...formData, four: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                                <div>
-                                    <Label>45' Containers</Label>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        value={formData.fourf}
-                                        onChange={(e) => setFormData({ ...formData, fourf: parseInt(e.target.value) || 0 })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        <DialogFooter className="mt-6">
-                            <ModernButton 
-                                variant="secondary" 
-                                type="button"
-                                onClick={() => setShowEditDialog(false)}
-                            >
-                                Cancel
-                            </ModernButton>
-                            <ModernButton variant="edit" type="submit">
-                                <Edit className="w-4 h-4" />
-                                Update Booking
-                            </ModernButton>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <div className="p-2 rounded" style={{ backgroundColor: colors.brand.primary + '20' }}>
-                                <Package className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                            </div>
-                            Booked Containers
-                        </DialogTitle>
-                        <DialogDescription>
-                            List of containers in this booking
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="max-h-96 overflow-auto">
-                        {viewContainers.length > 0 ? (
-                            <div className="space-y-2">
-                                {viewContainers.map((container, idx) => (
-                                    <div 
-                                        key={idx} 
-                                        className="p-3 rounded-lg border font-mono text-sm"
-                                        style={{ backgroundColor: '#F9FAFB' }}
-                                    >
-                                        {container}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-center py-8 text-gray-500">No containers found</p>
-                        )}
+        <div className="w-full">
+          <ModernTable
+            columns={[
+              {
+                key: 'book_no',
+                label: 'Book No.',
+                render: (booking: Booking) => (
+                  <div className="font-semibold text-gray-900 max-w-[70px]">{booking.book_no}</div>
+                ),
+              },
+              {
+                key: 'client',
+                label: 'Client Name',
+                render: (booking: Booking) => (
+                  <div className="text-sm text-gray-900 min-w-[70px] max-w-[80px]">
+                    <div className="font-medium">{booking.client.client_name}</div>
+                    <div className="text-xs text-gray-500">{booking.client.client_code}</div>
+                  </div>
+                ),
+              },
+              {
+                key: 'shipper',
+                label: 'Shipper',
+                render: (booking: Booking) => (
+                  <div className="flex items-center gap-1 min-w-[70px] max-w-[80px]">
+                    <Ship className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-900">{booking.shipper}</span>
+                  </div>
+                ),
+              },
+              {
+                key: 'containers_info',
+                label: 'Containers',
+                render: (booking: Booking) => (
+                  <div className="space-y-2 min-w-[85px]">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 mb-0.5">Allocated:</div>
+                      <div className="space-y-0.5">
+                        <div className="text-sm text-gray-900">x20: {booking.twenty}</div>
+                        <div className="text-sm text-gray-900">x40: {booking.fourty}</div>
+                        <div className="text-sm text-gray-900">x45: {booking.fourty_five}</div>
+                      </div>
                     </div>
-                    <DialogFooter>
-                        <ModernButton 
-                            variant="secondary" 
-                            onClick={() => setShowViewDialog(false)}
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 mb-0.5">Remaining:</div>
+                      <div className="space-y-0.5">
+                        <div className="text-sm text-gray-900">x20rem: {booking.twenty_rem}</div>
+                        <div className="text-sm text-gray-900">x40rem: {booking.fourty_rem}</div>
+                        <div className="text-sm text-gray-900">x45rem: {booking.fourty_five_rem}</div>
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: 'container_lists',
+                label: 'Container Lists',
+                render: (booking: Booking) => {
+                  const containers = getContainerListArray(booking.cont_list);
+                  const containersRem = getContainerListArray(booking.cont_list_rem);
+                  return (
+                    <div className="space-y-1.5 min-w-[100px] max-w-[110px]">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-700 mb-0.5">List:</div>
+                        <div className="text-xs font-mono text-gray-600">
+                          {containers.length > 0 ? (
+                            <div className="space-y-0.5">
+                              {containers.map((c, i) => (
+                                <div key={i} className="truncate">{c}</div>
+                              ))}
+                            </div>
+                          ) : '-'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-gray-700 mb-0.5">Rem:</div>
+                        <div className="text-xs font-mono text-gray-600">
+                          {containersRem.length > 0 ? (
+                            <div className="space-y-0.5">
+                              {containersRem.map((c, i) => (
+                                <div key={i} className="truncate">{c}</div>
+                              ))}
+                            </div>
+                          ) : '-'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                },
+              },
+              {
+                key: 'expiration',
+                label: 'Expiration',
+                render: (booking: Booking) => (
+                  <div className="flex items-center gap-1 min-w-[95px]">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-600">
+                      {new Date(booking.expiration_date).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (booking: Booking) => (
+                  <div className="min-w-[60px]">
+                    <ModernBadge variant={booking.status_text === 'Active' ? 'success' : 'error'}>
+                      {booking.status_text}
+                    </ModernBadge>
+                  </div>
+                ),
+              },
+              {
+                key: 'date_added',
+                label: 'Date',
+                render: (booking: Booking) => (
+                  <div className="text-sm text-gray-600 min-w-[75px]">
+                    {new Date(booking.date_added).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </div>
+                ),
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (booking: Booking) => {
+                  const viewLoadingKey = `view-${booking.hashed_id}`;
+                  const editLoadingKey = `edit-${booking.hashed_id}`;
+                  const isViewLoading = actionLoading[viewLoadingKey];
+                  const isEditLoading = actionLoading[editLoadingKey];
+                  
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
+                      <ModernButton 
+                        variant="primary" 
+                        size="sm" 
+                        onClick={() => handleViewContainers(booking)}
+                        disabled={isViewLoading || isEditLoading}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </ModernButton>
+                      <ModernButton 
+                        variant="edit" 
+                        size="sm" 
+                        onClick={() => handleEditBooking(booking)}
+                        disabled={isViewLoading || isEditLoading}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </ModernButton>
+                      <ModernButton 
+                        variant="delete" 
+                        size="sm" 
+                        onClick={() => {
+                          setBookingToDelete(booking);
+                          setConfirmDeleteBooking(true);
+                        }}
+                        disabled={isViewLoading || isEditLoading}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </ModernButton>
+                    </div>
+                  );
+                },
+              },
+            ]}
+            data={paginatedBookings}
+            loading={loading}
+            emptyMessage="No bookings found. Click 'Book Containers' to get started."
+            pagination={{
+              currentPage,
+              totalPages,
+              perPage: pageSize,
+              total: filteredBookings.length,
+              onPageChange: setCurrentPage,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Add Booking Modal */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>Book Containers</DialogTitle>
+            <DialogDescription>Create a new booking for container reservations</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitAddBooking}>
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label className="text-gray-900 text-base font-medium mb-2 block">Booking Type</Label>
+                <div className="grid grid-cols-2 gap-0 w-full rounded-lg shadow-sm overflow-hidden" role="group">
+                  <button
+                    type="button"
+                    onClick={() => setBookingType('without')}
+                    className={`px-6 py-3 text-sm font-medium border transition-all ${
+                      bookingType === 'without'
+                        ? 'text-white border-transparent shadow-sm'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                    style={bookingType === 'without' ? { backgroundColor: colors.brand.primary } : {}}
+                  >
+                    Without Container List
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBookingType('with')}
+                    className={`px-6 py-3 text-sm font-medium border border-l-0 transition-all ${
+                      bookingType === 'with'
+                        ? 'text-white border-transparent shadow-sm'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                    style={bookingType === 'with' ? { backgroundColor: colors.brand.primary } : {}}
+                  >
+                    With Container List
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
+                  <Input value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value })} className={errors.bnum ? 'border-red-500' : ''} />
+                  {errors.bnum && <p className="text-red-500 text-xs mt-1">{errors.bnum[0]}</p>}
+                </div>
+                <div>
+                  <Label className="text-gray-900">Client <span className="text-red-500">*</span></Label>
+                  <Select value={formData.cid} onValueChange={(value) => setFormData({ ...formData, cid: value })}>
+                    <SelectTrigger className={`truncate ${errors.cid ? 'border-red-500' : ''}`}>
+                      <SelectValue placeholder="Select Client" className="truncate" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id} className="truncate">
+                          <span className="truncate block" title={client.text}>{client.text}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.cid && <p className="text-red-500 text-xs mt-1">{errors.cid[0]}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <Label className="text-gray-900">Shipper <span className="text-red-500">*</span></Label>
+                  <Input
+                    value={formData.shipper}
+                    onChange={(e) => handleShipperInput(e.target.value)}
+                    placeholder="Enter shipper name"
+                    className={errors.shipper ? 'border-red-500' : ''}
+                    autoComplete="off"
+                  />
+                  {showShipperSuggestions && shipperSuggestions.length > 0 && (
+                    <div 
+                      className="absolute w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                      style={{ zIndex: 9999 }}
+                    >
+                      {shipperSuggestions.map((shipper, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => { 
+                            setFormData({ ...formData, shipper }); 
+                            setShowShipperSuggestions(false); 
+                          }} 
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-900 text-sm"
+                          style={{ cursor: 'pointer' }}
                         >
-                            Close
-                        </ModernButton>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </AuthenticatedLayout>
-    );
+                          {shipper}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {errors.shipper && <p className="text-red-500 text-xs mt-1">{errors.shipper[0]}</p>}
+                </div>
+                <div>
+                  <Label className="text-gray-900">Expiration Date <span className="text-red-500">*</span></Label>
+                  <div className="relative">
+                    <Input
+                      type="date"
+                      value={formData.exp}
+                      onChange={(e) => setFormData({ ...formData, exp: e.target.value })}
+                      className={`pr-10 ${errors.exp ? 'border-red-500' : ''}`}
+                      placeholder="mm/dd/yyyy"
+                    />
+                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                  {errors.exp && <p className="text-red-500 text-xs mt-1">{errors.exp[0]}</p>}
+                </div>
+              </div>
+              {bookingType === 'with' ? (
+                <div>
+                  <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
+                  <Textarea
+                    value={formData.cnums}
+                    onChange={(e) => setFormData({ ...formData, cnums: e.target.value })}
+                    rows={4}
+                    placeholder="Enter container numbers (comma-separated, 11 chars each)"
+                    className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`}
+                  />
+                  {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
+                  <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567,EFGH8901234</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-gray-900">20' Containers</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.two}
+                      onChange={(e) => setFormData({ ...formData, two: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-900">40' Containers</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.four}
+                      onChange={(e) => setFormData({ ...formData, four: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-900">45' Containers</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.fourf}
+                      onChange={(e) => setFormData({ ...formData, fourf: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="gap-2">
+              <ModernButton type="button" variant="toggle" onClick={() => setShowAddModal(false)}>Cancel</ModernButton>
+              <ModernButton type="submit" variant="add"><Plus className="w-4 h-4" />Add Booking</ModernButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Booking Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>Edit Booking</DialogTitle>
+            <DialogDescription>Update booking information</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitUpdateBooking}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
+                  <Input value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-gray-900">Client <span className="text-red-500">*</span></Label>
+                  <select 
+                    value={editFormData.clientid}
+                    onChange={(e) => setEditFormData({ ...editFormData, clientid: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': colors.brand.primary } as React.CSSProperties}
+                  >
+                    <option value="">Select Client</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>{client.text}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-900">Shipper <span className="text-red-500">*</span></Label>
+                  <Input value={editFormData.ship} onChange={(e) => setEditFormData({ ...editFormData, ship: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-gray-900">Expiration Date <span className="text-red-500">*</span></Label>
+                  <div className="relative">
+                    <Input 
+                      type="date" 
+                      value={editFormData.exp} 
+                      onChange={(e) => setEditFormData({ ...editFormData, exp: e.target.value })}
+                      className="pr-10"
+                      placeholder="mm/dd/yyyy"
+                    />
+                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-gray-900">20' Containers</Label>
+                  <Input type="number" min="0" value={editFormData.two} onChange={(e) => setEditFormData({ ...editFormData, two: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label className="text-gray-900">40' Containers</Label>
+                  <Input type="number" min="0" value={editFormData.four} onChange={(e) => setEditFormData({ ...editFormData, four: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label className="text-gray-900">45' Containers</Label>
+                  <Input type="number" min="0" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: parseInt(e.target.value) || 0 })} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <ModernButton type="button" variant="toggle" onClick={() => setShowEditModal(false)}>Cancel</ModernButton>
+              <ModernButton type="submit" variant="edit"><Pencil className="w-4 h-4" />Update Booking</ModernButton>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Containers Modal */}
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>Booked Containers</DialogTitle>
+            <DialogDescription>List of containers in this booking</DialogDescription>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="py-4">
+              <div className="mb-4 pb-4 border-b">
+                <p className="text-sm text-gray-600">Booking Number: <span className="font-semibold text-gray-900">{selectedBooking.book_no}</span></p>
+                <p className="text-sm text-gray-600">Shipper: <span className="font-semibold text-gray-900">{selectedBooking.shipper}</span></p>
+              </div>
+              <div className="max-h-96 overflow-auto space-y-2">
+                {viewContainers.length > 0 ? (
+                  viewContainers.map((container, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-3 rounded-lg border font-mono text-sm"
+                      style={{ backgroundColor: '#F9FAFB' }}
+                    >
+                      {container}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center py-8 text-gray-500">No containers found</p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <ModernButton variant="toggle" onClick={() => setShowViewModal(false)}>Close</ModernButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modals */}
+      <ModernConfirmDialog
+        open={confirmAddBooking}
+        onOpenChange={setConfirmAddBooking}
+        onConfirm={handleAddBooking}
+        title="Add New Booking"
+        description="Are you sure you want to add this booking?"
+        confirmText="Add Booking"
+        type="success"
+      />
+      
+      <ModernConfirmDialog
+        open={confirmUpdateBooking}
+        onOpenChange={setConfirmUpdateBooking}
+        onConfirm={handleUpdateBooking}
+        title="Update Booking"
+        description="Are you sure you want to update this booking information?"
+        confirmText="Update Booking"
+        type="warning"
+      />
+      
+      <ModernConfirmDialog
+        open={confirmDeleteBooking}
+        onOpenChange={setConfirmDeleteBooking}
+        onConfirm={handleDeleteBooking}
+        title="Delete Booking"
+        description={`Are you sure you want to delete booking ${bookingToDelete?.book_no}? This action cannot be undone.`}
+        confirmText="Delete Booking"
+        type="danger"
+      />
+      
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </AuthenticatedLayout>
+  );
 }
