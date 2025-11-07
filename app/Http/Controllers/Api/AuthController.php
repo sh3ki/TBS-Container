@@ -45,7 +45,7 @@ class AuthController extends Controller
         
         Log::info('Auth attempt result', [
             'success' => $attemptResult,
-            'user_id' => Auth::id(),
+            'user_id' => Auth::check() ? Auth::user()->user_id : null,
         ]);
         
         if ($attemptResult) {

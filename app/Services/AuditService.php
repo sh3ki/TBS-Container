@@ -38,7 +38,7 @@ class AuditService
         return AuditLog::create([
             'action' => strtoupper($actionType),
             'description' => $fullDescription,
-            'user_id' => $userId ?? Auth::id() ?? 0,
+            'user_id' => $userId ?? (Auth::check() ? Auth::user()->user_id : 0),
             'date_added' => now(),
             'ip_address' => request()->ip() ?? '0.0.0.0',
         ]);

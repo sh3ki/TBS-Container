@@ -59,6 +59,7 @@ export default function Index() {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
+  const [expirationFilter, setExpirationFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
   
@@ -114,7 +115,7 @@ export default function Index() {
   useEffect(() => {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings, searchTerm, clientFilter]);
+  }, [bookings, searchTerm, clientFilter, expirationFilter]);
 
   const applyFilters = () => {
     let filtered = [...bookings];
@@ -133,6 +134,20 @@ export default function Index() {
     // Client filter
     if (clientFilter !== 'all') {
       filtered = filtered.filter(booking => booking.client.c_id.toString() === clientFilter);
+    }
+    
+    // Expiration date filter
+    if (expirationFilter) {
+      filtered = filtered.filter(booking => {
+        // Normalize the expiration date from the booking to YYYY-MM-DD format
+        const expirationDate = new Date(booking.expiration_date);
+        const year = expirationDate.getFullYear();
+        const month = String(expirationDate.getMonth() + 1).padStart(2, '0');
+        const day = String(expirationDate.getDate()).padStart(2, '0');
+        const bookingDateFormatted = `${year}-${month}-${day}`;
+        
+        return bookingDateFormatted === expirationFilter;
+      });
     }
     
     setFilteredBookings(filtered);
@@ -406,11 +421,21 @@ export default function Index() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label className="text-sm font-semibold mb-2 text-gray-900">Expiration Filter</Label>
+                <Input
+                  type="date"
+                  value={expirationFilter}
+                  onChange={(e) => setExpirationFilter(e.target.value)}
+                  className="h-11"
+                  placeholder="Filter by expiration date"
+                />
+              </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-200">
               <p className="text-sm text-gray-600">
                 <span className="font-semibold text-gray-900">{filteredBookings.length}</span> bookings found
-                {searchTerm || clientFilter !== 'all' ? (
+                {searchTerm || clientFilter !== 'all' || expirationFilter ? (
                   <span> (filtered from {bookings.length} total)</span>
                 ) : null}
               </p>
@@ -432,7 +457,7 @@ export default function Index() {
                 key: 'client',
                 label: 'Client Name',
                 render: (booking: Booking) => (
-                  <div className="text-sm text-gray-900 min-w-[70px] max-w-[80px]">
+                  <div className="text-sm text-gray-900 min-w-[70px] max-w-[75px]">
                     <div className="font-medium">{booking.client.client_name}</div>
                     <div className="text-xs text-gray-500">{booking.client.client_code}</div>
                   </div>
@@ -442,7 +467,7 @@ export default function Index() {
                 key: 'shipper',
                 label: 'Shipper',
                 render: (booking: Booking) => (
-                  <div className="flex items-center gap-1 min-w-[70px] max-w-[80px]">
+                  <div className="flex items-center gap-1 min-w-[70px] max-w-[90px]">
                     <Ship className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                     <span className="text-sm text-gray-900">{booking.shipper}</span>
                   </div>
@@ -452,7 +477,7 @@ export default function Index() {
                 key: 'containers_info',
                 label: 'Containers',
                 render: (booking: Booking) => (
-                  <div className="space-y-2 min-w-[85px]">
+                  <div className="space-y-2 min-w-[65px]">
                     <div>
                       <div className="text-xs font-semibold text-gray-700 mb-0.5">Allocated:</div>
                       <div className="space-y-0.5">
@@ -464,9 +489,9 @@ export default function Index() {
                     <div>
                       <div className="text-xs font-semibold text-gray-700 mb-0.5">Remaining:</div>
                       <div className="space-y-0.5">
-                        <div className="text-sm text-gray-900">x20rem: {booking.twenty_rem}</div>
-                        <div className="text-sm text-gray-900">x40rem: {booking.fourty_rem}</div>
-                        <div className="text-sm text-gray-900">x45rem: {booking.fourty_five_rem}</div>
+                        <div className="text-sm text-gray-900">x20 rem: {booking.twenty_rem}</div>
+                        <div className="text-sm text-gray-900">x40 rem: {booking.fourty_rem}</div>
+                        <div className="text-sm text-gray-900">x45 rem: {booking.fourty_five_rem}</div>
                       </div>
                     </div>
                   </div>
@@ -479,7 +504,7 @@ export default function Index() {
                   const containers = getContainerListArray(booking.cont_list);
                   const containersRem = getContainerListArray(booking.cont_list_rem);
                   return (
-                    <div className="space-y-1.5 min-w-[100px] max-w-[110px]">
+                    <div className="space-y-1.5 min-w-[65px]">
                       <div>
                         <div className="text-xs font-semibold text-gray-700 mb-0.5">List:</div>
                         <div className="text-xs font-mono text-gray-600">
@@ -528,7 +553,7 @@ export default function Index() {
                 key: 'status',
                 label: 'Status',
                 render: (booking: Booking) => (
-                  <div className="min-w-[60px]">
+                  <div className="min-w-[55px]">
                     <ModernBadge variant={booking.status_text === 'Active' ? 'success' : 'error'}>
                       {booking.status_text}
                     </ModernBadge>
@@ -539,7 +564,7 @@ export default function Index() {
                 key: 'date_added',
                 label: 'Date',
                 render: (booking: Booking) => (
-                  <div className="text-sm text-gray-600 min-w-[75px]">
+                  <div className="text-sm text-gray-600 min-w-[65px]">
                     {new Date(booking.date_added).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -619,7 +644,10 @@ export default function Index() {
                 <div className="grid grid-cols-2 gap-0 w-full rounded-lg shadow-sm overflow-hidden" role="group">
                   <button
                     type="button"
-                    onClick={() => setBookingType('without')}
+                    onClick={() => {
+                      setBookingType('without');
+                      setFormData({ ...formData, cnums: '', two: 0, four: 0, fourf: 0 });
+                    }}
                     className={`px-6 py-3 text-sm font-medium border transition-all ${
                       bookingType === 'without'
                         ? 'text-white border-transparent shadow-sm'
@@ -631,7 +659,10 @@ export default function Index() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setBookingType('with')}
+                    onClick={() => {
+                      setBookingType('with');
+                      setFormData({ ...formData, cnums: '', two: 0, four: 0, fourf: 0 });
+                    }}
                     className={`px-6 py-3 text-sm font-medium border border-l-0 transition-all ${
                       bookingType === 'with'
                         ? 'text-white border-transparent shadow-sm'

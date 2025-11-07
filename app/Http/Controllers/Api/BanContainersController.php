@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class BanContainersController extends Controller
 {
@@ -91,7 +92,7 @@ class BanContainersController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'CREATE',
                 'description' => 'Banned container: ' . strtoupper($request->container_no),
-                'user_id' => auth()->id(),
+                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -200,7 +201,7 @@ class BanContainersController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'UPDATE',
                 'description' => 'Updated ban record for container: ' . $ban->container_no,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -246,7 +247,7 @@ class BanContainersController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'DELETE',
                 'description' => 'Removed ban for container: ' . $ban->container_no,
-                'user_id' => auth()->id(),
+                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -391,7 +392,7 @@ class BanContainersController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'CREATE',
                 'description' => 'Bulk added ' . count($succeeded) . ' containers to ban list',
-                'user_id' => auth()->id(),
+                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
