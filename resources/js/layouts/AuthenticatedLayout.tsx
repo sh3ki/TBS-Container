@@ -155,14 +155,14 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
                                         isActivePath('/dashboard')
                                             ? 'shadow-lg'
-                                            : 'hover:bg-white/10'
+                                            : 'hover:bg-white/10 hover:text-white'
                                     }`}
                                     style={{
-                                        backgroundColor: isActivePath('/dashboard') ? colors.sidebar.active : 'transparent',
-                                        color: colors.sidebar.text,
+                                        ...(isActivePath('/dashboard') && { backgroundColor: colors.sidebar.active }),
+                                        color: isActivePath('/dashboard') ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
                                     }}
                                 >
-                                    <Home className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard') ? 'scale-110' : 'group-hover:scale-110'} transition-transform`} />
+                                    <Home className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard') ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
                                     {!sidebarCollapsed && (
                                         <div className="flex-1">
                                             <div className="text-sm font-semibold">Dashboard</div>
@@ -186,14 +186,14 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                             className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
                                                 isActive
                                                     ? 'shadow-lg'
-                                                    : 'hover:bg-white/10'
+                                                    : 'hover:bg-white/10 hover:text-white'
                                             }`}
                                             style={{
-                                                backgroundColor: isActive ? colors.sidebar.active : 'transparent',
-                                                color: colors.sidebar.text,
+                                                ...(isActive && { backgroundColor: colors.sidebar.active }),
+                                                color: isActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
                                             }}
                                         >
-                                            <span className={`${isActive ? 'scale-110' : 'group-hover:scale-110'} transition-transform`}>
+                                            <span className={`${isActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`}>
                                                 {icon}
                                             </span>
                                             {!sidebarCollapsed && (
@@ -215,7 +215,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     href="/settings"
                                     className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-white/10 hover:text-white transition-all duration-200 group"
                                 >
-                                    <Settings className="h-5 w-5 flex-shrink-0 group-hover:rotate-90 transition-transform duration-300" />
+                                    <Settings className="h-5 w-5 flex-shrink-0 group-hover:animate-[wiggle_0.6s_ease-in-out] transition-transform" />
                                     {!sidebarCollapsed && (
                                         <span className="text-sm font-medium">Settings</span>
                                     )}
