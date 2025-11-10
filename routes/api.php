@@ -145,26 +145,39 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Gate In/Out - Complete API with two-step approval workflow
     Route::prefix('gateinout')->group(function () {
-        // PRE-IN Operations (Guards)
-        Route::post('/pre-in/list', [GateinoutController::class, 'getPreInList']);
-        Route::post('/pre-in', [GateinoutController::class, 'storePreIn']);
-        Route::delete('/pre-in/{hashedId}', [GateinoutController::class, 'deletePreIn']);
+        // Pre-Inventory List (Combined Pre-IN and Pre-OUT)
+        Route::post('/list', [GateinoutController::class, 'getPreInventoryList']);
         
-        // PRE-OUT Operations (Guards)
-        Route::post('/pre-out/list', [GateinoutController::class, 'getPreOutList']);
-        Route::post('/pre-out', [GateinoutController::class, 'storePreOut']);
-        Route::delete('/pre-out/{hashedId}', [GateinoutController::class, 'deletePreOut']);
+        // Add Pre-IN (Guards)
+        Route::post('/check-container-in', [GateinoutController::class, 'checkContainerIn']);
         
-        // GATE-IN Approval (Checkers) - specific routes before dynamic routes
-        Route::post('/gate-in/approve/{hashedId}', [GateinoutController::class, 'approveGateIn']);
+        // Add Pre-OUT (Guards)
+        Route::post('/check-container-out', [GateinoutController::class, 'checkContainerOut']);
         
-        // GATE-OUT Approval (Checkers)
-        Route::post('/gate-out/approve/{hashedId}', [GateinoutController::class, 'approveGateOut']);
+        // Get Pre-IN Details for Editing
+        Route::post('/get-prein-details', [GateinoutController::class, 'getPreInDetails']);
         
-        // Helper endpoints (specific routes before dynamic routes)
-        Route::get('/containers-in-yard', [GateinoutController::class, 'getContainersInYard']);
+        // Update Pre-IN
+        Route::post('/update-prein', [GateinoutController::class, 'updatePreIn']);
+        
+        // Get Pre-OUT Details for Editing
+        Route::post('/get-preout-details', [GateinoutController::class, 'getPreOutDetails']);
+        
+        // Update Pre-OUT
+        Route::post('/update-preout', [GateinoutController::class, 'updatePreOut']);
+        
+        // Delete Pre-Inventory (IN or OUT)
+        Route::post('/delete-pre', [GateinoutController::class, 'deletePre']);
+        
+        // Process Pre-IN → Gate-IN (Checkers)
+        Route::post('/process-prein', [GateinoutController::class, 'processPreIn']);
+        
+        // Process Pre-OUT → Gate-OUT (Checkers)
+        Route::post('/process-preout', [GateinoutController::class, 'processPreOut']);
+        
+        // Helper endpoints
         Route::get('/clients', [GateinoutController::class, 'getClients']);
-        Route::get('/size-types', [GateinoutController::class, 'getSizeTypes']);
+        Route::get('/page-record-access', [GateinoutController::class, 'getPageRecordAccess']);
     });
 
     // Size/Type - Complete API with all legacy actions

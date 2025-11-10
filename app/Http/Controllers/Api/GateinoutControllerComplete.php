@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Auth;
  * This controller replicates the EXACT functionality of the legacy PHP system
  * with modern Laravel structure but identical business logic
  */
-class GateinoutController extends Controller
+class GateinoutControllerNew extends Controller
 {
     private $prefix;
 
@@ -489,7 +489,7 @@ class GateinoutController extends Controller
      * Returns: [edit_permission, delete_permission]
      * LEGACY: getPageRecordAccess()
      */
-    public function getPageRecordAccess()
+    private function getPageRecordAccess()
     {
         try {
             $user = Auth::user();
