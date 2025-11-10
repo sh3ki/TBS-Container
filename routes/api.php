@@ -178,6 +178,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Helper endpoints
         Route::get('/clients', [GateinoutController::class, 'getClients']);
         Route::get('/page-record-access', [GateinoutController::class, 'getPageRecordAccess']);
+        Route::get('/current-user', [GateinoutController::class, 'getCurrentUser']);
     });
 
     // Size/Type - Complete API with all legacy actions
