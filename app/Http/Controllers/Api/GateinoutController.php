@@ -804,10 +804,13 @@ class GateinoutController extends Controller
                     ]
                 );
 
+                // Get the last inserted inventory ID
+                $inventoryId = DB::getPdo()->lastInsertId();
+
                 // Update pre_inventory status to finished
                 DB::update(
-                    "UPDATE {$this->prefix}pre_inventory SET status = 1 WHERE p_id = ?",
-                    [$validated['p_id']]
+                    "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
+                    [$inventoryId, now(), $validated['p_id']]
                 );
 
                 // Log audit
@@ -822,7 +825,8 @@ class GateinoutController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Container successfully gated IN'
+                    'message' => 'Container successfully gated IN',
+                    'inventory_id' => $inventoryId
                 ]);
 
             } catch (\Exception $e) {
@@ -872,7 +876,7 @@ class GateinoutController extends Controller
 
             // Check if container exists in inventory
             $containerCheck = DB::select(
-                "SELECT i_id FROM {$this->prefix}inventory WHERE container_no = ? AND complete = 0",
+                "SELECT inv_id FROM {$this->prefix}inventory WHERE container_no = ? AND complete = 0",
                 [$validated['container_no']]
             );
             
@@ -882,6 +886,8 @@ class GateinoutController extends Controller
                     'message' => 'Container not found in yard or already gated out'
                 ], 422);
             }
+
+            $inventoryId = $containerCheck[0]->inv_id;
 
             DB::beginTransaction();
 
@@ -929,7 +935,8 @@ class GateinoutController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Container successfully gated OUT'
+                    'message' => 'Container successfully gated OUT',
+                    'inventory_id' => $inventoryId
                 ]);
 
             } catch (\Exception $e) {
@@ -943,6 +950,73 @@ class GateinoutController extends Controller
                 'success' => false,
                 'message' => 'Failed to process Gate OUT: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Print Gate Pass (EXACT LEGACY FORMAT)
+     * Generates HTML print document matching legacy system exactly
+     */
+    public function printGatePass($id)
+    {
+        try {
+            // Get inventory record with all related data
+            $record = DB::selectOne("
+                SELECT 
+                    i.inv_id,
+                    CASE 
+                        WHEN i.gate_status='IN' THEN CONCAT(i.inv_id,'I')
+                        ELSE CONCAT(i.inv_id,'O')
+                    END as eirno,
+                    i.container_no,
+                    c.client_name,
+                    c.client_code,
+                    CONCAT(st.size, st.type) as size_type,
+                    DATE_FORMAT(DATE(i.date_added),'%m/%d/%Y') as date,
+                    DATE_FORMAT(i.date_added, '%H:%i') as time,
+                    cs.status as container_status,
+                    i.class,
+                    DATE_FORMAT(i.date_manufactured,'%Y-%m') as date_manufactured,
+                    i.location,
+                    i.remarks,
+                    i.gate_status,
+                    i.seal_no,
+                    i.booking,
+                    i.ex_consignee,
+                    i.vessel,
+                    i.voyage,
+                    lt.type as load_type,
+                    i.hauler,
+                    i.plate_no,
+                    i.iso_code,
+                    i.hauler_driver,
+                    i.license_no,
+                    u.full_name as user_full_name,
+                    i.origin as checker,
+                    i.chasis,
+                    i.shipper
+                FROM {$this->prefix}inventory i
+                LEFT JOIN {$this->prefix}container_status cs ON i.container_status=cs.s_id
+                LEFT JOIN {$this->prefix}container_size_type st ON i.size_type=st.s_id
+                LEFT JOIN {$this->prefix}clients c ON c.c_id=i.client_id
+                LEFT JOIN {$this->prefix}load_type lt ON lt.l_id=i.load_type
+                LEFT JOIN {$this->prefix}users u ON u.user_id=i.user_id
+                WHERE i.inv_id = ? AND c.archived=0
+            ", [$id]);
+
+            if (!$record) {
+                abort(404, 'Record not found');
+            }
+
+            // Convert stdClass to array for view
+            $data = (array) $record;
+
+            // Return HTML view for printing (auto-print via JavaScript)
+            return view('pdfs.gate-pass', compact('data'));
+
+        } catch (\Exception $e) {
+            Log::error('Print Gate Pass Error: ' . $e->getMessage());
+            abort(500, 'Failed to generate print document');
         }
     }
 }

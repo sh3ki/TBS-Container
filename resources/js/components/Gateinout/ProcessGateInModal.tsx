@@ -7,7 +7,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -18,9 +17,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, X } from 'lucide-react';
-import { router } from '@inertiajs/react';
-import { toast } from 'sonner';
+import { ModernButton, ModernConfirmDialog } from '@/components/modern';
+import { CheckCircle } from 'lucide-react';
+import axios from 'axios';
+import { colors } from '@/lib/colors';
 
 interface ProcessGateInModalProps {
     open: boolean;
@@ -30,17 +30,13 @@ interface ProcessGateInModalProps {
         container_no: string;
         client_id: number;
         client_name: string;
-        remarks?: string;
-        iso_code?: string;
-        date_mnfg?: string;
-        size_type?: number;
-        cnt_class?: string;
-        cnt_status?: string;
-        checker_id?: string;
+        plate_no?: string;
+        hauler?: string;
     } | null;
     statusOptions: Array<{ s_id: number; status: string }>;
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
     loadOptions: Array<{ l_id: number; type: string }>;
+    onSuccess: () => void;
 }
 
 export default function ProcessGateInModal({
@@ -50,13 +46,10 @@ export default function ProcessGateInModal({
     statusOptions,
     sizeTypeOptions,
     loadOptions,
+    onSuccess,
 }: ProcessGateInModalProps) {
-    const [showConfirmation, setShowConfirmation] = useState(false);
-    const [processing, setProcessing] = useState(false);
-    
+    const [showConfirm, setShowConfirm] = useState(false);
     const [formData, setFormData] = useState({
-        container_no: '',
-        client_id: '',
         date_manufactured: '',
         status: '',
         sizetype: '',
@@ -80,431 +73,241 @@ export default function ProcessGateInModal({
 
     useEffect(() => {
         if (record && open) {
-            setFormData({
-                container_no: record.container_no || '',
-                client_id: record.client_id?.toString() || '',
-                date_manufactured: record.date_mnfg || '',
-                status: record.cnt_status || '',
-                sizetype: record.size_type?.toString() || '',
-                iso_code: record.iso_code || '',
-                class: record.cnt_class || 'A',
-                vessel: '',
-                voyage: '',
-                checker: record.checker_id || '',
-                ex_consignee: '',
-                load: '',
-                plate_no: '',
-                hauler: '',
-                hauler_driver: '',
-                license_no: '',
-                location: '',
-                chasis: '',
-                contact_no: '',
-                bill_of_lading: '',
-                remarks: record.remarks || '',
-            });
+            setFormData(prev => ({
+                ...prev,
+                plate_no: record.plate_no || '',
+                hauler: record.hauler || '',
+            }));
         }
     }, [record, open]);
 
-    const validateForm = () => {
-        const requiredFields = [
-            { field: 'date_manufactured', label: 'Date Manufactured' },
-            { field: 'iso_code', label: 'ISO Code' },
-            { field: 'class', label: 'Class' },
-            { field: 'vessel', label: 'Vessel' },
-            { field: 'voyage', label: 'Voyage' },
-            { field: 'checker', label: 'Checker' },
-            { field: 'ex_consignee', label: 'Ex-Consignee' },
-            { field: 'plate_no', label: 'Plate No.' },
-            { field: 'hauler', label: 'Hauler' },
-            { field: 'hauler_driver', label: 'Hauler Driver' },
-            { field: 'license_no', label: 'License No.' },
-            { field: 'location', label: 'Location' },
-            { field: 'chasis', label: 'Chasis' },
-            { field: 'contact_no', label: 'Contact No.' },
-            { field: 'bill_of_lading', label: 'Bill of Lading' },
-            { field: 'remarks', label: 'Remarks' },
-        ];
-
-        for (const { field, label } of requiredFields) {
-            if (!formData[field as keyof typeof formData]?.trim()) {
-                toast.error(`${label} is required!`);
-                return false;
-            }
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Validation
+        if (!record) return;
+        
+        if (record.container_no.length !== 11) {
+            alert('Container number must be exactly 11 characters');
+            return;
         }
-
-        if (formData.container_no.length !== 11) {
-            toast.error('Container number must be exactly 11 characters!');
-            return false;
-        }
-
-        return true;
+        
+        setShowConfirm(true);
     };
 
-    const handleSubmit = () => {
-        if (!validateForm()) return;
-        setShowConfirmation(true);
-    };
+    const handleConfirm = async () => {
+        if (!record) return;
+        
+        try {
+            const response = await axios.post('/api/gateinout/process-in', {
+                p_id: record.p_id,
+                container_no: record.container_no,
+                client_id: record.client_id,
+                date_mnfg: formData.date_manufactured,
+                cnt_status: parseInt(formData.status),
+                size_type: parseInt(formData.sizetype),
+                iso_code: formData.iso_code,
+                cnt_class: formData.class,
+                vessel: formData.vessel,
+                voyage: formData.voyage,
+                checker_id: formData.checker,
+                ex_consignee: formData.ex_consignee,
+                load_type: parseInt(formData.load),
+                plate_no: formData.plate_no,
+                hauler: formData.hauler,
+                hauler_driver: formData.hauler_driver,
+                license_no: formData.license_no,
+                location: formData.location,
+                chasis: formData.chasis,
+                contact_no: formData.contact_no,
+                bol: formData.bill_of_lading,
+                remarks: formData.remarks,
+            });
 
-    const handleConfirm = () => {
-        setProcessing(true);
-
-        router.post(
-            '/api/gateinout/process-in',
-            {
-                procid: record?.p_id,
-                ...formData,
-            },
-            {
-                onSuccess: () => {
-                    toast.success('Gate In processed successfully!');
-                    setShowConfirmation(false);
-                    onClose();
-                },
-                onError: (errors) => {
-                    toast.error(errors.message || 'Failed to process Gate In');
-                },
-                onFinish: () => {
-                    setProcessing(false);
-                },
+            if (response.data.success) {
+                // 🖨️ AUTO-PRINT: Open print window (EXACT LEGACY BEHAVIOR)
+                const inventoryId = response.data.inventory_id;
+                const printUrl = `/api/gateinout/print-gate-pass/${inventoryId}`;
+                window.open(printUrl, '_blank', 'width=1280,height=800');
+                
+                onSuccess();
+                onClose();
+                setShowConfirm(false);
             }
-        );
+        } catch (error: unknown) {
+            const axiosError = error as { response?: { data?: { message?: string } } };
+            alert(axiosError.response?.data?.message || 'Failed to process Gate IN');
+            setShowConfirm(false);
+        }
     };
-
-    const handleChange = (field: string, value: string) => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
-    };
-
-    if (!record) return null;
 
     return (
         <>
-            <Dialog open={open && !showConfirmation} onOpenChange={onClose}>
-                <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <Dialog open={open} onOpenChange={onClose}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                            Add Gate In
+                        <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                            Process Gate IN
                         </DialogTitle>
                         <DialogDescription>
-                            Process gate in for container {record.container_no}
+                            Complete all required fields to process gate-in for {record?.container_no}
                         </DialogDescription>
                     </DialogHeader>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Column 1 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label>Container No.</Label>
-                                <Input
-                                    value={formData.container_no}
-                                    disabled
-                                    className="bg-gray-100"
-                                />
+                    <form onSubmit={handleSubmit}>
+                        <div className="grid grid-cols-2 gap-4 py-4">
+                            {/* Left Column */}
+                            <div className="space-y-3">
+                                <div>
+                                    <Label>Container No.</Label>
+                                    <Input value={record?.container_no || ''} disabled className="bg-gray-100" />
+                                </div>
+                                <div>
+                                    <Label>Client</Label>
+                                    <Input value={record?.client_name || ''} disabled className="bg-gray-100" />
+                                </div>
+                                <div>
+                                    <Label>Date Manufactured <span className="text-red-500">*</span></Label>
+                                    <Input
+                                        type="month"
+                                        value={formData.date_manufactured}
+                                        onChange={(e) => setFormData({ ...formData, date_manufactured: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Status <span className="text-red-500">*</span></Label>
+                                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })} required>
+                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                                        <SelectContent>
+                                            {statusOptions.map((opt) => (
+                                                <SelectItem key={opt.s_id} value={opt.s_id.toString()}>{opt.status}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Size/Type <span className="text-red-500">*</span></Label>
+                                    <Select value={formData.sizetype} onValueChange={(value) => setFormData({ ...formData, sizetype: value })} required>
+                                        <SelectTrigger><SelectValue placeholder="Select size/type" /></SelectTrigger>
+                                        <SelectContent>
+                                            {sizeTypeOptions.map((opt) => (
+                                                <SelectItem key={opt.s_id} value={opt.s_id.toString()}>{opt.size} {opt.type}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>ISO Code <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Class <span className="text-red-500">*</span></Label>
+                                    <Select value={formData.class} onValueChange={(value) => setFormData({ ...formData, class: value })}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="A">A</SelectItem>
+                                            <SelectItem value="B">B</SelectItem>
+                                            <SelectItem value="C">C</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Vessel <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Voyage <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Checker <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.checker} onChange={(e) => setFormData({ ...formData, checker: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value })} required />
+                                </div>
                             </div>
 
-                            <div>
-                                <Label>
-                                    Date Manufactured <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    type="month"
-                                    value={formData.date_manufactured}
-                                    onChange={(e) =>
-                                        handleChange('date_manufactured', e.target.value)
-                                    }
-                                    placeholder="mm/yyyy"
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Client <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={record.client_name}
-                                    disabled
-                                    className="bg-gray-100"
-                                />
-                            </div>
-
-                            <div>
-                                <Label>Status</Label>
-                                <Select
-                                    value={formData.status}
-                                    onValueChange={(value) => handleChange('status', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {statusOptions.map((option) => (
-                                            <SelectItem
-                                                key={option.s_id}
-                                                value={option.s_id.toString()}
-                                            >
-                                                {option.status}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label>Size/Type</Label>
-                                <Select
-                                    value={formData.sizetype}
-                                    onValueChange={(value) => handleChange('sizetype', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select size/type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {sizeTypeOptions.map((option) => (
-                                            <SelectItem
-                                                key={option.s_id}
-                                                value={option.s_id.toString()}
-                                            >
-                                                {option.size} - {option.type}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label>
-                                    ISO Code <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.iso_code}
-                                    onChange={(e) => handleChange('iso_code', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Class <span className="text-red-500">*</span>
-                                </Label>
-                                <Select
-                                    value={formData.class}
-                                    onValueChange={(value) => handleChange('class', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="A">A</SelectItem>
-                                        <SelectItem value="B">B</SelectItem>
-                                        <SelectItem value="C">C</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Vessel <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.vessel}
-                                    onChange={(e) => handleChange('vessel', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Voyage <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.voyage}
-                                    onChange={(e) => handleChange('voyage', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Checker <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.checker}
-                                    onChange={(e) => handleChange('checker', e.target.value)}
-                                />
+                            {/* Right Column */}
+                            <div className="space-y-3">
+                                <div>
+                                    <Label>Load <span className="text-red-500">*</span></Label>
+                                    <Select value={formData.load} onValueChange={(value) => setFormData({ ...formData, load: value })} required>
+                                        <SelectTrigger><SelectValue placeholder="Select load" /></SelectTrigger>
+                                        <SelectContent>
+                                            {loadOptions.map((opt) => (
+                                                <SelectItem key={opt.l_id} value={opt.l_id.toString()}>{opt.type}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Plate No. <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Hauler <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Hauler Driver <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>License No. <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Location <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Chasis <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Contact No. <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Bill of Lading <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value })} required />
+                                </div>
+                                <div>
+                                    <Label>Remarks <span className="text-red-500">*</span></Label>
+                                    <Textarea
+                                        value={formData.remarks}
+                                        onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                                        className="min-h-[80px]"
+                                        required
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        {/* Column 2 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label>
-                                    Ex-Consignee <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.ex_consignee}
-                                    onChange={(e) => handleChange('ex_consignee', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>Load</Label>
-                                <Select
-                                    value={formData.load}
-                                    onValueChange={(value) => handleChange('load', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select load type" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {loadOptions.map((option) => (
-                                            <SelectItem
-                                                key={option.l_id}
-                                                value={option.l_id.toString()}
-                                            >
-                                                {option.type}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Plate No. <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.plate_no}
-                                    onChange={(e) => handleChange('plate_no', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Hauler <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.hauler}
-                                    onChange={(e) => handleChange('hauler', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Hauler Driver <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.hauler_driver}
-                                    onChange={(e) =>
-                                        handleChange('hauler_driver', e.target.value)
-                                    }
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    License No. <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.license_no}
-                                    onChange={(e) => handleChange('license_no', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Location <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.location}
-                                    onChange={(e) => handleChange('location', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Chasis <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.chasis}
-                                    onChange={(e) => handleChange('chasis', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Contact No. <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.contact_no}
-                                    onChange={(e) => handleChange('contact_no', e.target.value)}
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Bill of Lading <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    value={formData.bill_of_lading}
-                                    onChange={(e) =>
-                                        handleChange('bill_of_lading', e.target.value)
-                                    }
-                                />
-                            </div>
-
-                            <div>
-                                <Label>
-                                    Remarks <span className="text-red-500">*</span>
-                                </Label>
-                                <Textarea
-                                    value={formData.remarks}
-                                    onChange={(e) => handleChange('remarks', e.target.value)}
-                                    rows={5}
-                                    className="resize-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={onClose}>
-                            <X className="mr-2 h-4 w-4" />
-                            Back
-                        </Button>
-                        <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Save & Print
-                        </Button>
-                    </DialogFooter>
+                        <DialogFooter className="gap-2">
+                            <ModernButton type="button" variant="toggle" onClick={onClose}>
+                                Cancel
+                            </ModernButton>
+                            <ModernButton type="submit" variant="add">
+                                <CheckCircle className="w-4 h-4" />
+                                Process & Save
+                            </ModernButton>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
 
-            {/* Confirmation Modal */}
-            <Dialog open={showConfirmation} onOpenChange={() => setShowConfirmation(false)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Confirm Gate In Processing</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to process this gate in for container{' '}
-                            <strong>{formData.container_no}</strong>?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowConfirmation(false)}
-                            disabled={processing}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleConfirm}
-                            disabled={processing}
-                            className="bg-green-600 hover:bg-green-700"
-                        >
-                            {processing ? 'Processing...' : 'Confirm'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ModernConfirmDialog
+                open={showConfirm}
+                onOpenChange={setShowConfirm}
+                onConfirm={handleConfirm}
+                title="Process Gate IN"
+                description="Are you sure you want to process this Gate IN? This will create a permanent record."
+                confirmText="Confirm Process"
+                type="success"
+            />
         </>
     );
 }

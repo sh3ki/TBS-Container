@@ -1011,6 +1011,10 @@ export default function Index() {
         statusOptions={statusOptions}
         sizeTypeOptions={sizeTypeOptions}
         loadOptions={loadOptions}
+        onSuccess={() => {
+          success('Gate IN processed successfully');
+          refreshData();
+        }}
       />
 
       {/* Process Gate OUT Modal */}
@@ -1021,6 +1025,10 @@ export default function Index() {
         statusOptions={statusOptions}
         sizeTypeOptions={sizeTypeOptions}
         loadOptions={loadOptions}
+        onSuccess={() => {
+          success('Gate OUT processed successfully');
+          refreshData();
+        }}
       />
 
       {/* Confirmation Modals */}

@@ -188,6 +188,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Process Gate IN/OUT (final processing)
         Route::post('/process-in', [GateinoutController::class, 'processGateIn']);
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
+        
+        // Print Gate Pass (EXACT LEGACY FORMAT)
+        Route::get('/print-gate-pass/{id}', [GateinoutController::class, 'printGatePass']);
     });
 
     // Size/Type - Complete API with all legacy actions
