@@ -9,9 +9,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon } from 'lucide-react';
 import { colors } from '@/lib/colors';
+import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
+import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
 
 interface PreInventoryRecord extends Record<string, unknown> {
   hashed_id: string;
+  p_id: number;
+  client_id: number;
   container_no: string;
   client_name: string;
   client_code: string;
@@ -56,45 +60,6 @@ interface EditPreOutFormData {
   hauler: string;
 }
 
-interface ProcessGateInFormData {
-  procid: string;
-  cno: string;
-  cid: string;
-  dmanu: string;
-  client: string;
-  status: string;
-  sizetype: string;
-  iso: string;
-  class: string;
-  vessel: string;
-  voyage: string;
-  checker: string;
-  excon: string;
-  load: string;
-  plateno: string;
-  hauler: string;
-  haulerd: string;
-  license: string;
-  location: string;
-  chasis: string;
-  contact: string;
-  bol: string;
-  remarks: string;
-}
-
-interface ProcessGateOutFormData {
-  procid: string;
-  cno: string;
-  checker: string;
-  contact: string;
-  client: string;
-  hauler: string;
-  plateno: string;
-  gatein_remarks: string;
-  approval_notes: string;
-  remarks: string;
-}
-
 export default function Index() {
   const { toasts, removeToast, success, error } = useModernToast();
   const [preInventoryList, setPreInventoryList] = useState<PreInventoryRecord[]>([]);
@@ -119,8 +84,6 @@ export default function Index() {
   const [confirmUpdatePreIn, setConfirmUpdatePreIn] = useState(false);
   const [confirmUpdatePreOut, setConfirmUpdatePreOut] = useState(false);
   const [confirmDeleteRecord, setConfirmDeleteRecord] = useState(false);
-  const [confirmProcessGateIn, setConfirmProcessGateIn] = useState(false);
-  const [confirmProcessGateOut, setConfirmProcessGateOut] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState<PreInventoryRecord | null>(null);
 
   const [preInForm, setPreInForm] = useState<PreInFormData>({
@@ -148,52 +111,20 @@ export default function Index() {
     hauler: '',
   });
 
-  const [processGateInForm, setProcessGateInForm] = useState<ProcessGateInFormData>({
-    procid: '',
-    cno: '',
-    cid: '',
-    dmanu: '',
-    client: '',
-    status: '',
-    sizetype: '',
-    iso: '',
-    class: 'A',
-    vessel: '',
-    voyage: '',
-    checker: '',
-    excon: '',
-    load: '',
-    plateno: '',
-    hauler: '',
-    haulerd: '',
-    license: '',
-    location: '',
-    chasis: '',
-    contact: '',
-    bol: '',
-    remarks: '',
-  });
-
-  const [processGateOutForm, setProcessGateOutForm] = useState<ProcessGateOutFormData>({
-    procid: '',
-    cno: '',
-    checker: '',
-    contact: '',
-    client: '',
-    hauler: '',
-    plateno: '',
-    gatein_remarks: '',
-    approval_notes: '',
-    remarks: '',
-  });
-
   const [pageAccess, setPageAccess] = useState({
     module_edit: false,
     module_delete: false,
   });
 
+  // Dropdown options for Process modals
+  const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
+  const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
+  const [selectedProcessRecord, setSelectedProcessRecord] = useState<PreInventoryRecord | null>(null);
+
   useEffect(() => {
     fetchData();
+    fetchDropdownOptions();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -201,6 +132,10 @@ export default function Index() {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preInventoryList, searchTerm, statusFilter, gateStatusFilter]);
+
+  useEffect(() => {
+    fetchDropdownOptions();
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -241,6 +176,29 @@ export default function Index() {
       error('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDropdownOptions = async () => {
+    try {
+      const [statusRes, sizeTypeRes, loadRes] = await Promise.all([
+        axios.get('/api/gateinout/status-options'),
+        axios.get('/api/gateinout/sizetype-options'),
+        axios.get('/api/gateinout/load-options'),
+      ]);
+
+      if (statusRes.data.success) {
+        setStatusOptions(statusRes.data.data || []);
+      }
+      if (sizeTypeRes.data.success) {
+        setSizeTypeOptions(sizeTypeRes.data.data || []);
+      }
+      if (loadRes.data.success) {
+        setLoadOptions(loadRes.data.data || []);
+      }
+    } catch {
+      // Silently fail - non-critical
+      console.warn('Failed to load dropdown options');
     }
   };
 
@@ -474,89 +432,11 @@ export default function Index() {
   };
 
   const handleProcessClick = (record: PreInventoryRecord) => {
+    setSelectedProcessRecord(record);
     if (record.gate_status === 'IN') {
-      setProcessGateInForm({
-        procid: record.hashed_id,
-        cno: record.container_no,
-        cid: record.client_code,
-        dmanu: '',
-        client: record.client_name,
-        status: '',
-        sizetype: '',
-        iso: '',
-        class: 'A',
-        vessel: '',
-        voyage: '',
-        checker: '',
-        excon: '',
-        load: '',
-        plateno: record.plate_no,
-        hauler: record.hauler,
-        haulerd: '',
-        license: '',
-        location: '',
-        chasis: '',
-        contact: '',
-        bol: '',
-        remarks: '',
-      });
       setShowProcessGateInModal(true);
     } else {
-      setProcessGateOutForm({
-        procid: record.hashed_id,
-        cno: record.container_no,
-        checker: '',
-        contact: '',
-        client: record.client_name,
-        hauler: record.hauler,
-        plateno: record.plate_no,
-        gatein_remarks: '',
-        approval_notes: '',
-        remarks: '',
-      });
       setShowProcessGateOutModal(true);
-    }
-  };
-
-  const submitProcessGateIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setConfirmProcessGateIn(true);
-  };
-
-  const handleProcessGateIn = async () => {
-    try {
-      const response = await axios.post('/api/gateinout/gate-in', processGateInForm);
-      if (response.data.success) {
-        success('Container successfully gated IN');
-        setShowProcessGateInModal(false);
-        setConfirmProcessGateIn(false);
-        refreshData();
-      }
-    } catch (err: unknown) {
-      setConfirmProcessGateIn(false);
-      const e = err as { response?: { data?: { message?: string } } };
-      error(e.response?.data?.message || 'Failed to process Gate IN');
-    }
-  };
-
-  const submitProcessGateOut = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setConfirmProcessGateOut(true);
-  };
-
-  const handleProcessGateOut = async () => {
-    try {
-      const response = await axios.post('/api/gateinout/gate-out', processGateOutForm);
-      if (response.data.success) {
-        success('Container successfully gated OUT');
-        setShowProcessGateOutModal(false);
-        setConfirmProcessGateOut(false);
-        refreshData();
-      }
-    } catch (err: unknown) {
-      setConfirmProcessGateOut(false);
-      const e = err as { response?: { data?: { message?: string } } };
-      error(e.response?.data?.message || 'Failed to process Gate OUT');
     }
   };
 
@@ -1124,425 +1004,24 @@ export default function Index() {
       </Dialog>
 
       {/* Process Gate IN Modal */}
-      <Dialog open={showProcessGateInModal} onOpenChange={setShowProcessGateInModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
-              Process Gate IN
-            </DialogTitle>
-            <DialogDescription>
-              Complete all required fields to process gate-in for {processGateInForm.cno}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitProcessGateIn}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-gray-900">Container No.</Label>
-                  <Input value={processGateInForm.cno} disabled className="bg-gray-100" />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Date Manufactured <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="month"
-                    value={processGateInForm.dmanu}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, dmanu: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">Client</Label>
-                  <Input
-                    value={processGateInForm.client}
-                    disabled
-                    className="bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">Status</Label>
-                  <Select
-                    value={processGateInForm.status}
-                    onValueChange={(value) =>
-                      setProcessGateInForm({ ...processGateInForm, status: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="EMPTY">EMPTY</SelectItem>
-                      <SelectItem value="FULL">FULL</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-gray-900">Size/Type</Label>
-                  <Select
-                    value={processGateInForm.sizetype}
-                    onValueChange={(value) =>
-                      setProcessGateInForm({ ...processGateInForm, sizetype: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select size/type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="20GP">20 GP</SelectItem>
-                      <SelectItem value="20HC">20 HC</SelectItem>
-                      <SelectItem value="40GP">40 GP</SelectItem>
-                      <SelectItem value="40HC">40 HC</SelectItem>
-                      <SelectItem value="40RF">40 RF</SelectItem>
-                      <SelectItem value="45HC">45 HC</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    ISO Code <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.iso}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, iso: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Class <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={processGateInForm.class}
-                    onValueChange={(value) =>
-                      setProcessGateInForm({ ...processGateInForm, class: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="A">A</SelectItem>
-                      <SelectItem value="B">B</SelectItem>
-                      <SelectItem value="C">C</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Vessel <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.vessel}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, vessel: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Voyage <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.voyage}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, voyage: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Checker <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.checker}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, checker: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-gray-900">
-                    Ex-Consignee <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.excon}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, excon: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">Load</Label>
-                  <Select
-                    value={processGateInForm.load}
-                    onValueChange={(value) =>
-                      setProcessGateInForm({ ...processGateInForm, load: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select load" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LADEN">LADEN</SelectItem>
-                      <SelectItem value="EMPTY">EMPTY</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Plate No. <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.plateno}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, plateno: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Hauler <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.hauler}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, hauler: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Hauler Driver <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.haulerd}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, haulerd: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    License No. <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.license}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, license: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Location <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.location}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, location: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Chasis <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.chasis}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, chasis: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Contact No. <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.contact}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, contact: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Bill of Lading <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateInForm.bol}
-                    onChange={(e) =>
-                      setProcessGateInForm({ ...processGateInForm, bol: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <Label className="text-gray-900">
-                Remarks <span className="text-red-500">*</span>
-              </Label>
-              <textarea
-                className="w-full border rounded-md p-2 min-h-[80px]"
-                value={processGateInForm.remarks}
-                onChange={(e) =>
-                  setProcessGateInForm({ ...processGateInForm, remarks: e.target.value })
-                }
-                required
-              />
-            </div>
-
-            <DialogFooter className="mt-6 gap-2">
-              <ModernButton
-                type="button"
-                variant="toggle"
-                onClick={() => setShowProcessGateInModal(false)}
-              >
-                Cancel
-              </ModernButton>
-              <ModernButton type="submit" variant="add">
-                <CheckCircle className="w-4 h-4" />
-                Process & Save
-              </ModernButton>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ProcessGateInModal
+        open={showProcessGateInModal}
+        onClose={() => setShowProcessGateInModal(false)}
+        record={selectedProcessRecord}
+        statusOptions={statusOptions}
+        sizeTypeOptions={sizeTypeOptions}
+        loadOptions={loadOptions}
+      />
 
       {/* Process Gate OUT Modal */}
-      <Dialog open={showProcessGateOutModal} onOpenChange={setShowProcessGateOutModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
-              Process Gate OUT
-            </DialogTitle>
-            <DialogDescription>
-              Complete all required fields to process gate-out for {processGateOutForm.cno}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitProcessGateOut}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-gray-900">Container No.</Label>
-                  <Input
-                    value={processGateOutForm.cno}
-                    disabled
-                    className="bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">Client</Label>
-                  <Input
-                    value={processGateOutForm.client}
-                    disabled
-                    className="bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">Hauler</Label>
-                  <Input
-                    value={processGateOutForm.hauler}
-                    disabled
-                    className="bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">Plate No.</Label>
-                  <Input
-                    value={processGateOutForm.plateno}
-                    readOnly
-                    className="bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Checker <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateOutForm.checker}
-                    onChange={(e) =>
-                      setProcessGateOutForm({ ...processGateOutForm, checker: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-900">
-                    Contact No. <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    value={processGateOutForm.contact}
-                    onChange={(e) =>
-                      setProcessGateOutForm({ ...processGateOutForm, contact: e.target.value })
-                    }
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-gray-900">Gate In Remarks</Label>
-                  <div className="border rounded-md p-2 bg-gray-50 min-h-[60px]">
-                    {processGateOutForm.gatein_remarks || 'No remarks'}
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-gray-900">Approval Notes</Label>
-                  <div className="border rounded-md p-2 bg-gray-50 min-h-[60px]">
-                    {processGateOutForm.approval_notes || 'No notes'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <Label className="text-gray-900">Remarks</Label>
-              <textarea
-                className="w-full border rounded-md p-2 min-h-[80px] bg-gray-100"
-                value={processGateOutForm.remarks}
-                disabled
-              />
-            </div>
-
-            <DialogFooter className="mt-6 gap-2">
-              <ModernButton
-                type="button"
-                variant="toggle"
-                onClick={() => setShowProcessGateOutModal(false)}
-              >
-                Cancel
-              </ModernButton>
-              <ModernButton type="submit" variant="add">
-                <CheckCircle className="w-4 h-4" />
-                Process & Save
-              </ModernButton>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ProcessGateOutModal
+        open={showProcessGateOutModal}
+        onClose={() => setShowProcessGateOutModal(false)}
+        record={selectedProcessRecord}
+        statusOptions={statusOptions}
+        sizeTypeOptions={sizeTypeOptions}
+        loadOptions={loadOptions}
+      />
 
       {/* Confirmation Modals */}
       <ModernConfirmDialog
@@ -1593,26 +1072,6 @@ export default function Index() {
         description={`Are you sure you want to delete record for container ${recordToDelete?.container_no}? This action cannot be undone.`}
         confirmText="Delete Record"
         type="danger"
-      />
-
-      <ModernConfirmDialog
-        open={confirmProcessGateIn}
-        onOpenChange={setConfirmProcessGateIn}
-        onConfirm={handleProcessGateIn}
-        title="Process Gate IN"
-        description="Are you sure you want to process this Gate IN? This will create a permanent record."
-        confirmText="Process Gate IN"
-        type="success"
-      />
-
-      <ModernConfirmDialog
-        open={confirmProcessGateOut}
-        onOpenChange={setConfirmProcessGateOut}
-        onConfirm={handleProcessGateOut}
-        title="Process Gate OUT"
-        description="Are you sure you want to process this Gate OUT? This will create a permanent record."
-        confirmText="Process Gate OUT"
-        type="success"
       />
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />

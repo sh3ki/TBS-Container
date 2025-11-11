@@ -7,6 +7,7 @@ use App\Models\PreInventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Gate In & Out Controller - LEGACY SYSTEM REBUILD
@@ -613,7 +614,7 @@ class GateinoutController extends Controller
             );
         } catch (\Exception $e) {
             // Silent fail on audit log
-            \Log::error("Audit log failed: " . $e->getMessage());
+            Log::error("Audit log failed: " . $e->getMessage());
         }
     }
 
@@ -635,6 +636,312 @@ class GateinoutController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get container status options for dropdowns
+     */
+    public function getStatusOptions()
+    {
+        try {
+            $statuses = DB::select("SELECT s_id, status FROM {$this->prefix}container_status ORDER BY status ASC");
+            
+            return response()->json([
+                'success' => true,
+                'data' => $statuses
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Get Status Options Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load status options'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get size/type options for dropdowns
+     */
+    public function getSizeTypeOptions()
+    {
+        try {
+            $sizeTypes = DB::select("SELECT s_id, size, type FROM {$this->prefix}container_size_type WHERE archived = 0 ORDER BY size ASC, type ASC");
+            
+            return response()->json([
+                'success' => true,
+                'data' => $sizeTypes
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Get Size/Type Options Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load size/type options'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get load type options for dropdowns
+     */
+    public function getLoadOptions()
+    {
+        try {
+            $loads = DB::select("SELECT l_id, type FROM {$this->prefix}load_type ORDER BY type ASC");
+            
+            return response()->json([
+                'success' => true,
+                'data' => $loads
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Get Load Options Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load load options'
+            ], 500);
+        }
+    }
+
+    /**
+     * Process Gate IN - Move from pre_inventory to inventory
+     */
+    public function processGateIn(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'p_id' => 'required|integer',
+                'container_no' => 'required|string|size:11',
+                'date_mnfg' => 'required|string',
+                'cnt_status' => 'required|integer',
+                'size_type' => 'required|integer',
+                'iso_code' => 'required|string',
+                'cnt_class' => 'required|string|in:A,B,C',
+                'vessel' => 'required|string',
+                'voyage' => 'required|string',
+                'checker_id' => 'required|string',
+                'ex_consignee' => 'required|string',
+                'load_type' => 'required|integer',
+                'plate_no' => 'required|string',
+                'hauler' => 'required|string',
+                'hauler_driver' => 'required|string',
+                'license_no' => 'required|string',
+                'location' => 'required|string',
+                'chasis' => 'required|string',
+                'contact_no' => 'required|string',
+                'bol' => 'required|string',
+                'remarks' => 'required|string'
+            ]);
+
+            // Validate container number is exactly 11 characters
+            if (strlen($validated['container_no']) !== 11) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container number must be exactly 11 characters'
+                ], 422);
+            }
+
+            // Check if container is banned
+            $bannedCheck = DB::select(
+                "SELECT COUNT(*) as count FROM {$this->prefix}container_banned WHERE container_no = ?",
+                [$validated['container_no']]
+            );
+            
+            if ($bannedCheck[0]->count > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This container is BANNED and cannot be gated in'
+                ], 422);
+            }
+
+            // Check if container is on hold
+            $holdCheck = DB::select(
+                "SELECT COUNT(*) as count FROM {$this->prefix}container_hold WHERE container_no = ?",
+                [$validated['container_no']]
+            );
+            
+            if ($holdCheck[0]->count > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This container is ON HOLD and cannot be gated in'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            try {
+                // Insert into inventory table
+                DB::insert(
+                    "INSERT INTO {$this->prefix}inventory 
+                    (container_no, client_id, date_mnfg, cnt_status, size_type, iso_code, cnt_class, 
+                     vessel, voyage, checker_id, ex_consignee, load_type, plate_no, hauler, hauler_driver, 
+                     license_no, location, chasis, contact_no, bol, remarks, date_added, complete)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [
+                        $validated['container_no'],
+                        $request->input('client_id'),
+                        $validated['date_mnfg'],
+                        $validated['cnt_status'],
+                        $validated['size_type'],
+                        $validated['iso_code'],
+                        $validated['cnt_class'],
+                        $validated['vessel'],
+                        $validated['voyage'],
+                        $validated['checker_id'],
+                        $validated['ex_consignee'],
+                        $validated['load_type'],
+                        $validated['plate_no'],
+                        $validated['hauler'],
+                        $validated['hauler_driver'],
+                        $validated['license_no'],
+                        $validated['location'],
+                        $validated['chasis'],
+                        $validated['contact_no'],
+                        $validated['bol'],
+                        $validated['remarks'],
+                        now(),
+                        0 // Not yet gated out
+                    ]
+                );
+
+                // Update pre_inventory status to finished
+                DB::update(
+                    "UPDATE {$this->prefix}pre_inventory SET status = 1 WHERE p_id = ?",
+                    [$validated['p_id']]
+                );
+
+                // Log audit
+                $user = Auth::user();
+                $this->logAudit(
+                    'PROCESS_GATE_IN',
+                    "Processed Gate IN for container: {$validated['container_no']}",
+                    $user ? $user->user_id : null
+                );
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Container successfully gated IN'
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Process Gate IN Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process Gate IN: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Process Gate OUT - Update inventory record
+     */
+    public function processGateOut(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'p_id' => 'required|integer',
+                'container_no' => 'required|string|size:11',
+                'cnt_status' => 'required|integer',
+                'size_type' => 'required|integer',
+                'load_type' => 'required|integer',
+                'booking_no' => 'required|string',
+                'shipper' => 'required|string',
+                'seal_no' => 'required|string',
+                'checker_id' => 'required|string',
+                'contact_no' => 'required|string',
+                'plate_no' => 'required|string',
+                'hauler' => 'required|string',
+                'save_and_book' => 'required|string|in:YES,NO',
+                'remarks' => 'nullable|string'
+            ]);
+
+            // Validate container number is exactly 11 characters
+            if (strlen($validated['container_no']) !== 11) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container number must be exactly 11 characters'
+                ], 422);
+            }
+
+            // Check if container exists in inventory
+            $containerCheck = DB::select(
+                "SELECT i_id FROM {$this->prefix}inventory WHERE container_no = ? AND complete = 0",
+                [$validated['container_no']]
+            );
+            
+            if (empty($containerCheck)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found in yard or already gated out'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            try {
+                // Update inventory record
+                DB::update(
+                    "UPDATE {$this->prefix}inventory 
+                     SET complete = 1, date_out = ?, cnt_status = ?, size_type = ?, load_type = ?,
+                         booking_no = ?, shipper = ?, seal_no = ?, checker_id = ?, contact_no = ?,
+                         plate_no_out = ?, hauler_out = ?, remarks_out = ?, save_and_book = ?
+                     WHERE container_no = ? AND complete = 0",
+                    [
+                        now(),
+                        $validated['cnt_status'],
+                        $validated['size_type'],
+                        $validated['load_type'],
+                        $validated['booking_no'],
+                        $validated['shipper'],
+                        $validated['seal_no'],
+                        $validated['checker_id'],
+                        $validated['contact_no'],
+                        $validated['plate_no'],
+                        $validated['hauler'],
+                        $validated['remarks'] ?? '',
+                        $validated['save_and_book'],
+                        $validated['container_no']
+                    ]
+                );
+
+                // Update pre_inventory status to finished
+                DB::update(
+                    "UPDATE {$this->prefix}pre_inventory SET status = 1 WHERE p_id = ?",
+                    [$validated['p_id']]
+                );
+
+                // Log audit
+                $user = Auth::user();
+                $this->logAudit(
+                    'PROCESS_GATE_OUT',
+                    "Processed Gate OUT for container: {$validated['container_no']}",
+                    $user ? $user->user_id : null
+                );
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Container successfully gated OUT'
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Process Gate OUT Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process Gate OUT: ' . $e->getMessage()
             ], 500);
         }
     }

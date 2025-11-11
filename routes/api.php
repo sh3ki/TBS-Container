@@ -179,6 +179,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/clients', [GateinoutController::class, 'getClients']);
         Route::get('/page-record-access', [GateinoutController::class, 'getPageRecordAccess']);
         Route::get('/current-user', [GateinoutController::class, 'getCurrentUser']);
+        
+        // Dropdown options for Process modals
+        Route::get('/status-options', [GateinoutController::class, 'getStatusOptions']);
+        Route::get('/sizetype-options', [GateinoutController::class, 'getSizeTypeOptions']);
+        Route::get('/load-options', [GateinoutController::class, 'getLoadOptions']);
+        
+        // Process Gate IN/OUT (final processing)
+        Route::post('/process-in', [GateinoutController::class, 'processGateIn']);
+        Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
     });
 
     // Size/Type - Complete API with all legacy actions
