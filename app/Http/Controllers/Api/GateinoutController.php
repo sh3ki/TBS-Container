@@ -743,7 +743,7 @@ class GateinoutController extends Controller
 
             // Check if container is banned
             $bannedCheck = DB::select(
-                "SELECT COUNT(*) as count FROM {$this->prefix}container_banned WHERE container_no = ?",
+                "SELECT COUNT(*) as count FROM {$this->prefix}ban_containers WHERE container_no = ?",
                 [$validated['container_no']]
             );
             
@@ -756,7 +756,7 @@ class GateinoutController extends Controller
 
             // Check if container is on hold
             $holdCheck = DB::select(
-                "SELECT COUNT(*) as count FROM {$this->prefix}container_hold WHERE container_no = ?",
+                "SELECT COUNT(*) as count FROM {$this->prefix}hold_containers WHERE container_no = ?",
                 [$validated['container_no']]
             );
             
@@ -773,9 +773,9 @@ class GateinoutController extends Controller
                 // Insert into inventory table
                 DB::insert(
                     "INSERT INTO {$this->prefix}inventory 
-                    (container_no, client_id, date_mnfg, cnt_status, size_type, iso_code, cnt_class, 
+                    (container_no, client_id, date_manufactured, container_status, size_type, iso_code, class, 
                      vessel, voyage, checker_id, ex_consignee, load_type, plate_no, hauler, hauler_driver, 
-                     license_no, location, chasis, contact_no, bol, remarks, date_added, complete)
+                     license_no, location, chasis, contact_no, bill_of_lading, remarks, date_added, complete)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     [
                         $validated['container_no'],
@@ -852,18 +852,26 @@ class GateinoutController extends Controller
             $validated = $request->validate([
                 'p_id' => 'required|integer',
                 'container_no' => 'required|string|size:11',
+                'client_id' => 'required|integer',
                 'cnt_status' => 'required|integer',
                 'size_type' => 'required|integer',
-                'load_type' => 'required|integer',
-                'booking_no' => 'required|string',
-                'shipper' => 'required|string',
-                'seal_no' => 'required|string',
-                'checker_id' => 'required|string',
-                'contact_no' => 'required|string',
+                'iso_code' => 'required|string',
+                'vessel' => 'required|string',
+                'voyage' => 'required|string',
                 'plate_no' => 'required|string',
                 'hauler' => 'required|string',
-                'save_and_book' => 'required|string|in:YES,NO',
-                'remarks' => 'nullable|string'
+                'hauler_driver' => 'required|string',
+                'license_no' => 'required|string',
+                'checker_id' => 'required|string',
+                'location' => 'required|string',
+                'load_type' => 'required|integer',
+                'chasis' => 'required|string',
+                'contact_no' => 'required|string',
+                'shipper' => 'required|string',
+                'booking_no' => 'required|string',
+                'seal_no' => 'required|string',
+                'remarks' => 'required|string',
+                'save_and_book' => 'required|string|in:YES,NO'
             ]);
 
             // Validate container number is exactly 11 characters
@@ -892,26 +900,47 @@ class GateinoutController extends Controller
             DB::beginTransaction();
 
             try {
-                // Update inventory record
+                // Update inventory record with all 21 fields
                 DB::update(
                     "UPDATE {$this->prefix}inventory 
-                     SET complete = 1, date_out = ?, cnt_status = ?, size_type = ?, load_type = ?,
-                         booking_no = ?, shipper = ?, seal_no = ?, checker_id = ?, contact_no = ?,
-                         plate_no_out = ?, hauler_out = ?, remarks_out = ?, save_and_book = ?
-                     WHERE container_no = ? AND complete = 0",
+                     SET iscomplete = 1, 
+                         date_out = ?,
+                         cnt_status = ?,
+                         vessel = ?,
+                         voyage = ?,
+                         plate_no = ?,
+                         hauler = ?,
+                         hauler_driver = ?,
+                         license_no = ?,
+                         checker_id = ?,
+                         location = ?,
+                         load_type = ?,
+                         chasis = ?,
+                         contact_no = ?,
+                         shipper = ?,
+                         booking_no = ?,
+                         seal_no = ?,
+                         remarks = ?,
+                         save_and_book = ?
+                     WHERE container_no = ? AND iscomplete = 0",
                     [
                         now(),
                         $validated['cnt_status'],
-                        $validated['size_type'],
-                        $validated['load_type'],
-                        $validated['booking_no'],
-                        $validated['shipper'],
-                        $validated['seal_no'],
-                        $validated['checker_id'],
-                        $validated['contact_no'],
+                        $validated['vessel'],
+                        $validated['voyage'],
                         $validated['plate_no'],
                         $validated['hauler'],
-                        $validated['remarks'] ?? '',
+                        $validated['hauler_driver'],
+                        $validated['license_no'],
+                        $validated['checker_id'],
+                        $validated['location'],
+                        $validated['load_type'],
+                        $validated['chasis'],
+                        $validated['contact_no'],
+                        $validated['shipper'],
+                        $validated['booking_no'],
+                        $validated['seal_no'],
+                        $validated['remarks'],
                         $validated['save_and_book'],
                         $validated['container_no']
                     ]
@@ -919,8 +948,8 @@ class GateinoutController extends Controller
 
                 // Update pre_inventory status to finished
                 DB::update(
-                    "UPDATE {$this->prefix}pre_inventory SET status = 1 WHERE p_id = ?",
-                    [$validated['p_id']]
+                    "UPDATE {$this->prefix}pre_inventory SET isfinished = 1, date_completed = ? WHERE p_id = ?",
+                    [now(), $validated['p_id']]
                 );
 
                 // Log audit
@@ -1017,6 +1046,152 @@ class GateinoutController extends Controller
         } catch (\Exception $e) {
             Log::error('Print Gate Pass Error: ' . $e->getMessage());
             abort(500, 'Failed to generate print document');
+        }
+    }
+
+    /**
+     * Get Available Containers for Gate OUT
+     * Returns containers that are IN yard (gate_status='IN', iscomplete=0)
+     * and NOT on hold (not in hold_containers table)
+     */
+    public function getAvailableContainers(Request $request)
+    {
+        try {
+            $search = $request->query('search', '');
+            
+            $query = "
+                SELECT 
+                    i.inv_id,
+                    i.container_no,
+                    COALESCE(c.client_code, c.client_name, '-') AS client_name,
+                    c.c_id AS client_id,
+                    CONCAT(st.size, st.type) AS size_type,
+                    st.s_id AS sizetype_id,
+                    i.iso_code,
+                    i.location,
+                    i.plate_no,
+                    i.hauler,
+                    COALESCE(i.shipper, '-') AS shipper,
+                    DATEDIFF(NOW(), i.date_added) AS days_in_yard
+                FROM {$this->prefix}inventory i
+                LEFT JOIN {$this->prefix}clients c ON c.c_id = i.client_id
+                LEFT JOIN {$this->prefix}container_size_type st ON i.size_type = st.s_id
+                WHERE i.gate_status = 'IN' 
+                  AND i.iscomplete = 0
+                  AND c.archived = 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {$this->prefix}hold_containers hc 
+                      WHERE hc.container_no = i.container_no
+                  )
+            ";
+
+            if (!empty($search)) {
+                $query .= " AND i.container_no LIKE ?";
+                $containers = DB::select($query, ['%' . $search . '%']);
+            } else {
+                $containers = DB::select($query);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $containers
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Available Containers Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch available containers'
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate Container for Gate OUT
+     * Checks if container is IN yard, not on hold, and returns full details
+     */
+    public function validateContainer(Request $request)
+    {
+        try {
+            $containerNo = $request->input('container_no');
+
+            if (empty($containerNo)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container number is required'
+                ], 422);
+            }
+
+            // Check if container is IN yard
+            $container = DB::select("
+                SELECT 
+                    i.inv_id,
+                    i.container_no,
+                    i.client_id,
+                    COALESCE(c.client_code, c.client_name, '-') AS client_name,
+                    i.size_type,
+                    CONCAT(st.size, st.type) AS size_type_display,
+                    i.iso_code,
+                    i.cnt_status,
+                    cs.status AS status_name,
+                    i.vessel,
+                    i.voyage,
+                    i.plate_no,
+                    i.hauler,
+                    i.hauler_driver,
+                    i.license_no,
+                    i.checker_id,
+                    i.location,
+                    i.load_type,
+                    lt.type AS load_type_name,
+                    i.chasis,
+                    i.contact_no,
+                    COALESCE(i.shipper, '-') AS shipper,
+                    i.remarks,
+                    DATEDIFF(NOW(), i.date_added) AS days_in_yard
+                FROM {$this->prefix}inventory i
+                LEFT JOIN {$this->prefix}clients c ON c.c_id = i.client_id
+                LEFT JOIN {$this->prefix}container_size_type st ON i.size_type = st.s_id
+                LEFT JOIN {$this->prefix}container_status cs ON i.cnt_status = cs.s_id
+                LEFT JOIN {$this->prefix}load_type lt ON i.load_type = lt.l_id
+                WHERE i.container_no = ? 
+                  AND i.gate_status = 'IN' 
+                  AND i.iscomplete = 0
+                  AND c.archived = 0
+            ", [$containerNo]);
+
+            if (empty($container)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container is not in yard or already gated out'
+                ], 404);
+            }
+
+            // Check if container is on hold
+            $holdCheck = DB::select(
+                "SELECT notes FROM {$this->prefix}hold_containers WHERE container_no = ?",
+                [$containerNo]
+            );
+
+            if (!empty($holdCheck)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container is currently on HOLD',
+                    'hold_notes' => $holdCheck[0]->notes
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $container[0]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Validate Container Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to validate container'
+            ], 500);
         }
     }
 }

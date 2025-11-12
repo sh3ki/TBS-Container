@@ -439,7 +439,7 @@ export default function Index() {
                   value={formData.container_no} 
                   onChange={(e) => setFormData({ ...formData, container_no: e.target.value.toUpperCase() })} 
                   className={errors.container_no ? 'border-red-500 font-mono' : 'font-mono'} 
-                  placeholder="e.g., ABCD1234567"
+                  placeholder="ABCD1234567"
                 />
                 {errors.container_no && <p className="text-red-500 text-xs mt-1">{errors.container_no[0]}</p>}
               </div>

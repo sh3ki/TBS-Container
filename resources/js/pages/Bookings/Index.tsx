@@ -117,6 +117,42 @@ export default function Index() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings, searchTerm, clientFilter, expirationFilter]);
 
+  // Check for pending booking from Gate OUT "Save and Book = YES"
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('action') === 'create' && clients.length > 0) {
+      const pendingData = sessionStorage.getItem('pendingBooking');
+      
+      if (pendingData) {
+        try {
+          const data = JSON.parse(pendingData);
+          const client = clients.find(c => c.id === data.client_id.toString());
+          
+          setFormData({
+            bnum: '',
+            cid: client?.id || '',
+            shipper: '',
+            two: 0,
+            four: 0,
+            fourf: 0,
+            cnums: data.container_no,
+            exp: '',
+          });
+          
+          setBookingType('with');
+          setShowAddModal(true);
+          sessionStorage.removeItem('pendingBooking');
+          window.history.replaceState({}, '', '/bookings');
+          
+          success(`Container ${data.container_no} from Gate OUT ready for booking`);
+        } catch (err) {
+          console.error('Failed to parse pending booking:', err);
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients]);
+
   const applyFilters = () => {
     let filtered = [...bookings];
     
@@ -755,7 +791,7 @@ export default function Index() {
                     className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`}
                   />
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
-                  <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567,EFGH8901234</p>
+                  <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-4">

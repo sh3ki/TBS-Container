@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ModernButton, ModernConfirmDialog } from '@/components/modern';
-import { CheckCircle } from 'lucide-react';
+import { Printer, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
 
@@ -73,10 +73,14 @@ export default function ProcessGateInModal({
 
     useEffect(() => {
         if (record && open) {
+            // Clean plate_no and hauler: if contains "-", set as empty
+            const cleanPlateNo = record.plate_no && record.plate_no.includes('-') ? '' : (record.plate_no || '');
+            const cleanHauler = record.hauler && record.hauler.includes('-') ? '' : (record.hauler || '');
+            
             setFormData(prev => ({
                 ...prev,
-                plate_no: record.plate_no || '',
-                hauler: record.hauler || '',
+                plate_no: cleanPlateNo,
+                hauler: cleanHauler,
             }));
         }
     }, [record, open]);
@@ -84,12 +88,57 @@ export default function ProcessGateInModal({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Validation
+        // Validation: All dropdowns must have selected option, all inputs must not be null
         if (!record) return;
         
+        // Validate container number length
         if (record.container_no.length !== 11) {
             alert('Container number must be exactly 11 characters');
             return;
+        }
+        
+        // Validate all dropdowns are selected
+        if (!formData.status) {
+            alert('Please select a Status');
+            return;
+        }
+        if (!formData.sizetype) {
+            alert('Please select Size/Type');
+            return;
+        }
+        if (!formData.load) {
+            alert('Please select Load type');
+            return;
+        }
+        if (!formData.class) {
+            alert('Please select Class');
+            return;
+        }
+        
+        // Validate all required inputs are not empty
+        const requiredFields = [
+            { field: 'date_manufactured', label: 'Date Manufactured' },
+            { field: 'iso_code', label: 'ISO Code' },
+            { field: 'vessel', label: 'Vessel' },
+            { field: 'voyage', label: 'Voyage' },
+            { field: 'checker', label: 'Checker' },
+            { field: 'ex_consignee', label: 'Ex-Consignee' },
+            { field: 'plate_no', label: 'Plate No.' },
+            { field: 'hauler', label: 'Hauler' },
+            { field: 'hauler_driver', label: 'Hauler Driver' },
+            { field: 'license_no', label: 'License No.' },
+            { field: 'location', label: 'Location' },
+            { field: 'chasis', label: 'Chasis' },
+            { field: 'contact_no', label: 'Contact No.' },
+            { field: 'bill_of_lading', label: 'Bill of Lading' },
+            { field: 'remarks', label: 'Remarks' },
+        ];
+        
+        for (const { field, label } of requiredFields) {
+            if (!formData[field as keyof typeof formData] || formData[field as keyof typeof formData].toString().trim() === '') {
+                alert(`Please fill in ${label}`);
+                return;
+            }
         }
         
         setShowConfirm(true);
@@ -144,7 +193,7 @@ export default function ProcessGateInModal({
     return (
         <>
             <Dialog open={open} onOpenChange={onClose}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="min-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
                             Process Gate IN
@@ -154,8 +203,8 @@ export default function ProcessGateInModal({
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleSubmit}>
-                        <div className="grid grid-cols-2 gap-4 py-4">
-                            {/* Left Column */}
+                        <div className="grid grid-cols-3 gap-6 py-4">
+                            {/* Column 1 */}
                             <div className="space-y-3">
                                 <div>
                                     <Label>Container No.</Label>
@@ -167,16 +216,20 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Date Manufactured <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        type="month"
-                                        value={formData.date_manufactured}
-                                        onChange={(e) => setFormData({ ...formData, date_manufactured: e.target.value })}
-                                        required
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            type="date"
+                                            value={formData.date_manufactured}
+                                            onChange={(e) => setFormData({ ...formData, date_manufactured: e.target.value })}
+                                            className="pr-10"
+                                            placeholder="mm/dd/yyyy"
+                                        />
+                                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                    </div>
                                 </div>
                                 <div>
                                     <Label>Status <span className="text-red-500">*</span></Label>
-                                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })} required>
+                                    <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
                                         <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                                         <SelectContent>
                                             {statusOptions.map((opt) => (
@@ -187,7 +240,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Size/Type <span className="text-red-500">*</span></Label>
-                                    <Select value={formData.sizetype} onValueChange={(value) => setFormData({ ...formData, sizetype: value })} required>
+                                    <Select value={formData.sizetype} onValueChange={(value) => setFormData({ ...formData, sizetype: value })}>
                                         <SelectTrigger><SelectValue placeholder="Select size/type" /></SelectTrigger>
                                         <SelectContent>
                                             {sizeTypeOptions.map((opt) => (
@@ -198,7 +251,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>ISO Code <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value })} required />
+                                    <Input value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Class <span className="text-red-500">*</span></Label>
@@ -213,27 +266,27 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Vessel <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value })} required />
-                                </div>
-                                <div>
-                                    <Label>Voyage <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} required />
-                                </div>
-                                <div>
-                                    <Label>Checker <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.checker} onChange={(e) => setFormData({ ...formData, checker: e.target.value })} required />
-                                </div>
-                                <div>
-                                    <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value })} required />
+                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value })} />
                                 </div>
                             </div>
 
-                            {/* Right Column */}
+                            {/* Column 2 */}
                             <div className="space-y-3">
                                 <div>
+                                    <Label>Voyage <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} />
+                                </div>
+                                <div>
+                                    <Label>Checker <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.checker} onChange={(e) => setFormData({ ...formData, checker: e.target.value })} />
+                                </div>
+                                <div>
+                                    <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value })} />
+                                </div>
+                                <div>
                                     <Label>Load <span className="text-red-500">*</span></Label>
-                                    <Select value={formData.load} onValueChange={(value) => setFormData({ ...formData, load: value })} required>
+                                    <Select value={formData.load} onValueChange={(value) => setFormData({ ...formData, load: value })}>
                                         <SelectTrigger><SelectValue placeholder="Select load" /></SelectTrigger>
                                         <SelectContent>
                                             {loadOptions.map((opt) => (
@@ -244,35 +297,39 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Plate No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value })} required />
+                                    <Input value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Hauler <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value })} required />
+                                    <Input value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Hauler Driver <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value })} required />
+                                    <Input value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>License No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value })} required />
+                                    <Input value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value })} />
                                 </div>
+                            </div>
+
+                            {/* Column 3 */}
+                            <div className="space-y-3">
                                 <div>
                                     <Label>Location <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} required />
+                                    <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Chasis <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value })} required />
+                                    <Input value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Contact No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })} required />
+                                    <Input value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Bill of Lading <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value })} required />
+                                    <Input value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Remarks <span className="text-red-500">*</span></Label>
@@ -280,7 +337,6 @@ export default function ProcessGateInModal({
                                         value={formData.remarks}
                                         onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                                         className="min-h-[80px]"
-                                        required
                                     />
                                 </div>
                             </div>
@@ -291,8 +347,8 @@ export default function ProcessGateInModal({
                                 Cancel
                             </ModernButton>
                             <ModernButton type="submit" variant="add">
-                                <CheckCircle className="w-4 h-4" />
-                                Process & Save
+                                <Printer className="w-4 h-4" />
+                                Save & Print
                             </ModernButton>
                         </DialogFooter>
                     </form>

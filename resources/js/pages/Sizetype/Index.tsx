@@ -438,7 +438,7 @@ export default function Index() {
                     onChange={(e) => setFormData({ ...formData, size: e.target.value })} 
                     className={errors.size ? 'border-red-500' : ''}
                     maxLength={2}
-                    placeholder="e.g., 20, 40, 45"
+                    placeholder="20, 40, 45"
                   />
                   {errors.size && <p className="text-red-500 text-xs mt-1">{errors.size[0]}</p>}
                 </div>
@@ -449,7 +449,7 @@ export default function Index() {
                     onChange={(e) => setFormData({ ...formData, type: e.target.value.toUpperCase() })} 
                     className={errors.type ? 'border-red-500' : ''}
                     maxLength={3}
-                    placeholder="e.g., GP, HC, OT"
+                    placeholder="GP, HC, OT"
                   />
                   {errors.type && <p className="text-red-500 text-xs mt-1">{errors.type[0]}</p>}
                 </div>
@@ -491,7 +491,7 @@ export default function Index() {
                     onChange={(e) => setEditFormData({ ...editFormData, size: e.target.value })}
                     className={errors.size ? 'border-red-500' : ''}
                     maxLength={2}
-                    placeholder="e.g., 20, 40, 45"
+                    placeholder="20, 40, 45"
                   />
                   {errors.size && <p className="text-red-500 text-xs mt-1">{errors.size[0]}</p>}
                 </div>
@@ -502,7 +502,7 @@ export default function Index() {
                     onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value.toUpperCase() })}
                     className={errors.type ? 'border-red-500' : ''}
                     maxLength={3}
-                    placeholder="e.g., GP, HC, OT"
+                    placeholder="GP, HC, OT"
                   />
                   {errors.type && <p className="text-red-500 text-xs mt-1">{errors.type[0]}</p>}
                 </div>

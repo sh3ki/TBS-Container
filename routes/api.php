@@ -185,6 +185,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sizetype-options', [GateinoutController::class, 'getSizeTypeOptions']);
         Route::get('/load-options', [GateinoutController::class, 'getLoadOptions']);
         
+        // Available containers for Gate OUT (IN yard, not on hold)
+        Route::get('/available-containers', [GateinoutController::class, 'getAvailableContainers']);
+        Route::post('/validate-container', [GateinoutController::class, 'validateContainer']);
+        
         // Process Gate IN/OUT (final processing)
         Route::post('/process-in', [GateinoutController::class, 'processGateIn']);
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
