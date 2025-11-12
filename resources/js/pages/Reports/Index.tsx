@@ -309,38 +309,40 @@ const Index: React.FC = () => {
                 </div>
             </div>
 
-            {reportData.length > 0 && (
+            {reportData.length > 0 ? (
                 <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <ModernTable
-                        columns={[
-                            { key: 'eir_no', label: 'EIR No.' },
-                            { key: 'date', label: 'Date' },
-                            { key: 'time', label: 'Time' },
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'vessel', label: 'Vessel' },
-                            { key: 'voyage', label: 'Voyage' },
-                            { key: 'class', label: 'Class' },
-                            { key: 'date_manufactured', label: 'Date Manufactured' },
-                            { key: 'ex_consignee', label: 'Ex-Consignee' },
-                            { key: 'hauler', label: 'Hauler' },
-                            { key: 'plate_no', label: 'Plate No.' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'origin', label: 'Origin' },
-                            { key: 'chasis', label: 'Chasis' },
-                        ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
-                        data={reportData}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
+                    <div className="overflow-x-auto">
+                        <ModernTable
+                            columns={[
+                                { key: 'eir_no', label: 'EIR No.' },
+                                { key: 'date', label: 'Date' },
+                                { key: 'time', label: 'Time' },
+                                { key: 'container_no', label: 'Container No.' },
+                                { key: 'size_type', label: 'Size/Type' },
+                                { key: 'status', label: 'Status' },
+                                { key: 'vessel', label: 'Vessel' },
+                                { key: 'voyage', label: 'Voyage' },
+                                { key: 'class', label: 'Class' },
+                                { key: 'date_manufactured', label: 'Date Manufactured' },
+                                { key: 'ex_consignee', label: 'Ex-Consignee' },
+                                { key: 'hauler', label: 'Hauler' },
+                                { key: 'plate_no', label: 'Plate No.' },
+                                { key: 'load', label: 'Load' },
+                                { key: 'origin', label: 'Origin' },
+                                { key: 'chasis', label: 'Chasis' },
+                            ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
+                            data={reportData}
+                            pagination={{
+                                currentPage: currentPage,
+                                totalPages: Math.ceil(reportData.length / itemsPerPage),
+                                total: reportData.length,
+                                perPage: itemsPerPage,
+                                onPageChange: setCurrentPage,
+                            }}
+                        />
+                    </div>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 
@@ -428,38 +430,40 @@ const Index: React.FC = () => {
                 </div>
             </div>
 
-            {reportData.length > 0 && (
+            {reportData.length > 0 ? (
                 <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <ModernTable
-                        columns={[
-                            { key: 'eir_no', label: 'EIR No.' },
-                            { key: 'date', label: 'Date' },
-                            { key: 'time', label: 'Time' },
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'vessel', label: 'Vessel' },
-                            { key: 'voyage', label: 'Voyage' },
-                            { key: 'shipper', label: 'Shipper' },
-                            { key: 'hauler', label: 'Hauler' },
-                            { key: 'booking', label: 'Booking' },
-                            { key: 'destination', label: 'Destination' },
-                            { key: 'plate_no', label: 'Plate No.' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'chasis', label: 'Chasis' },
-                            { key: 'seal_no', label: 'Seal No.' },
-                        ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
-                        data={reportData}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
+                    <div className="overflow-x-auto">
+                        <ModernTable
+                            columns={[
+                                { key: 'eir_no', label: 'EIR No.' },
+                                { key: 'date', label: 'Date' },
+                                { key: 'time', label: 'Time' },
+                                { key: 'container_no', label: 'Container No.' },
+                                { key: 'size_type', label: 'Size/Type' },
+                                { key: 'status', label: 'Status' },
+                                { key: 'vessel', label: 'Vessel' },
+                                { key: 'voyage', label: 'Voyage' },
+                                { key: 'shipper', label: 'Shipper' },
+                                { key: 'hauler', label: 'Hauler' },
+                                { key: 'booking', label: 'Booking' },
+                                { key: 'destination', label: 'Destination' },
+                                { key: 'plate_no', label: 'Plate No.' },
+                                { key: 'load', label: 'Load' },
+                                { key: 'chasis', label: 'Chasis' },
+                                { key: 'seal_no', label: 'Seal No.' },
+                            ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
+                            data={reportData}
+                            pagination={{
+                                currentPage: currentPage,
+                                totalPages: Math.ceil(reportData.length / itemsPerPage),
+                                total: reportData.length,
+                                perPage: itemsPerPage,
+                                onPageChange: setCurrentPage,
+                            }}
+                        />
+                    </div>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 
@@ -494,28 +498,30 @@ const Index: React.FC = () => {
                         />
                     </div>
                 </div>
-            </div>
-
-            {reportData.length > 0 && (
+            {reportData.length > 0 ? (
                 <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <ModernTable
-                        columns={[
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'client', label: 'Client' },
-                            { key: 'date', label: 'Date' },
-                        ]}
-                        data={reportData}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
+                    <div className="overflow-x-auto">
+                        <ModernTable
+                            columns={[
+                                { key: 'container_no', label: 'Container No.' },
+                                { key: 'size_type', label: 'Size/Type' },
+                                { key: 'status', label: 'Status' },
+                                { key: 'load', label: 'Load' },
+                                { key: 'client', label: 'Client' },
+                                { key: 'date', label: 'Date' },
+                            ]}
+                            data={reportData}
+                            pagination={{
+                                currentPage: currentPage,
+                                totalPages: Math.ceil(reportData.length / itemsPerPage),
+                                total: reportData.length,
+                                perPage: itemsPerPage,
+                                onPageChange: setCurrentPage,
+                            }}
+                        />
+                    </div>
+                </div>
+            ) : null}      />
                 </div>
             )}
         </div>
@@ -536,27 +542,29 @@ const Index: React.FC = () => {
                         />
                     </div>
                 </div>
-            </div>
-
-            {reportData.length > 0 && (
+            {reportData.length > 0 ? (
                 <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <ModernTable
-                        columns={[
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'date', label: 'Date' },
-                        ]}
-                        data={reportData}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
+                    <div className="overflow-x-auto">
+                        <ModernTable
+                            columns={[
+                                { key: 'container_no', label: 'Container No.' },
+                                { key: 'size_type', label: 'Size/Type' },
+                                { key: 'status', label: 'Status' },
+                                { key: 'load', label: 'Load' },
+                                { key: 'date', label: 'Date' },
+                            ]}
+                            data={reportData}
+                            pagination={{
+                                currentPage: currentPage,
+                                totalPages: Math.ceil(reportData.length / itemsPerPage),
+                                total: reportData.length,
+                                perPage: itemsPerPage,
+                                onPageChange: setCurrentPage,
+                            }}
+                        />
+                    </div>
+                </div>
+            ) : null}      />
                 </div>
             )}
         </div>
