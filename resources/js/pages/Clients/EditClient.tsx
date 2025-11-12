@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { ToastContainer, useModernToast } from '@/components/modern';
 
 interface Client {
   c_id: number;
@@ -71,7 +71,7 @@ interface ContainerSize {
 }
 
 export default function EditClient({ clientId }: { clientId: number }) {
-  const { toast } = useToast();
+  const { toasts, removeToast, success, error } = useModernToast();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -139,12 +139,8 @@ export default function EditClient({ clientId }: { clientId: number }) {
           fax_number: response.data.client.fax_number || '',
         });
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load client",
-        variant: "destructive",
-      });
+    } catch (err) {
+      error('Failed to load client');
     } finally {
       setLoading(false);
     }
@@ -212,29 +208,18 @@ export default function EditClient({ clientId }: { clientId: number }) {
     try {
       const response = await axios.put(`/api/clients/${clientId}`, clientForm);
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Client updated successfully",
-        });
+        success('Client updated successfully');
         loadClient();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to update client";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to update client";
+      error(errorMessage);
     }
   };
 
   const handleAddStorageRate = async () => {
     if (!newStorageSize || !newStorageRate) {
-      toast({
-        title: "Error",
-        description: "Please select a size and enter a rate",
-        variant: "destructive",
-      });
+      error('Please select a size and enter a rate');
       return;
     }
 
@@ -245,21 +230,14 @@ export default function EditClient({ clientId }: { clientId: number }) {
       });
       
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Storage rate added successfully",
-        });
+        success('Storage rate added successfully');
         setNewStorageSize('');
         setNewStorageRate('');
         loadStorageRates();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to add storage rate";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to add storage rate";
+      error(errorMessage);
     }
   };
 
@@ -267,29 +245,18 @@ export default function EditClient({ clientId }: { clientId: number }) {
     try {
       const response = await axios.delete(`/api/clients/${clientId}/storage-rates/${rateId}`);
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Storage rate deleted successfully",
-        });
+        success('Storage rate deleted successfully');
         loadStorageRates();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete storage rate";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete storage rate";
+      error(errorMessage);
     }
   };
 
   const handleAddHandlingRate = async () => {
     if (!newHandlingSize || !newHandlingRate) {
-      toast({
-        title: "Error",
-        description: "Please select a size and enter a rate",
-        variant: "destructive",
-      });
+      error('Please select a size and enter a rate');
       return;
     }
 
@@ -300,21 +267,14 @@ export default function EditClient({ clientId }: { clientId: number }) {
       });
       
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Handling rate added successfully",
-        });
+        success('Handling rate added successfully');
         setNewHandlingSize('');
         setNewHandlingRate('');
         loadHandlingRates();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to add handling rate";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to add handling rate";
+      error(errorMessage);
     }
   };
 
@@ -322,19 +282,12 @@ export default function EditClient({ clientId }: { clientId: number }) {
     try {
       const response = await axios.delete(`/api/clients/${clientId}/handling-rates/${rateId}`);
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Handling rate deleted successfully",
-        });
+        success('Handling rate deleted successfully');
         loadHandlingRates();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete handling rate";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete handling rate";
+      error(errorMessage);
     }
   };
 
@@ -345,19 +298,12 @@ export default function EditClient({ clientId }: { clientId: number }) {
         end_time: incomingHours.end_time,
       });
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Incoming hours updated successfully",
-        });
+        success('Incoming hours updated successfully');
         loadRegularHours();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to update incoming hours";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to update incoming hours";
+      error(errorMessage);
     }
   };
 
@@ -368,19 +314,12 @@ export default function EditClient({ clientId }: { clientId: number }) {
         end_time: withdrawalHours.end_time,
       });
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Withdrawal hours updated successfully",
-        });
+        success('Withdrawal hours updated successfully');
         loadRegularHours();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to update withdrawal hours";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to update withdrawal hours";
+      error(errorMessage);
     }
   };
 
@@ -388,20 +327,13 @@ export default function EditClient({ clientId }: { clientId: number }) {
     try {
       const response = await axios.delete(`/api/clients/${clientId}/regular-hours/incoming`);
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Incoming hours deleted successfully",
-        });
+        success('Incoming hours deleted successfully');
         setIncomingHours({ start_time: '', end_time: '' });
         loadRegularHours();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete incoming hours";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete incoming hours";
+      error(errorMessage);
     }
   };
 
@@ -409,20 +341,13 @@ export default function EditClient({ clientId }: { clientId: number }) {
     try {
       const response = await axios.delete(`/api/clients/${clientId}/regular-hours/withdrawal`);
       if (response.data.success) {
-        toast({
-          title: "Success",
-          description: "Withdrawal hours deleted successfully",
-        });
+        success('Withdrawal hours deleted successfully');
         setWithdrawalHours({ start_time: '', end_time: '' });
         loadRegularHours();
       }
-    } catch (error) {
-      const errorMessage = (error as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete withdrawal hours";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    } catch (err) {
+      const errorMessage = (err as {response?: {data?: {message?: string}}}).response?.data?.message || "Failed to delete withdrawal hours";
+      error(errorMessage);
     }
   };
 
@@ -837,6 +762,7 @@ export default function EditClient({ clientId }: { clientId: number }) {
           </TabsContent>
         </Tabs>
       </div>
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </AuthenticatedLayout>
   );
 }

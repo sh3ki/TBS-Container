@@ -599,7 +599,7 @@ export default function Index() {
                 key: 'container_no',
                 label: 'Container No',
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[100px]">
+                  <div className="font-mono font-semibold text-gray-900 min-w-[70px]" title={record.container_no}>
                     {record.container_no}
                   </div>
                 ),
@@ -608,9 +608,9 @@ export default function Index() {
                 key: 'client',
                 label: 'Client Name',
                 render: (record: PreInventoryRecord) => (
-                  <div className="min-w-[120px]">
-                    <div className="font-medium text-gray-900">{record.client_name}</div>
-                    <div className="text-xs text-gray-500">{record.client_code}</div>
+                  <div className="min-w-[120px] max-w-[120px]">
+                    <div className="font-medium text-gray-900 " title={record.client_name}>{record.client_name}</div>
+                    <div className="text-xs text-gray-500 ">{record.client_code}</div>
                   </div>
                 ),
               },
@@ -618,7 +618,7 @@ export default function Index() {
                 key: 'plate_no',
                 label: 'Plate No',
                 render: (record: PreInventoryRecord) => (
-                  <div className="text-sm text-gray-600 min-w-[80px]">
+                  <div className="text-sm text-gray-600 min-w-[70px] " title={record.plate_no || '-'}>
                     {record.plate_no || '-'}
                   </div>
                 ),
@@ -627,7 +627,7 @@ export default function Index() {
                 key: 'hauler',
                 label: 'Hauler',
                 render: (record: PreInventoryRecord) => (
-                  <div className="text-sm text-gray-600 min-w-[100px]">
+                  <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
                     {record.hauler || '-'}
                   </div>
                 ),
@@ -636,7 +636,7 @@ export default function Index() {
                 key: 'gate_status',
                 label: 'Gate Status',
                 render: (record: PreInventoryRecord) => (
-                  <div className="min-w-[70px]">
+                  <div className="min-w-[60px]">
                     <ModernBadge variant={record.gate_status === 'IN' ? 'success' : 'error'}>
                       {record.gate_status}
                     </ModernBadge>
@@ -647,7 +647,7 @@ export default function Index() {
                 key: 'status',
                 label: 'Status',
                 render: (record: PreInventoryRecord) => (
-                  <div className="min-w-[80px]">
+                  <div className="min-w-[70px] ">
                     <ModernBadge
                       variant={
                         record.status.toLowerCase() === 'pending' ? 'warning' : 'default'
@@ -674,7 +674,7 @@ export default function Index() {
                 key: 'date_added',
                 label: 'Date Created',
                 render: (record: PreInventoryRecord) => (
-                  <div className="text-sm text-gray-600 min-w-[100px]">
+                  <div className="text-sm text-gray-600 min-w-[80px] max-w-[110px]">
                     {formatDateTime(record.date_added)}
                   </div>
                 ),
@@ -683,7 +683,7 @@ export default function Index() {
                 key: 'actions',
                 label: 'Actions',
                 render: (record: PreInventoryRecord) => (
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-2 min-w-[120px]">
                     {/* PROCESS BUTTON - AS REQUESTED IN IMAGE */}
                     {record.status.toLowerCase() === 'pending' && (
                       <ModernButton

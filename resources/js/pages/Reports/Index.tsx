@@ -18,7 +18,7 @@ import {
     BarChart,
     Printer
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
 import axios from 'axios';
 
@@ -29,7 +29,7 @@ interface Client {
 }
 
 export default function Index() {
-    const { toast } = useToast();
+    const { toasts, removeToast, success, error } = useModernToast();
     const [activeReport, setActiveReport] = useState('daily-gate');
     const [loading, setLoading] = useState(false);
     const [clients, setClients] = useState<Client[]>([]);
@@ -148,7 +148,7 @@ export default function Index() {
                 case 'client-activity':
                     endpoint = '/api/reports/client-activity';
                     if (!selectedClient) {
-                        toast({ title: "Error", description: "Please select a client for this report", variant: "destructive" });
+                        error('Please select a client for this report');
                         setLoading(false);
                         return;
                     }
@@ -174,7 +174,7 @@ export default function Index() {
                     params.date = dateFrom;
                     break;
                 default:
-                    toast({ title: "Error", description: "Invalid report type", variant: "destructive" });
+                    error('Invalid report type');
                     setLoading(false);
                     return;
             }
@@ -182,9 +182,9 @@ export default function Index() {
             const response = await axios.get(endpoint, { params });
             setReportData(response.data.data);
 
-            toast({ title: "Success", description: "Report generated successfully" });
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to generate report", variant: "destructive" });
+            success('Report generated successfully');
+        } catch (err) {
+            error('Failed to generate report');
         } finally {
             setLoading(false);
         }
@@ -192,7 +192,7 @@ export default function Index() {
 
     const exportToExcel = async () => {
         if (!reportData) {
-            toast({ title: "Error", description: "No data to export", variant: "destructive" });
+            error('No data to export');
             return;
         }
 
@@ -206,9 +206,9 @@ export default function Index() {
             link.click();
             window.URL.revokeObjectURL(url);
 
-            toast({ title: "Success", description: "Report exported successfully" });
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to export report", variant: "destructive" });
+            success('Report exported successfully');
+        } catch (err) {
+            error('Failed to export report');
         }
     };
 
@@ -470,6 +470,8 @@ export default function Index() {
                     </ModernCard>
                 )}
             </div>
+
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
 }

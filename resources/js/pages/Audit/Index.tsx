@@ -19,7 +19,7 @@ import {
     Shield,
     Activity
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
 import axios from 'axios';
 
@@ -44,7 +44,7 @@ interface User {
 }
 
 export default function Index() {
-    const { toast } = useToast();
+    const { toasts, removeToast, success, error } = useModernToast();
     
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -128,8 +128,8 @@ export default function Index() {
             setAuditLogs(response.data.data || []);
             setTotal(response.data.total || 0);
             setLastPage(response.data.last_page || 1);
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to fetch audit logs", variant: "destructive" });
+        } catch (err) {
+            error('Failed to fetch audit logs');
         } finally {
             setRefreshing(false);
         }
@@ -141,8 +141,8 @@ export default function Index() {
             const response = await axios.get(`/api/audit/${hashedId}`);
             setSelectedLog(response.data.data);
             setShowDetailModal(true);
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to load audit log details", variant: "destructive" });
+        } catch (err) {
+            error('Failed to load audit log details');
         } finally {
             setLoading(false);
         }
@@ -161,7 +161,7 @@ export default function Index() {
 
             const data = response.data.data;
             if (data.length === 0) {
-                toast({ title: "No Data", description: "No audit logs to export" });
+                error('No audit logs to export');
                 return;
             }
 
@@ -181,9 +181,9 @@ export default function Index() {
             link.click();
             window.URL.revokeObjectURL(url);
 
-            toast({ title: "Success", description: "Audit logs exported successfully" });
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to export audit logs", variant: "destructive" });
+            success('Audit logs exported successfully');
+        } catch (err) {
+            error('Failed to export audit logs');
         } finally {
             setLoading(false);
         }
@@ -548,6 +548,7 @@ export default function Index() {
                     )}
                 </DialogContent>
             </Dialog>
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
 }

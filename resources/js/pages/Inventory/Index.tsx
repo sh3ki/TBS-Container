@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ModernButton, ModernCard, ModernTable, ModernBadge } from '@/components/modern';
+import { ModernButton, ModernCard, ModernTable, ModernBadge, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,7 +22,6 @@ import {
     MapPin,
     AlertCircle
 } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
 import { colors } from '@/lib/colors';
 import ViewDetailsModal from './ViewDetailsModal';
 import EditInventoryModal from './EditInventoryModal';
@@ -61,7 +60,7 @@ interface ClientOption {
 }
 
 export default function Index() {
-    const { toast } = useToast();
+    const { toasts, removeToast, success, error } = useModernToast();
     const axios = (window as any).axios;
     
     const [inventory, setInventory] = useState<InventoryRecord[]>([]);
@@ -107,9 +106,9 @@ export default function Index() {
                 setInventory(response.data.data || []);
                 setRecordsTotal(response.data.recordsFiltered || 0);
             }
-        } catch (error) {
-            console.error('Failed to fetch inventory:', error);
-            toast({ title: "Error", description: "Failed to load inventory", variant: "destructive" });
+        } catch (err) {
+            console.error('Failed to fetch inventory:', err);
+            error('Failed to load inventory');
         } finally {
             setLoading(false);
         }
@@ -146,11 +145,11 @@ export default function Index() {
             if (response.data.success) {
                 setInventory(response.data.data || []);
                 setRecordsTotal(response.data.total || 0);
-                toast({ title: "Success", description: `Found ${response.data.total} records` });
+                success(`Found ${response.data.total} records`);
             }
-        } catch (error) {
-            console.error('Error searching:', error);
-            toast({ title: "Error", description: "Search failed", variant: "destructive" });
+        } catch (err) {
+            console.error('Error searching:', err);
+            error('Search failed');
         } finally {
             setLoading(false);
         }
@@ -168,11 +167,11 @@ export default function Index() {
             if (response.data.success) {
                 setInventory(response.data.data || []);
                 setRecordsTotal(response.data.total || 0);
-                toast({ title: "Success", description: `Found ${response.data.total} records` });
+                success(`Found ${response.data.total} records`);
             }
-        } catch (error) {
-            console.error('Error searching:', error);
-            toast({ title: "Error", description: "Search failed", variant: "destructive" });
+        } catch (err) {
+            console.error('Error searching:', err);
+            error('Search failed');
         } finally {
             setLoading(false);
         }
@@ -188,7 +187,7 @@ export default function Index() {
         setStatusFilter('all');
         setCurrentPage(1);
         fetchInventory();
-        toast({ title: "Info", description: "Filters cleared" });
+        success('Filters cleared');
     };
 
     const handleExportToExcel = async () => {
@@ -211,10 +210,10 @@ export default function Index() {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
 
-            toast({ title: "Success", description: "Inventory exported to Excel" });
-        } catch (error) {
-            console.error('Error exporting:', error);
-            toast({ title: "Error", description: "Export failed", variant: "destructive" });
+            success('Inventory exported to Excel');
+        } catch (err) {
+            console.error('Error exporting:', err);
+            error('Export failed');
         }
     };
 
@@ -241,12 +240,12 @@ export default function Index() {
             const response = await axios.delete(`/api/inventory/${record.hashed_id}`);
             
             if (response.data.success) {
-                toast({ title: "Success", description: "Container deleted successfully" });
+                success('Container deleted successfully');
                 fetchInventory();
             }
-        } catch (error) {
-            console.error('Error deleting:', error);
-            toast({ title: "Error", description: "Delete failed", variant: "destructive" });
+        } catch (err) {
+            console.error('Error deleting:', err);
+            error('Delete failed');
         }
     };
 
@@ -262,15 +261,12 @@ export default function Index() {
             const response = await axios.post(`/api/inventory/${record.hashed_id}/${action}`);
             
             if (response.data.success) {
-                toast({ 
-                    title: "Success", 
-                    description: record.hold ? 'Hold removed' : 'Container on hold' 
-                });
+                success(record.hold ? 'Hold removed' : 'Container on hold');
                 fetchInventory();
             }
-        } catch (error) {
-            console.error('Error toggling hold:', error);
-            toast({ title: "Error", description: "Hold toggle failed", variant: "destructive" });
+        } catch (err) {
+            console.error('Error toggling hold:', err);
+            error('Hold toggle failed');
         }
     };
 
@@ -721,6 +717,7 @@ export default function Index() {
                     onSuccess={handleEditSuccess}
                 />
             )}
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
 }
