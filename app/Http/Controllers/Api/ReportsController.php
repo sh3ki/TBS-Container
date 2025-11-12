@@ -719,20 +719,19 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $prefix = DB::getTablePrefix();
-        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
-                DB::raw('inv.i_id as eir_no'),
-                DB::raw('DATE(inv.date_added) as date'),
-                DB::raw('TIME(inv.date_added) as time'),
+                DB::raw('fjp_inv.i_id as eir_no'),
+                DB::raw('DATE(fjp_inv.date_added) as date'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'inv.vessel',
                 'inv.voyage',
@@ -773,20 +772,19 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $prefix = DB::getTablePrefix();
-        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.approval_date', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
-                DB::raw('inv.i_id as eir_no'),
-                DB::raw('DATE(inv.approval_date) as date'),
-                DB::raw('TIME(inv.approval_date) as time'),
+                DB::raw('fjp_inv.i_id as eir_no'),
+                DB::raw('DATE(fjp_inv.approval_date) as date'),
+                DB::raw('TIME(fjp_inv.approval_date) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'inv.vessel',
                 'inv.voyage',
@@ -825,20 +823,19 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
-        $prefix = DB::getTablePrefix();
-        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'lt.type as load',
                 'c.client_name as client',
-                DB::raw('DATE(inv.date_added) as date')
+                DB::raw('DATE(fjp_inv.date_added) as date')
             );
 
         if ($clientId && $clientId !== 'all' && $clientId !== '') {
@@ -864,18 +861,17 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $prefix = DB::getTablePrefix();
-        $data = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $data = DB::table('inventory as inv')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'lt.type as load',
-                DB::raw('DATE(inv.date_added) as date')
+                DB::raw('DATE(fjp_inv.date_added) as date')
             )
             ->orderBy('inv.date_added', 'desc')
             ->get();
@@ -902,20 +898,19 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $prefix = DB::getTablePrefix();
-        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
-                DB::raw('inv.i_id as eir_no'),
-                DB::raw('DATE(inv.date_added) as date'),
-                DB::raw('TIME(inv.date_added) as time'),
+                DB::raw('fjp_inv.i_id as eir_no'),
+                DB::raw('DATE(fjp_inv.date_added) as date'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'inv.vessel',
                 'inv.voyage',
@@ -974,20 +969,19 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $prefix = DB::getTablePrefix();
-        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.approval_date', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
-                DB::raw('inv.i_id as eir_no'),
-                DB::raw('DATE(inv.approval_date) as date'),
-                DB::raw('TIME(inv.approval_date) as time'),
+                DB::raw('fjp_inv.i_id as eir_no'),
+                DB::raw('DATE(fjp_inv.approval_date) as date'),
+                DB::raw('TIME(fjp_inv.approval_date) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'inv.vessel',
                 'inv.voyage',
@@ -1039,20 +1033,19 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
-        $prefix = DB::getTablePrefix();
-        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'lt.type as load',
                 'c.client_name as client',
-                DB::raw('DATE(inv.date_added) as date')
+                DB::raw('DATE(fjp_inv.date_added) as date')
             );
 
         if ($clientId && $clientId !== 'all' && $clientId !== '') {
@@ -1091,18 +1084,17 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $prefix = DB::getTablePrefix();
-        $data = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
+        $data = DB::table('inventory as inv')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
                 'lt.type as load',
-                DB::raw('DATE(inv.date_added) as date')
+                DB::raw('DATE(fjp_inv.date_added) as date')
             )
             ->orderBy('inv.date_added', 'desc')
             ->get();
