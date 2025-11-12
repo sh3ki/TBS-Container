@@ -719,7 +719,6 @@ class GateinoutController extends Controller
                 'cnt_class' => 'required|string|in:A,B,C',
                 'vessel' => 'required|string',
                 'voyage' => 'required|string',
-                'checker_id' => 'required|string',
                 'ex_consignee' => 'required|string',
                 'load_type' => 'required|integer',
                 'plate_no' => 'required|string',
@@ -774,9 +773,9 @@ class GateinoutController extends Controller
                 DB::insert(
                     "INSERT INTO {$this->prefix}inventory 
                     (container_no, client_id, date_manufactured, container_status, size_type, iso_code, class, 
-                     vessel, voyage, checker_id, ex_consignee, load_type, plate_no, hauler, hauler_driver, 
-                     license_no, location, chasis, contact_no, bill_of_lading, remarks, date_added, complete)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     vessel, voyage, ex_consignee, load_type, plate_no, hauler, hauler_driver, 
+                     license_no, location, chasis, contact_no, bill_of_lading, remarks, date_added, complete, gate_status, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     [
                         $validated['container_no'],
                         $request->input('client_id'),
@@ -787,7 +786,6 @@ class GateinoutController extends Controller
                         $validated['cnt_class'],
                         $validated['vessel'],
                         $validated['voyage'],
-                        $validated['checker_id'],
                         $validated['ex_consignee'],
                         $validated['load_type'],
                         $validated['plate_no'],
@@ -800,7 +798,9 @@ class GateinoutController extends Controller
                         $validated['bol'],
                         $validated['remarks'],
                         now(),
-                        0 // Not yet gated out
+                        0, // complete - Not yet gated out
+                        'IN', // gate_status
+                        Auth::check() ? Auth::user()->user_id : 0 // user_id
                     ]
                 );
 
@@ -853,7 +853,7 @@ class GateinoutController extends Controller
                 'p_id' => 'required|integer',
                 'container_no' => 'required|string|size:11',
                 'client_id' => 'required|integer',
-                'cnt_status' => 'required|integer',
+                'container_status' => 'required|integer',
                 'size_type' => 'required|integer',
                 'iso_code' => 'required|string',
                 'vessel' => 'required|string',
@@ -862,7 +862,7 @@ class GateinoutController extends Controller
                 'hauler' => 'required|string',
                 'hauler_driver' => 'required|string',
                 'license_no' => 'required|string',
-                'checker_id' => 'required|string',
+                'checker' => 'required|string',
                 'location' => 'required|string',
                 'load_type' => 'required|integer',
                 'chasis' => 'required|string',
@@ -884,7 +884,7 @@ class GateinoutController extends Controller
 
             // Check if container exists in inventory
             $containerCheck = DB::select(
-                "SELECT inv_id FROM {$this->prefix}inventory WHERE container_no = ? AND complete = 0",
+                "SELECT i_id FROM {$this->prefix}inventory WHERE container_no = ? AND complete = 0",
                 [$validated['container_no']]
             );
             
@@ -895,44 +895,39 @@ class GateinoutController extends Controller
                 ], 422);
             }
 
-            $inventoryId = $containerCheck[0]->inv_id;
+            $inventoryId = $containerCheck[0]->i_id;
 
             DB::beginTransaction();
 
             try {
-                // Update inventory record with all 21 fields
+                // Update inventory record - mark as complete and update all Gate OUT fields
                 DB::update(
                     "UPDATE {$this->prefix}inventory 
-                     SET iscomplete = 1, 
-                         date_out = ?,
-                         cnt_status = ?,
+                     SET complete = 1, 
+                         container_status = ?,
                          vessel = ?,
                          voyage = ?,
                          plate_no = ?,
                          hauler = ?,
                          hauler_driver = ?,
                          license_no = ?,
-                         checker_id = ?,
                          location = ?,
                          load_type = ?,
                          chasis = ?,
                          contact_no = ?,
                          shipper = ?,
-                         booking_no = ?,
+                         booking = ?,
                          seal_no = ?,
-                         remarks = ?,
-                         save_and_book = ?
-                     WHERE container_no = ? AND iscomplete = 0",
+                         remarks = ?
+                     WHERE container_no = ? AND complete = 0",
                     [
-                        now(),
-                        $validated['cnt_status'],
+                        $validated['container_status'],
                         $validated['vessel'],
                         $validated['voyage'],
                         $validated['plate_no'],
                         $validated['hauler'],
                         $validated['hauler_driver'],
                         $validated['license_no'],
-                        $validated['checker_id'],
                         $validated['location'],
                         $validated['load_type'],
                         $validated['chasis'],
@@ -941,14 +936,13 @@ class GateinoutController extends Controller
                         $validated['booking_no'],
                         $validated['seal_no'],
                         $validated['remarks'],
-                        $validated['save_and_book'],
                         $validated['container_no']
                     ]
                 );
 
                 // Update pre_inventory status to finished
                 DB::update(
-                    "UPDATE {$this->prefix}pre_inventory SET isfinished = 1, date_completed = ? WHERE p_id = ?",
+                    "UPDATE {$this->prefix}pre_inventory SET status = 1, date_completed = ? WHERE p_id = ?",
                     [now(), $validated['p_id']]
                 );
 
@@ -1061,7 +1055,7 @@ class GateinoutController extends Controller
             
             $query = "
                 SELECT 
-                    i.inv_id,
+                    i.i_id,
                     i.container_no,
                     COALESCE(c.client_code, c.client_name, '-') AS client_name,
                     c.c_id AS client_id,
@@ -1077,7 +1071,7 @@ class GateinoutController extends Controller
                 LEFT JOIN {$this->prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$this->prefix}container_size_type st ON i.size_type = st.s_id
                 WHERE i.gate_status = 'IN' 
-                  AND i.iscomplete = 0
+                  AND i.complete = 0
                   AND c.archived = 0
                   AND NOT EXISTS (
                       SELECT 1 FROM {$this->prefix}hold_containers hc 
@@ -1125,14 +1119,14 @@ class GateinoutController extends Controller
             // Check if container is IN yard
             $container = DB::select("
                 SELECT 
-                    i.inv_id,
+                    i.i_id,
                     i.container_no,
                     i.client_id,
                     COALESCE(c.client_code, c.client_name, '-') AS client_name,
                     i.size_type,
                     CONCAT(st.size, st.type) AS size_type_display,
                     i.iso_code,
-                    i.cnt_status,
+                    i.container_status AS cnt_status,
                     cs.status AS status_name,
                     i.vessel,
                     i.voyage,
@@ -1140,7 +1134,6 @@ class GateinoutController extends Controller
                     i.hauler,
                     i.hauler_driver,
                     i.license_no,
-                    i.checker_id,
                     i.location,
                     i.load_type,
                     lt.type AS load_type_name,
@@ -1152,11 +1145,11 @@ class GateinoutController extends Controller
                 FROM {$this->prefix}inventory i
                 LEFT JOIN {$this->prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$this->prefix}container_size_type st ON i.size_type = st.s_id
-                LEFT JOIN {$this->prefix}container_status cs ON i.cnt_status = cs.s_id
+                LEFT JOIN {$this->prefix}container_status cs ON i.container_status = cs.s_id
                 LEFT JOIN {$this->prefix}load_type lt ON i.load_type = lt.l_id
                 WHERE i.container_no = ? 
                   AND i.gate_status = 'IN' 
-                  AND i.iscomplete = 0
+                  AND i.complete = 0
                   AND c.archived = 0
             ", [$containerNo]);
 

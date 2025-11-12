@@ -16,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { ModernButton, ModernConfirmDialog } from '@/components/modern';
 import { Printer, Search } from 'lucide-react';
 import axios from 'axios';
@@ -39,7 +40,7 @@ interface ProcessGateOutModalProps {
 }
 
 interface ContainerOption {
-    inv_id: number;
+    i_id: number;
     container_no: string;
     client_name: string;
     client_id: number;
@@ -66,6 +67,7 @@ export default function ProcessGateOutModal({
     const [containerOptions, setContainerOptions] = useState<ContainerOption[]>([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isContainerSelected, setIsContainerSelected] = useState(false);
     
     const [formData, setFormData] = useState({
         container_no: '',
@@ -177,12 +179,14 @@ export default function ProcessGateOutModal({
                 
                 setShowDropdown(false);
                 setSearchTerm(container.container_no);
+                setIsContainerSelected(true); // Enable other fields
             }
-        } catch (error: any) {
-            if (error.response?.data?.message) {
-                alert(error.response.data.message);
-                if (error.response.data.hold_notes) {
-                    alert(`HOLD NOTES: ${error.response.data.hold_notes}`);
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string; hold_notes?: string } } };
+            if (err.response?.data?.message) {
+                alert(err.response.data.message);
+                if (err.response.data.hold_notes) {
+                    alert(`HOLD NOTES: ${err.response.data.hold_notes}`);
                 }
             }
         }
@@ -264,7 +268,7 @@ export default function ProcessGateOutModal({
                 p_id: record?.p_id,
                 container_no: formData.container_no,
                 client_id: formData.client_id,
-                cnt_status: parseInt(formData.status),
+                container_status: parseInt(formData.status),
                 size_type: formData.size_type,
                 iso_code: formData.iso_code,
                 vessel: formData.vessel,
@@ -273,7 +277,7 @@ export default function ProcessGateOutModal({
                 hauler: formData.hauler,
                 hauler_driver: formData.hauler_driver,
                 license_no: formData.license_no,
-                checker_id: formData.checker,
+                checker: formData.checker,
                 location: formData.location,
                 load_type: parseInt(formData.load),
                 chasis: formData.chasis,
@@ -344,24 +348,20 @@ export default function ProcessGateOutModal({
                                     <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 </div>
                                 
-                                {/* Dropdown */}
+                                {/* Dropdown - styled exactly like Select dropdown */}
                                 {showDropdown && containerOptions.length > 0 && (
-                                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                                        {containerOptions.map((container) => (
-                                            <div
-                                                key={container.inv_id}
-                                                onClick={() => handleContainerSelect(container)}
-                                                className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0"
-                                            >
-                                                <div className="font-semibold text-sm">{container.container_no}</div>
-                                                <div className="text-xs text-gray-600">
-                                                    {container.client_name} • {container.size_type} • {container.location}
+                                    <div className="absolute z-50 w-full mt-1 bg-white text-gray-900 border border-gray-200 rounded-md shadow-md max-h-96 overflow-hidden">
+                                        <div className="p-1 max-h-[200px] overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400">
+                                            {containerOptions.map((container) => (
+                                                <div
+                                                    key={container.i_id}
+                                                    onClick={() => handleContainerSelect(container)}
+                                                    className="relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-blue-50 hover:text-gray-900 text-gray-900"
+                                                >
+                                                    {container.container_no}
                                                 </div>
-                                                <div className="text-xs text-gray-500">
-                                                    {container.days_in_yard} days in yard
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -405,7 +405,7 @@ export default function ProcessGateOutModal({
                         <div className="space-y-4">
                             <div>
                                 <Label>Status *</Label>
-                                <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
+                                <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)} disabled={!isContainerSelected}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select status" />
                                     </SelectTrigger>
@@ -424,6 +424,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.vessel}
                                     onChange={(e) => handleInputChange('vessel', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -432,6 +433,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.voyage}
                                     onChange={(e) => handleInputChange('voyage', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -440,6 +442,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.hauler_driver}
                                     onChange={(e) => handleInputChange('hauler_driver', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -448,6 +451,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.license_no}
                                     onChange={(e) => handleInputChange('license_no', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -456,6 +460,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.checker}
                                     onChange={(e) => handleInputChange('checker', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -464,6 +469,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.location}
                                     onChange={(e) => handleInputChange('location', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
                         </div>
@@ -472,7 +478,7 @@ export default function ProcessGateOutModal({
                         <div className="space-y-4">
                             <div>
                                 <Label>Load *</Label>
-                                <Select value={formData.load} onValueChange={(value) => handleInputChange('load', value)}>
+                                <Select value={formData.load} onValueChange={(value) => handleInputChange('load', value)} disabled={!isContainerSelected}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select load" />
                                     </SelectTrigger>
@@ -491,6 +497,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.chasis}
                                     onChange={(e) => handleInputChange('chasis', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -499,6 +506,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.contact_no}
                                     onChange={(e) => handleInputChange('contact_no', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -507,6 +515,7 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.booking}
                                     onChange={(e) => handleInputChange('booking', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
@@ -515,21 +524,23 @@ export default function ProcessGateOutModal({
                                 <Input
                                     value={formData.seal_no}
                                     onChange={(e) => handleInputChange('seal_no', e.target.value)}
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
                             <div>
                                 <Label>Remarks *</Label>
-                                <textarea
-                                    className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background"
+                                <Textarea
                                     value={formData.remarks}
                                     onChange={(e) => handleInputChange('remarks', e.target.value)}
+                                    className="min-h-[80px]"
+                                    disabled={!isContainerSelected}
                                 />
                             </div>
 
                             <div>
                                 <Label>Save and Book *</Label>
-                                <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)}>
+                                <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)} disabled={!isContainerSelected}>
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
@@ -559,12 +570,12 @@ export default function ProcessGateOutModal({
 
             <ModernConfirmDialog
                 open={showConfirm}
-                onClose={() => setShowConfirm(false)}
+                onOpenChange={setShowConfirm}
                 onConfirm={handleConfirm}
-                title="Confirm Gate OUT"
-                description={`Are you sure you want to process Gate OUT for container ${formData.container_no}?`}
-                confirmText="Confirm"
-                cancelText="Cancel"
+                title="Process Gate OUT"
+                description="Are you sure you want to process this Gate OUT? This will create a permanent record."
+                confirmText="Confirm Process"
+                type="success"
             />
         </>
     );
