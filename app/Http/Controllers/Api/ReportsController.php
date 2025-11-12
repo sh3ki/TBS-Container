@@ -148,8 +148,8 @@ class ReportsController extends Controller
         if ($request->hold_only) {
             $query->whereExists(function ($q) {
                 $q->select(DB::raw(1))
-                    ->from('fjp_hold_containers')
-                    ->whereColumn('fjp_hold_containers.container_no', 'fjp_inventory.container_no');
+                    ->from('hold_containers')
+                    ->whereColumn('hold_containers.container_no', 'inventory.container_no');
             });
         }
 
@@ -157,7 +157,7 @@ class ReportsController extends Controller
             $daysInYard = now()->diffInDays($item->date_added);
             
             // Check if on hold
-            $onHold = DB::table('fjp_hold_containers')
+            $onHold = DB::table('hold_containers')
                 ->where('container_no', $item->container_no)
                 ->exists();
 
@@ -508,22 +508,22 @@ class ReportsController extends Controller
      */
     public function holdContainersReport(Request $request)
     {
-        $query = DB::table('fjp_hold_containers')
-            ->join('fjp_inventory', 'fjp_hold_containers.container_no', '=', 'fjp_inventory.container_no')
-            ->join('fjp_clients', 'fjp_inventory.client_id', '=', 'fjp_clients.c_id')
-            ->leftJoin('fjp_container_size_type', 'fjp_inventory.size_type', '=', 'fjp_container_size_type.s_id')
+        $query = DB::table('hold_containers')
+            ->join('inventory', 'hold_containers.container_no', '=', 'inventory.container_no')
+            ->join('clients', 'inventory.client_id', '=', 'clients.c_id')
+            ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
             ->select(
-                'fjp_hold_containers.container_no',
-                'fjp_clients.client_code',
-                'fjp_clients.client_name',
-                'fjp_container_size_type.size',
-                'fjp_inventory.date_added',
-                'fjp_hold_containers.notes',
-                'fjp_hold_containers.date_added as hold_date'
+                'hold_containers.container_no',
+                'clients.client_code',
+                'clients.client_name',
+                'container_size_type.size',
+                'inventory.date_added',
+                'hold_containers.notes',
+                'hold_containers.date_added as hold_date'
             );
 
         if ($request->client_id) {
-            $query->where('fjp_inventory.client_id', $request->client_id);
+            $query->where('inventory.client_id', $request->client_id);
         }
 
         $holdContainers = collect($query->get())->map(function ($item) {
@@ -719,11 +719,12 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
@@ -772,11 +773,12 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.approval_date', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
@@ -823,11 +825,12 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
-        $query = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
@@ -861,10 +864,11 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $data = DB::table('inventory as inv')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $data = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
@@ -898,11 +902,12 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
@@ -969,11 +974,12 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.approval_date', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
@@ -1033,11 +1039,12 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
-        $query = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $query = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'clients` as c'), 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
@@ -1084,10 +1091,11 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $data = DB::table('inventory as inv')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $prefix = DB::getTablePrefix();
+        $data = DB::table(DB::raw('`' . DB::getTablePrefix() . 'inventory` as inv'))
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_size_type` as st'), 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'container_status` as cs'), 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin(DB::raw('`' . DB::getTablePrefix() . 'load_type` as lt'), 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
