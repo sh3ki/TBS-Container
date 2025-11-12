@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class PreInventory extends Model
 {
-    protected $table = 'fjp_pre_inventory';
+    protected $table = 'pre_inventory';
     protected $primaryKey = 'p_id';
     public $timestamps = false;
 

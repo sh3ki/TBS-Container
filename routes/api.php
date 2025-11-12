@@ -252,6 +252,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Reports - Complete 9 report types
     Route::prefix('reports')->group(function () {
+        // Helper endpoints
+        Route::get('/clients', [ReportsController::class, 'getClients']);
+        
+        // New Report Types (Incoming, Outgoing, DMR, DCR)
+        Route::get('/incoming', [ReportsController::class, 'incomingReport']);
+        Route::post('/incoming/export', [ReportsController::class, 'exportIncomingReport']);
+        Route::get('/outgoing', [ReportsController::class, 'outgoingReport']);
+        Route::post('/outgoing/export', [ReportsController::class, 'exportOutgoingReport']);
+        Route::get('/dmr', [ReportsController::class, 'dmrReport']);
+        Route::post('/dmr/export', [ReportsController::class, 'exportDmrReport']);
+        Route::get('/dcr', [ReportsController::class, 'dcrReport']);
+        Route::post('/dcr/export', [ReportsController::class, 'exportDcrReport']);
+        
         // Main reports
         Route::get('/daily-gate', [ReportsController::class, 'dailyGateReport']);
         Route::get('/inventory-status', [ReportsController::class, 'inventoryStatusReport']);

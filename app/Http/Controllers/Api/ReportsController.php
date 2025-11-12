@@ -12,6 +12,30 @@ use Illuminate\Support\Facades\DB;
 class ReportsController extends Controller
 {
     /**
+     * Get clients list for dropdown
+     */
+    public function getClients()
+    {
+        $clients = Client::where('archived', 0)
+            ->orderBy('client_name')
+            ->get()
+            ->map(function ($client) {
+                return [
+                    'id' => (string) $client->c_id,
+                    'c_id' => $client->c_id,
+                    'code' => $client->client_code,
+                    'name' => $client->client_name,
+                    'text' => $client->client_code . ' - ' . $client->client_name,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $clients,
+        ]);
+    }
+
+    /**
      * REPORT 1: Daily Gate In/Out Report
      * Shows all containers gated in/out within date range
      */
@@ -678,6 +702,420 @@ class ReportsController extends Controller
                 'report_data' => $data,
             ],
         ]);
+    }
+
+    /**
+     * Incoming Report - Gate IN containers
+     */
+    public function incomingReport(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
+            'client_id' => 'nullable|string',
+        ]);
+
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate = $request->end_date . ' 23:59:59';
+        $clientId = $request->client_id;
+
+        $query = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereBetween('inv.date_added', [$startDate, $endDate])
+            ->where('inv.gate_status', 'IN')
+            ->select(
+                DB::raw('inv.i_id as eir_no'),
+                DB::raw('DATE(inv.date_added) as date'),
+                DB::raw('TIME(inv.date_added) as time'),
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'inv.vessel',
+                'inv.voyage',
+                'inv.class',
+                'inv.date_manufactured',
+                'inv.ex_consignee',
+                'inv.hauler',
+                'inv.plate_no',
+                'lt.type as load',
+                'inv.origin',
+                'inv.chasis'
+            );
+
+        if ($clientId && $clientId !== 'all' && $clientId !== '') {
+            $query->where('inv.client_id', $clientId);
+        }
+
+        $data = $query->orderBy('inv.date_added', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Outgoing Report - Gate OUT containers
+     */
+    public function outgoingReport(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
+            'client_id' => 'nullable|string',
+        ]);
+
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate = $request->end_date . ' 23:59:59';
+        $clientId = $request->client_id;
+
+        $query = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereBetween('inv.approval_date', [$startDate, $endDate])
+            ->where('inv.gate_status', 'OUT')
+            ->select(
+                DB::raw('inv.i_id as eir_no'),
+                DB::raw('DATE(inv.approval_date) as date'),
+                DB::raw('TIME(inv.approval_date) as time'),
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'inv.vessel',
+                'inv.voyage',
+                'inv.shipper',
+                'inv.hauler',
+                'inv.booking',
+                DB::raw('NULL as destination'),
+                'inv.plate_no',
+                'lt.type as load',
+                'inv.chasis',
+                'inv.seal_no'
+            );
+
+        if ($clientId && $clientId !== 'all' && $clientId !== '') {
+            $query->where('inv.client_id', $clientId);
+        }
+
+        $data = $query->orderBy('inv.approval_date', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * DMR Report - Daily Monitoring Report
+     */
+    public function dmrReport(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'client_id' => 'nullable|string',
+        ]);
+
+        $date = $request->date;
+        $clientId = $request->client_id;
+
+        $query = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereDate('inv.date_added', $date)
+            ->select(
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'lt.type as load',
+                'c.client_name as client',
+                DB::raw('DATE(inv.date_added) as date')
+            );
+
+        if ($clientId && $clientId !== 'all' && $clientId !== '') {
+            $query->where('inv.client_id', $clientId);
+        }
+
+        $data = $query->orderBy('inv.date_added', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * DCR Report - Daily Container Report
+     */
+    public function dcrReport(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $date = $request->date;
+
+        $data = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereDate('inv.date_added', $date)
+            ->select(
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'lt.type as load',
+                DB::raw('DATE(inv.date_added) as date')
+            )
+            ->orderBy('inv.date_added', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    /**
+     * Export Incoming Report to CSV
+     */
+    public function exportIncomingReport(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
+            'client_id' => 'nullable|string',
+        ]);
+
+        // Get the data using the same logic as incomingReport
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate = $request->end_date . ' 23:59:59';
+        $clientId = $request->client_id;
+
+        $query = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereBetween('inv.date_added', [$startDate, $endDate])
+            ->where('inv.gate_status', 'IN')
+            ->select(
+                DB::raw('inv.i_id as eir_no'),
+                DB::raw('DATE(inv.date_added) as date'),
+                DB::raw('TIME(inv.date_added) as time'),
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'inv.vessel',
+                'inv.voyage',
+                'inv.class',
+                'inv.date_manufactured',
+                'inv.ex_consignee',
+                'inv.hauler',
+                'inv.plate_no',
+                'lt.type as load',
+                'inv.origin',
+                'inv.chasis'
+            );
+
+        if ($clientId && $clientId !== 'all' && $clientId !== '') {
+            $query->where('inv.client_id', $clientId);
+        }
+
+        $data = $query->orderBy('inv.date_added', 'desc')->get();
+
+        // Generate CSV
+        $filename = 'incoming_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $filePath = storage_path('app/public/exports/' . $filename);
+
+        // Ensure directory exists
+        if (!file_exists(dirname($filePath))) {
+            mkdir(dirname($filePath), 0755, true);
+        }
+
+        $file = fopen($filePath, 'w');
+        
+        // Add headers
+        fputcsv($file, ['EIR No.', 'Date', 'Time', 'Container No.', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Class', 'Date Manufactured', 'Ex-Consignee', 'Hauler', 'Plate No.', 'Load', 'Origin', 'Chasis']);
+        
+        // Add data
+        foreach ($data as $row) {
+            fputcsv($file, (array) $row);
+        }
+        
+        fclose($file);
+
+        return response()->download($filePath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Export Outgoing Report to CSV
+     */
+    public function exportOutgoingReport(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
+            'client_id' => 'nullable|string',
+        ]);
+
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate = $request->end_date . ' 23:59:59';
+        $clientId = $request->client_id;
+
+        $query = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereBetween('inv.approval_date', [$startDate, $endDate])
+            ->where('inv.gate_status', 'OUT')
+            ->select(
+                DB::raw('inv.i_id as eir_no'),
+                DB::raw('DATE(inv.approval_date) as date'),
+                DB::raw('TIME(inv.approval_date) as time'),
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'inv.vessel',
+                'inv.voyage',
+                'inv.shipper',
+                'inv.hauler',
+                'inv.booking',
+                DB::raw('NULL as destination'),
+                'inv.plate_no',
+                'lt.type as load',
+                'inv.chasis',
+                'inv.seal_no'
+            );
+
+        if ($clientId && $clientId !== 'all' && $clientId !== '') {
+            $query->where('inv.client_id', $clientId);
+        }
+
+        $data = $query->orderBy('inv.approval_date', 'desc')->get();
+
+        $filename = 'outgoing_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $filePath = storage_path('app/public/exports/' . $filename);
+
+        if (!file_exists(dirname($filePath))) {
+            mkdir(dirname($filePath), 0755, true);
+        }
+
+        $file = fopen($filePath, 'w');
+        fputcsv($file, ['EIR No.', 'Date', 'Time', 'Container No.', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Destination', 'Plate No.', 'Load', 'Chasis', 'Seal No.']);
+        
+        foreach ($data as $row) {
+            fputcsv($file, (array) $row);
+        }
+        
+        fclose($file);
+
+        return response()->download($filePath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Export DMR Report to CSV
+     */
+    public function exportDmrReport(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'client_id' => 'nullable|string',
+        ]);
+
+        $date = $request->date;
+        $clientId = $request->client_id;
+
+        $query = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereDate('inv.date_added', $date)
+            ->select(
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'lt.type as load',
+                'c.client_name as client',
+                DB::raw('DATE(inv.date_added) as date')
+            );
+
+        if ($clientId && $clientId !== 'all' && $clientId !== '') {
+            $query->where('inv.client_id', $clientId);
+        }
+
+        $data = $query->orderBy('inv.date_added', 'desc')->get();
+
+        $filename = 'dmr_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $filePath = storage_path('app/public/exports/' . $filename);
+
+        if (!file_exists(dirname($filePath))) {
+            mkdir(dirname($filePath), 0755, true);
+        }
+
+        $file = fopen($filePath, 'w');
+        fputcsv($file, ['Container No.', 'Size/Type', 'Status', 'Load', 'Client', 'Date']);
+        
+        foreach ($data as $row) {
+            fputcsv($file, (array) $row);
+        }
+        
+        fclose($file);
+
+        return response()->download($filePath)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Export DCR Report to CSV
+     */
+    public function exportDcrReport(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $date = $request->date;
+
+        $data = DB::table('fjp_inventory as inv')
+            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->whereDate('inv.date_added', $date)
+            ->select(
+                'inv.container_no',
+                DB::raw('CONCAT(st.size, "/", st.type) as size_type'),
+                'cs.status',
+                'lt.type as load',
+                DB::raw('DATE(inv.date_added) as date')
+            )
+            ->orderBy('inv.date_added', 'desc')
+            ->get();
+
+        $filename = 'dcr_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $filePath = storage_path('app/public/exports/' . $filename);
+
+        if (!file_exists(dirname($filePath))) {
+            mkdir(dirname($filePath), 0755, true);
+        }
+
+        $file = fopen($filePath, 'w');
+        fputcsv($file, ['Container No.', 'Size/Type', 'Status', 'Load', 'Date']);
+        
+        foreach ($data as $row) {
+            fputcsv($file, (array) $row);
+        }
+        
+        fclose($file);
+
+        return response()->download($filePath)->deleteFileAfterSend(true);
     }
 }
 

@@ -1,251 +1,572 @@
 import React, { useState, useEffect } from 'react';
-import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ModernButton, ModernCard } from '@/components/modern';
+import { Head } from '@inertiajs/react';
+import axios from 'axios';
+import { ModernButton, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-    FileText,
-    Download,
-    Calendar,
-    TrendingUp,
-    Package,
-    Users,
-    DollarSign,
-    Activity,
-    AlertCircle,
-    BarChart,
-    Printer
-} from 'lucide-react';
-import { ToastContainer, useModernToast } from '@/components/modern';
+import { Checkbox } from '@/components/ui/checkbox';
+import { FileText, Download, Search } from 'lucide-react';
 import { colors } from '@/lib/colors';
-import axios from 'axios';
 
 interface Client {
+    id: string;
     c_id: number;
-    client_name: string;
-    client_code: string;
+    code: string;
+    name: string;
+    text: string;
 }
 
-export default function Index() {
+type TabType = 'incoming' | 'outgoing' | 'dmr' | 'dcr';
+
+interface FieldCheckboxes {
+    [key: string]: boolean;
+}
+
+const Index: React.FC = () => {
     const { toasts, removeToast, success, error } = useModernToast();
-    const [activeReport, setActiveReport] = useState('daily-gate');
-    const [loading, setLoading] = useState(false);
+    
+    const [activeTab, setActiveTab] = useState<TabType>('incoming');
+    const [clientId, setClientId] = useState('all');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [singleDate, setSingleDate] = useState('');
     const [clients, setClients] = useState<Client[]>([]);
-    const [reportData, setReportData] = useState<Record<string, unknown> | null>(null);
-    
-    const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
-    const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-    const [selectedClient, setSelectedClient] = useState('');
-    const [gateStatus, setGateStatus] = useState('both');
-    const [size, setSize] = useState('');
-    const [condition, setCondition] = useState('');
-    const [bookingStatus, setBookingStatus] = useState('');
-    
-    const reports = [
-        {
-            id: 'daily-gate',
-            name: 'Daily Gate In/Out',
-            icon: Activity,
-            description: 'Daily gate movements and container tracking',
-            color: colors.brand.primary,
-        },
-        {
-            id: 'inventory-status',
-            name: 'Inventory Status',
-            icon: Package,
-            description: 'Current containers in yard',
-            color: '#10B981',
-        },
-        {
-            id: 'client-activity',
-            name: 'Client Activity',
-            icon: Users,
-            description: 'Client-specific activity report',
-            color: '#8B5CF6',
-        },
-        {
-            id: 'billing-summary',
-            name: 'Billing Summary',
-            icon: DollarSign,
-            description: 'Billing and charges overview',
-            color: '#F59E0B',
-        },
-        {
-            id: 'container-movement',
-            name: 'Container Movement',
-            icon: TrendingUp,
-            description: 'Container movement history',
-            color: '#6366F1',
-        },
-        {
-            id: 'booking-status',
-            name: 'Booking Status',
-            icon: Calendar,
-            description: 'Booking allocations and usage',
-            color: '#EC4899',
-        },
-        {
-            id: 'hold-containers',
-            name: 'Hold Containers',
-            icon: AlertCircle,
-            description: 'Containers currently on hold',
-            color: '#EF4444',
-        },
-        {
-            id: 'damaged-containers',
-            name: 'Damaged Containers',
-            icon: AlertCircle,
-            description: 'Containers with damage records',
-            color: '#F97316',
-        },
-        {
-            id: 'storage-utilization',
-            name: 'Storage Utilization',
-            icon: BarChart,
-            description: 'Yard capacity and utilization',
-            color: '#06B6D4',
-        },
-    ];
+    const [loading, setLoading] = useState(false);
+    const [showExportConfirm, setShowExportConfirm] = useState(false);
+    const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
+
+    const [incomingFields, setIncomingFields] = useState<FieldCheckboxes>({
+        eir_no: true,
+        date: true,
+        time: true,
+        container_no: true,
+        size_type: true,
+        status: true,
+        vessel: true,
+        voyage: true,
+        class: true,
+        date_manufactured: true,
+        ex_consignee: true,
+        hauler: true,
+        plate_no: true,
+        load: true,
+        origin: true,
+        chasis: true,
+    });
+
+    const [outgoingFields, setOutgoingFields] = useState<FieldCheckboxes>({
+        eir_no: true,
+        date: true,
+        time: true,
+        container_no: true,
+        size_type: true,
+        status: true,
+        vessel: true,
+        voyage: true,
+        shipper: true,
+        hauler: true,
+        booking: true,
+        destination: true,
+        plate_no: true,
+        load: true,
+        chasis: true,
+        seal_no: true,
+    });
 
     useEffect(() => {
-        fetchClients();
+        loadClients();
     }, []);
 
-    const fetchClients = async () => {
+    const loadClients = async () => {
         try {
-            const response = await axios.get('/api/clients');
-            setClients(response.data.data || []);
-        } catch (error) {
-            console.error('Failed to fetch clients:', error);
+            const response = await axios.get('/api/reports/clients');
+            if (response.data.success) {
+                setClients(response.data.data);
+            }
+        } catch (err) {
+            console.error('Failed to load clients:', err);
+            error('Failed to load clients');
         }
     };
 
-    const generateReport = async () => {
+    const handleExportClick = () => {
+        if (activeTab === 'incoming' || activeTab === 'outgoing') {
+            if (!startDate || !endDate) {
+                error('Please select both start and end dates');
+                return;
+            }
+        } else {
+            if (!singleDate) {
+                error('Please select a date');
+                return;
+            }
+        }
+        setShowExportConfirm(true);
+    };
+
+    const handleExportConfirm = async () => {
+        setShowExportConfirm(false);
         setLoading(true);
-        setReportData(null);
 
         try {
             let endpoint = '';
-            const params: Record<string, string | undefined> = {
-                date_from: dateFrom,
-                date_to: dateTo,
-            };
+            const params: Record<string, string> = {};
 
-            if (selectedClient) params.client_id = selectedClient;
-
-            switch (activeReport) {
-                case 'daily-gate':
-                    endpoint = '/api/reports/daily-gate';
-                    params.gate_status = gateStatus;
+            switch (activeTab) {
+                case 'incoming':
+                    endpoint = '/api/reports/incoming/export';
+                    params.client_id = clientId !== 'all' ? clientId : '';
+                    params.start_date = startDate;
+                    params.end_date = endDate;
+                    params.fields = JSON.stringify(incomingFields);
                     break;
-                case 'inventory-status':
-                    endpoint = '/api/reports/inventory-status';
-                    if (size) params.size = size;
-                    if (condition) params.condition = condition;
+                case 'outgoing':
+                    endpoint = '/api/reports/outgoing/export';
+                    params.client_id = clientId !== 'all' ? clientId : '';
+                    params.start_date = startDate;
+                    params.end_date = endDate;
+                    params.fields = JSON.stringify(outgoingFields);
                     break;
-                case 'client-activity':
-                    endpoint = '/api/reports/client-activity';
-                    if (!selectedClient) {
-                        error('Please select a client for this report');
-                        setLoading(false);
-                        return;
-                    }
+                case 'dmr':
+                    endpoint = '/api/reports/dmr/export';
+                    params.client_id = clientId !== 'all' ? clientId : '';
+                    params.date = singleDate;
                     break;
-                case 'billing-summary':
-                    endpoint = '/api/reports/billing-summary';
+                case 'dcr':
+                    endpoint = '/api/reports/dcr/export';
+                    params.date = singleDate;
                     break;
-                case 'container-movement':
-                    endpoint = '/api/reports/container-movement';
-                    break;
-                case 'booking-status':
-                    endpoint = '/api/reports/booking-status';
-                    if (bookingStatus) params.status = bookingStatus;
-                    break;
-                case 'hold-containers':
-                    endpoint = '/api/reports/hold-containers';
-                    break;
-                case 'damaged-containers':
-                    endpoint = '/api/reports/damaged-containers';
-                    break;
-                case 'storage-utilization':
-                    endpoint = '/api/reports/storage-utilization';
-                    params.date = dateFrom;
-                    break;
-                default:
-                    error('Invalid report type');
-                    setLoading(false);
-                    return;
             }
 
-            const response = await axios.get(endpoint, { params });
-            setReportData(response.data.data);
+            const response = await axios.post(endpoint, params, { responseType: 'blob' });
 
-            success('Report generated successfully');
-        } catch (err) {
-            error('Failed to generate report');
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+            const link = document.createElement('a');
+            link.href = url;
+            const filename = `${activeTab.toUpperCase()}_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            
+            success('Report exported successfully');
+        } catch (error_caught: unknown) {
+            const err = error_caught as { response?: { data?: { message?: string } } };
+            error(err.response?.data?.message || 'Failed to export report');
         } finally {
             setLoading(false);
         }
     };
 
-    const exportToExcel = async () => {
-        if (!reportData) {
-            error('No data to export');
-            return;
+    const handleSearch = async () => {
+        if (activeTab === 'incoming' || activeTab === 'outgoing') {
+            if (!startDate || !endDate) {
+                error('Please select both start and end dates');
+                return;
+            }
+        } else {
+            if (!singleDate) {
+                error('Please select a date');
+                return;
+            }
         }
+
+        setLoading(true);
+        setCurrentPage(1);
 
         try {
-            const csvData = convertToCSV(reportData);
-            const blob = new Blob([csvData], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${activeReport}_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
-            window.URL.revokeObjectURL(url);
+            let endpoint = '';
+            const params: Record<string, string> = {};
 
-            success('Report exported successfully');
-        } catch (err) {
-            error('Failed to export report');
+            switch (activeTab) {
+                case 'incoming':
+                    endpoint = '/api/reports/incoming';
+                    params.client_id = clientId !== 'all' ? clientId : '';
+                    params.start_date = startDate;
+                    params.end_date = endDate;
+                    break;
+                case 'outgoing':
+                    endpoint = '/api/reports/outgoing';
+                    params.client_id = clientId !== 'all' ? clientId : '';
+                    params.start_date = startDate;
+                    params.end_date = endDate;
+                    break;
+                case 'dmr':
+                    endpoint = '/api/reports/dmr';
+                    params.client_id = clientId !== 'all' ? clientId : '';
+                    params.date = singleDate;
+                    break;
+                case 'dcr':
+                    endpoint = '/api/reports/dcr';
+                    params.date = singleDate;
+                    break;
+            }
+
+            const response = await axios.get(endpoint, { params });
+            
+            if (response.data.success) {
+                setReportData(response.data.data || []);
+                success(`Found ${response.data.data?.length || 0} records`);
+            } else {
+                error(response.data.message || 'Failed to load report data');
+                setReportData([]);
+            }
+        } catch (error_caught: unknown) {
+            const err = error_caught as { response?: { data?: { message?: string } } };
+            error(err.response?.data?.message || 'Failed to load report data');
+            setReportData([]);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const printReport = () => {
-        window.print();
-    };
+    const renderIncomingTab = () => (
+        <div className="space-y-6">
+            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                        <Select value={clientId} onValueChange={setClientId}>
+                            <SelectTrigger className="mt-1.5">
+                                <SelectValue placeholder="All" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                {clients.map((client) => (
+                                    <SelectItem key={client.id} value={client.id}>
+                                        {client.text}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
+                        <Input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="yyyy-mm-dd"
+                        />
+                    </div>
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
+                        <Input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="yyyy-mm-dd"
+                        />
+                    </div>
+                </div>
+            </div>
 
-    const convertToCSV = (data: Record<string, unknown>) => {
-        const rows: string[][] = [];
-        
-        const dataArray = Object.values(data).find(Array.isArray);
-        if (!dataArray || dataArray.length === 0) return '';
+            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { key: 'eir_no', label: 'EIR No.' },
+                        { key: 'date', label: 'Date' },
+                        { key: 'time', label: 'Time' },
+                        { key: 'container_no', label: 'Container No.' },
+                        { key: 'size_type', label: 'Size/Type' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'vessel', label: 'Vessel' },
+                        { key: 'voyage', label: 'Voyage' },
+                        { key: 'class', label: 'Class' },
+                        { key: 'date_manufactured', label: 'Date Manufactured' },
+                        { key: 'ex_consignee', label: 'Ex-Consignee' },
+                        { key: 'hauler', label: 'Hauler' },
+                        { key: 'plate_no', label: 'Plate No.' },
+                        { key: 'load', label: 'Load' },
+                        { key: 'origin', label: 'Origin' },
+                        { key: 'chasis', label: 'Chasis' },
+                    ].map(({ key, label }) => (
+                        <div key={key} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`incoming-${key}`}
+                                checked={incomingFields[key]}
+                                onCheckedChange={(checked) =>
+                                    setIncomingFields({ ...incomingFields, [key]: checked === true })
+                                }
+                            />
+                            <label
+                                htmlFor={`incoming-${key}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                style={{ color: colors.text.primary }}
+                            >
+                                {label}
+                            </label>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-        const headers = Object.keys(dataArray[0]);
-        rows.push(headers);
+            {reportData.length > 0 && (
+                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    <ModernTable
+                        columns={[
+                            { key: 'eir_no', label: 'EIR No.' },
+                            { key: 'date', label: 'Date' },
+                            { key: 'time', label: 'Time' },
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'vessel', label: 'Vessel' },
+                            { key: 'voyage', label: 'Voyage' },
+                            { key: 'class', label: 'Class' },
+                            { key: 'date_manufactured', label: 'Date Manufactured' },
+                            { key: 'ex_consignee', label: 'Ex-Consignee' },
+                            { key: 'hauler', label: 'Hauler' },
+                            { key: 'plate_no', label: 'Plate No.' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'origin', label: 'Origin' },
+                            { key: 'chasis', label: 'Chasis' },
+                        ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
+                        data={reportData}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
 
-        dataArray.forEach((item: Record<string, unknown>) => {
-            const row = headers.map(header => {
-                const value = item[header];
-                return typeof value === 'string' && value.includes(',') 
-                    ? `"${value}"` 
-                    : String(value ?? '');
-            });
-            rows.push(row);
-        });
+    const renderOutgoingTab = () => (
+        <div className="space-y-6">
+            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                        <Select value={clientId} onValueChange={setClientId}>
+                            <SelectTrigger className="mt-1.5">
+                                <SelectValue placeholder="All" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                {clients.map((client) => (
+                                    <SelectItem key={client.id} value={client.id}>
+                                        {client.text}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
+                        <Input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="yyyy-mm-dd"
+                        />
+                    </div>
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
+                        <Input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="yyyy-mm-dd"
+                        />
+                    </div>
+                </div>
+            </div>
 
-        return rows.map(row => row.join(',')).join('\n');
-    };
+            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { key: 'eir_no', label: 'EIR No.' },
+                        { key: 'date', label: 'Date' },
+                        { key: 'time', label: 'Time' },
+                        { key: 'container_no', label: 'Container No.' },
+                        { key: 'size_type', label: 'Size/Type' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'vessel', label: 'Vessel' },
+                        { key: 'voyage', label: 'Voyage' },
+                        { key: 'shipper', label: 'Shipper' },
+                        { key: 'hauler', label: 'Hauler' },
+                        { key: 'booking', label: 'Booking' },
+                        { key: 'destination', label: 'Destination' },
+                        { key: 'plate_no', label: 'Plate No.' },
+                        { key: 'load', label: 'Load' },
+                        { key: 'chasis', label: 'Chasis' },
+                        { key: 'seal_no', label: 'Seal No.' },
+                    ].map(({ key, label }) => (
+                        <div key={key} className="flex items-center space-x-2">
+                            <Checkbox
+                                id={`outgoing-${key}`}
+                                checked={outgoingFields[key]}
+                                onCheckedChange={(checked) =>
+                                    setOutgoingFields({ ...outgoingFields, [key]: checked === true })
+                                }
+                            />
+                            <label
+                                htmlFor={`outgoing-${key}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                style={{ color: colors.text.primary }}
+                            >
+                                {label}
+                            </label>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-    const activeReportConfig = reports.find(r => r.id === activeReport);
+            {reportData.length > 0 && (
+                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    <ModernTable
+                        columns={[
+                            { key: 'eir_no', label: 'EIR No.' },
+                            { key: 'date', label: 'Date' },
+                            { key: 'time', label: 'Time' },
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'vessel', label: 'Vessel' },
+                            { key: 'voyage', label: 'Voyage' },
+                            { key: 'shipper', label: 'Shipper' },
+                            { key: 'hauler', label: 'Hauler' },
+                            { key: 'booking', label: 'Booking' },
+                            { key: 'destination', label: 'Destination' },
+                            { key: 'plate_no', label: 'Plate No.' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'chasis', label: 'Chasis' },
+                            { key: 'seal_no', label: 'Seal No.' },
+                        ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
+                        data={reportData}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+
+    const renderDMRTab = () => (
+        <div className="space-y-6">
+            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                        <Select value={clientId} onValueChange={setClientId}>
+                            <SelectTrigger className="mt-1.5">
+                                <SelectValue placeholder="All" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                {clients.map((client) => (
+                                    <SelectItem key={client.id} value={client.id}>
+                                        {client.text}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                        <Input
+                            type="date"
+                            value={singleDate}
+                            onChange={(e) => setSingleDate(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="yyyy-mm-dd"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {reportData.length > 0 && (
+                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    <ModernTable
+                        columns={[
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'client', label: 'Client' },
+                            { key: 'date', label: 'Date' },
+                        ]}
+                        data={reportData}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+
+    const renderDCRTab = () => (
+        <div className="space-y-6">
+            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                        <Input
+                            type="date"
+                            value={singleDate}
+                            onChange={(e) => setSingleDate(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="yyyy-mm-dd"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {reportData.length > 0 && (
+                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    <ModernTable
+                        columns={[
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'date', label: 'Date' },
+                        ]}
+                        data={reportData}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <AuthenticatedLayout>
-            <Head title="Reports & Analytics" />
-
+            <Head title="Reports" />
+            
             <div className="space-y-6">
-                {/* Page Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-3 rounded-xl" style={{ backgroundColor: colors.brand.primary }}>
@@ -253,225 +574,117 @@ export default function Index() {
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold" style={{ color: colors.text.primary }}>
-                                Reports & Analytics
+                                Reports
                             </h1>
                             <p className="text-sm mt-1" style={{ color: colors.text.secondary }}>
-                                Generate and export business reports
+                                Generate and export container reports
                             </p>
                         </div>
                     </div>
-                    {reportData && (
-                        <div className="flex gap-3">
-                            <ModernButton variant="secondary" onClick={printReport}>
-                                <Printer className="w-4 h-4" />
-                                Print
-                            </ModernButton>
-                            <ModernButton variant="primary" onClick={exportToExcel} disabled={loading}>
-                                <Download className="w-4 h-4" />
-                                Export CSV
-                            </ModernButton>
-                        </div>
-                    )}
-                </div>
-
-                {/* Report Selection Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {reports.map((report) => (
-                        <button
-                            key={report.id}
-                            onClick={() => setActiveReport(report.id)}
-                            className={`p-4 rounded-xl border-2 transition-all hover:scale-105 ${
-                                activeReport === report.id
-                                    ? 'shadow-lg'
-                                    : 'shadow hover:shadow-md'
-                            }`}
-                            style={{
-                                borderColor: activeReport === report.id ? report.color : colors.table.border,
-                                backgroundColor: activeReport === report.id ? report.color + '10' : colors.main,
-                            }}
+                    
+                    {/* Generate and Export Buttons at Top */}
+                    <div className="flex items-center gap-2">
+                        <ModernButton 
+                            variant="primary" 
+                            onClick={handleSearch} 
+                            disabled={loading || (activeTab === 'incoming' || activeTab === 'outgoing' ? (!startDate || !endDate) : !singleDate)}
                         >
-                            <report.icon 
-                                className="w-8 h-8 mx-auto mb-2" 
-                                style={{ color: report.color }}
-                            />
-                            <div className="text-sm font-semibold text-center" style={{ color: colors.text.primary }}>
-                                {report.name}
-                            </div>
-                        </button>
-                    ))}
+                            <Search className="w-4 h-4" />
+                            {loading ? 'Generating...' : 'Generate'}
+                        </ModernButton>
+                        <ModernButton 
+                            variant="add" 
+                            onClick={handleExportClick} 
+                            disabled={loading}
+                        >
+                            <Download className="w-4 h-4" />
+                            Export
+                        </ModernButton>
+                    </div>
                 </div>
 
-                {/* Active Report Card */}
-                {activeReportConfig && (
-                    <ModernCard 
-                        title={activeReportConfig.name}
-                        subtitle={activeReportConfig.description}
-                        icon={<activeReportConfig.icon className="w-5 h-5" />}
+                <ModernConfirmDialog
+                    open={showExportConfirm}
+                    onOpenChange={setShowExportConfirm}
+                    onConfirm={handleExportConfirm}
+                    title="Export Report Data"
+                    description={`Are you sure you want to export the ${activeTab.toUpperCase()} report?`}
+                    confirmText="Export"
+                    cancelText="Cancel"
+                />
+
+                <div className="p-2 rounded-xl shadow-sm flex gap-2" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    <button
+                        onClick={() => setActiveTab('incoming')}
+                        className={`flex-1 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+                            activeTab === 'incoming' ? 'shadow-md' : 'hover:bg-opacity-50'
+                        }`}
+                        style={{
+                            backgroundColor: activeTab === 'incoming' ? colors.brand.primary : 'transparent',
+                            color: activeTab === 'incoming' ? '#FFFFFF' : colors.text.primary,
+                        }}
                     >
-                        {/* Filter Panel */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 rounded-lg mb-6" style={{ backgroundColor: colors.table.header + '10', border: `1px solid ${colors.table.border}` }}>
-                            {/* Date Range */}
-                            {!['storage-utilization'].includes(activeReport) && (
-                                <>
-                                    <div>
-                                        <Label className="text-sm font-semibold mb-2">Date From</Label>
-                                        <Input
-                                            type="date"
-                                            value={dateFrom}
-                                            onChange={(e) => setDateFrom(e.target.value)}
-                                            className="h-11"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold mb-2">Date To</Label>
-                                        <Input
-                                            type="date"
-                                            value={dateTo}
-                                            onChange={(e) => setDateTo(e.target.value)}
-                                            className="h-11"
-                                        />
-                                    </div>
-                                </>
-                            )}
+                        Incoming
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('outgoing')}
+                        className={`flex-1 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+                            activeTab === 'outgoing' ? 'shadow-md' : 'hover:bg-opacity-50'
+                        }`}
+                        style={{
+                            backgroundColor: activeTab === 'outgoing' ? colors.brand.primary : 'transparent',
+                            color: activeTab === 'outgoing' ? '#FFFFFF' : colors.text.primary,
+                        }}
+                    >
+                        Outgoing
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('dmr')}
+                        className={`flex-1 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+                            activeTab === 'dmr' ? 'shadow-md' : 'hover:bg-opacity-50'
+                        }`}
+                        style={{
+                            backgroundColor: activeTab === 'dmr' ? colors.brand.primary : 'transparent',
+                            color: activeTab === 'dmr' ? '#FFFFFF' : colors.text.primary,
+                        }}
+                    >
+                        DMR
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('dcr')}
+                        className={`flex-1 px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+                            activeTab === 'dcr' ? 'shadow-md' : 'hover:bg-opacity-50'
+                        }`}
+                        style={{
+                            backgroundColor: activeTab === 'dcr' ? colors.brand.primary : 'transparent',
+                            color: activeTab === 'dcr' ? '#FFFFFF' : colors.text.primary,
+                        }}
+                    >
+                        DCR
+                    </button>
+                </div>
 
-                            {/* Single Date for Storage Utilization */}
-                            {activeReport === 'storage-utilization' && (
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2">Date</Label>
-                                    <Input
-                                        type="date"
-                                        value={dateFrom}
-                                        onChange={(e) => setDateFrom(e.target.value)}
-                                        className="h-11"
-                                    />
-                                </div>
-                            )}
+                <div className="mt-6">
+                    {activeTab === 'incoming' && renderIncomingTab()}
+                    {activeTab === 'outgoing' && renderOutgoingTab()}
+                    {activeTab === 'dmr' && renderDMRTab()}
+                    {activeTab === 'dcr' && renderDCRTab()}
+                </div>
 
-                            {/* Client Filter */}
-                            {!['storage-utilization'].includes(activeReport) && (
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2">
-                                        Client {activeReport === 'client-activity' && <span className="text-red-500">*</span>}
-                                    </Label>
-                                    <Select 
-                                        value={selectedClient || 'all'} 
-                                        onValueChange={(val) => setSelectedClient(val === 'all' ? '' : val)}
-                                    >
-                                        <SelectTrigger className="h-11">
-                                            <SelectValue placeholder="All Clients" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Clients</SelectItem>
-                                            {clients.map((client) => (
-                                                <SelectItem key={client.c_id} value={client.c_id.toString()}>
-                                                    {client.client_code} - {client.client_name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-
-                            {/* Gate Status for Daily Gate Report */}
-                            {activeReport === 'daily-gate' && (
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2">Gate Status</Label>
-                                    <Select value={gateStatus} onValueChange={setGateStatus}>
-                                        <SelectTrigger className="h-11">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="both">Both (In & Out)</SelectItem>
-                                            <SelectItem value="in">Gate In Only</SelectItem>
-                                            <SelectItem value="out">Gate Out Only</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-
-                            {/* Container Size for Inventory Status */}
-                            {activeReport === 'inventory-status' && (
-                                <>
-                                    <div>
-                                        <Label className="text-sm font-semibold mb-2">Size</Label>
-                                        <Select value={size || 'all'} onValueChange={(val) => setSize(val === 'all' ? '' : val)}>
-                                            <SelectTrigger className="h-11">
-                                                <SelectValue placeholder="All Sizes" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">All Sizes</SelectItem>
-                                                <SelectItem value="20">20"</SelectItem>
-                                                <SelectItem value="40">40"</SelectItem>
-                                                <SelectItem value="45">45"</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold mb-2">Condition</Label>
-                                        <Select value={condition || 'all'} onValueChange={(val) => setCondition(val === 'all' ? '' : val)}>
-                                            <SelectTrigger className="h-11">
-                                                <SelectValue placeholder="All Conditions" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">All</SelectItem>
-                                                <SelectItem value="E">Empty</SelectItem>
-                                                <SelectItem value="F">Full</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </>
-                            )}
-
-                            {/* Booking Status Filter */}
-                            {activeReport === 'booking-status' && (
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2">Status</Label>
-                                    <Select value={bookingStatus || 'all'} onValueChange={(val) => setBookingStatus(val === 'all' ? '' : val)}>
-                                        <SelectTrigger className="h-11">
-                                            <SelectValue placeholder="All Status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All</SelectItem>
-                                            <SelectItem value="active">Active</SelectItem>
-                                            <SelectItem value="upcoming">Upcoming</SelectItem>
-                                            <SelectItem value="completed">Completed</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Generate Button */}
-                        <div className="flex justify-center mb-6">
-                            <ModernButton 
-                                variant="add" 
-                                size="lg"
-                                onClick={generateReport} 
-                                disabled={loading}
-                            >
-                                <FileText className="w-4 h-4" />
-                                Generate Report
-                            </ModernButton>
-                        </div>
-
-                        {/* Report Preview/Results */}
-                        {reportData && (
-                            <div className="p-6 rounded-lg" style={{ backgroundColor: colors.table.header + '10', border: `1px solid ${colors.table.border}` }}>
-                                <h3 className="text-lg font-semibold mb-4" style={{ color: colors.text.primary }}>
-                                    Report Preview
-                                </h3>
-                                <div className="prose max-w-none">
-                                    <pre className="text-sm" style={{ color: colors.text.secondary }}>
-                                        {JSON.stringify(reportData, null, 2)}
-                                    </pre>
-                                </div>
-                            </div>
-                        )}
-                    </ModernCard>
-                )}
+                <div className="p-12 text-center rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    <FileText className="w-16 h-16 mx-auto mb-4 opacity-40" style={{ color: colors.text.secondary }} />
+                    <h3 className="text-lg font-semibold mb-2" style={{ color: colors.text.primary }}>
+                        Container list
+                    </h3>
+                    <p className="text-sm" style={{ color: colors.text.secondary }}>
+                        Select filters and click "Export Data" to generate and download the report
+                    </p>
+                </div>
             </div>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
-}
+};
+
+export default Index;

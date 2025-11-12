@@ -12,7 +12,7 @@ class ScheduledNotification extends Model
     /**
      * The table associated with the model.
      */
-    protected $table = 'fjp_scheduled_notifications';
+    protected $table = 'scheduled_notifications';
 
     /**
      * The primary key associated with the table.
