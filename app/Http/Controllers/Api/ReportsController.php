@@ -719,11 +719,11 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
@@ -772,11 +772,11 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.approval_date', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
@@ -823,11 +823,11 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
-        $query = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
@@ -861,10 +861,10 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $data = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $data = DB::table('inventory as inv')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
@@ -898,11 +898,11 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
@@ -969,11 +969,11 @@ class ReportsController extends Controller
         $endDate = $request->end_date . ' 23:59:59';
         $clientId = $request->client_id;
 
-        $query = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereBetween('inv.approval_date', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
@@ -1033,11 +1033,11 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
-        $query = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $query = DB::table('inventory as inv')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
@@ -1084,10 +1084,10 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $data = DB::table('fjp_inventory as inv')
-            ->leftJoin('fjp_container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('fjp_container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('fjp_load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+        $data = DB::table('inventory as inv')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
                 'inv.container_no',
