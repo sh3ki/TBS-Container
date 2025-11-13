@@ -291,6 +291,7 @@ export default function Index({ auth }: Record<string, unknown>) {
       const response = await axios.delete(`/api/users/${userToDelete.hashed_id}`);
       if (response.data.success) {
         success('User deleted successfully');
+        setConfirmDeleteUser(false);
         setUserToDelete(null);
         fetchUsers();
       }
