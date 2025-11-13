@@ -1072,11 +1072,28 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'size', 
                                     label: 'Size',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="min-w-[70px]">
-                                            <ModernBadge variant="info">{row.size}</ModernBadge>
-                                        </div>
-                                    )
+                                    render: (row: InventoryRecord) => {
+                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const size = row.size;
+                                        
+                                        if (size === '10DJH') variant = 'success';
+                                        else if (size === '20FR') variant = 'error';
+                                        else if (size === '20HR') variant = 'warning';
+                                        else if (size === '20OT') variant = 'info';
+                                        else if (size === '20RF') variant = 'success';
+                                        else if (size === '20RH') variant = 'error';
+                                        else if (size === '40DC') variant = 'warning';
+                                        else if (size === '40FR') variant = 'info';
+                                        else if (size === '40HC') variant = 'success';
+                                        else if (size === '40OT') variant = 'error';
+                                        else if (size === '40RH') variant = 'warning';
+                                        
+                                        return (
+                                            <div className="min-w-[70px]">
+                                                <ModernBadge variant={variant}>{row.size || '-'}</ModernBadge>
+                                            </div>
+                                        );
+                                    }
                                 },
                                 { 
                                     key: 'gate', 
@@ -1115,10 +1132,16 @@ const Index: React.FC = () => {
                                     label: 'Status',
                                     render: (row: InventoryRecord) => {
                                         let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
-                                        if (row.status === 'AVL') variant = 'success';
-                                        else if (row.status === 'DMG') variant = 'error';
-                                        else if (row.status === 'WSH') variant = 'warning';
-                                        else if (row.status === 'REP') variant = 'info';
+                                        const status = row.status;
+                                        
+                                        if (status === 'ASIS') variant = 'success';
+                                        else if (status === 'AVL') variant = 'error';
+                                        else if (status === 'DMG') variant = 'warning';
+                                        else if (status === 'FSV') variant = 'info';
+                                        else if (status === 'HLD') variant = 'success';
+                                        else if (status === 'REPO') variant = 'error';
+                                        else if (status === 'RPR') variant = 'warning';
+                                        else if (status === 'WSH') variant = 'info';
                                         
                                         return (
                                             <div className="min-w-[80px]">
