@@ -988,7 +988,7 @@ const Index: React.FC = () => {
                         <ModernTable
                             columns={[
                                 { key: 'eir_no', label: 'EIR No.' },
-                                { key: 'container_no', label: 'Container No.' },
+                                { key: 'container_no', label: 'Cont. No.' },
                                 { key: 'client', label: 'Client' },
                                 { key: 'size', label: 'Size' },
                                 { key: 'gate', label: 'Gate' },
@@ -1010,9 +1010,9 @@ const Index: React.FC = () => {
                                 },
                                 { 
                                     key: 'app_notes', 
-                                    label: 'Approval Notes',
+                                    label: 'App Notes',
                                     render: (row: InventoryRecord) => (
-                                        <div className="flex items-center gap-2 min-w-[100px]">
+                                        <div className="flex items-center gap-2 min-w-[120px]">
                                             {row.app_notes && row.app_notes.trim() ? (
                                                 <span className="text-sm">{row.app_notes}</span>
                                             ) : (
