@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ModernButton, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernButton, ModernConfirmDialog, ModernTable, ModernBadge, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -351,6 +351,78 @@ const Index: React.FC = () => {
         }
     };
 
+    // Format date to "Oct 07, 2025"
+    const formatDate = (dateString: string) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric'
+            });
+        } catch {
+            return dateString;
+        }
+    };
+
+    // Format time to "11:00:01 AM"
+    const formatTime = (timeString: string) => {
+        if (!timeString) return '-';
+        try {
+            // If timeString is already in HH:MM:SS format, convert to 12-hour format
+            const timeParts = timeString.split(':');
+            if (timeParts.length >= 2) {
+                const hours = parseInt(timeParts[0]);
+                const minutes = timeParts[1];
+                const seconds = timeParts[2] || '00';
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                const hour12 = hours % 12 || 12;
+                return `${hour12}:${minutes}:${seconds} ${ampm}`;
+            }
+            return timeString;
+        } catch {
+            return timeString;
+        }
+    };
+
+    // Get badge variant for size/type
+    const getSizeTypeBadgeVariant = (sizeType: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
+        if (!sizeType) return 'default';
+        if (sizeType.includes('20DC')) return 'success';
+        else if (sizeType.includes('20RF')) return 'success';
+        else if (sizeType.includes('20RH')) return 'error';
+        else if (sizeType.includes('40DC')) return 'warning';
+        else if (sizeType.includes('40FR')) return 'info';
+        else if (sizeType.includes('40HC')) return 'success';
+        else if (sizeType.includes('40OT')) return 'error';
+        else if (sizeType.includes('40RH')) return 'warning';
+        return 'default';
+    };
+
+    // Get badge variant for status
+    const getStatusBadgeVariant = (status: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
+        if (!status) return 'default';
+        if (status === 'ASIS') return 'success';
+        else if (status === 'AVL') return 'error';
+        else if (status === 'DMG') return 'warning';
+        else if (status === 'FSV') return 'info';
+        else if (status === 'HLD') return 'success';
+        else if (status === 'REPO') return 'error';
+        else if (status === 'RPR') return 'warning';
+        else if (status === 'WSH') return 'info';
+        return 'default';
+    };
+
+    // Get badge variant for load
+    const getLoadBadgeVariant = (load: string): 'success' | 'warning' | 'default' => {
+        if (!load) return 'default';
+        const loadUpper = load.toUpperCase();
+        if (loadUpper === 'EMPTY' || loadUpper === 'E') return 'warning';
+        else if (loadUpper === 'LADEN' || loadUpper === 'L') return 'success';
+        return 'default';
+    };
+
     // Filter report data based on search term
     const filteredReportData = getCurrentTabData().filter((row) => {
         if (!searchTerm) return true;
@@ -452,13 +524,13 @@ const Index: React.FC = () => {
                                     { key: 'eir_no', label: 'EIR No.' },
                                     { key: 'date', label: 'Date' },
                                     { key: 'time', label: 'Time' },
-                                    { key: 'container_no', label: 'Container No.' },
+                                    { key: 'container_no', label: 'Cont. No.' },
                                     { key: 'size_type', label: 'Size/Type' },
                                     { key: 'status', label: 'Status' },
                                     { key: 'vessel', label: 'Vessel' },
                                     { key: 'voyage', label: 'Voyage' },
                                     { key: 'class', label: 'Class' },
-                                    { key: 'date_manufactured', label: 'Date Manufactured' },
+                                    { key: 'date_manufactured', label: 'Date mfd' },
                                     { key: 'ex_consignee', label: 'Ex-Consignee' },
                                     { key: 'hauler', label: 'Hauler' },
                                     { key: 'plate_no', label: 'Plate No.' },
@@ -504,13 +576,13 @@ const Index: React.FC = () => {
                             { key: 'eir_no', label: 'EIR No.' },
                             { key: 'date', label: 'Date' },
                             { key: 'time', label: 'Time' },
-                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'container_no', label: 'Cont. No.' },
                             { key: 'size_type', label: 'Size/Type' },
                             { key: 'status', label: 'Status' },
                             { key: 'vessel', label: 'Vessel' },
                             { key: 'voyage', label: 'Voyage' },
                             { key: 'class', label: 'Class' },
-                            { key: 'date_manufactured', label: 'Date Manufactured' },
+                            { key: 'date_manufactured', label: 'Date mfd' },
                             { key: 'ex_consignee', label: 'Ex-Consignee' },
                             { key: 'hauler', label: 'Hauler' },
                             { key: 'plate_no', label: 'Plate No.' },
