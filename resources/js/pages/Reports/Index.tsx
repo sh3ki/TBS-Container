@@ -386,40 +386,43 @@ const Index: React.FC = () => {
         }
     };
 
-    // Get badge variant for size/type
+    // Get badge variant for size/type (matching Inventory exactly)
     const getSizeTypeBadgeVariant = (sizeType: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
         if (!sizeType) return 'default';
-        if (sizeType.includes('20DC')) return 'success';
-        else if (sizeType.includes('20RF')) return 'success';
-        else if (sizeType.includes('20RH')) return 'error';
-        else if (sizeType.includes('40DC')) return 'warning';
-        else if (sizeType.includes('40FR')) return 'info';
-        else if (sizeType.includes('40HC')) return 'success';
-        else if (sizeType.includes('40OT')) return 'error';
-        else if (sizeType.includes('40RH')) return 'warning';
+        const size = sizeType.trim();
+        if (size === '10/DJH') return 'success';
+        else if (size === '20/FR') return 'error';
+        else if (size === '20/HR') return 'warning';
+        else if (size === '20/OT') return 'info';
+        else if (size === '20/RF') return 'success';
+        else if (size === '20/RH') return 'error';
+        else if (size === '40/DC') return 'warning';
+        else if (size === '40/FR') return 'info';
+        else if (size === '40/HC') return 'success';
+        else if (size === '40/OT') return 'error';
+        else if (size === '40/RH') return 'warning';
         return 'default';
     };
 
     // Get badge variant for status
     const getStatusBadgeVariant = (status: string): 'success' | 'error' | 'warning' | 'info' | 'default' => {
-        if (!status) return 'default';
-        if (status === 'ASIS') return 'success';
-        else if (status === 'AVL') return 'error';
-        else if (status === 'DMG') return 'warning';
+        if (status === 'ASIS') return 'warning';
+        else if (status === 'AVL') return 'success';
+        else if (status === 'DMG') return 'error';
         else if (status === 'FSV') return 'info';
-        else if (status === 'HLD') return 'success';
-        else if (status === 'REPO') return 'error';
-        else if (status === 'RPR') return 'warning';
+        else if (status === 'HLD') return 'error';
+        else if (status === 'REPO') return 'warning';
+        else if (status === 'RPR') return 'success';
         else if (status === 'WSH') return 'info';
-        return 'default';
+                                        
     };
 
     // Get badge variant for load
-    const getLoadBadgeVariant = (load: string): 'success' | 'warning' | 'default' => {
+    const getLoadBadgeVariant = (load: string): 'success' | 'info' | 'default' => {
         if (!load) return 'default';
         const loadUpper = load.toUpperCase();
-        if (loadUpper === 'EMPTY' || loadUpper === 'E') return 'warning';
-        else if (loadUpper === 'LADEN' || loadUpper === 'L') return 'success';
+        if (loadUpper === 'EMPTY' || loadUpper === 'E') return 'info';
+        else if (loadUpper === 'LADEN' || loadUpper === 'L' || loadUpper === 'FULL' || loadUpper === 'F') return 'success';
         return 'default';
     };
 
@@ -573,10 +576,10 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.eir_no || '-')}</div> },
+                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.eir_no || '-')}</div> },
+                            { key: 'container_no', label: 'Cont. No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
                             { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
                             { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
-                            { key: 'container_no', label: 'Cont. No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
                             { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
                             { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
                             { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
@@ -745,10 +748,10 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.eir_no || '-')}</div> },
+                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.eir_no || '-')}</div> },
+                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
                             { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
                             { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
-                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
                             { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
                             { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
                             { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
@@ -857,7 +860,7 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
+                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
                             { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
                             { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
                             { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
@@ -943,7 +946,7 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
+                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
                             { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
                             { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
                             { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
