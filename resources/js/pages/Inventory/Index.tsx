@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ModernButton, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernButton, ModernTable, ModernBadge, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -245,6 +245,41 @@ const Index: React.FC = () => {
         return record.container_no.toLowerCase().includes(search) || 
                record.eir_no.toLowerCase().includes(search);
     });
+
+    // Format date to "Jan 01, 2025"
+    const formatDate = (dateString: string) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric'
+            });
+        } catch {
+            return dateString;
+        }
+    };
+
+    // Format time to "11:00:01 AM"
+    const formatTime = (timeString: string) => {
+        if (!timeString) return '-';
+        try {
+            // If timeString is already in HH:MM:SS format, convert to 12-hour format
+            const timeParts = timeString.split(':');
+            if (timeParts.length >= 2) {
+                const hours = parseInt(timeParts[0]);
+                const minutes = timeParts[1];
+                const seconds = timeParts[2] || '00';
+                const ampm = hours >= 12 ? 'PM' : 'AM';
+                const hour12 = hours % 12 || 12;
+                return `${hour12}:${minutes}:${seconds} ${ampm}`;
+            }
+            return timeString;
+        } catch {
+            return timeString;
+        }
+    };
 
     const handleOpenApprovalModal = (record: InventoryRecord) => {
         setSelectedRecord(record);
@@ -1013,24 +1048,96 @@ const Index: React.FC = () => {
                     ) : filteredReportData.length > 0 ? (
                         <ModernTable
                             columns={[
-                                { key: 'eir_no', label: 'EIR No.' },
-                                { key: 'container_no', label: 'Cont. No.' },
-                                { key: 'client', label: 'Client' },
-                                { key: 'size', label: 'Size' },
-                                { key: 'gate', label: 'Gate' },
-                                { key: 'date', label: 'Date' },
-                                { key: 'time', label: 'Time' },
-                                { key: 'days', label: 'Days' },
-                                { key: 'status', label: 'Status' },
-                                { key: 'class', label: 'Class' },
-                                { key: 'dmf', label: 'DMF' },
-                                { key: 'location', label: 'Loc' },
+                                { 
+                                    key: 'eir_no', 
+                                    label: 'EIR No.',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="font-semibold text-gray-900 min-w-[80px]">{row.eir_no}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'container_no', 
+                                    label: 'Cont. No.',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="font-medium text-gray-900 min-w-[110px]">{row.container_no}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'client', 
+                                    label: 'Client',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-900 min-w-[100px] max-w-[120px]" title={row.client}>{row.client}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'size', 
+                                    label: 'Size',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[60px]">{row.size}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'gate', 
+                                    label: 'Gate',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.gate}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'date', 
+                                    label: 'Date',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[90px]">{row.date}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'time', 
+                                    label: 'Time',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[70px]">{row.time}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'days', 
+                                    label: 'Days',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm font-medium text-gray-900 min-w-[50px]">{row.days}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'status', 
+                                    label: 'Status',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-900 min-w-[70px]">{row.status}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'class', 
+                                    label: 'Class',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.class}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'dmf', 
+                                    label: 'DMF',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[80px]">{row.dmf}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'location', 
+                                    label: 'Loc',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.location}</div>
+                                    )
+                                },
                                 { 
                                     key: 'eir_notes', 
                                     label: 'EIR Notes',
                                     render: (row: InventoryRecord) => (
-                                        <div className="min-w-[250px] ">
-                                            <span className="text-sm break-words">{row.eir_notes}</span>
+                                        <div className="min-w-[200px] max-w-[250px]">
+                                            <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes || '-'}</span>
                                         </div>
                                     )
                                 },
@@ -1040,7 +1147,7 @@ const Index: React.FC = () => {
                                     render: (row: InventoryRecord) => (
                                         <div className="flex items-center gap-2 min-w-[120px]">
                                             {row.app_notes && row.app_notes.trim() ? (
-                                                <span className="text-sm">{row.app_notes}</span>
+                                                <span className="text-sm text-gray-600">{row.app_notes}</span>
                                             ) : (
                                                 <ModernButton
                                                     variant="add"
