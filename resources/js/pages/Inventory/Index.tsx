@@ -1209,7 +1209,7 @@ const Index: React.FC = () => {
                                 },
                                 { 
                                     key: 'dmf', 
-                                    label: 'DMF',
+                                    label: 'Date mfd',
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(row.dmf)}</div>
                                     )
