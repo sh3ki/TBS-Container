@@ -35,10 +35,12 @@ const Index: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
-    const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
+    const [incomingData, setIncomingData] = useState<Record<string, unknown>[]>([]);
+    const [outgoingData, setOutgoingData] = useState<Record<string, unknown>[]>([]);
+    const [dmrData, setDmrData] = useState<Record<string, unknown>[]>([]);
+    const [dcrData, setDcrData] = useState<Record<string, unknown>[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
-    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
     const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -278,23 +280,79 @@ const Index: React.FC = () => {
             const response = await axios.get(endpoint, { params });
             
             if (response.data.success) {
-                setReportData(response.data.data || []);
-                success(`Found ${response.data.data?.length || 0} records`);
+                const data = response.data.data || [];
+                switch (activeTab) {
+                    case 'incoming':
+                        setIncomingData(data);
+                        break;
+                    case 'outgoing':
+                        setOutgoingData(data);
+                        break;
+                    case 'dmr':
+                        setDmrData(data);
+                        break;
+                    case 'dcr':
+                        setDcrData(data);
+                        break;
+                }
+                success(`Found ${data.length} records`);
             } else {
                 error(response.data.message || 'Failed to load report data');
-                setReportData([]);
+                switch (activeTab) {
+                    case 'incoming':
+                        setIncomingData([]);
+                        break;
+                    case 'outgoing':
+                        setOutgoingData([]);
+                        break;
+                    case 'dmr':
+                        setDmrData([]);
+                        break;
+                    case 'dcr':
+                        setDcrData([]);
+                        break;
+                }
             }
         } catch (error_caught: unknown) {
             const err = error_caught as { response?: { data?: { message?: string } } };
             error(err.response?.data?.message || 'Failed to load report data');
-            setReportData([]);
+            switch (activeTab) {
+                case 'incoming':
+                    setIncomingData([]);
+                    break;
+                case 'outgoing':
+                    setOutgoingData([]);
+                    break;
+                case 'dmr':
+                    setDmrData([]);
+                    break;
+                case 'dcr':
+                    setDcrData([]);
+                    break;
+            }
         } finally {
             setLoading(false);
         }
     };
 
+    // Get current tab's data
+    const getCurrentTabData = () => {
+        switch (activeTab) {
+            case 'incoming':
+                return incomingData;
+            case 'outgoing':
+                return outgoingData;
+            case 'dmr':
+                return dmrData;
+            case 'dcr':
+                return dcrData;
+            default:
+                return [];
+        }
+    };
+
     // Filter report data based on search term
-    const filteredReportData = reportData.filter((row) => {
+    const filteredReportData = getCurrentTabData().filter((row) => {
         if (!searchTerm) return true;
         const search = searchTerm.toLowerCase();
         const containerNo = String(row.container_no || '').toLowerCase();
@@ -718,7 +776,7 @@ const Index: React.FC = () => {
                 <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
                     </p>
                 </div>
             </div>
@@ -804,7 +862,7 @@ const Index: React.FC = () => {
                 <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
                     </p>
                 </div>
             </div>
