@@ -360,16 +360,35 @@ export default function Index() {
 
   const handleUpdatePreIn = async () => {
     try {
-      const response = await axios.post('/api/gateinout/update-prein', editPreInForm);
-      if (response.data.success) {
-        success('Pre-In updated successfully');
-        setShowEditPreInModal(false);
-        setConfirmUpdatePreIn(false);
-        await refreshData();
+      // Find the hashed client ID
+      const selectedClient = clients.find(c => c.c_id.toString() === editPreInForm.client_id);
+      const hashedClientId = selectedClient?.hashed_c_id || editPreInForm.client_id;
+      
+      const requestData = {
+        id: editPreInForm.id,
+        cno: editPreInForm.container_no,
+        cid: hashedClientId
+      };
+      console.log('Sending Update Pre-In Data:', requestData);
+      const response = await axios.post('/api/gateinout/update-prein', requestData);
+      console.log('Update Pre-In Response:', response.data);
+      
+      if (response.data.message) {
+        const [type, msg] = response.data.message;
+        if (type === 'success') {
+          setShowEditPreInModal(false);
+          setConfirmUpdatePreIn(false);
+          await refreshData();
+          success('Pre-In updated successfully');
+        } else {
+          setConfirmUpdatePreIn(false);
+          error(msg.replace(/<[^>]*>/g, ''));
+        }
       }
     } catch (err: unknown) {
       setConfirmUpdatePreIn(false);
       const e = err as { response?: { data?: { message?: string } } };
+      console.error('Update Pre-In Error:', err);
       error(e.response?.data?.message || 'Failed to update Pre-In');
     }
   };
@@ -381,16 +400,31 @@ export default function Index() {
 
   const handleUpdatePreOut = async () => {
     try {
-      const response = await axios.post('/api/gateinout/update-preout', editPreOutForm);
-      if (response.data.success) {
-        success('Pre-Out updated successfully');
-        setShowEditPreOutModal(false);
-        setConfirmUpdatePreOut(false);
-        await refreshData();
+      const requestData = {
+        id: editPreOutForm.id,
+        pno: editPreOutForm.plate_no,
+        hauler: editPreOutForm.hauler
+      };
+      console.log('Sending Update Pre-Out Data:', requestData);
+      const response = await axios.post('/api/gateinout/update-preout', requestData);
+      console.log('Update Pre-Out Response:', response.data);
+      
+      if (response.data.message) {
+        const [type, msg] = response.data.message;
+        if (type === 'success') {
+          setShowEditPreOutModal(false);
+          setConfirmUpdatePreOut(false);
+          await refreshData();
+          success('Pre-Out updated successfully');
+        } else {
+          setConfirmUpdatePreOut(false);
+          error(msg.replace(/<[^>]*>/g, ''));
+        }
       }
     } catch (err: unknown) {
       setConfirmUpdatePreOut(false);
       const e = err as { response?: { data?: { message?: string } } };
+      console.error('Update Pre-Out Error:', err);
       error(e.response?.data?.message || 'Failed to update Pre-Out');
     }
   };
@@ -402,15 +436,16 @@ export default function Index() {
       const response = await axios.post('/api/gateinout/delete-pre', {
         id: recordToDelete.hashed_id,
       });
-      if (response.data.success) {
-        success('Record deleted successfully');
-        setRecordToDelete(null);
-        setConfirmDeleteRecord(false);
-        await refreshData();
-      }
+      console.log('Delete Response:', response.data);
+      
+      setRecordToDelete(null);
+      setConfirmDeleteRecord(false);
+      await refreshData();
+      success('Record deleted successfully');
     } catch (err: unknown) {
       setConfirmDeleteRecord(false);
       const e = err as { response?: { data?: { message?: string } } };
+      console.error('Delete Error:', err);
       error(e.response?.data?.message || 'Failed to delete record');
     }
   };
