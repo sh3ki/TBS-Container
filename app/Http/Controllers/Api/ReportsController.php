@@ -777,12 +777,12 @@ class ReportsController extends Controller
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
             ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
-            ->whereBetween('inv.approval_date', [$startDate, $endDate])
+            ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
                 DB::raw('fjp_inv.i_id as eir_no'),
-                DB::raw('DATE(fjp_inv.approval_date) as date'),
-                DB::raw('TIME(fjp_inv.approval_date) as time'),
+                DB::raw('DATE(fjp_inv.date_added) as date'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
                 DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
@@ -802,7 +802,7 @@ class ReportsController extends Controller
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.approval_date', 'desc')->get();
+        $data = $query->orderBy('inv.date_added', 'desc')->get();
 
         return response()->json([
             'success' => true,
@@ -830,11 +830,23 @@ class ReportsController extends Controller
             ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
             ->whereDate('inv.date_added', $date)
             ->select(
+                DB::raw('CASE WHEN fjp_inv.gate_status = "IN" THEN CONCAT(fjp_inv.i_id, "I") ELSE CONCAT(fjp_inv.i_id, "O") END as eir_no'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
                 'cs.status',
+                'inv.vessel',
+                'inv.voyage',
+                'inv.shipper',
+                'inv.hauler',
+                'inv.booking',
+                'inv.location as destination',
+                'inv.plate_no',
                 'lt.type as load',
-                'c.client_name as client',
+                'inv.chasis',
+                'inv.seal_no',
+                'inv.gate_status',
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
                 DB::raw('DATE(fjp_inv.date_added) as date')
             );
 
@@ -865,15 +877,22 @@ class ReportsController extends Controller
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
             ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
             ->whereDate('inv.date_added', $date)
+            ->where('c.archived', 0)
             ->select(
+                DB::raw('CASE WHEN fjp_inv.gate_status = "IN" THEN CONCAT(fjp_inv.i_id, "I") ELSE CONCAT(fjp_inv.i_id, "O") END as eir_no'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                'inv.hauler',
+                'inv.plate_no',
                 'cs.status',
                 'lt.type as load',
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
                 DB::raw('DATE(fjp_inv.date_added) as date')
             )
-            ->orderBy('inv.date_added', 'desc')
+            ->orderBy('inv.date_added')
             ->get();
 
         return response()->json([
@@ -1117,6 +1136,87 @@ class ReportsController extends Controller
 
         return response()->download($filePath)->deleteFileAfterSend(true);
     }
+
+    /**
+     * Export Docs Fee Report
+     * Shows incoming (1200.00) and outgoing (1000.00) containers with fees
+     */
+    public function exportDocsFeeReport(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+        ]);
+
+        $date = $request->date;
+
+        // Get incoming containers with 1200.00 fee
+        $incoming = DB::table('inventory as inv')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->where('inv.gate_status', 'IN')
+            ->whereDate('pi.date_added', $date)
+            ->where('c.archived', 0)
+            ->select(
+                DB::raw('CONCAT(fjp_inv.i_id, "I") as eir_no'),
+                DB::raw('TIME(fjp_pi.date_added) as time'),
+                'inv.container_no',
+                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                'inv.hauler',
+                'inv.plate_no',
+                DB::raw('1200.00 as amount'),
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
+                'st.size'
+            )
+            ->orderBy('pi.date_added')
+            ->get();
+
+        // Get outgoing containers with 1000.00 fee
+        $outgoing = DB::table('inventory as inv')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->where('inv.gate_status', 'OUT')
+            ->whereDate('pi.date_added', $date)
+            ->where('c.archived', 0)
+            ->select(
+                DB::raw('CONCAT(fjp_inv.i_id, "O") as eir_no'),
+                DB::raw('TIME(fjp_pi.date_added) as time'),
+                'inv.container_no',
+                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                'inv.hauler',
+                'inv.plate_no',
+                DB::raw('1000.00 as amount'),
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
+                'st.size'
+            )
+            ->orderBy('pi.date_added')
+            ->get();
+
+        // Calculate totals
+        $incomingTotal = $incoming->sum('amount');
+        $outgoingTotal = $outgoing->sum('amount');
+        $incomingCount = $incoming->count();
+        $outgoingCount = $outgoing->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'incoming' => $incoming,
+                'outgoing' => $outgoing,
+                'summary' => [
+                    'incoming_total' => $incomingTotal,
+                    'outgoing_total' => $outgoingTotal,
+                    'incoming_count' => $incomingCount,
+                    'outgoing_count' => $outgoingCount,
+                    'grand_total' => $incomingTotal + $outgoingTotal,
+                ],
+                'date' => $date,
+            ],
+        ]);
+    }
 }
+
+
 
 
