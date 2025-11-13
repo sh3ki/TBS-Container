@@ -1272,7 +1272,7 @@ class InventoryController extends Controller
                 $params[':size_type'] = $filters['size_type'];
             }
             
-            $query .= " ORDER BY st.size ASC, {$safeInDate} DESC LIMIT 500";
+            $query .= " ORDER BY st.size ASC, {$safeInDate} DESC";
             
             $results = DB::select($query, $params);
             
