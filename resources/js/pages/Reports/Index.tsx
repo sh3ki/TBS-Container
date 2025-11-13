@@ -39,7 +39,7 @@ const Index: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
     const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
-    const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(false);
+    const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
     const [incomingFields, setIncomingFields] = useState<FieldCheckboxes>({
@@ -293,6 +293,15 @@ const Index: React.FC = () => {
         }
     };
 
+    // Filter report data based on search term
+    const filteredReportData = reportData.filter((row) => {
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        const containerNo = String(row.container_no || '').toLowerCase();
+        const eirNo = String(row.eir_no || '').toLowerCase();
+        return containerNo.includes(search) || eirNo.includes(search);
+    });
+
     const renderIncomingTab = () => (
         <div className="space-y-6">
             {/* Merged Filter and Fields Section */}
@@ -300,7 +309,7 @@ const Index: React.FC = () => {
                 {/* Header */}
                 <div 
                     className="cursor-pointer flex items-center justify-between px-6 py-5"
-                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                    onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
                     style={{ backgroundColor: colors.brand.primary }}
                 >
                     <div className="flex items-center gap-3">
@@ -310,7 +319,7 @@ const Index: React.FC = () => {
                             <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
                     </div>
-                    {isFiltersCollapsed ? (
+                    {isFieldsCollapsed ? (
                         <ChevronDown className="w-5 h-5 text-white" />
                     ) : (
                         <ChevronUp className="w-5 h-5 text-white" />
@@ -318,7 +327,6 @@ const Index: React.FC = () => {
                 </div>
                 
                 {/* Content */}
-                {!isFiltersCollapsed && (
                 <div className="p-6">
                     {/* Filter Section */}
                     <div className="mb-6">
@@ -364,7 +372,6 @@ const Index: React.FC = () => {
 
                     {/* Search Bar */}
                     <div className="mb-6">
-                        <div className="w-full h-px bg-gray-200 mb-6"></div>
                         <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -378,22 +385,10 @@ const Index: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Collapsible Fields Section */}
-                    <div className="mb-6">
-                        <div className="w-full h-px bg-gray-200 mb-6"></div>
-                        <div 
-                            className="cursor-pointer flex items-center justify-between mb-4"
-                            onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
-                        >
-                            <Label className="text-sm font-semibold">Fields to display: <span className="text-red-500">*</span></Label>
-                            {isFieldsCollapsed ? (
-                                <ChevronDown className="w-5 h-5 text-gray-600" />
-                            ) : (
-                                <ChevronUp className="w-5 h-5 text-gray-600" />
-                            )}
-                        </div>
-                        
-                        {!isFieldsCollapsed && (
+                    {/* Fields Section */}
+                    {!isFieldsCollapsed && (
+                        <div className="mb-6">
+                            <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {[
                                     { key: 'eir_no', label: 'EIR No.' },
@@ -429,22 +424,22 @@ const Index: React.FC = () => {
                                             {label}
                                         </label>
                                     </div>
-                                )}
+                                ))}
                             </div>
-                    </div>
+                        </div>
+                    )}
                 </div>
-                )}
 
                 {/* Footer */}
                 <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
                     </p>
                 </div>
             </div>
 
-            {reportData.length > 0 ? (
+            {filteredReportData.length > 0 ? (
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
@@ -465,11 +460,11 @@ const Index: React.FC = () => {
                             { key: 'origin', label: 'Origin' },
                             { key: 'chasis', label: 'Chasis' },
                         ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
-                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
                             currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
+                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
+                            total: filteredReportData.length,
                             perPage: itemsPerPage,
                             onPageChange: setCurrentPage,
                         }}
@@ -486,7 +481,7 @@ const Index: React.FC = () => {
                 {/* Header */}
                 <div 
                     className="cursor-pointer flex items-center justify-between px-6 py-5"
-                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                    onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
                     style={{ backgroundColor: colors.brand.primary }}
                 >
                     <div className="flex items-center gap-3">
@@ -496,7 +491,7 @@ const Index: React.FC = () => {
                             <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
                     </div>
-                    {isFiltersCollapsed ? (
+                    {isFieldsCollapsed ? (
                         <ChevronDown className="w-5 h-5 text-white" />
                     ) : (
                         <ChevronUp className="w-5 h-5 text-white" />
@@ -504,7 +499,6 @@ const Index: React.FC = () => {
                 </div>
                 
                 {/* Content */}
-                {!isFiltersCollapsed && (
                 <div className="p-6">
                     {/* Filter Section */}
                     <div className="mb-6">
@@ -550,7 +544,6 @@ const Index: React.FC = () => {
 
                     {/* Search Bar */}
                     <div className="mb-6">
-                        <div className="w-full h-px bg-gray-200 mb-6"></div>
                         <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -564,74 +557,61 @@ const Index: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Collapsible Fields Section */}
-                    <div className="mb-6">
-                        <div className="w-full h-px bg-gray-200 mb-6"></div>
-                        <div 
-                            className="cursor-pointer flex items-center justify-between mb-4"
-                            onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
-                        >
-                            <Label className="text-sm font-semibold">Fields to display: <span className="text-red-500">*</span></Label>
-                            {isFieldsCollapsed ? (
-                                <ChevronDown className="w-5 h-5 text-gray-600" />
-                            ) : (
-                                <ChevronUp className="w-5 h-5 text-gray-600" />
-                            )}
-                        </div>
-                        
-                        {!isFieldsCollapsed && (
+                    {/* Fields Section */}
+                    {!isFieldsCollapsed && (
+                        <div className="mb-6">
+                            <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[
-                                    { key: 'eir_no', label: 'EIR No.' },
-                                    { key: 'date', label: 'Date' },
-                                    { key: 'time', label: 'Time' },
-                                    { key: 'container_no', label: 'Container No.' },
-                                    { key: 'size_type', label: 'Size/Type' },
-                                    { key: 'status', label: 'Status' },
-                                    { key: 'vessel', label: 'Vessel' },
-                                    { key: 'voyage', label: 'Voyage' },
-                                    { key: 'shipper', label: 'Shipper' },
-                                    { key: 'hauler', label: 'Hauler' },
-                                    { key: 'booking', label: 'Booking' },
-                                    { key: 'destination', label: 'Destination' },
-                                    { key: 'plate_no', label: 'Plate No.' },
-                                    { key: 'load', label: 'Load' },
-                                    { key: 'chasis', label: 'Chasis' },
-                                    { key: 'seal_no', label: 'Seal No.' },
-                                ].map(({ key, label }) => (
-                                    <div key={key} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`outgoing-${key}`}
-                                            checked={outgoingFields[key]}
-                                            onCheckedChange={(checked) =>
-                                                setOutgoingFields({ ...outgoingFields, [key]: checked === true })
-                                            }
-                                        />
-                                        <label
-                                            htmlFor={`outgoing-${key}`}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                            style={{ color: colors.text.primary }}
-                                        >
-                                            {label}
-                                        </label>
-                                    </div>
-                                ))}
+                            {[
+                                { key: 'eir_no', label: 'EIR No.' },
+                                { key: 'date', label: 'Date' },
+                                { key: 'time', label: 'Time' },
+                                { key: 'container_no', label: 'Container No.' },
+                                { key: 'size_type', label: 'Size/Type' },
+                                { key: 'status', label: 'Status' },
+                                { key: 'vessel', label: 'Vessel' },
+                                { key: 'voyage', label: 'Voyage' },
+                                { key: 'shipper', label: 'Shipper' },
+                                { key: 'hauler', label: 'Hauler' },
+                                { key: 'booking', label: 'Booking' },
+                                { key: 'destination', label: 'Destination' },
+                                { key: 'plate_no', label: 'Plate No.' },
+                                { key: 'load', label: 'Load' },
+                                { key: 'chasis', label: 'Chasis' },
+                                { key: 'seal_no', label: 'Seal No.' },
+                            ].map(({ key, label}) => (
+                                <div key={key} className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id={`outgoing-${key}`}
+                                        checked={outgoingFields[key]}
+                                        onCheckedChange={(checked) =>
+                                            setOutgoingFields({ ...outgoingFields, [key]: checked === true })
+                                        }
+                                    />
+                                    <label
+                                        htmlFor={`outgoing-${key}`}
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                        style={{ color: colors.text.primary }}
+                                    >
+                                        {label}
+                                    </label>
+                                </div>
+                            ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
-                )}
 
                 {/* Footer */}
-                <div className="w-full h-px bg-gray-200"></div>
+                <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
                     </p>
                 </div>
             </div>
 
-            {reportData.length > 0 ? (
+            {filteredReportData.length > 0 ? (
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
@@ -652,11 +632,11 @@ const Index: React.FC = () => {
                             { key: 'chasis', label: 'Chasis' },
                             { key: 'seal_no', label: 'Seal No.' },
                         ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
-                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
                             currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
+                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
+                            total: filteredReportData.length,
                             perPage: itemsPerPage,
                             onPageChange: setCurrentPage,
                         }}
@@ -668,12 +648,11 @@ const Index: React.FC = () => {
 
     const renderDMRTab = () => (
         <div className="space-y-6">
-            {/* Merged Filter Section */}
+            {/* Filter Section - Non-collapsible */}
             <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                 {/* Header */}
                 <div 
-                    className="cursor-pointer flex items-center justify-between px-6 py-5"
-                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                    className="px-6 py-5"
                     style={{ backgroundColor: colors.brand.primary }}
                 >
                     <div className="flex items-center gap-3">
@@ -683,49 +662,60 @@ const Index: React.FC = () => {
                             <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
                     </div>
-                    {isFiltersCollapsed ? (
-                        <ChevronDown className="w-5 h-5 text-white" />
-                    ) : (
-                        <ChevronUp className="w-5 h-5 text-white" />
-                    )}
                 </div>
                 
                 {/* Content */}
-                {!isFiltersCollapsed && (
                 <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
-                            <Select value={clientId} onValueChange={setClientId}>
-                                <SelectTrigger className="mt-1.5">
-                                    <SelectValue placeholder="All" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All</SelectItem>
-                                    {clients.map((client) => (
-                                        <SelectItem key={client.id} value={client.id}>
-                                            {client.text}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                    {/* Filter Section */}
+                    <div className="mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                                <Select value={clientId} onValueChange={setClientId}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {clients.map((client) => (
+                                            <SelectItem key={client.id} value={client.id}>
+                                                {client.text}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={singleDate}
+                                    onChange={(e) => setSingleDate(e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6">
+                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <Input
-                                type="date"
-                                value={singleDate}
-                                onChange={(e) => setSingleDate(e.target.value)}
-                                className="mt-1.5"
-                                placeholder="yyyy-mm-dd"
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                                placeholder="Search by container number or EIR number..."
                             />
                         </div>
                     </div>
                 </div>
-                )}
 
                 {/* Footer */}
-                <div className="w-full h-px bg-gray-200"></div>
+                <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
                         <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
@@ -733,7 +723,7 @@ const Index: React.FC = () => {
                 </div>
             </div>
 
-            {reportData.length > 0 && (
+            {filteredReportData.length > 0 && (
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
@@ -744,11 +734,11 @@ const Index: React.FC = () => {
                             { key: 'client', label: 'Client' },
                             { key: 'date', label: 'Date' },
                         ]}
-                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
                             currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
+                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
+                            total: filteredReportData.length,
                             perPage: itemsPerPage,
                             onPageChange: setCurrentPage,
                         }}
@@ -760,12 +750,11 @@ const Index: React.FC = () => {
 
     const renderDCRTab = () => (
         <div className="space-y-6">
-            {/* Merged Filter Section */}
+            {/* Filter Section - Non-collapsible */}
             <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                 {/* Header */}
                 <div 
-                    className="cursor-pointer flex items-center justify-between px-6 py-5"
-                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                    className="px-6 py-5"
                     style={{ backgroundColor: colors.brand.primary }}
                 >
                     <div className="flex items-center gap-3">
@@ -775,33 +764,44 @@ const Index: React.FC = () => {
                             <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
                     </div>
-                    {isFiltersCollapsed ? (
-                        <ChevronDown className="w-5 h-5 text-white" />
-                    ) : (
-                        <ChevronUp className="w-5 h-5 text-white" />
-                    )}
                 </div>
                 
                 {/* Content */}
-                {!isFiltersCollapsed && (
                 <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                    {/* Filter Section */}
+                    <div className="mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={singleDate}
+                                    onChange={(e) => setSingleDate(e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6">
+                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <Input
-                                type="date"
-                                value={singleDate}
-                                onChange={(e) => setSingleDate(e.target.value)}
-                                className="mt-1.5"
-                                placeholder="yyyy-mm-dd"
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                                placeholder="Search by container number or EIR number..."
                             />
                         </div>
                     </div>
                 </div>
-                )}
 
                 {/* Footer */}
-                <div className="w-full h-px bg-gray-200"></div>
+                <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
                         <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
@@ -809,7 +809,7 @@ const Index: React.FC = () => {
                 </div>
             </div>
 
-            {reportData.length > 0 && (
+            {filteredReportData.length > 0 && (
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
@@ -819,11 +819,11 @@ const Index: React.FC = () => {
                             { key: 'load', label: 'Load' },
                             { key: 'date', label: 'Date' },
                         ]}
-                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
                             currentPage: currentPage,
-                            totalPages: Math.ceil(reportData.length / itemsPerPage),
-                            total: reportData.length,
+                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
+                            total: filteredReportData.length,
                             perPage: itemsPerPage,
                             onPageChange: setCurrentPage,
                         }}
