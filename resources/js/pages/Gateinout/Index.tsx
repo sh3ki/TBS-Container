@@ -137,6 +137,36 @@ export default function Index() {
     fetchDropdownOptions();
   }, []);
 
+  // Update runtime values every 1 minute without refreshing the table
+  useEffect(() => {
+    const runtimeInterval = setInterval(() => {
+      setPreInventoryList(prevList => 
+        prevList.map(record => {
+          if (record.status.toLowerCase() === 'pending') {
+            const newRuntime = record.runtime + 1;
+            let newColor: 'green' | 'orange' | 'red' = 'green';
+            
+            // Update color based on runtime thresholds
+            if (newRuntime >= 30) {
+              newColor = 'red';
+            } else if (newRuntime >= 15) {
+              newColor = 'orange';
+            }
+            
+            return {
+              ...record,
+              runtime: newRuntime,
+              runtime_color: newColor
+            };
+          }
+          return record;
+        })
+      );
+    }, 60000); // Update every 1 minute (60000 milliseconds)
+
+    return () => clearInterval(runtimeInterval); // Cleanup on unmount
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     const startTime = performance.now();
@@ -322,7 +352,6 @@ export default function Index() {
 
   const handleEditPreIn = async (record: PreInventoryRecord) => {
     try {
-      setLoading(true);
       const response = await axios.post('/api/gateinout/get-prein-details', {
         id: record.hashed_id,
       });
@@ -340,14 +369,11 @@ export default function Index() {
       }
     } catch {
       error('Failed to load Pre-In details');
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleEditPreOut = async (record: PreInventoryRecord) => {
     try {
-      setLoading(true);
       const response = await axios.post('/api/gateinout/get-preout-details', {
         id: record.hashed_id,
       });
@@ -364,8 +390,6 @@ export default function Index() {
       }
     } catch {
       error('Failed to load Pre-Out details');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -381,7 +405,14 @@ export default function Index() {
         success('Pre-In updated successfully');
         setShowEditPreInModal(false);
         setConfirmUpdatePreIn(false);
-        refreshData();
+        // Update the record in the current list without refreshing
+        setPreInventoryList(prevList => 
+          prevList.map(record => 
+            record.hashed_id === editPreInForm.id 
+              ? { ...record, container_no: editPreInForm.container_no, client_id: parseInt(editPreInForm.client_id) }
+              : record
+          )
+        );
       }
     } catch (err: unknown) {
       setConfirmUpdatePreIn(false);
@@ -402,7 +433,14 @@ export default function Index() {
         success('Pre-Out updated successfully');
         setShowEditPreOutModal(false);
         setConfirmUpdatePreOut(false);
-        refreshData();
+        // Update the record in the current list without refreshing
+        setPreInventoryList(prevList => 
+          prevList.map(record => 
+            record.hashed_id === editPreOutForm.id 
+              ? { ...record, plate_no: editPreOutForm.plate_no, hauler: editPreOutForm.hauler }
+              : record
+          )
+        );
       }
     } catch (err: unknown) {
       setConfirmUpdatePreOut(false);
@@ -909,24 +947,6 @@ export default function Index() {
                   maxLength={11}
                 />
               </div>
-              <div>
-                <Label className="text-gray-900">Plate No.</Label>
-                <Input
-                  value={editPreInForm.plate_no}
-                  onChange={(e) =>
-                    setEditPreInForm({ ...editPreInForm, plate_no: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label className="text-gray-900">Hauler</Label>
-                <Input
-                  value={editPreInForm.hauler}
-                  onChange={(e) =>
-                    setEditPreInForm({ ...editPreInForm, hauler: e.target.value })
-                  }
-                />
-              </div>
             </div>
             <DialogFooter className="gap-2">
               <ModernButton
@@ -956,17 +976,6 @@ export default function Index() {
           </DialogHeader>
           <form onSubmit={submitUpdatePreOut}>
             <div className="grid gap-4 py-4">
-              <div>
-                <Label className="text-gray-900">Container No.</Label>
-                <Input
-                  value={editPreOutForm.container_no}
-                  disabled
-                  className="bg-gray-100"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Container No. cannot be changed for Pre-OUT
-                </p>
-              </div>
               <div>
                 <Label className="text-gray-900">Plate No.</Label>
                 <Input
