@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Download, Search } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -163,6 +163,71 @@ const Index: React.FC = () => {
         }
     };
 
+    const handleDocsFeeExport = async () => {
+        if (!singleDate) {
+            error('Please select a date');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const response = await axios.post('/api/reports/docs-fee/export', { date: singleDate });
+            
+            if (response.data.success) {
+                const data = response.data.data;
+                
+                // Create CSV content
+                let csvContent = 'TBS\n';
+                csvContent += 'INCOMING & OUTGOING REPORT\n';
+                csvContent += `DATE: ${new Date(singleDate).toLocaleDateString()}\n\n\n`;
+                csvContent += 'EIR,Time,Container No.,Size/Type,Hauler,Plate No.,Amount,Client\n';
+                
+                // Add incoming data
+                data.incoming.forEach((row: Record<string, unknown>) => {
+                    csvContent += `${row.eir_no},${row.time},${row.container_no},${row.size_type},${row.hauler || ''},${row.plate_no || ''},${row.amount},${row.client_name}\n`;
+                });
+                
+                csvContent += `,,,,,,${data.summary.incoming_total},TOTAL INCOMING: ${data.summary.incoming_count}\n\n\n`;
+                
+                csvContent += 'TBS\n';
+                csvContent += 'OUTGOING\n';
+                csvContent += `DATE: ${new Date(singleDate).toLocaleDateString()}\n\n\n`;
+                csvContent += 'EIR,Time,Container No.,Size/Type,Hauler,Plate No.,Amount,Client\n';
+                
+                // Add outgoing data
+                data.outgoing.forEach((row: Record<string, unknown>) => {
+                    csvContent += `${row.eir_no},${row.time},${row.container_no},${row.size_type},${row.hauler || ''},${row.plate_no || ''},${row.amount},${row.client_name}\n`;
+                });
+                
+                csvContent += `,,,,,,${data.summary.outgoing_total},TOTAL OUTGOING: ${data.summary.outgoing_count}\n\n\n`;
+                csvContent += 'REGULAR\n';
+                csvContent += `INCOMING,${data.summary.incoming_total}\n`;
+                csvContent += `OUTGOING,${data.summary.outgoing_total}\n`;
+                csvContent += `TOTAL,${data.summary.grand_total}\n`;
+                
+                // Create blob and download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                const filename = `DOCS_FEE_${new Date(singleDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }).replace(/,/g, '').replace(/ /g, '_')}.csv`;
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+                
+                success('Docs Fee report exported successfully');
+            }
+        } catch (error_caught: unknown) {
+            const err = error_caught as { response?: { data?: { message?: string } } };
+            error(err.response?.data?.message || 'Failed to export Docs Fee report');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSearch = async () => {
         if (activeTab === 'incoming' || activeTab === 'outgoing') {
             if (!startDate || !endDate) {
@@ -310,37 +375,35 @@ const Index: React.FC = () => {
             </div>
 
             {reportData.length > 0 ? (
-                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <div className="overflow-x-auto">
-                        <ModernTable
-                            columns={[
-                                { key: 'eir_no', label: 'EIR No.' },
-                                { key: 'date', label: 'Date' },
-                                { key: 'time', label: 'Time' },
-                                { key: 'container_no', label: 'Container No.' },
-                                { key: 'size_type', label: 'Size/Type' },
-                                { key: 'status', label: 'Status' },
-                                { key: 'vessel', label: 'Vessel' },
-                                { key: 'voyage', label: 'Voyage' },
-                                { key: 'class', label: 'Class' },
-                                { key: 'date_manufactured', label: 'Date Manufactured' },
-                                { key: 'ex_consignee', label: 'Ex-Consignee' },
-                                { key: 'hauler', label: 'Hauler' },
-                                { key: 'plate_no', label: 'Plate No.' },
-                                { key: 'load', label: 'Load' },
-                                { key: 'origin', label: 'Origin' },
-                                { key: 'chasis', label: 'Chasis' },
-                            ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
-                            data={reportData}
-                            pagination={{
-                                currentPage: currentPage,
-                                totalPages: Math.ceil(reportData.length / itemsPerPage),
-                                total: reportData.length,
-                                perPage: itemsPerPage,
-                                onPageChange: setCurrentPage,
-                            }}
-                        />
-                    </div>
+                <div className="w-full max-w-full overflow-x-auto">
+                    <ModernTable
+                        columns={[
+                            { key: 'eir_no', label: 'EIR No.' },
+                            { key: 'date', label: 'Date' },
+                            { key: 'time', label: 'Time' },
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'vessel', label: 'Vessel' },
+                            { key: 'voyage', label: 'Voyage' },
+                            { key: 'class', label: 'Class' },
+                            { key: 'date_manufactured', label: 'Date Manufactured' },
+                            { key: 'ex_consignee', label: 'Ex-Consignee' },
+                            { key: 'hauler', label: 'Hauler' },
+                            { key: 'plate_no', label: 'Plate No.' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'origin', label: 'Origin' },
+                            { key: 'chasis', label: 'Chasis' },
+                        ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
+                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
                 </div>
             ) : null}
         </div>
@@ -431,37 +494,35 @@ const Index: React.FC = () => {
             </div>
 
             {reportData.length > 0 ? (
-                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <div className="overflow-x-auto">
-                        <ModernTable
-                            columns={[
-                                { key: 'eir_no', label: 'EIR No.' },
-                                { key: 'date', label: 'Date' },
-                                { key: 'time', label: 'Time' },
-                                { key: 'container_no', label: 'Container No.' },
-                                { key: 'size_type', label: 'Size/Type' },
-                                { key: 'status', label: 'Status' },
-                                { key: 'vessel', label: 'Vessel' },
-                                { key: 'voyage', label: 'Voyage' },
-                                { key: 'shipper', label: 'Shipper' },
-                                { key: 'hauler', label: 'Hauler' },
-                                { key: 'booking', label: 'Booking' },
-                                { key: 'destination', label: 'Destination' },
-                                { key: 'plate_no', label: 'Plate No.' },
-                                { key: 'load', label: 'Load' },
-                                { key: 'chasis', label: 'Chasis' },
-                                { key: 'seal_no', label: 'Seal No.' },
-                            ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
-                            data={reportData}
-                            pagination={{
-                                currentPage: currentPage,
-                                totalPages: Math.ceil(reportData.length / itemsPerPage),
-                                total: reportData.length,
-                                perPage: itemsPerPage,
-                                onPageChange: setCurrentPage,
-                            }}
-                        />
-                    </div>
+                <div className="w-full max-w-full overflow-x-auto">
+                    <ModernTable
+                        columns={[
+                            { key: 'eir_no', label: 'EIR No.' },
+                            { key: 'date', label: 'Date' },
+                            { key: 'time', label: 'Time' },
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'vessel', label: 'Vessel' },
+                            { key: 'voyage', label: 'Voyage' },
+                            { key: 'shipper', label: 'Shipper' },
+                            { key: 'hauler', label: 'Hauler' },
+                            { key: 'booking', label: 'Booking' },
+                            { key: 'destination', label: 'Destination' },
+                            { key: 'plate_no', label: 'Plate No.' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'chasis', label: 'Chasis' },
+                            { key: 'seal_no', label: 'Seal No.' },
+                        ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
+                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
                 </div>
             ) : null}
         </div>
@@ -498,30 +559,28 @@ const Index: React.FC = () => {
                         />
                     </div>
                 </div>
-            {reportData.length > 0 ? (
-                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <div className="overflow-x-auto">
-                        <ModernTable
-                            columns={[
-                                { key: 'container_no', label: 'Container No.' },
-                                { key: 'size_type', label: 'Size/Type' },
-                                { key: 'status', label: 'Status' },
-                                { key: 'load', label: 'Load' },
-                                { key: 'client', label: 'Client' },
-                                { key: 'date', label: 'Date' },
-                            ]}
-                            data={reportData}
-                            pagination={{
-                                currentPage: currentPage,
-                                totalPages: Math.ceil(reportData.length / itemsPerPage),
-                                total: reportData.length,
-                                perPage: itemsPerPage,
-                                onPageChange: setCurrentPage,
-                            }}
-                        />
-                    </div>
-                </div>
-            ) : null}      />
+            </div>
+
+            {reportData.length > 0 && (
+                <div className="w-full max-w-full overflow-x-auto">
+                    <ModernTable
+                        columns={[
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'client', label: 'Client' },
+                            { key: 'date', label: 'Date' },
+                        ]}
+                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
                 </div>
             )}
         </div>
@@ -542,29 +601,27 @@ const Index: React.FC = () => {
                         />
                     </div>
                 </div>
-            {reportData.length > 0 ? (
-                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <div className="overflow-x-auto">
-                        <ModernTable
-                            columns={[
-                                { key: 'container_no', label: 'Container No.' },
-                                { key: 'size_type', label: 'Size/Type' },
-                                { key: 'status', label: 'Status' },
-                                { key: 'load', label: 'Load' },
-                                { key: 'date', label: 'Date' },
-                            ]}
-                            data={reportData}
-                            pagination={{
-                                currentPage: currentPage,
-                                totalPages: Math.ceil(reportData.length / itemsPerPage),
-                                total: reportData.length,
-                                perPage: itemsPerPage,
-                                onPageChange: setCurrentPage,
-                            }}
-                        />
-                    </div>
-                </div>
-            ) : null}      />
+            </div>
+
+            {reportData.length > 0 && (
+                <div className="w-full max-w-full overflow-x-auto">
+                    <ModernTable
+                        columns={[
+                            { key: 'container_no', label: 'Container No.' },
+                            { key: 'size_type', label: 'Size/Type' },
+                            { key: 'status', label: 'Status' },
+                            { key: 'load', label: 'Load' },
+                            { key: 'date', label: 'Date' },
+                        ]}
+                        data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                        pagination={{
+                            currentPage: currentPage,
+                            totalPages: Math.ceil(reportData.length / itemsPerPage),
+                            total: reportData.length,
+                            perPage: itemsPerPage,
+                            onPageChange: setCurrentPage,
+                        }}
+                    />
                 </div>
             )}
         </div>
@@ -573,8 +630,7 @@ const Index: React.FC = () => {
     return (
         <AuthenticatedLayout>
             <Head title="Reports" />
-            
-            <div className="space-y-6">
+            <div className="space-y-6 overflow-hidden">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-3 rounded-xl" style={{ backgroundColor: colors.brand.primary }}>
@@ -591,21 +647,34 @@ const Index: React.FC = () => {
                     </div>
                     
                     {/* Generate and Export Buttons at Top */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <ModernButton 
                             variant="primary" 
                             onClick={handleSearch} 
                             disabled={loading || (activeTab === 'incoming' || activeTab === 'outgoing' ? (!startDate || !endDate) : !singleDate)}
+                            className="px-6 py-3"
                         >
-                            <Search className="w-4 h-4" />
+                            <FileText className="w-5 h-5" />
                             {loading ? 'Generating...' : 'Generate'}
                         </ModernButton>
+                        {activeTab === 'dcr' && (
+                            <ModernButton
+                                variant="primary"
+                                onClick={handleDocsFeeExport}
+                                disabled={loading || !singleDate}
+                                className="px-6 py-3"
+                            >
+                                <Download className="w-5 h-5" />
+                                Docs Fee
+                            </ModernButton>
+                        )}
                         <ModernButton 
                             variant="add" 
                             onClick={handleExportClick} 
                             disabled={loading}
+                            className="px-6 py-3"
                         >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-5 h-5" />
                             Export
                         </ModernButton>
                     </div>
@@ -677,16 +746,6 @@ const Index: React.FC = () => {
                     {activeTab === 'outgoing' && renderOutgoingTab()}
                     {activeTab === 'dmr' && renderDMRTab()}
                     {activeTab === 'dcr' && renderDCRTab()}
-                </div>
-
-                <div className="p-12 text-center rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <FileText className="w-16 h-16 mx-auto mb-4 opacity-40" style={{ color: colors.text.secondary }} />
-                    <h3 className="text-lg font-semibold mb-2" style={{ color: colors.text.primary }}>
-                        Container list
-                    </h3>
-                    <p className="text-sm" style={{ color: colors.text.secondary }}>
-                        Select filters and click "Export Data" to generate and download the report
-                    </p>
                 </div>
             </div>
 
