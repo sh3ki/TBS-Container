@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ModernButton, ModernCard, ModernTable, ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernButton, ModernCard, ModernTable, ModernBadge, ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -147,6 +147,21 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
             style: 'currency',
             currency: 'PHP',
         }).format(amount);
+    };
+
+    // Format date to "Jan 01, 2025"
+    const formatDate = (dateString: string | null) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric'
+            });
+        } catch {
+            return dateString;
+        }
     };
 
     return (
@@ -345,7 +360,7 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                                     label: 'Container No.',
                                     width: '12%',
                                     render: (item: BillingData) => (
-                                        <div className="font-semibold text-sm" style={{ color: colors.text.primary }}>
+                                        <div className="font-medium text-gray-900 min-w-[110px]">
                                             {item.container_no}
                                         </div>
                                     ),
@@ -354,19 +369,36 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                                     key: 'container_size',
                                     label: 'Size/Type',
                                     width: '8%',
-                                    render: (item: BillingData) => (
-                                        <div className="text-sm" style={{ color: colors.text.secondary }}>
-                                            {item.container_size}
-                                        </div>
-                                    ),
+                                    render: (item: BillingData) => {
+                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const size = item.container_size;
+                                        
+                                        if (size === '10DJH') variant = 'success';
+                                        else if (size === '20FR') variant = 'error';
+                                        else if (size === '20HR') variant = 'warning';
+                                        else if (size === '20OT') variant = 'info';
+                                        else if (size === '20RF') variant = 'success';
+                                        else if (size === '20RH') variant = 'error';
+                                        else if (size === '40DC') variant = 'warning';
+                                        else if (size === '40FR') variant = 'info';
+                                        else if (size === '40HC') variant = 'success';
+                                        else if (size === '40OT') variant = 'error';
+                                        else if (size === '40RH') variant = 'warning';
+                                        
+                                        return (
+                                            <div className="min-w-[70px]">
+                                                <ModernBadge variant={variant}>{item.container_size || '-'}</ModernBadge>
+                                            </div>
+                                        );
+                                    },
                                 },
                                 {
                                     key: 'date_in',
                                     label: 'Date In',
                                     width: '10%',
                                     render: (item: BillingData) => (
-                                        <div className="text-sm" style={{ color: colors.text.secondary }}>
-                                            {item.date_in}
+                                        <div className="text-sm text-gray-600 min-w-[100px]">
+                                            {formatDate(item.date_in)}
                                         </div>
                                     ),
                                 },
@@ -375,8 +407,8 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                                     label: 'Date Out',
                                     width: '10%',
                                     render: (item: BillingData) => (
-                                        <div className="text-sm" style={{ color: colors.text.secondary }}>
-                                            {item.date_out || 'N/A'}
+                                        <div className="text-sm text-gray-600 min-w-[100px]">
+                                            {formatDate(item.date_out)}
                                         </div>
                                     ),
                                 },
@@ -385,7 +417,7 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                                     label: 'Days',
                                     width: '7%',
                                     render: (item: BillingData) => (
-                                        <div className="text-sm text-center" style={{ color: colors.text.primary }}>
+                                        <div className="text-sm font-medium text-gray-900 min-w-[50px] text-center">
                                             {item.storage_days}
                                         </div>
                                     ),
