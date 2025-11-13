@@ -1106,7 +1106,8 @@ class InventoryController extends Controller
             $query = "SELECT 
                         CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) as eir_no,
                         i.container_no,
-                        CASE WHEN c.client_code IS NOT NULL AND c.client_code <> '' THEN c.client_code ELSE c.client_name END as client,
+                        c.client_name as client,
+                        c.client_code as client_code,
                         CONCAT(st.size, st.type) as size,
                         i.gate_status as gate,
                         CASE 
