@@ -573,22 +573,22 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'eir_no', label: 'EIR No.' },
-                            { key: 'date', label: 'Date' },
-                            { key: 'time', label: 'Time' },
-                            { key: 'container_no', label: 'Cont. No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'vessel', label: 'Vessel' },
-                            { key: 'voyage', label: 'Voyage' },
-                            { key: 'class', label: 'Class' },
-                            { key: 'date_manufactured', label: 'Date mfd' },
-                            { key: 'ex_consignee', label: 'Ex-Consignee' },
-                            { key: 'hauler', label: 'Hauler' },
-                            { key: 'plate_no', label: 'Plate No.' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'origin', label: 'Origin' },
-                            { key: 'chasis', label: 'Chasis' },
+                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.eir_no || '-')}</div> },
+                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
+                            { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
+                            { key: 'container_no', label: 'Cont. No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
+                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
+                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
+                            { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
+                            { key: 'voyage', label: 'Voyage', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.voyage || '-')}</div> },
+                            { key: 'class', label: 'Class', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.class || '-')}</div> },
+                            { key: 'date_manufactured', label: 'Date mfd', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date_manufactured || ''))}</div> },
+                            { key: 'ex_consignee', label: 'Ex-Consignee', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.ex_consignee || '-')}</div> },
+                            { key: 'hauler', label: 'Hauler', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.hauler || '-')}</div> },
+                            { key: 'plate_no', label: 'Plate No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.plate_no || '-')}</div> },
+                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
+                            { key: 'origin', label: 'Origin', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.origin || '-')}</div> },
+                            { key: 'chasis', label: 'Chasis', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.chasis || '-')}</div> },
                         ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
                         data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
