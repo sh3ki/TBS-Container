@@ -6,7 +6,7 @@ import { ModernButton, ModernCard, ModernTable, ModernConfirmDialog, ToastContai
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Download, Clock, Users, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Download, Clock, Users, Search } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface BillingData extends Record<string, unknown> {
@@ -53,7 +53,6 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
     const itemsPerPage = 15;
     const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
-    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
 
     useEffect(() => {
         loadClients();
@@ -217,99 +216,67 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                 />
 
                 {/* Filter Section */}
-                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    {/* Filter Header */}
-                    <div 
-                        className="cursor-pointer flex items-center justify-between px-6 py-5"
-                        onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
-                        style={{ backgroundColor: colors.brand.primary }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <Search className="w-5 h-5 text-white" />
+                <div className="relative" style={{ zIndex: 0 }}>
+                    <ModernCard title="Search & Filter Billing" subtitle="Generate billing records" icon={<Search className="w-5 h-5" />}>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
-                                <h2 className="text-xl font-bold text-white">Search & Filter Billing</h2>
-                                <p className="text-sm text-white/90 mt-0.5">Generate billing records</p>
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Client Filter</Label>
+                                <Select value={clientId} onValueChange={setClientId}>
+                                    <SelectTrigger className="h-11">
+                                        <SelectValue placeholder="All Clients" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Clients</SelectItem>
+                                        {clients.map((client) => (
+                                            <SelectItem key={client.id} value={client.id}>
+                                                {client.text}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Start Date</Label>
+                                <Input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">End Date</Label>
+                                <Input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Size/Type Filter</Label>
+                                <Select value={sizeType} onValueChange={setSizeType}>
+                                    <SelectTrigger className="h-11">
+                                        <SelectValue placeholder="All Sizes" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Sizes</SelectItem>
+                                        <SelectItem value="10DJH">10DJH</SelectItem>
+                                        <SelectItem value="20DJH">20DJH</SelectItem>
+                                        <SelectItem value="20GP">20GP</SelectItem>
+                                        <SelectItem value="40GP">40GP</SelectItem>
+                                        <SelectItem value="40HC">40HC</SelectItem>
+                                        <SelectItem value="45HC">45HC</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
-                        {isFiltersCollapsed ? (
-                            <ChevronDown className="w-5 h-5 text-white" />
-                        ) : (
-                            <ChevronUp className="w-5 h-5 text-white" />
-                        )}
-                    </div>
-                    
-                    {/* Filter Content */}
-                    {!isFiltersCollapsed && (
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {/* Left 1/3 - Client Filter */}
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2 text-gray-900">Client Filter</Label>
-                                    <Select value={clientId} onValueChange={setClientId}>
-                                        <SelectTrigger className="mt-1.5">
-                                            <SelectValue placeholder="All Clients" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Clients</SelectItem>
-                                            {clients.map((client) => (
-                                                <SelectItem key={client.id} value={client.id}>
-                                                    {client.text}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {/* Right 2/3 - Date & Size Filters */}
-                                <div className="md:col-span-2">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <Label className="text-sm font-semibold mb-2 text-gray-900">Start Date</Label>
-                                            <Input
-                                                type="date"
-                                                value={startDate}
-                                                onChange={(e) => setStartDate(e.target.value)}
-                                                className="mt-1.5"
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label className="text-sm font-semibold mb-2 text-gray-900">End Date</Label>
-                                            <Input
-                                                type="date"
-                                                value={endDate}
-                                                onChange={(e) => setEndDate(e.target.value)}
-                                                className="mt-1.5"
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label className="text-sm font-semibold mb-2 text-gray-900">Size/Type Filter</Label>
-                                            <Select value={sizeType} onValueChange={setSizeType}>
-                                                <SelectTrigger className="mt-1.5">
-                                                    <SelectValue placeholder="All Sizes" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="all">All Sizes</SelectItem>
-                                                    <SelectItem value="10DJH">10DJH</SelectItem>
-                                                    <SelectItem value="20DJH">20DJH</SelectItem>
-                                                    <SelectItem value="20GP">20GP</SelectItem>
-                                                    <SelectItem value="40GP">40GP</SelectItem>
-                                                    <SelectItem value="40HC">40HC</SelectItem>
-                                                    <SelectItem value="45HC">45HC</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-sm text-gray-600">
+                                <span className="font-semibold text-gray-900">{billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length}</span> billing record{billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length !== 1 ? 's' : ''} found
+                            </p>
                         </div>
-                    )}
-                    
-                    {/* Billing Record Count */}
-                    <div className="px-6 py-4 bg-white border-t border-gray-200">
-                        <p className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length}</span> billing record{billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length !== 1 ? 's' : ''} found
-                        </p>
-                    </div>
+                    </ModernCard>
                 </div>
 
                 {/* Totals Row - Above Table */}
