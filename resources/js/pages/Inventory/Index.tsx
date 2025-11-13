@@ -110,7 +110,10 @@ const Index: React.FC = () => {
     const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
     
     // Filter collapse state
-    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
+    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
+    
+    // Search state
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Filter states
     const [filters, setFilters] = useState({
@@ -234,6 +237,14 @@ const Index: React.FC = () => {
 
         return payload;
     };
+
+    // Apply search filter to reportData
+    const filteredReportData = reportData.filter(record => {
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        return record.container_no.toLowerCase().includes(search) || 
+               record.eir_no.toLowerCase().includes(search);
+    });
 
     const handleOpenApprovalModal = (record: InventoryRecord) => {
         setSelectedRecord(record);
@@ -970,10 +981,25 @@ const Index: React.FC = () => {
                         </div>
                     )}
                     
-                    {/* Container Count */}
+                    {/* Search Bar */}
                     <div className="px-6 py-4 bg-white">
+                        <Label className="text-sm font-semibold mb-2 text-gray-900">Search Containers</Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                            <Input
+                                type="text"
+                                placeholder="Search by container number or EIR number..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10 h-11"
+                            />
+                        </div>
+                    </div>
+                    
+                    {/* Container Count */}
+                    <div className="px-6 py-4 bg-white border-t border-gray-200">
                         <p className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{reportData.length}</span> container{reportData.length !== 1 ? 's' : ''} found
+                            <span className="font-semibold text-gray-900">{filteredReportData.length}</span> container{filteredReportData.length !== 1 ? 's' : ''} found
                         </p>
                     </div>
                 </div>
@@ -984,7 +1010,7 @@ const Index: React.FC = () => {
                         <div className="text-center py-12">
                             <p style={{ color: colors.text.secondary }}>Loading inventory...</p>
                         </div>
-                    ) : reportData.length > 0 ? (
+                    ) : filteredReportData.length > 0 ? (
                         <ModernTable
                             columns={[
                                 { key: 'eir_no', label: 'EIR No.' },
@@ -1103,11 +1129,11 @@ const Index: React.FC = () => {
                                     )
                                 },
                             ]}
-                            data={reportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                            data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                             pagination={{
                                 currentPage: currentPage,
-                                totalPages: Math.ceil(reportData.length / itemsPerPage),
-                                total: reportData.length,
+                                totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
+                                total: filteredReportData.length,
                                 perPage: itemsPerPage,
                                 onPageChange: setCurrentPage,
                             }}
