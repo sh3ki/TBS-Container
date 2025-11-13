@@ -1073,28 +1073,34 @@ const Index: React.FC = () => {
                                     key: 'size', 
                                     label: 'Size',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[60px]">{row.size}</div>
+                                        <div className="min-w-[70px]">
+                                            <ModernBadge variant="info">{row.size}</ModernBadge>
+                                        </div>
                                     )
                                 },
                                 { 
                                     key: 'gate', 
                                     label: 'Gate',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.gate}</div>
+                                        <div className="min-w-[60px]">
+                                            <ModernBadge variant={row.gate === 'IN' ? 'success' : 'warning'}>
+                                                {row.gate}
+                                            </ModernBadge>
+                                        </div>
                                     )
                                 },
                                 { 
                                     key: 'date', 
                                     label: 'Date',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[90px]">{row.date}</div>
+                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(row.date)}</div>
                                     )
                                 },
                                 { 
                                     key: 'time', 
                                     label: 'Time',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[70px]">{row.time}</div>
+                                        <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(row.time)}</div>
                                     )
                                 },
                                 { 
@@ -1108,7 +1114,16 @@ const Index: React.FC = () => {
                                     key: 'status', 
                                     label: 'Status',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-900 min-w-[70px]">{row.status}</div>
+                                        <div className="min-w-[80px]">
+                                            <ModernBadge variant={
+                                                row.status === 'AVL' ? 'success' : 
+                                                row.status === 'DMG' ? 'error' : 
+                                                row.status === 'WSH' ? 'warning' : 
+                                                'secondary'
+                                            }>
+                                                {row.status}
+                                            </ModernBadge>
+                                        </div>
                                     )
                                 },
                                 { 
