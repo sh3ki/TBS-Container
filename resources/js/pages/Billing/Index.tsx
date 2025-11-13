@@ -171,21 +171,23 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                     </div>
                     
                     {/* Generate and Export Buttons at Top */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <ModernButton 
                             variant="primary" 
                             onClick={handleGenerateClick} 
                             disabled={loading || !startDate || !endDate}
+                            className="px-6 py-3"
                         >
-                            <FileText className="w-4 h-4" />
+                            <FileText className="w-5 h-5" />
                             {loading ? 'Generating...' : 'Generate'}
                         </ModernButton>
                         <ModernButton 
                             variant="add" 
                             onClick={handleExportClick} 
                             disabled={loading || billingData.length === 0}
+                            className="px-6 py-3"
                         >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-5 h-5" />
                             Export
                         </ModernButton>
                     </div>
