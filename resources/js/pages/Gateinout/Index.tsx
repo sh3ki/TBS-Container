@@ -137,36 +137,6 @@ export default function Index() {
     fetchDropdownOptions();
   }, []);
 
-  // Update runtime values every 1 minute without refreshing the table
-  useEffect(() => {
-    const runtimeInterval = setInterval(() => {
-      setPreInventoryList(prevList => 
-        prevList.map(record => {
-          if (record.status.toLowerCase() === 'pending') {
-            const newRuntime = record.runtime + 1;
-            let newColor: 'green' | 'orange' | 'red' = 'green';
-            
-            // Update color based on runtime thresholds
-            if (newRuntime >= 30) {
-              newColor = 'red';
-            } else if (newRuntime >= 15) {
-              newColor = 'orange';
-            }
-            
-            return {
-              ...record,
-              runtime: newRuntime,
-              runtime_color: newColor
-            };
-          }
-          return record;
-        })
-      );
-    }, 60000); // Update every 1 minute (60000 milliseconds)
-
-    return () => clearInterval(runtimeInterval); // Cleanup on unmount
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     const startTime = performance.now();
@@ -351,25 +321,15 @@ export default function Index() {
   };
 
   const handleEditPreIn = async (record: PreInventoryRecord) => {
-    try {
-      const response = await axios.post('/api/gateinout/get-prein-details', {
-        id: record.hashed_id,
-      });
-
-      if (response.data.success) {
-        const data = response.data.data;
-        setEditPreInForm({
-          id: record.hashed_id,
-          container_no: data.container_no,
-          client_id: data.client_id.toString(),
-          plate_no: data.plate_no || '',
-          hauler: data.hauler || '',
-        });
-        setShowEditPreInModal(true);
-      }
-    } catch {
-      error('Failed to load Pre-In details');
-    }
+    // Use the client_id from the record directly
+    setEditPreInForm({
+      id: record.hashed_id,
+      container_no: record.container_no,
+      client_id: record.client_id.toString(),
+      plate_no: record.plate_no || '',
+      hauler: record.hauler || '',
+    });
+    setShowEditPreInModal(true);
   };
 
   const handleEditPreOut = async (record: PreInventoryRecord) => {
@@ -405,14 +365,7 @@ export default function Index() {
         success('Pre-In updated successfully');
         setShowEditPreInModal(false);
         setConfirmUpdatePreIn(false);
-        // Update the record in the current list without refreshing
-        setPreInventoryList(prevList => 
-          prevList.map(record => 
-            record.hashed_id === editPreInForm.id 
-              ? { ...record, container_no: editPreInForm.container_no, client_id: parseInt(editPreInForm.client_id) }
-              : record
-          )
-        );
+        await refreshData();
       }
     } catch (err: unknown) {
       setConfirmUpdatePreIn(false);
@@ -433,14 +386,7 @@ export default function Index() {
         success('Pre-Out updated successfully');
         setShowEditPreOutModal(false);
         setConfirmUpdatePreOut(false);
-        // Update the record in the current list without refreshing
-        setPreInventoryList(prevList => 
-          prevList.map(record => 
-            record.hashed_id === editPreOutForm.id 
-              ? { ...record, plate_no: editPreOutForm.plate_no, hauler: editPreOutForm.hauler }
-              : record
-          )
-        );
+        await refreshData();
       }
     } catch (err: unknown) {
       setConfirmUpdatePreOut(false);
@@ -460,7 +406,7 @@ export default function Index() {
         success('Record deleted successfully');
         setRecordToDelete(null);
         setConfirmDeleteRecord(false);
-        refreshData();
+        await refreshData();
       }
     } catch (err: unknown) {
       setConfirmDeleteRecord(false);
