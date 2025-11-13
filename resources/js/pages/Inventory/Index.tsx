@@ -1113,18 +1113,21 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'status', 
                                     label: 'Status',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="min-w-[80px]">
-                                            <ModernBadge variant={
-                                                row.status === 'AVL' ? 'success' : 
-                                                row.status === 'DMG' ? 'error' : 
-                                                row.status === 'WSH' ? 'warning' : 
-                                                'secondary'
-                                            }>
-                                                {row.status}
-                                            </ModernBadge>
-                                        </div>
-                                    )
+                                    render: (row: InventoryRecord) => {
+                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        if (row.status === 'AVL') variant = 'success';
+                                        else if (row.status === 'DMG') variant = 'error';
+                                        else if (row.status === 'WSH') variant = 'warning';
+                                        else if (row.status === 'REP') variant = 'info';
+                                        
+                                        return (
+                                            <div className="min-w-[80px]">
+                                                <ModernBadge variant={variant}>
+                                                    {row.status || '-'}
+                                                </ModernBadge>
+                                            </div>
+                                        );
+                                    }
                                 },
                                 { 
                                     key: 'class', 
