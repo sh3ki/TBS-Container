@@ -572,7 +572,13 @@ class InventoryController extends Controller
         try {
             $prefix = DB::getTablePrefix();
             
-            $inventory = DB::selectOne("SELECT * FROM {$prefix}inventory WHERE MD5(i_id) = ?", [$hashedId]);
+            // Check if it's a numeric ID or hashed ID
+            $isNumeric = is_numeric($hashedId);
+            
+            $inventory = DB::selectOne(
+                "SELECT * FROM {$prefix}inventory WHERE " . ($isNumeric ? "i_id = ?" : "MD5(i_id) = ?"),
+                [$hashedId]
+            );
             
             if (!$inventory) {
                 return response()->json([
