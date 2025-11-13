@@ -707,31 +707,30 @@ const Index: React.FC = () => {
                 </div>
 
                 {/* Filter Section */}
-                <div className="relative" style={{ zIndex: 0 }}>
-                    <div className="rounded-xl shadow-sm overflow-hidden bg-white border border-gray-200">
-                        {/* Filter Header */}
-                        <div 
-                            className="cursor-pointer flex items-center justify-between px-6 py-5"
-                            onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
-                            style={{ backgroundColor: colors.brand.primary }}
-                        >
-                            <div className="flex items-center gap-3">
-                                <Search className="w-5 h-5 text-white" />
-                                <div>
-                                    <h2 className="text-xl font-bold text-white">Search & Filter Inventory</h2>
-                                    <p className="text-sm text-white/90 mt-0.5">Find containers quickly</p>
-                                </div>
+                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    {/* Filter Header */}
+                    <div 
+                        className="cursor-pointer flex items-center justify-between px-6 py-5"
+                        onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                        style={{ backgroundColor: colors.brand.primary }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Search className="w-5 h-5 text-white" />
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Search & Filter Inventory</h2>
+                                <p className="text-sm text-white/90 mt-0.5">Find containers quickly</p>
                             </div>
-                            {isFiltersCollapsed ? (
-                                <ChevronDown className="w-5 h-5 text-white" />
-                            ) : (
-                                <ChevronUp className="w-5 h-5 text-white" />
-                            )}
                         </div>
-                        
-                        {/* Filter Content */}
-                        {!isFiltersCollapsed && (
-                            <div className="p-6 bg-white">
+                        {isFiltersCollapsed ? (
+                            <ChevronDown className="w-5 h-5 text-white" />
+                        ) : (
+                            <ChevronUp className="w-5 h-5 text-white" />
+                        )}
+                    </div>
+                    
+                    {/* Filter Content */}
+                    {!isFiltersCollapsed && (
+                        <div className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Column 1 */}
                         <div className="space-y-3">
@@ -1037,7 +1036,6 @@ const Index: React.FC = () => {
                         <p className="text-sm text-gray-600">
                             <span className="font-semibold text-gray-900">{filteredReportData.length}</span> container{filteredReportData.length !== 1 ? 's' : ''} found
                         </p>
-                    </div>
                     </div>
                 </div>
 
