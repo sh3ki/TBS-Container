@@ -38,6 +38,7 @@ const Index: React.FC = () => {
     const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
+    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
     const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -298,7 +299,8 @@ const Index: React.FC = () => {
             <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                 {/* Header */}
                 <div 
-                    className="px-6 py-5"
+                    className="cursor-pointer flex items-center justify-between px-6 py-5"
+                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
                     style={{ backgroundColor: colors.brand.primary }}
                 >
                     <div className="flex items-center gap-3">
@@ -308,9 +310,15 @@ const Index: React.FC = () => {
                             <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
                     </div>
+                    {isFiltersCollapsed ? (
+                        <ChevronDown className="w-5 h-5 text-white" />
+                    ) : (
+                        <ChevronUp className="w-5 h-5 text-white" />
+                    )}
                 </div>
                 
                 {/* Content */}
+                {!isFiltersCollapsed && (
                 <div className="p-6">
                     {/* Filter Section */}
                     <div className="mb-6">
@@ -421,15 +429,19 @@ const Index: React.FC = () => {
                                             {label}
                                         </label>
                                     </div>
-                                ))}
+                                )}
                             </div>
-                        )}
                     </div>
                 </div>
+                )}
 
                 {/* Footer */}
-                <div className="w-full h-px bg-gray-200"></div>
-                <div className="px-6 py-4 bg-gray-50"></div>
+                <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
+                <div className="px-6 py-4 bg-gray-50">
+                    <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                    </p>
+                </div>
             </div>
 
             {reportData.length > 0 ? (
@@ -473,7 +485,8 @@ const Index: React.FC = () => {
             <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                 {/* Header */}
                 <div 
-                    className="px-6 py-5"
+                    className="cursor-pointer flex items-center justify-between px-6 py-5"
+                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
                     style={{ backgroundColor: colors.brand.primary }}
                 >
                     <div className="flex items-center gap-3">
@@ -483,9 +496,15 @@ const Index: React.FC = () => {
                             <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
                     </div>
+                    {isFiltersCollapsed ? (
+                        <ChevronDown className="w-5 h-5 text-white" />
+                    ) : (
+                        <ChevronUp className="w-5 h-5 text-white" />
+                    )}
                 </div>
                 
                 {/* Content */}
+                {!isFiltersCollapsed && (
                 <div className="p-6">
                     {/* Filter Section */}
                     <div className="mb-6">
@@ -601,10 +620,15 @@ const Index: React.FC = () => {
                         )}
                     </div>
                 </div>
+                )}
 
                 {/* Footer */}
                 <div className="w-full h-px bg-gray-200"></div>
-                <div className="px-6 py-4 bg-gray-50"></div>
+                <div className="px-6 py-4 bg-gray-50">
+                    <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                    </p>
+                </div>
             </div>
 
             {reportData.length > 0 ? (
@@ -644,34 +668,68 @@ const Index: React.FC = () => {
 
     const renderDMRTab = () => (
         <div className="space-y-6">
-            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
-                        <Select value={clientId} onValueChange={setClientId}>
-                            <SelectTrigger className="mt-1.5">
-                                <SelectValue placeholder="All" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                {clients.map((client) => (
-                                    <SelectItem key={client.id} value={client.id}>
-                                        {client.text}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+            {/* Merged Filter Section */}
+            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                {/* Header */}
+                <div 
+                    className="cursor-pointer flex items-center justify-between px-6 py-5"
+                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                    style={{ backgroundColor: colors.brand.primary }}
+                >
+                    <div className="flex items-center gap-3">
+                        <Search className="w-5 h-5 text-white" />
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
+                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
+                        </div>
                     </div>
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={singleDate}
-                            onChange={(e) => setSingleDate(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="yyyy-mm-dd"
-                        />
+                    {isFiltersCollapsed ? (
+                        <ChevronDown className="w-5 h-5 text-white" />
+                    ) : (
+                        <ChevronUp className="w-5 h-5 text-white" />
+                    )}
+                </div>
+                
+                {/* Content */}
+                {!isFiltersCollapsed && (
+                <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                            <Select value={clientId} onValueChange={setClientId}>
+                                <SelectTrigger className="mt-1.5">
+                                    <SelectValue placeholder="All" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All</SelectItem>
+                                    {clients.map((client) => (
+                                        <SelectItem key={client.id} value={client.id}>
+                                            {client.text}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                            <Input
+                                type="date"
+                                value={singleDate}
+                                onChange={(e) => setSingleDate(e.target.value)}
+                                className="mt-1.5"
+                                placeholder="yyyy-mm-dd"
+                            />
+                        </div>
                     </div>
+                </div>
+                )}
+
+                {/* Footer */}
+                <div className="w-full h-px bg-gray-200"></div>
+                <div className="px-6 py-4 bg-gray-50">
+                    <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                    </p>
                 </div>
             </div>
 
@@ -702,18 +760,52 @@ const Index: React.FC = () => {
 
     const renderDCRTab = () => (
         <div className="space-y-6">
-            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={singleDate}
-                            onChange={(e) => setSingleDate(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="yyyy-mm-dd"
-                        />
+            {/* Merged Filter Section */}
+            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                {/* Header */}
+                <div 
+                    className="cursor-pointer flex items-center justify-between px-6 py-5"
+                    onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                    style={{ backgroundColor: colors.brand.primary }}
+                >
+                    <div className="flex items-center gap-3">
+                        <Search className="w-5 h-5 text-white" />
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
+                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
+                        </div>
                     </div>
+                    {isFiltersCollapsed ? (
+                        <ChevronDown className="w-5 h-5 text-white" />
+                    ) : (
+                        <ChevronUp className="w-5 h-5 text-white" />
+                    )}
+                </div>
+                
+                {/* Content */}
+                {!isFiltersCollapsed && (
+                <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <Label className="text-sm font-semibold mb-2">Date <span className="text-red-500">*</span></Label>
+                            <Input
+                                type="date"
+                                value={singleDate}
+                                onChange={(e) => setSingleDate(e.target.value)}
+                                className="mt-1.5"
+                                placeholder="yyyy-mm-dd"
+                            />
+                        </div>
+                    </div>
+                </div>
+                )}
+
+                {/* Footer */}
+                <div className="w-full h-px bg-gray-200"></div>
+                <div className="px-6 py-4 bg-gray-50">
+                    <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                        <span className="font-bold" style={{ color: colors.text.primary }}>{reportData.length}</span> containers found
+                    </p>
                 </div>
             </div>
 
