@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -108,6 +108,9 @@ const Index: React.FC = () => {
     const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
     const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
     const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
+    
+    // Filter collapse state
+    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(false);
 
     // Filter states
     const [filters, setFilters] = useState({
@@ -658,8 +661,31 @@ const Index: React.FC = () => {
                 </div>
 
                 {/* Filter Section */}
-                <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    {/* Filter Header */}
+                    <div 
+                        className="cursor-pointer flex items-center justify-between px-6 py-5"
+                        onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
+                        style={{ backgroundColor: colors.brand.primary }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Search className="w-5 h-5 text-white" />
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Search & Filter Inventory</h2>
+                                <p className="text-sm text-white/90 mt-0.5">Find containers quickly</p>
+                            </div>
+                        </div>
+                        {isFiltersCollapsed ? (
+                            <ChevronDown className="w-5 h-5 text-white" />
+                        ) : (
+                            <ChevronUp className="w-5 h-5 text-white" />
+                        )}
+                    </div>
+                    
+                    {/* Filter Content */}
+                    {!isFiltersCollapsed && (
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Column 1 */}
                         <div className="space-y-3">
                             <div>
@@ -940,6 +966,15 @@ const Index: React.FC = () => {
                                 </Label>
                             </div>
                         </div>
+                    </div>
+                        </div>
+                    )}
+                    
+                    {/* Container Count */}
+                    <div className="px-6 py-4 bg-white">
+                        <p className="text-sm text-gray-600">
+                            <span className="font-semibold text-gray-900">{reportData.length}</span> container{reportData.length !== 1 ? 's' : ''} found
+                        </p>
                     </div>
                 </div>
 
