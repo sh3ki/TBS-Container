@@ -240,7 +240,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
 
                 {/* Main Content Area */}
                 <main
-                    className={`flex-1 transition-all duration-300 ${
+                    className={`flex-1 transition-all duration-300 overflow-x-hidden ${
                         sidebarCollapsed ? 'ml-16' : 'ml-64'
                     }`}
                 >
