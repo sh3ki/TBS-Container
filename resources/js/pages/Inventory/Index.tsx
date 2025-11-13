@@ -1182,13 +1182,13 @@ const Index: React.FC = () => {
                                         const status = row.status;
                                         
                                         // Distinct colors for each status (cycling through 4 colors)
-                                        if (status === 'ASIS') variant = 'success';
-                                        else if (status === 'AVL') variant = 'error';
-                                        else if (status === 'DMG') variant = 'warning';
+                                        if (status === 'ASIS') variant = 'warning';
+                                        else if (status === 'AVL') variant = 'success';
+                                        else if (status === 'DMG') variant = 'error';
                                         else if (status === 'FSV') variant = 'info';
-                                        else if (status === 'HLD') variant = 'success';
-                                        else if (status === 'REPO') variant = 'error';
-                                        else if (status === 'RPR') variant = 'warning';
+                                        else if (status === 'HLD') variant = 'error';
+                                        else if (status === 'REPO') variant = 'warning';
+                                        else if (status === 'RPR') variant = 'success';
                                         else if (status === 'WSH') variant = 'info';
                                         
                                         return (
