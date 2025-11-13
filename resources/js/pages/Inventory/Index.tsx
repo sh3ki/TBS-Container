@@ -29,6 +29,7 @@ interface InventoryRecord {
     client: string;
     client_id?: string;
     size: string;
+    size_type_id?: number;
     iso_code?: string;
     gate: string;
     date: string;
@@ -381,7 +382,6 @@ const Index: React.FC = () => {
             return;
         }
 
-        setLoading(true);
         try {
             // Use hashed_id if available, otherwise use i_id directly
             const identifier = record.hashed_id || record.i_id;
@@ -398,13 +398,14 @@ const Index: React.FC = () => {
                     client: data.client_name || '',
                     client_id: data.client_id?.toString(),
                     size: data.container_size || '',
+                    size_type_id: data.size_type_id,
                     iso_code: data.iso_code,
                     gate: data.gate_status,
                     date: data.date_in,
                     time: data.time_in,
                     days: data.days_in_yard,
                     status: data.container_status || '',
-                    status_id: data.container_status,
+                    status_id: data.container_status_id,
                     class: data.condition || '',
                     dmf: data.date_manufactured || '',
                     location: data.location || '',
@@ -412,13 +413,13 @@ const Index: React.FC = () => {
                     app_notes: data.approval_notes || '',
                     approval_date: data.approval_date,
                     is_hold: data.is_hold,
-                    container_status_id: data.container_status,
+                    container_status_id: data.container_status_id,
                     vessel: data.vessel,
                     voyage: data.voyage,
                     checker: data.checker,
                     ex_consignee: data.ex_consignee,
                     load: data.load_type,
-                    load_id: data.load_type,
+                    load_id: data.load_type_id,
                     plate_no: data.plate_no,
                     hauler: data.hauler,
                     hauler_driver: data.hauler_driver,
@@ -435,8 +436,6 @@ const Index: React.FC = () => {
         } catch (err: unknown) {
             const error_caught = err as { response?: { data?: { message?: string } } };
             error(error_caught.response?.data?.message || 'Failed to load container details');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -446,7 +445,6 @@ const Index: React.FC = () => {
             return;
         }
 
-        setLoading(true);
         try {
             // Use hashed_id if available, otherwise use i_id directly
             const identifier = record.hashed_id || record.i_id;
@@ -501,8 +499,6 @@ const Index: React.FC = () => {
         } catch (err: unknown) {
             const error_caught = err as { response?: { data?: { message?: string } } };
             error(error_caught.response?.data?.message || 'Failed to load container details');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -523,7 +519,8 @@ const Index: React.FC = () => {
         if (!recordToDelete) return;
 
         try {
-            const response = await axios.delete(`/api/inventory/${recordToDelete.i_id}`);
+            const identifier = recordToDelete.hashed_id || recordToDelete.i_id;
+            const response = await axios.delete(`/api/inventory/${identifier}`);
 
             if (response.data.success) {
                 success('Container deleted successfully!');
@@ -1364,10 +1361,26 @@ const Index: React.FC = () => {
                                 </div>
                                 <div>
                                     <Label className="text-gray-900">Client</Label>
-                                    <Input 
-                                        value={editFormData.client} 
-                                        onChange={(e) => setEditFormData({...editFormData, client: e.target.value})}
-                                    />
+                                    <Select 
+                                        value={editFormData.client_id?.toString() || ''} 
+                                        onValueChange={(value) => {
+                                            const selectedClient = clients.find(c => c.c_id.toString() === value);
+                                            setEditFormData({
+                                                ...editFormData, 
+                                                client_id: value,
+                                                client: selectedClient?.name || ''
+                                            });
+                                        }}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                                        <SelectContent>
+                                            {clients.map((client) => (
+                                                <SelectItem key={client.c_id} value={client.c_id.toString()}>
+                                                    {client.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div>
                                     <Label className="text-gray-900">Gate In Date</Label>
@@ -1383,7 +1396,7 @@ const Index: React.FC = () => {
                                         type="time"
                                         value={editFormData.time} 
                                         onChange={(e) => setEditFormData({...editFormData, time: e.target.value})}
-                                        className="bg-white cursor-pointer"
+                                        className="bg-white cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full"
                                     />
                                 </div>
                                 <div>
@@ -1420,11 +1433,12 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Size/Type</Label>
                                     <Select 
-                                        value={editFormData.size || ''} 
+                                        value={editFormData.size_type_id?.toString() || ''} 
                                         onValueChange={(value) => {
                                             const selectedSize = sizeTypeOptions.find(s => s.s_id.toString() === value);
                                             setEditFormData({
                                                 ...editFormData, 
+                                                size_type_id: parseInt(value),
                                                 size: selectedSize ? `${selectedSize.size}${selectedSize.type}` : ''
                                             });
                                         }}
