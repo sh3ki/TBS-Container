@@ -745,22 +745,22 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'eir_no', label: 'EIR No.' },
-                            { key: 'date', label: 'Date' },
-                            { key: 'time', label: 'Time' },
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'vessel', label: 'Vessel' },
-                            { key: 'voyage', label: 'Voyage' },
-                            { key: 'shipper', label: 'Shipper' },
-                            { key: 'hauler', label: 'Hauler' },
-                            { key: 'booking', label: 'Booking' },
-                            { key: 'destination', label: 'Destination' },
-                            { key: 'plate_no', label: 'Plate No.' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'chasis', label: 'Chasis' },
-                            { key: 'seal_no', label: 'Seal No.' },
+                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.eir_no || '-')}</div> },
+                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
+                            { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
+                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
+                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
+                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
+                            { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
+                            { key: 'voyage', label: 'Voyage', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.voyage || '-')}</div> },
+                            { key: 'shipper', label: 'Shipper', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.shipper || '-')}</div> },
+                            { key: 'hauler', label: 'Hauler', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.hauler || '-')}</div> },
+                            { key: 'booking', label: 'Booking', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.booking || '-')}</div> },
+                            { key: 'destination', label: 'Destination', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.destination || '-')}</div> },
+                            { key: 'plate_no', label: 'Plate No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.plate_no || '-')}</div> },
+                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
+                            { key: 'chasis', label: 'Chasis', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.chasis || '-')}</div> },
+                            { key: 'seal_no', label: 'Seal No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.seal_no || '-')}</div> },
                         ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
                         data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
@@ -857,12 +857,12 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'client', label: 'Client' },
-                            { key: 'date', label: 'Date' },
+                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
+                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
+                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
+                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
+                            { key: 'client', label: 'Client', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.client || '-')}</div> },
+                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
                         ]}
                         data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
@@ -943,11 +943,11 @@ const Index: React.FC = () => {
                 <div className="w-full max-w-full overflow-x-auto">
                     <ModernTable
                         columns={[
-                            { key: 'container_no', label: 'Container No.' },
-                            { key: 'size_type', label: 'Size/Type' },
-                            { key: 'status', label: 'Status' },
-                            { key: 'load', label: 'Load' },
-                            { key: 'date', label: 'Date' },
+                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.container_no || '-')}</div> },
+                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
+                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
+                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
+                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
                         ]}
                         data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
                         pagination={{
