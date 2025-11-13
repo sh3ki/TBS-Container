@@ -13,19 +13,18 @@ class InventoryController extends Controller
     public function getList(Request $request)
     {
         try {
-            // Debug logging
-            Log::info('InventoryController::getList called');
-            Log::info('Request data:', $request->all());
-            
+            Log::info('InventoryController::getList called', ['request' => $request->all()]);
+
             $search = $request->search;
             $status = $request->status;
             $clientId = $request->client_id;
-            $start = $request->start ?? 0;
-            $length = $request->length ?? 50;
+            $start = (int) ($request->start ?? 0);
+            $length = (int) ($request->length ?? 50);
 
             $prefix = DB::getTablePrefix();
-            Log::info('DB Prefix:', ['prefix' => $prefix]);
-            
+            $safeInDate = $this->sanitizeDateExpression('i.date_added');
+            $safeOutDate = $this->sanitizeDateExpression('o.date_added');
+
             $query = "
                 SELECT 
                     i.i_id,
@@ -42,8 +41,8 @@ class InventoryController extends Controller
                     i.vessel,
                     i.voyage,
                     i.location,
-                    DATE(i.date_added) as date_in,
-                    TIME(i.date_added) as time_in,
+                    CASE WHEN {$safeInDate} IS NOT NULL THEN DATE({$safeInDate}) ELSE NULL END as date_in,
+                    CASE WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate}) ELSE NULL END as time_in,
                     i.gate_status,
                     i.complete,
                     i.out_id,
@@ -51,12 +50,12 @@ class InventoryController extends Controller
                     i.plate_no,
                     i.hauler,
                     CASE 
-                        WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
-                        THEN 1 ELSE 0 
+                        WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) THEN 1
+                        ELSE 0 
                     END as is_hold,
-                    o.date_added as date_out_full,
-                    DATE(o.date_added) as date_out,
-                    TIME(o.date_added) as time_out
+                    {$safeOutDate} as date_out_full,
+                    CASE WHEN {$safeOutDate} IS NOT NULL THEN DATE({$safeOutDate}) ELSE NULL END as date_out,
+                    CASE WHEN {$safeOutDate} IS NOT NULL THEN TIME({$safeOutDate}) ELSE NULL END as time_out
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
@@ -66,47 +65,42 @@ class InventoryController extends Controller
 
             $params = [];
 
-            if ($search) {
+            if (!empty($search)) {
                 $query .= " AND i.container_no LIKE :search";
                 $params[':search'] = "%{$search}%";
             }
 
-            if ($status) {
+            if (!empty($status)) {
                 $query .= " AND i.gate_status = :status";
                 $params[':status'] = $status;
             }
 
-            if ($clientId) {
+            if (!empty($clientId)) {
                 $query .= " AND i.client_id = :client_id";
                 $params[':client_id'] = $clientId;
             }
 
-            // Count query - need to handle multiline SELECT properly
             $countQuery = preg_replace('/SELECT\s+.*?\s+FROM/is', 'SELECT COUNT(DISTINCT i.i_id) as total FROM', $query);
-            Log::info('Count Query:', ['query' => $countQuery, 'params' => $params]);
-            
+
             try {
                 $total = DB::select($countQuery, $params)[0]->total ?? 0;
-                Log::info('Total records:', ['total' => $total]);
-            } catch (\Exception $e) {
-                Log::error('Count query failed:', ['error' => $e->getMessage()]);
+            } catch (\Exception $countException) {
+                Log::error('Inventory count query failed', ['error' => $countException->getMessage()]);
                 $total = 0;
             }
 
-            $query .= " ORDER BY i.i_id DESC LIMIT " . (int)$start . ", " . (int)$length;
-            Log::info('Final Query:', ['query' => $query, 'params' => $params]);
+            $query .= " ORDER BY i.i_id DESC LIMIT {$start}, {$length}";
 
             $results = DB::select($query, $params);
-            Log::info('Results count:', ['count' => count($results)]);
 
             $data = [];
             foreach ($results as $item) {
                 $daysInYard = 0;
-                if ($item->date_out_full) {
+                if ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
                     $dateIn = Carbon::parse($item->date_in);
                     $dateOut = Carbon::parse($item->date_out);
                     $daysInYard = $dateIn->diffInDays($dateOut) + 1;
-                } elseif ($item->gate_status === 'IN') {
+                } elseif ($item->gate_status === 'IN' && !empty($item->date_in)) {
                     $dateIn = Carbon::parse($item->date_in);
                     $daysInYard = $dateIn->diffInDays(Carbon::now()) + 1;
                 }
@@ -177,6 +171,8 @@ class InventoryController extends Controller
     {
         try {
             $prefix = DB::getTablePrefix();
+            $safeInDate = $this->sanitizeDateExpression('i.date_added');
+            $safeOutDate = $this->sanitizeDateExpression('o.date_added');
             
             $query = "
                 SELECT 
@@ -200,24 +196,24 @@ class InventoryController extends Controller
                     i.hauler,
                     i.seal_no,
                     i.iso_code,
-                    DATE(i.date_added) as date_in,
-                    TIME(i.date_added) as time_in,
-                    i.gate_status,
+                    CASE WHEN {$safeInDate} IS NOT NULL THEN DATE({$safeInDate}) ELSE NULL END as date_in,
+                    CASE WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate}) ELSE NULL END as time_in,
                     i.complete,
                     i.out_id,
                     i.remarks,
+                    i.approval_notes as app_notes,
                     CASE 
                         WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
                         THEN 1 ELSE 0 
                     END as is_hold,
-                    o.date_added as date_out_full,
-                    DATE(o.date_added) as date_out,
-                    TIME(o.date_added) as time_out
+                    {$safeOutDate} as date_out_full,
+                    CASE WHEN {$safeOutDate} IS NOT NULL THEN DATE({$safeOutDate}) ELSE NULL END as date_out,
+                    CASE WHEN {$safeOutDate} IS NOT NULL THEN TIME({$safeOutDate}) ELSE NULL END as time_out
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
-                WHERE 1=1
+                WHERE i.gate_status = 'IN' AND i.complete = 0
             ";
 
             $params = [];
@@ -290,14 +286,14 @@ class InventoryController extends Controller
 
             // Date range - Gate IN
             if ($request->date_in_from && $request->date_in_to) {
-                $query .= " AND DATE(i.date_added) BETWEEN :date_in_from AND :date_in_to";
+                $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to";
                 $params[':date_in_from'] = $request->date_in_from;
                 $params[':date_in_to'] = $request->date_in_to;
             }
 
             // Date range - Gate OUT
             if ($request->date_out_from && $request->date_out_to) {
-                $query .= " AND DATE(o.date_added) BETWEEN :date_out_from AND :date_out_to";
+                $query .= " AND {$safeOutDate} BETWEEN :date_out_from AND :date_out_to";
                 $params[':date_out_from'] = $request->date_out_from;
                 $params[':date_out_to'] = $request->date_out_to;
             }
@@ -316,11 +312,11 @@ class InventoryController extends Controller
             $data = [];
             foreach ($results as $item) {
                 $daysInYard = 0;
-                if ($item->date_out_full) {
+                if ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
                     $dateIn = Carbon::parse($item->date_in);
                     $dateOut = Carbon::parse($item->date_out);
                     $daysInYard = $dateIn->diffInDays($dateOut) + 1;
-                } elseif ($item->gate_status === 'IN') {
+                } elseif ($item->gate_status === 'IN' && !empty($item->date_in)) {
                     $dateIn = Carbon::parse($item->date_in);
                     $daysInYard = $dateIn->diffInDays(Carbon::now()) + 1;
                 }
@@ -356,6 +352,7 @@ class InventoryController extends Controller
                     'is_hold' => (bool) $item->is_hold,
                     'days_in_yard' => $daysInYard,
                     'remarks' => $item->remarks,
+                    'app_notes' => $item->app_notes ?? '',
                 ];
             }
 
@@ -382,6 +379,9 @@ class InventoryController extends Controller
         try {
             $prefix = DB::getTablePrefix();
             
+            // Check if it's a numeric ID or hashed ID
+            $isNumeric = is_numeric($hashedId);
+            
             $inventory = DB::selectOne("
                 SELECT 
                     i.*,
@@ -403,7 +403,7 @@ class InventoryController extends Controller
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
                 LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
                 LEFT JOIN {$prefix}load_type lt ON lt.l_id = i.load_type
-                WHERE MD5(i.i_id) = ?
+                WHERE " . ($isNumeric ? "i.i_id = ?" : "MD5(i.i_id) = ?") . "
             ", [$hashedId]);
 
             if (!$inventory) {
@@ -448,9 +448,12 @@ class InventoryController extends Controller
                     'type' => $inventory->type,
                     'type_desc' => $inventory->type_desc,
                     'container_size' => $inventory->size . $inventory->type,
+                    'size_type_id' => $inventory->size_type,
                     'container_status' => $inventory->container_status_name,
+                    'container_status_id' => $inventory->container_status,
                     'condition' => $inventory->class,
                     'load_type' => $inventory->load_type_name,
+                    'load_type_id' => $inventory->load_type,
                     'iso_code' => $inventory->iso_code,
                     'vessel' => $inventory->vessel,
                     'voyage' => $inventory->voyage,
@@ -599,15 +602,15 @@ class InventoryController extends Controller
     }
 
     /**
-     * Hold container
-     * POST /api/inventory/{hashedId}/hold
+     * Delete inventory record by ID
+     * DELETE /api/inventory/{id}
      */
-    public function holdContainer(Request $request, $hashedId)
+    public function deleteById($id)
     {
         try {
             $prefix = DB::getTablePrefix();
             
-            $inventory = DB::selectOne("SELECT * FROM {$prefix}inventory WHERE MD5(i_id) = ?", [$hashedId]);
+            $inventory = DB::selectOne("SELECT * FROM {$prefix}inventory WHERE i_id = ?", [$id]);
             
             if (!$inventory) {
                 return response()->json([
@@ -616,7 +619,60 @@ class InventoryController extends Controller
                 ], 404);
             }
 
-            $existingHold = DB::selectOne("SELECT * FROM {$prefix}hold_containers WHERE container_no = ?", [$inventory->container_no]);
+            DB::delete("DELETE FROM {$prefix}inventory WHERE i_id = ?", [$id]);
+
+            Log::info('Inventory deleted', [
+                'i_id' => $id,
+                'container_no' => $inventory->container_no,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Container deleted successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Delete inventory failed', [
+                'error' => $e->getMessage(),
+                'id' => $id,
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete container: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Hold container
+     * POST /api/inventory/{id}/hold
+     */
+    public function holdContainer(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'notes' => 'required|string',
+            ]);
+
+            $prefix = DB::getTablePrefix();
+            
+            $inventory = DB::selectOne(
+                "SELECT i_id, container_no FROM {$prefix}inventory WHERE i_id = ? AND complete = 0",
+                [$id]
+            );
+            
+            if (!$inventory) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found',
+                ], 404);
+            }
+
+            $existingHold = DB::selectOne(
+                "SELECT * FROM {$prefix}hold_containers WHERE container_no = ?",
+                [$inventory->container_no]
+            );
             
             if ($existingHold) {
                 return response()->json([
@@ -625,12 +681,17 @@ class InventoryController extends Controller
                 ], 422);
             }
 
-            DB::insert("
-                INSERT INTO {$prefix}hold_containers (container_no, notes, date_added) 
-                VALUES (?, ?, NOW())
-            ", [$inventory->container_no, $request->notes ?? 'Placed on hold']);
+            DB::insert(
+                "INSERT INTO {$prefix}hold_containers (container_no, notes, date_added) 
+                VALUES (?, ?, NOW())",
+                [$inventory->container_no, $request->notes]
+            );
 
-            Log::info('Container placed on hold', ['container_no' => $inventory->container_no]);
+            Log::info('Container placed on hold', [
+                'i_id' => $id,
+                'container_no' => $inventory->container_no,
+                'notes' => $request->notes,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -638,6 +699,11 @@ class InventoryController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Hold container failed', [
+                'error' => $e->getMessage(),
+                'id' => $id,
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to hold container: ' . $e->getMessage(),
@@ -647,14 +713,17 @@ class InventoryController extends Controller
 
     /**
      * Release container from hold
-     * POST /api/inventory/{hashedId}/unhold
+     * POST /api/inventory/{id}/unhold
      */
-    public function unholdContainer($hashedId)
+    public function unholdContainer($id)
     {
         try {
             $prefix = DB::getTablePrefix();
             
-            $inventory = DB::selectOne("SELECT * FROM {$prefix}inventory WHERE MD5(i_id) = ?", [$hashedId]);
+            $inventory = DB::selectOne(
+                "SELECT i_id, container_no FROM {$prefix}inventory WHERE i_id = ? AND complete = 0",
+                [$id]
+            );
             
             if (!$inventory) {
                 return response()->json([
@@ -663,9 +732,15 @@ class InventoryController extends Controller
                 ], 404);
             }
 
-            DB::delete("DELETE FROM {$prefix}hold_containers WHERE container_no = ?", [$inventory->container_no]);
+            DB::delete(
+                "DELETE FROM {$prefix}hold_containers WHERE container_no = ?",
+                [$inventory->container_no]
+            );
 
-            Log::info('Container released from hold', ['container_no' => $inventory->container_no]);
+            Log::info('Container released from hold', [
+                'i_id' => $id,
+                'container_no' => $inventory->container_no,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -673,9 +748,69 @@ class InventoryController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Unhold container failed', [
+                'error' => $e->getMessage(),
+                'id' => $id,
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to release container: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle container status between Repo (8) and Available (1)
+     * POST /api/inventory/{id}/toggle-repo
+     */
+    public function toggleRepoStatus($id)
+    {
+        try {
+            $prefix = DB::getTablePrefix();
+            
+            $inventory = DB::selectOne(
+                "SELECT i_id, container_no, container_status FROM {$prefix}inventory WHERE i_id = ? AND complete = 0",
+                [$id]
+            );
+            
+            if (!$inventory) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found',
+                ], 404);
+            }
+
+            // Toggle: if status is 8 (Repo), change to 1 (Available), otherwise change to 8 (Repo)
+            $newStatus = ($inventory->container_status == 8) ? 1 : 8;
+            $statusText = ($newStatus == 8) ? 'Repo' : 'Available';
+
+            DB::update(
+                "UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?",
+                [$newStatus, $id]
+            );
+
+            Log::info('Container status updated', [
+                'i_id' => $id,
+                'container_no' => $inventory->container_no,
+                'old_status' => $inventory->container_status,
+                'new_status' => $newStatus,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Container updated to {$statusText}",
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Toggle repo status failed', [
+                'error' => $e->getMessage(),
+                'id' => $id,
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update container status: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -688,6 +823,8 @@ class InventoryController extends Controller
     {
         try {
             $prefix = DB::getTablePrefix();
+            $safeInDate = $this->sanitizeDateExpression('i.date_added');
+            $safeOutDate = $this->sanitizeDateExpression('o.date_added');
             
             $query = "
                 SELECT 
@@ -700,10 +837,10 @@ class InventoryController extends Controller
                     i.shipper,
                     i.vessel,
                     i.voyage,
-                    DATE(i.date_added) as date_in,
-                    TIME(i.date_added) as time_in,
-                    DATE(o.date_added) as date_out,
-                    TIME(o.date_added) as time_out,
+                    CASE WHEN {$safeInDate} IS NOT NULL THEN DATE({$safeInDate}) ELSE NULL END as date_in,
+                    CASE WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate}) ELSE NULL END as time_in,
+                    CASE WHEN {$safeOutDate} IS NOT NULL THEN DATE({$safeOutDate}) ELSE NULL END as date_out,
+                    CASE WHEN {$safeOutDate} IS NOT NULL THEN TIME({$safeOutDate}) ELSE NULL END as time_out,
                     i.location,
                     i.gate_status,
                     CASE 
@@ -892,6 +1029,377 @@ class InventoryController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Get sizes and types for dropdown
+     * GET /api/inventory/sizes-types
+     */
+    public function getSizesAndTypes()
+    {
+        try {
+            $sizes = DB::select("
+                SELECT DISTINCT size 
+                FROM " . DB::getTablePrefix() . "container_size_type 
+                WHERE size IS NOT NULL AND size != ''
+                ORDER BY size ASC
+            ");
+
+            $types = DB::select("
+                SELECT DISTINCT CONCAT(type, ' - ', description) as label, CONCAT(type, ' - ', description) as value
+                FROM " . DB::getTablePrefix() . "container_size_type 
+                WHERE type IS NOT NULL AND type != ''
+                ORDER BY type ASC
+            ");
+
+            return response()->json([
+                'success' => true,
+                'sizes' => array_map(fn($s) => $s->size, $sizes),
+                'types' => $types
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get container statuses list
+     * GET /api/inventory/statuses
+     */
+    public function getStatusesList()
+    {
+        try {
+            $statuses = DB::select("
+                SELECT DISTINCT status 
+                FROM " . DB::getTablePrefix() . "container_status 
+                WHERE status IS NOT NULL AND status != ''
+                ORDER BY status ASC
+            ");
+
+            return response()->json([
+                'success' => true,
+                'statuses' => array_map(fn($s) => $s->status, $statuses)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Search inventory with all filters
+     * POST /api/inventory/search
+     */
+    public function search(Request $request)
+    {
+        try {
+            $filters = $request->all();
+            $prefix = DB::getTablePrefix();
+
+            $safeInDate = $this->sanitizeDateExpression('i.date_added');
+            $safeManufacturedDate = $this->sanitizeDateExpression('i.date_manufactured', '%Y-%m-%d');
+            
+            $query = "SELECT 
+                        CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) as eir_no,
+                        i.container_no,
+                        CASE WHEN c.client_code IS NOT NULL AND c.client_code <> '' THEN c.client_code ELSE c.client_name END as client,
+                        CONCAT(st.size, st.type) as size,
+                        i.gate_status as gate,
+                        CASE 
+                            WHEN {$safeInDate} IS NOT NULL THEN DATE({$safeInDate})
+                            ELSE NULL 
+                        END as date,
+                        CASE 
+                            WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate})
+                            ELSE NULL 
+                        END as time,
+                        CASE 
+                            WHEN {$safeInDate} IS NOT NULL THEN DATEDIFF(NOW(), {$safeInDate})
+                            ELSE 0 
+                        END as days,
+                        cs.status,
+                        i.class,
+                        CASE 
+                            WHEN {$safeManufacturedDate} IS NOT NULL THEN DATE({$safeManufacturedDate})
+                            ELSE 'N/A' 
+                        END as dmf,
+                        i.location,
+                        COALESCE(i.remarks, '') as eir_notes,
+                        COALESCE(i.approval_notes, '') as app_notes,
+                        i.i_id,
+                        i.container_status as container_status_id,
+                        CASE 
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
+                            THEN 1 ELSE 0 
+                        END as is_hold
+                    FROM {$prefix}inventory i
+                    LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                    LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
+                    LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
+                    WHERE (c.archived = 0 OR c.archived IS NULL)
+                        AND i.gate_status = 'IN'
+                        AND i.complete = 0";
+            
+            $params = [];
+            
+            // Handle gate status filter only when explicitly provided
+            $gateStatus = $filters['gate_status'] ?? null;
+            if ($gateStatus === 'CURRENTLY') {
+                $query .= " AND i.gate_status = 'IN' AND (i.out_id IS NULL OR i.out_id = 0)";
+            } elseif ($gateStatus === 'IN') {
+                $query .= " AND i.gate_status = 'IN'";
+            } elseif ($gateStatus === 'OUT') {
+                $query .= " AND i.gate_status = 'OUT'";
+            } elseif ($gateStatus === 'BOTH') {
+                // no-op, included for completeness
+            }
+            
+            // Client filter
+            if (!empty($filters['client']) && $filters['client'] !== 'all') {
+                $query .= " AND i.client_id = :client_id";
+                $params[':client_id'] = $filters['client'];
+            }
+            
+            // Container number filter
+            if (!empty($filters['container_no'])) {
+                $query .= " AND i.container_no LIKE :container_no";
+                $params[':container_no'] = '%' . strtoupper($filters['container_no']) . '%';
+            }
+            
+            // ISO Code filter
+            if (!empty($filters['iso_code'])) {
+                $query .= " AND LOWER(i.iso_code) LIKE :iso_code";
+                $params[':iso_code'] = '%' . strtolower($filters['iso_code']) . '%';
+            }
+            
+            // Date filters
+            if (!empty($filters['date_in_from']) && !empty($filters['date_in_to'])) {
+                $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
+                $params[':date_in_from'] = $filters['date_in_from'];
+                $params[':date_in_to'] = $filters['date_in_to'];
+            }
+            
+            if (!empty($filters['date_out_from']) && !empty($filters['date_out_to'])) {
+                $query .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
+                $params[':date_out_from'] = $filters['date_out_from'];
+                $params[':date_out_to'] = $filters['date_out_to'];
+            }
+            
+            // Text filters
+            if (!empty($filters['checker'])) {
+                $query .= " AND LOWER(i.origin) LIKE :checker";
+                $params[':checker'] = '%' . strtolower($filters['checker']) . '%';
+            }
+            
+            if (!empty($filters['consignee'])) {
+                $query .= " AND LOWER(i.ex_consignee) LIKE :consignee";
+                $params[':consignee'] = '%' . strtolower($filters['consignee']) . '%';
+            }
+            
+            if (!empty($filters['hauler_in'])) {
+                $query .= " AND LOWER(i.hauler) LIKE :hauler_in";
+                $params[':hauler_in'] = '%' . strtoupper($filters['hauler_in']) . '%';
+            }
+            
+            if (!empty($filters['vessel_in'])) {
+                $query .= " AND LOWER(i.vessel) LIKE :vessel_in";
+                $params[':vessel_in'] = '%' . strtoupper($filters['vessel_in']) . '%';
+            }
+            
+            if (!empty($filters['plate_no_in'])) {
+                $query .= " AND LOWER(i.plate_no) LIKE :plate_no_in";
+                $params[':plate_no_in'] = '%' . strtoupper($filters['plate_no_in']) . '%';
+            }
+            
+            if (!empty($filters['hauler_out'])) {
+                $query .= " AND LOWER(i.hauler) LIKE :hauler_out";
+                $params[':hauler_out'] = '%' . strtoupper($filters['hauler_out']) . '%';
+            }
+            
+            if (!empty($filters['vessel_out'])) {
+                $query .= " AND LOWER(i.vessel) LIKE :vessel_out";
+                $params[':vessel_out'] = '%' . strtoupper($filters['vessel_out']) . '%';
+            }
+            
+            if (!empty($filters['shipper'])) {
+                $query .= " AND LOWER(i.shipper) LIKE :shipper";
+                $params[':shipper'] = '%' . strtoupper($filters['shipper']) . '%';
+            }
+            
+            if (!empty($filters['destination'])) {
+                $query .= " AND LOWER(i.location) LIKE :destination";
+                $params[':destination'] = '%' . strtoupper($filters['destination']) . '%';
+            }
+            
+            if (!empty($filters['booking_number'])) {
+                $query .= " AND LOWER(i.booking) LIKE :booking_number";
+                $params[':booking_number'] = '%' . strtoupper($filters['booking_number']) . '%';
+            }
+            
+            if (!empty($filters['seal_no'])) {
+                $query .= " AND LOWER(i.seal_no) LIKE :seal_no";
+                $params[':seal_no'] = '%' . strtoupper($filters['seal_no']) . '%';
+            }
+            
+            if (!empty($filters['contact_no'])) {
+                $query .= " AND LOWER(i.contact_no) LIKE :contact_no";
+                $params[':contact_no'] = '%' . strtoupper($filters['contact_no']) . '%';
+            }
+            
+            if (!empty($filters['bill_of_lading'])) {
+                $query .= " AND LOWER(i.bill_of_lading) LIKE :bill_of_lading";
+                $params[':bill_of_lading'] = '%' . strtoupper($filters['bill_of_lading']) . '%';
+            }
+            
+            // Status filters
+            if (!empty($filters['status_in']) && $filters['status_in'] !== 'all') {
+                $query .= " AND LOWER(cs.status) LIKE :status_in";
+                $params[':status_in'] = '%' . strtolower($filters['status_in']) . '%';
+            }
+            
+            if (!empty($filters['status_out']) && $filters['status_out'] !== 'all') {
+                $query .= " AND LOWER(cs.status) LIKE :status_out";
+                $params[':status_out'] = '%' . strtolower($filters['status_out']) . '%';
+            }
+            
+            // Size/Type filter (combined)
+            if (!empty($filters['size_type']) && $filters['size_type'] !== 'all') {
+                $query .= " AND CONCAT(st.size, st.type) = :size_type";
+                $params[':size_type'] = $filters['size_type'];
+            }
+            
+            $query .= " ORDER BY st.size ASC, {$safeInDate} DESC LIMIT 500";
+            
+            $results = DB::select($query, $params);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $results
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Inventory search error:', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export inventory search results
+     * POST /api/inventory/export
+     */
+    public function export(Request $request)
+    {
+        try {
+            // Reuse the search logic
+            $searchResponse = $this->search($request);
+            $data = json_decode($searchResponse->getContent(), true);
+            
+            if (!$data['success']) {
+                return response()->json(['success' => false, 'message' => 'Failed to export'], 500);
+            }
+            
+            $filename = 'inventory_export_' . now()->format('Y-m-d_H-i-s') . '.csv';
+            $filePath = storage_path('app/public/exports/' . $filename);
+            
+            if (!file_exists(dirname($filePath))) {
+                mkdir(dirname($filePath), 0755, true);
+            }
+            
+            $file = fopen($filePath, 'w');
+            fputcsv($file, ['EIR No.', 'Container No.', 'Client', 'Size', 'Gate', 'Date', 'Time', 'Days', 'Status', 'Class', 'DMF', 'Location', 'EIR Notes', 'App Notes']);
+            
+            foreach ($data['data'] as $row) {
+                fputcsv($file, (array) $row);
+            }
+            
+            fclose($file);
+            
+            return response()->download($filePath)->deleteFileAfterSend(true);
+            
+        } catch (\Exception $e) {
+            Log::error('Inventory export error:', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Approve container with notes
+     * POST /api/inventory/{id}/approve
+     */
+    public function approveContainer(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'approval_notes' => 'required|string|max:300',
+            ]);
+
+            $prefix = DB::getTablePrefix();
+            
+            // Find the inventory record
+            $inventory = DB::selectOne(
+                "SELECT i_id, container_no, gate_status, complete FROM {$prefix}inventory WHERE i_id = ?",
+                [$id]
+            );
+            
+            if (!$inventory) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found',
+                ], 404);
+            }
+
+            // Check if container is IN and not complete
+            if ($inventory->gate_status !== 'IN' || $inventory->complete == 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container cannot be approved',
+                ], 422);
+            }
+
+            // Update approval notes and date, set container_status to 1 (Available)
+            $dateApprove = date('Y-m-d H:i:s');
+            DB::update(
+                "UPDATE {$prefix}inventory 
+                SET approval_notes = ?, approval_date = ?, container_status = 1
+                WHERE i_id = ? AND complete = 0",
+                [$request->approval_notes, $dateApprove, $id]
+            );
+
+            Log::info('Container approved', [
+                'i_id' => $id,
+                'container_no' => $inventory->container_no,
+                'approval_notes' => $request->approval_notes,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Container approved successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Container approval failed', [
+                'error' => $e->getMessage(),
+                'id' => $id,
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to approve container: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Build a reusable SQL expression that normalizes legacy zero-date placeholders.
+     */
+    private function sanitizeDateExpression(string $column, string $format = '%Y-%m-%d %H:%i:%s'): string
+    {
+        $trimmed = "NULLIF(TRIM({$column}), '')";
+        $withoutFraction = "SUBSTRING_INDEX({$trimmed}, '.', 1)";
+        $noZero = "NULLIF(NULLIF({$withoutFraction}, '0000-00-00'), '0000-00-00 00:00:00')";
+
+        return "STR_TO_DATE({$noZero}, '{$format}')";
+    }
 }
+
+
 
 
