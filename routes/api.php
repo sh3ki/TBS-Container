@@ -95,27 +95,37 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('inventory')->group(function () {
         // List & Search
         Route::post('/list', [InventoryController::class, 'getList']);
-        Route::post('/search', [InventoryController::class, 'advancedSearch']);
+        Route::post('/search', [InventoryController::class, 'search']);
         
         // Dropdown data
         Route::get('/clients', [InventoryController::class, 'getClients']);
         Route::get('/sizes', [InventoryController::class, 'getSizes']);
         Route::get('/types', [InventoryController::class, 'getTypes']);
         Route::get('/size-types', [InventoryController::class, 'getSizeTypes']);
-        Route::get('/statuses', [InventoryController::class, 'getStatuses']);
+        Route::get('/sizes-types', [InventoryController::class, 'getSizesAndTypes']);
+        Route::get('/statuses', [InventoryController::class, 'getStatusesList']);
         Route::get('/load-types', [InventoryController::class, 'getLoadTypes']);
         
         // Export
-        Route::post('/export', [InventoryController::class, 'exportToExcel']);
+        Route::post('/export', [InventoryController::class, 'export']);
         
         // CRUD operations (hashed ID)
         Route::get('/{hashedId}', [InventoryController::class, 'getDetails']);
         Route::put('/{hashedId}', [InventoryController::class, 'update']);
         Route::delete('/{hashedId}', [InventoryController::class, 'delete']);
+        Route::delete('/{id}', [InventoryController::class, 'deleteById'])->where('id', '[0-9]+');
         
         // Hold/Unhold
         Route::post('/{hashedId}/hold', [InventoryController::class, 'holdContainer']);
         Route::post('/{hashedId}/unhold', [InventoryController::class, 'unholdContainer']);
+        Route::post('/{id}/hold', [InventoryController::class, 'holdContainer']);
+        Route::post('/{id}/unhold', [InventoryController::class, 'unholdContainer']);
+        
+        // Approve container
+        Route::post('/{id}/approve', [InventoryController::class, 'approveContainer']);
+        
+        // Toggle Repo/Available status
+        Route::post('/{id}/toggle-repo', [InventoryController::class, 'toggleRepoStatus']);
     });
 
     // Billing - Full API with all 9 actions
@@ -264,6 +274,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/dmr/export', [ReportsController::class, 'exportDmrReport']);
         Route::get('/dcr', [ReportsController::class, 'dcrReport']);
         Route::post('/dcr/export', [ReportsController::class, 'exportDcrReport']);
+        Route::post('/docs-fee/export', [ReportsController::class, 'exportDocsFeeReport']);
         
         // Main reports
         Route::get('/daily-gate', [ReportsController::class, 'dailyGateReport']);
