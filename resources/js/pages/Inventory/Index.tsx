@@ -27,6 +27,7 @@ interface InventoryRecord {
     eir_no: string;
     container_no: string;
     client: string;
+    client_code: string;
     client_id?: string;
     size: string;
     size_type_id?: number;
@@ -1108,7 +1109,10 @@ const Index: React.FC = () => {
                                     key: 'client', 
                                     label: 'Client',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-900 min-w-[100px] max-w-[120px]" title={row.client}>{row.client}</div>
+                                        <div className="text-sm text-gray-900 min-w-[120px] max-w-[150px]">
+                                            <div className="font-medium">{row.client}</div>
+                                            <div className="text-xs text-gray-500">{row.client_code}</div>
+                                        </div>
                                     )
                                 },
                                 { 
