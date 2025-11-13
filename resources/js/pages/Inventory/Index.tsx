@@ -556,12 +556,54 @@ const Index: React.FC = () => {
         setShowEditConfirm(true);
     };
 
-    const handleConfirmEdit = () => {
+    const handleConfirmEdit = async () => {
         if (!editFormData) return;
-        // TODO: Implement actual save/update logic
-        success('Edit functionality will be implemented soon');
-        setShowEditConfirm(false);
-        setEditFormData(null);
+        
+        setLoading(true);
+        try {
+            const identifier = editFormData.hashed_id || editFormData.i_id;
+            
+            // Prepare update payload
+            const payload: Record<string, unknown> = {
+                container_no: editFormData.container_no,
+                client_id: editFormData.client_id,
+                size_type: editFormData.size_type_id,
+                container_status: editFormData.status_id,
+                class: editFormData.class,
+                vessel: editFormData.vessel,
+                voyage: editFormData.voyage,
+                location: editFormData.location,
+                remarks: editFormData.eir_notes,
+                plate_no: editFormData.plate_no,
+                hauler: editFormData.hauler,
+                iso_code: editFormData.iso_code,
+                origin: editFormData.checker,
+                ex_consignee: editFormData.ex_consignee,
+                hauler_driver: editFormData.hauler_driver,
+                license_no: editFormData.license_no,
+                chasis: editFormData.chasis,
+                seal_no: editFormData.seal_no,
+                date_manufactured: editFormData.dmf,
+                contact_no: editFormData.contact_no,
+                bill_of_lading: editFormData.bill_of_lading,
+            };
+
+            const response = await axios.put(`/api/inventory/${identifier}`, payload);
+
+            if (response.data.success) {
+                success('Container updated successfully!');
+                setShowEditConfirm(false);
+                setEditFormData(null);
+                await loadAllInventory();
+            } else {
+                error(response.data.message || 'Failed to update container');
+            }
+        } catch (err: unknown) {
+            const error_caught = err as { response?: { data?: { message?: string } } };
+            error(error_caught.response?.data?.message || 'Failed to update container');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleDeleteRecord = async () => {
@@ -1165,7 +1207,7 @@ const Index: React.FC = () => {
                                     key: 'dmf', 
                                     label: 'DMF',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[80px]">{row.dmf}</div>
+                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(row.dmf)}</div>
                                     )
                                 },
                                 { 
