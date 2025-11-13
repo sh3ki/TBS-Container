@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -38,6 +38,8 @@ const Index: React.FC = () => {
     const [reportData, setReportData] = useState<Record<string, unknown>[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
+    const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const [incomingFields, setIncomingFields] = useState<FieldCheckboxes>({
         eir_no: true,
@@ -292,86 +294,142 @@ const Index: React.FC = () => {
 
     const renderIncomingTab = () => (
         <div className="space-y-6">
-            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
-                        <Select value={clientId} onValueChange={setClientId}>
-                            <SelectTrigger className="mt-1.5">
-                                <SelectValue placeholder="All" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                {clients.map((client) => (
-                                    <SelectItem key={client.id} value={client.id}>
-                                        {client.text}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="yyyy-mm-dd"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="yyyy-mm-dd"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                        { key: 'eir_no', label: 'EIR No.' },
-                        { key: 'date', label: 'Date' },
-                        { key: 'time', label: 'Time' },
-                        { key: 'container_no', label: 'Container No.' },
-                        { key: 'size_type', label: 'Size/Type' },
-                        { key: 'status', label: 'Status' },
-                        { key: 'vessel', label: 'Vessel' },
-                        { key: 'voyage', label: 'Voyage' },
-                        { key: 'class', label: 'Class' },
-                        { key: 'date_manufactured', label: 'Date Manufactured' },
-                        { key: 'ex_consignee', label: 'Ex-Consignee' },
-                        { key: 'hauler', label: 'Hauler' },
-                        { key: 'plate_no', label: 'Plate No.' },
-                        { key: 'load', label: 'Load' },
-                        { key: 'origin', label: 'Origin' },
-                        { key: 'chasis', label: 'Chasis' },
-                    ].map(({ key, label }) => (
-                        <div key={key} className="flex items-center space-x-2">
-                            <Checkbox
-                                id={`incoming-${key}`}
-                                checked={incomingFields[key]}
-                                onCheckedChange={(checked) =>
-                                    setIncomingFields({ ...incomingFields, [key]: checked === true })
-                                }
-                            />
-                            <label
-                                htmlFor={`incoming-${key}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                style={{ color: colors.text.primary }}
-                            >
-                                {label}
-                            </label>
+            {/* Merged Filter and Fields Section */}
+            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                {/* Header */}
+                <div 
+                    className="px-6 py-5"
+                    style={{ backgroundColor: colors.brand.primary }}
+                >
+                    <div className="flex items-center gap-3">
+                        <Search className="w-5 h-5 text-white" />
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
+                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
-                    ))}
+                    </div>
                 </div>
+                
+                {/* Content */}
+                <div className="p-6">
+                    {/* Filter Section */}
+                    <div className="mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                                <Select value={clientId} onValueChange={setClientId}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {clients.map((client) => (
+                                            <SelectItem key={client.id} value={client.id}>
+                                                {client.text}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6">
+                        <div className="w-full h-px bg-gray-200 mb-6"></div>
+                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                                placeholder="Search by container number or EIR number..."
+                            />
+                        </div>
+                    </div>
+
+                    {/* Collapsible Fields Section */}
+                    <div className="mb-6">
+                        <div className="w-full h-px bg-gray-200 mb-6"></div>
+                        <div 
+                            className="cursor-pointer flex items-center justify-between mb-4"
+                            onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                        >
+                            <Label className="text-sm font-semibold">Fields to display: <span className="text-red-500">*</span></Label>
+                            {isFieldsCollapsed ? (
+                                <ChevronDown className="w-5 h-5 text-gray-600" />
+                            ) : (
+                                <ChevronUp className="w-5 h-5 text-gray-600" />
+                            )}
+                        </div>
+                        
+                        {!isFieldsCollapsed && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {[
+                                    { key: 'eir_no', label: 'EIR No.' },
+                                    { key: 'date', label: 'Date' },
+                                    { key: 'time', label: 'Time' },
+                                    { key: 'container_no', label: 'Container No.' },
+                                    { key: 'size_type', label: 'Size/Type' },
+                                    { key: 'status', label: 'Status' },
+                                    { key: 'vessel', label: 'Vessel' },
+                                    { key: 'voyage', label: 'Voyage' },
+                                    { key: 'class', label: 'Class' },
+                                    { key: 'date_manufactured', label: 'Date Manufactured' },
+                                    { key: 'ex_consignee', label: 'Ex-Consignee' },
+                                    { key: 'hauler', label: 'Hauler' },
+                                    { key: 'plate_no', label: 'Plate No.' },
+                                    { key: 'load', label: 'Load' },
+                                    { key: 'origin', label: 'Origin' },
+                                    { key: 'chasis', label: 'Chasis' },
+                                ].map(({ key, label }) => (
+                                    <div key={key} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`incoming-${key}`}
+                                            checked={incomingFields[key]}
+                                            onCheckedChange={(checked) =>
+                                                setIncomingFields({ ...incomingFields, [key]: checked === true })
+                                            }
+                                        />
+                                        <label
+                                            htmlFor={`incoming-${key}`}
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            style={{ color: colors.text.primary }}
+                                        >
+                                            {label}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="w-full h-px bg-gray-200"></div>
+                <div className="px-6 py-4 bg-gray-50"></div>
             </div>
 
             {reportData.length > 0 ? (
@@ -411,86 +469,142 @@ const Index: React.FC = () => {
 
     const renderOutgoingTab = () => (
         <div className="space-y-6">
-            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
-                        <Select value={clientId} onValueChange={setClientId}>
-                            <SelectTrigger className="mt-1.5">
-                                <SelectValue placeholder="All" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                {clients.map((client) => (
-                                    <SelectItem key={client.id} value={client.id}>
-                                        {client.text}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="yyyy-mm-dd"
-                        />
-                    </div>
-                    <div>
-                        <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
-                        <Input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="mt-1.5"
-                            placeholder="yyyy-mm-dd"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                        { key: 'eir_no', label: 'EIR No.' },
-                        { key: 'date', label: 'Date' },
-                        { key: 'time', label: 'Time' },
-                        { key: 'container_no', label: 'Container No.' },
-                        { key: 'size_type', label: 'Size/Type' },
-                        { key: 'status', label: 'Status' },
-                        { key: 'vessel', label: 'Vessel' },
-                        { key: 'voyage', label: 'Voyage' },
-                        { key: 'shipper', label: 'Shipper' },
-                        { key: 'hauler', label: 'Hauler' },
-                        { key: 'booking', label: 'Booking' },
-                        { key: 'destination', label: 'Destination' },
-                        { key: 'plate_no', label: 'Plate No.' },
-                        { key: 'load', label: 'Load' },
-                        { key: 'chasis', label: 'Chasis' },
-                        { key: 'seal_no', label: 'Seal No.' },
-                    ].map(({ key, label }) => (
-                        <div key={key} className="flex items-center space-x-2">
-                            <Checkbox
-                                id={`outgoing-${key}`}
-                                checked={outgoingFields[key]}
-                                onCheckedChange={(checked) =>
-                                    setOutgoingFields({ ...outgoingFields, [key]: checked === true })
-                                }
-                            />
-                            <label
-                                htmlFor={`outgoing-${key}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                style={{ color: colors.text.primary }}
-                            >
-                                {label}
-                            </label>
+            {/* Merged Filter and Fields Section */}
+            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                {/* Header */}
+                <div 
+                    className="px-6 py-5"
+                    style={{ backgroundColor: colors.brand.primary }}
+                >
+                    <div className="flex items-center gap-3">
+                        <Search className="w-5 h-5 text-white" />
+                        <div>
+                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
+                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                         </div>
-                    ))}
+                    </div>
                 </div>
+                
+                {/* Content */}
+                <div className="p-6">
+                    {/* Filter Section */}
+                    <div className="mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                                <Select value={clientId} onValueChange={setClientId}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {clients.map((client) => (
+                                            <SelectItem key={client.id} value={client.id}>
+                                                {client.text}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="mb-6">
+                        <div className="w-full h-px bg-gray-200 mb-6"></div>
+                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                                placeholder="Search by container number or EIR number..."
+                            />
+                        </div>
+                    </div>
+
+                    {/* Collapsible Fields Section */}
+                    <div className="mb-6">
+                        <div className="w-full h-px bg-gray-200 mb-6"></div>
+                        <div 
+                            className="cursor-pointer flex items-center justify-between mb-4"
+                            onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                        >
+                            <Label className="text-sm font-semibold">Fields to display: <span className="text-red-500">*</span></Label>
+                            {isFieldsCollapsed ? (
+                                <ChevronDown className="w-5 h-5 text-gray-600" />
+                            ) : (
+                                <ChevronUp className="w-5 h-5 text-gray-600" />
+                            )}
+                        </div>
+                        
+                        {!isFieldsCollapsed && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {[
+                                    { key: 'eir_no', label: 'EIR No.' },
+                                    { key: 'date', label: 'Date' },
+                                    { key: 'time', label: 'Time' },
+                                    { key: 'container_no', label: 'Container No.' },
+                                    { key: 'size_type', label: 'Size/Type' },
+                                    { key: 'status', label: 'Status' },
+                                    { key: 'vessel', label: 'Vessel' },
+                                    { key: 'voyage', label: 'Voyage' },
+                                    { key: 'shipper', label: 'Shipper' },
+                                    { key: 'hauler', label: 'Hauler' },
+                                    { key: 'booking', label: 'Booking' },
+                                    { key: 'destination', label: 'Destination' },
+                                    { key: 'plate_no', label: 'Plate No.' },
+                                    { key: 'load', label: 'Load' },
+                                    { key: 'chasis', label: 'Chasis' },
+                                    { key: 'seal_no', label: 'Seal No.' },
+                                ].map(({ key, label }) => (
+                                    <div key={key} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`outgoing-${key}`}
+                                            checked={outgoingFields[key]}
+                                            onCheckedChange={(checked) =>
+                                                setOutgoingFields({ ...outgoingFields, [key]: checked === true })
+                                            }
+                                        />
+                                        <label
+                                            htmlFor={`outgoing-${key}`}
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            style={{ color: colors.text.primary }}
+                                        >
+                                            {label}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="w-full h-px bg-gray-200"></div>
+                <div className="px-6 py-4 bg-gray-50"></div>
             </div>
 
             {reportData.length > 0 ? (
