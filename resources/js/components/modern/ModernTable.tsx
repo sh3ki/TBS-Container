@@ -54,7 +54,30 @@ export const ModernTable = <T extends Record<string, unknown>>({
 
   return (
     <div className="w-full">
-      <div className="overflow-x-auto rounded-lg border" style={{ borderColor: colors.table.border }}>
+      <div 
+        className="overflow-x-auto rounded-lg border" 
+        style={{ 
+          borderColor: colors.table.border,
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 #f1f5f9'
+        }}
+      >
+        <style>{`
+          .overflow-x-auto::-webkit-scrollbar {
+            height: 8px;
+          }
+          .overflow-x-auto::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+          }
+          .overflow-x-auto::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+          }
+          .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+          }
+        `}</style>
         <table className="w-full border-collapse">
           <thead>
             <tr style={{ backgroundColor: colors.table.header }}>
@@ -123,6 +146,7 @@ export const ModernTable = <T extends Record<string, unknown>>({
                         style={{
                           color: colors.text.primary,
                           textAlign: column.align || 'left',
+                          width: column.width,
                         }}
                       >
                         {column.render ? column.render(item) : String(item[column.key] ?? '')}
