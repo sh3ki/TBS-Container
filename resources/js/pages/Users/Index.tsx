@@ -487,8 +487,7 @@ export default function Index({ auth }: Record<string, unknown>) {
                 key: 'email',
                 label: 'Email',
                 render: (user: UserData) => (
-                  <div className="flex items-center gap-1 text-sm text-gray-600">
-                    <Mail className="w-3.5 h-3.5" />
+                  <div className="text-sm text-gray-600">
                     {user.email || '-'}
                   </div>
                 ),
