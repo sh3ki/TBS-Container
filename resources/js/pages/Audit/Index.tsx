@@ -1,553 +1,422 @@
 import React, { useState, useEffect } from 'react';
+import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ModernButton, ModernCard, ModernTable, ModernBadge } from '@/components/modern';
+import axios from 'axios';
+import { ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { 
-    FileText, 
-    RefreshCw, 
-    Download, 
-    Eye, 
-    Search, 
-    Filter, 
-    X,
-    User,
-    Calendar,
-    Shield,
-    Activity
-} from 'lucide-react';
-import { ToastContainer, useModernToast } from '@/components/modern';
+import { FileText, Download, Search } from 'lucide-react';
 import { colors } from '@/lib/colors';
-import axios from 'axios';
 
 interface AuditLog extends Record<string, unknown> {
-    hashed_id: string;
     a_id: number;
-    action: string;
-    description: string;
-    user_id: number;
+    hashed_id: string;
     username: string;
     full_name: string;
+    action: string;
+    description: string;
     date_added: string;
     ip_address: string;
     module: string;
-    action_type: string;
 }
 
 interface User {
     user_id: number;
-    full_name: string;
     username: string;
+    full_name: string;
 }
 
 export default function Index() {
-    const { toasts, removeToast, success, error } = useModernToast();
+    const { toasts, removeToast, success: showSuccess, error: showError } = useModernToast();
+    const toast = { success: showSuccess, error: showError };
     
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
-    
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterUser, setFilterUser] = useState('');
-    const [filterModule, setFilterModule] = useState('');
-    const [filterAction, setFilterAction] = useState('');
+    const [userId, setUserId] = useState('all');
+    const [action, setAction] = useState('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    
-    const [page, setPage] = useState(1);
-    const [perPage] = useState(100);
-    const [total, setTotal] = useState(0);
-    const [lastPage, setLastPage] = useState(1);
-    
-    const [showDetailModal, setShowDetailModal] = useState(false);
-    const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-    
-    const modules = [
-        'clients',
-        'booking',
-        'billing',
-        'inventory',
-        'gateinout',
-        'users',
-        'audit',
-        'reports',
-        'sizetype',
-        'bancon',
-    ];
-    
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
+
     const actions = [
         'CREATE',
         'UPDATE',
         'DELETE',
+        'VIEW',
+        'EDIT',
         'LOGIN',
         'LOGOUT',
         'GATE_IN',
         'GATE_OUT',
-        'VIEW',
         'EXPORT',
         'PRINT',
+        'ARCHIVE',
+        'RESTORE',
     ];
 
     useEffect(() => {
-        fetchUsers();
+        loadUsers();
+        loadAllAuditLogs();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useEffect(() => {
-        fetchAuditLogs();
-    }, [page, searchTerm, filterUser, filterModule, filterAction, dateFrom, dateTo]);
-
-    const fetchUsers = async () => {
+    const loadUsers = async () => {
         try {
             const response = await axios.get('/api/audit/filters/users');
             setUsers(response.data.data || []);
-        } catch (error) {
-            console.error('Failed to fetch users:', error);
+        } catch {
+            toast.error('Failed to load users');
         }
     };
 
-    const fetchAuditLogs = async () => {
-        setRefreshing(true);
+    const loadAllAuditLogs = async () => {
+        setLoading(true);
         try {
+            // Get last 7 days
+            const today = new Date();
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 7);
+            
+            const dateFromDefault = sevenDaysAgo.toISOString().split('T')[0];
+            const dateToDefault = today.toISOString().split('T')[0];
+            
+            // Set default date values
+            setDateFrom(dateFromDefault);
+            setDateTo(dateToDefault);
+            
             const response = await axios.get('/api/audit', {
                 params: {
-                    page: page,
-                    per_page: perPage,
-                    search: searchTerm,
-                    user_id: filterUser,
-                    module: filterModule,
-                    action: filterAction,
-                    date_from: dateFrom,
-                    date_to: dateTo,
-                },
+                    date_from: dateFromDefault,
+                    date_to: dateToDefault
+                }
             });
-
-            setAuditLogs(response.data.data || []);
-            setTotal(response.data.total || 0);
-            setLastPage(response.data.last_page || 1);
-        } catch (err) {
-            error('Failed to fetch audit logs');
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    const handleViewDetails = async (hashedId: string) => {
-        setLoading(true);
-        try {
-            const response = await axios.get(`/api/audit/${hashedId}`);
-            setSelectedLog(response.data.data);
-            setShowDetailModal(true);
-        } catch (err) {
-            error('Failed to load audit log details');
+            setAuditLogs(Array.isArray(response.data) ? response.data : (response.data.data || []));
+            setCurrentPage(1);
+        } catch {
+            toast.error('Failed to load audit logs');
+            setAuditLogs([]);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleExportToExcel = async () => {
+    const handleGenerate = async () => {
         setLoading(true);
+        try {
+            const params: Record<string, string | undefined> = {};
+            
+            if (userId !== 'all') params.user_id = userId;
+            if (action !== 'all') params.action = action;
+            if (dateFrom) params.date_from = dateFrom;
+            if (dateTo) params.date_to = dateTo;
+            if (searchTerm) params.search = searchTerm;
+
+            const response = await axios.get('/api/audit', {
+                params: Object.keys(params).length > 0 ? params : undefined
+            });
+            const logs = Array.isArray(response.data) ? response.data : (response.data.data || []);
+            setAuditLogs(logs);
+            setCurrentPage(1);
+            toast.success(`${logs.length} audit logs found`);
+        } catch {
+            toast.error('Failed to generate audit logs');
+            setAuditLogs([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExport = async () => {
+        if (auditLogs.length === 0) {
+            toast.error('No data to export. Please generate audit logs first.');
+            return;
+        }
+
         try {
             const response = await axios.post('/api/audit/export', {
-                user_id: filterUser,
-                module: filterModule,
-                action: filterAction,
+                user_id: userId === 'all' ? undefined : userId,
+                action: action === 'all' ? undefined : action,
                 date_from: dateFrom,
                 date_to: dateTo,
+                search: searchTerm || undefined,
+            }, {
+                responseType: 'blob'
             });
 
-            const data = response.data.data;
-            if (data.length === 0) {
-                error('No audit logs to export');
-                return;
-            }
-
-            const headers = Object.keys(data[0]);
-            const csv = [
-                headers.join(','),
-                ...data.map((row: Record<string, unknown>) =>
-                    headers.map(header => JSON.stringify(row[header] || '')).join(',')
-                ),
-            ].join('\n');
-
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
+            const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-            link.download = response.data.filename || 'Audit_Log.csv';
+            link.setAttribute('download', `audit_logs_${dateFrom}_to_${dateTo}.xlsx`);
+            document.body.appendChild(link);
             link.click();
+            link.remove();
             window.URL.revokeObjectURL(url);
-
-            success('Audit logs exported successfully');
-        } catch (err) {
-            error('Failed to export audit logs');
-        } finally {
-            setLoading(false);
+            
+            toast.success('Audit logs exported successfully');
+        } catch {
+            toast.error('Failed to export audit logs');
         }
     };
 
-    const handleClearFilters = () => {
-        setSearchTerm('');
-        setFilterUser('');
-        setFilterModule('');
-        setFilterAction('');
-        setDateFrom('');
-        setDateTo('');
-        setPage(1);
-    };
-
-    const getActionBadgeVariant = (actionType: string): 'success' | 'warning' | 'error' | 'info' | 'default' => {
-        const variants: Record<string, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
-            CREATE: 'success',
-            UPDATE: 'info',
-            DELETE: 'error',
-            LOGIN: 'info',
-            LOGOUT: 'default',
-            GATE_IN: 'success',
-            GATE_OUT: 'warning',
-            VIEW: 'info',
-            EXPORT: 'warning',
-            PRINT: 'warning',
+    const getActionColor = (action: string): string => {
+        const actionUpper = action.toUpperCase();
+        const colors: Record<string, string> = {
+            'ADD': 'bg-green-100 text-green-700',
+            'CREATE': 'bg-green-100 text-green-700',
+            'UPDATE': 'bg-blue-100 text-blue-700',
+            'EDIT': 'bg-blue-100 text-blue-700',
+            'DELETE': 'bg-red-100 text-red-700',
         };
-
-        return variants[actionType] || 'default';
+        return colors[actionUpper] || 'bg-gray-100 text-gray-700';
     };
+
+    // Pagination
+    const safeAuditLogs = Array.isArray(auditLogs) ? auditLogs : [];
+    const filteredLogs = safeAuditLogs.filter(log => {
+        const matchesSearch = !searchTerm || 
+            log.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.ip_address.toLowerCase().includes(searchTerm.toLowerCase());
+        return matchesSearch;
+    });
+
+    const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedLogs = filteredLogs.slice(startIndex, startIndex + itemsPerPage);
 
     return (
         <AuthenticatedLayout>
-            <Head title="Audit Trail" />
+            <Head title="Audit Logs" />
 
             <div className="space-y-6">
                 {/* Page Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-3 rounded-xl" style={{ backgroundColor: colors.brand.primary }}>
-                            <Shield className="w-6 h-6 text-white" />
+                            <FileText className="w-6 h-6 text-white" />
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold" style={{ color: colors.text.primary }}>
-                                Audit Trail
+                                Audit Logs
                             </h1>
                             <p className="text-sm mt-1" style={{ color: colors.text.secondary }}>
-                                {total} activity logs recorded
+                                System activity and audit trail
                             </p>
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <ModernButton variant="secondary" onClick={fetchAuditLogs} disabled={refreshing}>
-                            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </ModernButton>
-                        <ModernButton variant="primary" onClick={handleExportToExcel} disabled={loading}>
+                        <button
+                            onClick={handleGenerate}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ 
+                                backgroundColor: colors.brand.primary, 
+                                color: 'white',
+                                boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)'
+                            }}
+                        >
+                            <FileText className="w-4 h-4" />
+                            Generate
+                        </button>
+                        <button
+                            onClick={handleExport}
+                            disabled={loading || auditLogs.length === 0}
+                            className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ 
+                                backgroundColor: '#10b981', 
+                                color: 'white',
+                                boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)'
+                            }}
+                        >
                             <Download className="w-4 h-4" />
-                            Export CSV
-                        </ModernButton>
+                            Export
+                        </button>
                     </div>
                 </div>
 
-                {/* Filters Card */}
-                <ModernCard 
-                    title="Filters" 
-                    subtitle="Filter audit logs by user, module, action, and date range"
-                    icon={<Filter className="w-5 h-5" />}
-                >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Filters Section */}
+                <div className="bg-white rounded-lg shadow-sm border" style={{ borderColor: colors.table.border }}>
+                    <div className="px-6 py-4 flex items-center gap-3" style={{ backgroundColor: colors.brand.primary }}>
+                        <Search className="w-5 h-5 text-white" />
                         <div>
-                            <Label className="text-sm font-semibold mb-2">User</Label>
-                            <Select value={filterUser || 'all'} onValueChange={(val) => setFilterUser(val === 'all' ? '' : val)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Users" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Users</SelectItem>
-                                    {users.map((user) => (
-                                        <SelectItem key={user.user_id} value={user.user_id.toString()}>
-                                            {user.full_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <h2 className="text-lg font-semibold text-white">Search & Filter Audit Logs</h2>
+                            <p className="text-sm text-white/80 mt-0.5">Filter audit logs by user, action, and date range</p>
+                        </div>
+                    </div>
+                    
+                    <div className="p-6 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
+                                    Users
+                                </Label>
+                                <Select value={userId} onValueChange={setUserId}>
+                                    <SelectTrigger className="h-11">
+                                        <SelectValue placeholder="All Users" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Users</SelectItem>
+                                        {users.map((user) => (
+                                            <SelectItem key={user.user_id} value={user.user_id.toString()}>
+                                                {user.full_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
+                                    Actions
+                                </Label>
+                                <Select value={action} onValueChange={setAction}>
+                                    <SelectTrigger className="h-11">
+                                        <SelectValue placeholder="All Actions" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Actions</SelectItem>
+                                        {actions.map((act) => (
+                                            <SelectItem key={act} value={act}>
+                                                {act}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
+                                    Date From
+                                </Label>
+                                <Input
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
+                                    Date To
+                                </Label>
+                                <Input
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={(e) => setDateTo(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
                         </div>
 
                         <div>
-                            <Label className="text-sm font-semibold mb-2">Module</Label>
-                            <Select value={filterModule || 'all'} onValueChange={(val) => setFilterModule(val === 'all' ? '' : val)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Modules" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Modules</SelectItem>
-                                    {modules.map((module) => (
-                                        <SelectItem key={module} value={module}>
-                                            {module.charAt(0).toUpperCase() + module.slice(1)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Action</Label>
-                            <Select value={filterAction || 'all'} onValueChange={(val) => setFilterAction(val === 'all' ? '' : val)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Actions" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Actions</SelectItem>
-                                    {actions.map((action) => (
-                                        <SelectItem key={action} value={action}>
-                                            {action}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Date From</Label>
-                            <Input
-                                type="date"
-                                value={dateFrom}
-                                onChange={(e) => setDateFrom(e.target.value)}
-                                className="h-11"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Date To</Label>
-                            <Input
-                                type="date"
-                                value={dateTo}
-                                onChange={(e) => setDateTo(e.target.value)}
-                                className="h-11"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-sm font-semibold mb-2">Search</Label>
+                            <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
+                                Search
+                            </Label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Search logs..."
+                                    placeholder="Search by user, action, description, or IP address..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-10 h-11"
                                 />
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex justify-end mt-4">
-                        <ModernButton variant="secondary" onClick={handleClearFilters}>
-                            <X className="w-4 h-4" />
-                            Clear Filters
-                        </ModernButton>
+                        <div className="border-t pt-4" style={{ borderColor: colors.table.border }}>
+                            <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                                {filteredLogs.length} {filteredLogs.length === 1 ? 'audit' : 'audits'} found
+                            </p>
+                        </div>
                     </div>
-                </ModernCard>
+                </div>
 
                 {/* Audit Logs Table */}
-                <ModernCard 
-                    title="Activity Logs" 
-                    subtitle={`Total: ${total} records`}
-                    icon={<Activity className="w-5 h-5" />}
-                >
-                    <ModernTable
-                        columns={[
-                            {
-                                key: 'a_id',
-                                label: 'ID',
-                                render: (item: AuditLog) => (
-                                    <div className="font-mono text-xs" style={{ color: colors.text.secondary }}>
-                                        #{item.a_id}
+                <ModernTable
+                    columns={[
+                        {
+                            key: 'full_name',
+                            label: 'User',
+                            render: (item: AuditLog) => (
+                                <div>
+                                    <div className="font-medium" style={{ color: colors.text.primary }}>
+                                        {item.full_name}
                                     </div>
-                                ),
-                            },
-                            {
-                                key: 'date_added',
-                                label: 'Date & Time',
-                                render: (item: AuditLog) => (
-                                    <div className="text-sm">
-                                        <div className="flex items-center gap-1">
-                                            <Calendar className="w-3 h-3" style={{ color: colors.text.secondary }} />
-                                            <span style={{ color: colors.text.primary }}>
-                                                {new Date(item.date_added).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                        <div className="text-xs mt-1" style={{ color: colors.text.secondary }}>
-                                            {new Date(item.date_added).toLocaleTimeString()}
-                                        </div>
+                                    <div className="text-xs mt-0.5" style={{ color: colors.text.secondary }}>
+                                        @{item.username}
                                     </div>
-                                ),
-                            },
-                            {
-                                key: 'full_name',
-                                label: 'User',
-                                render: (item: AuditLog) => (
-                                    <div>
-                                        <div className="flex items-center gap-1">
-                                            <User className="w-3 h-3" style={{ color: colors.text.secondary }} />
-                                            <span className="font-medium" style={{ color: colors.text.primary }}>
-                                                {item.full_name}
-                                            </span>
-                                        </div>
-                                        <div className="text-xs mt-1" style={{ color: colors.text.secondary }}>
-                                            @{item.username}
-                                        </div>
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'module',
-                                label: 'Module',
-                                render: (item: AuditLog) => (
-                                    <ModernBadge variant="default">
-                                        {item.module.charAt(0).toUpperCase() + item.module.slice(1)}
-                                    </ModernBadge>
-                                ),
-                            },
-                            {
-                                key: 'action_type',
-                                label: 'Action',
-                                render: (item: AuditLog) => (
-                                    <ModernBadge variant={getActionBadgeVariant(item.action_type)}>
-                                        {item.action_type}
-                                    </ModernBadge>
-                                ),
-                            },
-                            {
-                                key: 'description',
-                                label: 'Description',
-                                render: (item: AuditLog) => (
-                                    <div className="max-w-md truncate text-sm" style={{ color: colors.text.primary }}>
-                                        {item.description}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'ip_address',
-                                label: 'IP Address',
-                                render: (item: AuditLog) => (
-                                    <div className="font-mono text-xs" style={{ color: colors.text.secondary }}>
-                                        {item.ip_address}
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: 'actions',
-                                label: 'Actions',
-                                render: (item: AuditLog) => (
-                                    <ModernButton 
-                                        variant="primary" 
-                                        size="sm"
-                                        onClick={() => handleViewDetails(item.hashed_id)}
-                                    >
-                                        <Eye className="w-3 h-3" />
-                                    </ModernButton>
-                                ),
-                            },
-                        ]}
-                        data={auditLogs}
-                        loading={refreshing}
-                        emptyMessage="No audit logs found"
-                        currentPage={page}
-                        totalPages={lastPage}
-                        onPageChange={setPage}
-                    />
-                </ModernCard>
+                                </div>
+                            ),
+                        },
+                        {
+                            key: 'action',
+                            label: 'Action',
+                            render: (item: AuditLog) => (
+                                <span 
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColor(item.action)}`}
+                                >
+                                    {item.action}
+                                </span>
+                            ),
+                        },
+                        {
+                            key: 'description',
+                            label: 'Description',
+                            render: (item: AuditLog) => (
+                                <div 
+                                    className="max-w-md truncate text-sm" 
+                                    style={{ color: colors.text.primary }}
+                                    title={item.description}
+                                >
+                                    {item.description}
+                                </div>
+                            ),
+                        },
+                        {
+                            key: 'date_added',
+                            label: 'Date Added',
+                            render: (item: AuditLog) => (
+                                <div className="text-sm" style={{ color: colors.text.primary }}>
+                                    {new Date(item.date_added).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    })}
+                                </div>
+                            ),
+                        },
+                        {
+                            key: 'ip_address',
+                            label: 'IP Address',
+                            render: (item: AuditLog) => (
+                                <div className="font-mono text-xs" style={{ color: colors.text.secondary }}>
+                                    {item.ip_address}
+                                </div>
+                            ),
+                        },
+                    ]}
+                    data={paginatedLogs}
+                    loading={loading}
+                    emptyMessage="No audit logs found."
+                    pagination={{
+                        currentPage,
+                        totalPages,
+                        total: filteredLogs.length,
+                        perPage: itemsPerPage,
+                        onPageChange: setCurrentPage
+                    }}
+                />
             </div>
 
-            {/* Detail Modal */}
-            <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <div className="p-2 rounded" style={{ backgroundColor: colors.brand.primary + '20' }}>
-                                <FileText className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                            </div>
-                            Audit Log Details
-                        </DialogTitle>
-                        <DialogDescription>
-                            Complete audit entry information
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    {selectedLog && (
-                        <div className="space-y-4 py-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label className="text-sm font-semibold" style={{ color: colors.text.secondary }}>
-                                        Audit ID
-                                    </Label>
-                                    <div className="font-mono text-sm mt-1" style={{ color: colors.text.primary }}>
-                                        #{selectedLog.a_id}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label className="text-sm font-semibold" style={{ color: colors.text.secondary }}>
-                                        Date/Time
-                                    </Label>
-                                    <div className="text-sm mt-1" style={{ color: colors.text.primary }}>
-                                        {new Date(selectedLog.date_added).toLocaleString()}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label className="text-sm font-semibold" style={{ color: colors.text.secondary }}>
-                                        User
-                                    </Label>
-                                    <div className="font-medium mt-1" style={{ color: colors.text.primary }}>
-                                        {selectedLog.full_name}
-                                    </div>
-                                    <div className="text-xs" style={{ color: colors.text.secondary }}>
-                                        @{selectedLog.username}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label className="text-sm font-semibold" style={{ color: colors.text.secondary }}>
-                                        IP Address
-                                    </Label>
-                                    <div className="font-mono text-sm mt-1" style={{ color: colors.text.primary }}>
-                                        {selectedLog.ip_address}
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
-                                        Module
-                                    </Label>
-                                    <div className="mt-1">
-                                        <ModernBadge variant="default">
-                                            {selectedLog.module.charAt(0).toUpperCase() + selectedLog.module.slice(1)}
-                                        </ModernBadge>
-                                    </div>
-                                </div>
-                                <div>
-                                    <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
-                                        Action Type
-                                    </Label>
-                                    <div className="mt-1">
-                                        <ModernBadge variant={getActionBadgeVariant(selectedLog.action_type)}>
-                                            {selectedLog.action_type}
-                                        </ModernBadge>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
-                                    Description
-                                </Label>
-                                <div className="mt-2 p-4 rounded-lg" style={{ backgroundColor: colors.table.header + '10', border: `1px solid ${colors.table.border}` }}>
-                                    <p style={{ color: colors.text.primary }}>
-                                        {selectedLog.description}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
