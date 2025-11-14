@@ -112,13 +112,13 @@ export default function Authenticated({ children }: PropsWithChildren) {
 
                     <div className="flex items-center gap-3">
                         {/* Notifications */}
-                        <button className="relative text-white hover:bg-white/10 p-2.5 rounded-lg transition-all duration-200">
+                        {/* <button className="relative text-white hover:bg-white/10 p-2.5 rounded-lg transition-all duration-200">
                             <Bell className="h-5 w-5" />
                             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                        </button>
+                        </button> */}
 
                         {/* User Profile */}
-                        <div className="flex items-center gap-3 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-all duration-200">
+                        <div className="flex items-center gap-3 px-4 py-2 bg-blue/10 rounded-lg transition-all duration-200">
                             <div 
                                 className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-sm shadow-md"
                                 style={{ backgroundColor: colors.brand.secondary }}
