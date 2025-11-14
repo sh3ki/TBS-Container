@@ -238,7 +238,7 @@ export default function Register() {
                     {/* Footer */}
                     <div className="mt-8 pt-6 border-t text-center">
                         <p className="text-xs" style={{ color: colors.text.secondary }}>
-                            © {new Date().getFullYear()} FJPWL Container Management System. All rights reserved.
+                            © {new Date().getFullYear()} TBS Container Management System. All rights reserved.
                         </p>
                     </div>
                 </div>
