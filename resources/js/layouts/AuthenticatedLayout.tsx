@@ -16,8 +16,9 @@ import {
     Ban,
     ChevronLeft,
     ChevronRight,
-    Bell,
     Container,
+    Menu,
+    X,
 } from 'lucide-react';
 import { ModernConfirmDialog } from '@/components/modern/ModernConfirmDialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -58,11 +59,14 @@ export default function Authenticated({ children }: PropsWithChildren) {
     const page = usePage();
     const auth = (page.props as Record<string, unknown>).auth as { user: User; permissions: Permission[] };
     
-    // Initialize sidebar state from localStorage
+    // Initialize sidebar state from localStorage (desktop only)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         const saved = localStorage.getItem('sidebarCollapsed');
         return saved === 'true';
     });
+    
+    // Mobile menu state
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const currentPath = page.url;
@@ -71,6 +75,11 @@ export default function Authenticated({ children }: PropsWithChildren) {
     useEffect(() => {
         localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
     }, [sidebarCollapsed]);
+
+    // Close mobile menu when route changes
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [currentPath]);
 
     // Define menu order
     const menuOrder = [
@@ -141,9 +150,22 @@ export default function Authenticated({ children }: PropsWithChildren) {
             >
                 <div className="px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
+                        {/* Hamburger Menu for Mobile */}
+                        <button
+                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                            className="lg:hidden text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                        >
+                            {mobileMenuOpen ? (
+                                <X className="w-6 h-6" />
+                            ) : (
+                                <Menu className="w-6 h-6" />
+                            )}
+                        </button>
+
+                        {/* Desktop Toggle Button */}
                         <button
                             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                            className="text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
+                            className="hidden lg:block text-white hover:bg-white/10 p-2 rounded-lg transition-all duration-200"
                         >
                             {sidebarCollapsed ? (
                                 <ChevronRight className="w-5 h-5" />
@@ -151,9 +173,10 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                 <ChevronLeft className="w-5 h-5" />
                             )}
                         </button>
+
                         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                             <Container className="h-8 w-8 text-white" />
-                            <div className="text-white">
+                            <div className="text-white hidden sm:block">
                                 <div className="text-lg font-bold tracking-wide">TBS</div>
                                 <div className="text-xs opacity-90 -mt-1">Container Management System</div>
                             </div>
@@ -225,7 +248,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                         </Link>
                                     </TooltipTrigger>
                                     {sidebarCollapsed && (
-                                        <TooltipContent side="right" className="bg-gray-900 text-white border-gray-700">
+                                        <TooltipContent side="right" className="bg-gray-700 text-white border-gray-700">
                                             Dashboard
                                         </TooltipContent>
                                     )}
@@ -239,30 +262,39 @@ export default function Authenticated({ children }: PropsWithChildren) {
 
                                 return (
                                     <li key={permission.p_id}>
-                                        <Link
-                                            href={`/${permission.page}`}
-                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                                isActive
-                                                    ? 'shadow-lg'
-                                                    : 'hover:bg-white/10 hover:text-white'
-                                            }`}
-                                            style={{
-                                                ...(isActive && { backgroundColor: colors.sidebar.active }),
-                                                color: isActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
-                                            }}
-                                        >
-                                            <span className={`${isActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`}>
-                                                {icon}
-                                            </span>
-                                            {!sidebarCollapsed && (
-                                                <span className="text-sm font-medium flex-1">
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Link
+                                                    href={`/${permission.page}`}
+                                                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                        isActive
+                                                            ? 'shadow-lg'
+                                                            : 'hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                                    style={{
+                                                        ...(isActive && { backgroundColor: colors.sidebar.active }),
+                                                        color: isActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
+                                                    }}
+                                                >
+                                                    <span className={`${isActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`}>
+                                                        {icon}
+                                                    </span>
+                                                    {!sidebarCollapsed && (
+                                                        <span className="text-sm font-medium flex-1">
+                                                            {permission.page_name}
+                                                        </span>
+                                                    )}
+                                                    {!sidebarCollapsed && isActive && (
+                                                        <div className="w-1 h-6 rounded-full bg-white"></div>
+                                                    )}
+                                                </Link>
+                                            </TooltipTrigger>
+                                            {sidebarCollapsed && (
+                                                <TooltipContent side="right" className="bg-gray-700 text-white border-gray-700">
                                                     {permission.page_name}
-                                                </span>
+                                                </TooltipContent>
                                             )}
-                                            {!sidebarCollapsed && isActive && (
-                                                <div className="w-1 h-6 rounded-full bg-white"></div>
-                                            )}
-                                        </Link>
+                                        </Tooltip>
                                     </li>
                                 );
                             })}
@@ -271,15 +303,24 @@ export default function Authenticated({ children }: PropsWithChildren) {
 
                     {/* Logout Button at Bottom */}
                     <div className="border-t border-white/10 p-2">
-                        <button
-                            onClick={handleLogoutClick}
-                            className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-white transition-all duration-200 group w-full"
-                        >
-                            <LogOutIcon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                            {!sidebarCollapsed && (
-                                <span className="text-sm font-medium">Logout</span>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={handleLogoutClick}
+                                    className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-white transition-all duration-200 group w-full"
+                                >
+                                    <LogOutIcon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                                    {!sidebarCollapsed && (
+                                        <span className="text-sm font-medium">Logout</span>
+                                    )}
+                                </button>
+                            </TooltipTrigger>
+                            {sidebarCollapsed && (
+                                <TooltipContent side="right" className="bg-gray-700 text-white border-gray-700">
+                                    Logout
+                                </TooltipContent>
                             )}
-                        </button>
+                        </Tooltip>
                     </div>
                 </aside>
 
