@@ -32,6 +32,10 @@ return new class extends Migration
     {
         $prefix = DB::getTablePrefix();
         
+        // Temporarily disable strict mode to handle invalid dates
+        $originalSqlMode = DB::select("SELECT @@SESSION.sql_mode as mode")[0]->mode;
+        DB::statement("SET SESSION sql_mode = ''");
+        
         // Get all tables with indexes
         $tables = [
             'inventory', 'audit_logs', 'pre_inventory', 'bookings', 'clients',
@@ -83,6 +87,9 @@ return new class extends Migration
                 echo "  ! Warning: Reached max attempts for {$fullTable}\n";
             }
         }
+        
+        // Restore original SQL mode
+        DB::statement("SET SESSION sql_mode = '{$originalSqlMode}'");
         
         echo "\n";
     }
