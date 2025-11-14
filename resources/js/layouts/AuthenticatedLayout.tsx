@@ -1,5 +1,5 @@
 ﻿import { Link, usePage } from '@inertiajs/react';
-import { PropsWithChildren, useState } from 'react';
+import { PropsWithChildren, useState, useEffect } from 'react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
 import {
@@ -20,6 +20,7 @@ import {
     Container,
 } from 'lucide-react';
 import { ModernConfirmDialog } from '@/components/modern/ModernConfirmDialog';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface User {
     user_id: number;
@@ -56,9 +57,20 @@ const iconMap: Record<string, React.ReactNode> = {
 export default function Authenticated({ children }: PropsWithChildren) {
     const page = usePage();
     const auth = (page.props as Record<string, unknown>).auth as { user: User; permissions: Permission[] };
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    
+    // Initialize sidebar state from localStorage
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebarCollapsed');
+        return saved === 'true';
+    });
+    
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const currentPath = page.url;
+
+    // Persist sidebar state to localStorage
+    useEffect(() => {
+        localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+    }, [sidebarCollapsed]);
 
     // Define menu order
     const menuOrder = [
