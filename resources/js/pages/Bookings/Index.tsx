@@ -503,8 +503,7 @@ export default function Index() {
                 key: 'shipper',
                 label: 'Shipper',
                 render: (booking: Booking) => (
-                  <div className="flex items-center gap-1 min-w-[70px] max-w-[90px]">
-                    <Ship className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <div className="min-w-[70px] max-w-[90px]">
                     <span className="text-sm text-gray-900">{booking.shipper}</span>
                   </div>
                 ),
@@ -573,8 +572,7 @@ export default function Index() {
                 key: 'expiration',
                 label: 'Expiration',
                 render: (booking: Booking) => (
-                  <div className="flex items-center gap-1 min-w-[95px]">
-                    <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <div className="min-w-[95px]">
                     <span className="text-sm text-gray-600">
                       {new Date(booking.expiration_date).toLocaleDateString('en-US', {
                         year: 'numeric',
