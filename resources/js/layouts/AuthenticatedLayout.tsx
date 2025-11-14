@@ -19,6 +19,7 @@ import {
     Bell,
     Container,
 } from 'lucide-react';
+import { ModernConfirmDialog } from '@/components/modern/ModernConfirmDialog';
 
 interface User {
     user_id: number;
@@ -48,6 +49,7 @@ const iconMap: Record<string, React.ReactNode> = {
     audit: <BarChart3 className="h-5 w-5" />,
     reports: <FileBarChart className="h-5 w-5" />,
     sizetype: <Layers className="h-5 w-5" />,
+    bancon: <Ban className="h-5 w-5" />,
     bancontainers: <Ban className="h-5 w-5" />,
 };
 
@@ -55,7 +57,43 @@ export default function Authenticated({ children }: PropsWithChildren) {
     const page = usePage();
     const auth = (page.props as Record<string, unknown>).auth as { user: User; permissions: Permission[] };
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const currentPath = page.url;
+
+    // Define menu order
+    const menuOrder = [
+        'gateinout',
+        'inventory', 
+        'booking',
+        'billing',
+        'reports',
+        'bancon',
+        'bancontainers',
+        'sizetype',
+        'clients',
+        'users',
+        'audit'
+    ];
+
+    // Sort permissions according to menuOrder
+    const sortedPermissions = [...(auth.permissions || [])].sort((a, b) => {
+        const indexA = menuOrder.indexOf(a.page.toLowerCase());
+        const indexB = menuOrder.indexOf(b.page.toLowerCase());
+        
+        // If both are in the order list, sort by their position
+        if (indexA !== -1 && indexB !== -1) {
+            return indexA - indexB;
+        }
+        // If only one is in the list, prioritize it
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        // If neither is in the list, maintain original order
+        return 0;
+    });
+
+    const handleLogoutClick = () => {
+        setShowLogoutConfirm(true);
+    };
 
     const handleLogout = async () => {
         try {
@@ -174,7 +212,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                             </li>
 
                             {/* Dynamic Menu Items */}
-                            {auth.permissions?.map((permission) => {
+                            {sortedPermissions?.map((permission) => {
                                 const icon = iconMap[permission.page.toLowerCase()] || <Package className="h-5 w-5" />;
                                 const isActive = isActivePath(`/${permission.page}`);
 
@@ -213,7 +251,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     {/* Logout Button at Bottom */}
                     <div className="border-t border-white/10 p-2">
                         <button
-                            onClick={handleLogout}
+                            onClick={handleLogoutClick}
                             className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-white transition-all duration-200 group w-full"
                         >
                             <LogOutIcon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
@@ -235,6 +273,17 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     </div>
                 </main>
             </div>
+
+            {/* Logout Confirmation Modal */}
+            <ModernConfirmDialog
+                open={showLogoutConfirm}
+                onOpenChange={setShowLogoutConfirm}
+                onConfirm={handleLogout}
+                title="Confirm Logout"
+                description="Are you sure you want to logout?"
+                confirmText="Logout"
+                cancelText="Cancel"
+            />
         </div>
     );
 }
