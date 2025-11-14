@@ -42,26 +42,49 @@ return new class extends Migration
         foreach ($tables as $table) {
             $fullTable = $prefix . $table;
             
-            // Get all indexes for this table
-            $indexes = DB::select("SHOW INDEX FROM `{$fullTable}`");
+            echo "Dropping indexes from {$fullTable}...\n";
             
-            // Group indexes by name and drop non-primary ones
-            $indexNames = [];
-            foreach ($indexes as $index) {
-                if ($index->Key_name !== 'PRIMARY' && !in_array($index->Key_name, $indexNames)) {
-                    $indexNames[] = $index->Key_name;
+            // Keep dropping until no non-primary indexes remain
+            $maxAttempts = 10;
+            $attempt = 0;
+            
+            while ($attempt < $maxAttempts) {
+                // Get current indexes
+                $indexes = DB::select("SHOW INDEX FROM `{$fullTable}`");
+                
+                // Collect unique non-primary index names
+                $indexNames = [];
+                foreach ($indexes as $index) {
+                    if ($index->Key_name !== 'PRIMARY' && !in_array($index->Key_name, $indexNames)) {
+                        $indexNames[] = $index->Key_name;
+                    }
                 }
+                
+                // If no indexes left, we're done with this table
+                if (empty($indexNames)) {
+                    echo "  ✓ All indexes dropped from {$fullTable}\n";
+                    break;
+                }
+                
+                // Drop each index
+                foreach ($indexNames as $indexName) {
+                    try {
+                        DB::statement("ALTER TABLE `{$fullTable}` DROP INDEX `{$indexName}`");
+                        echo "  - Dropped index: {$indexName}\n";
+                    } catch (\Exception $e) {
+                        echo "  ! Warning: Could not drop {$indexName}: " . $e->getMessage() . "\n";
+                    }
+                }
+                
+                $attempt++;
             }
             
-            // Drop each index using raw SQL
-            foreach ($indexNames as $indexName) {
-                try {
-                    DB::statement("ALTER TABLE `{$fullTable}` DROP INDEX `{$indexName}`");
-                } catch (\Exception $e) {
-                    // Index might not exist or already dropped, continue
-                }
+            if ($attempt >= $maxAttempts) {
+                echo "  ! Warning: Reached max attempts for {$fullTable}\n";
             }
         }
+        
+        echo "\n";
     }
 
     /**
