@@ -41,6 +41,7 @@ Route::get('/csrf-token', function () {
 Route::middleware('auth:sanctum')->group(function () {
     // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/logout-inactive', [AuthController::class, 'logoutInactive']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
 
