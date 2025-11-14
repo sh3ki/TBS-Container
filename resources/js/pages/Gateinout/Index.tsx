@@ -229,17 +229,6 @@ export default function Index() {
     setCurrentPage(1); // Reset to first page when filters change
   };
 
-  const refreshData = async () => {
-    try {
-      const response = await axios.post('/api/gateinout/list', { search: '' });
-      if (response.data.success) {
-        setPreInventoryList(response.data.prelist || []);
-      }
-    } catch {
-      error('Failed to refresh list');
-    }
-  };
-
   const submitAddPreIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (preInForm.container_no.length !== 11) {
@@ -267,7 +256,7 @@ export default function Index() {
           setShowAddPreInModal(false);
           setConfirmAddPreIn(false);
           setPreInForm({ container_no: '', client_id: '' });
-          refreshData();
+          await fetchData();
         } else {
           setConfirmAddPreIn(false);
           error(msg.replace(/<[^>]*>/g, ''));
@@ -307,7 +296,7 @@ export default function Index() {
           setShowAddPreOutModal(false);
           setConfirmAddPreOut(false);
           setPreOutForm({ plate_no: '', hauler: '' });
-          refreshData();
+          await fetchData();
         } else {
           setConfirmAddPreOut(false);
           error(msg.replace(/<[^>]*>/g, ''));
@@ -378,7 +367,7 @@ export default function Index() {
         if (type === 'success') {
           setShowEditPreInModal(false);
           setConfirmUpdatePreIn(false);
-          await refreshData();
+          await fetchData();
           success('Pre-In updated successfully');
         } else {
           setConfirmUpdatePreIn(false);
@@ -414,7 +403,7 @@ export default function Index() {
         if (type === 'success') {
           setShowEditPreOutModal(false);
           setConfirmUpdatePreOut(false);
-          await refreshData();
+          await fetchData();
           success('Pre-Out updated successfully');
         } else {
           setConfirmUpdatePreOut(false);
@@ -440,7 +429,7 @@ export default function Index() {
       
       setRecordToDelete(null);
       setConfirmDeleteRecord(false);
-      await refreshData();
+      await fetchData();
       success('Record deleted successfully');
     } catch (err: unknown) {
       setConfirmDeleteRecord(false);
@@ -1003,7 +992,7 @@ export default function Index() {
         loadOptions={loadOptions}
         onSuccess={() => {
           success('Gate IN processed successfully');
-          refreshData();
+          fetchData();
         }}
       />
 
@@ -1017,7 +1006,7 @@ export default function Index() {
         loadOptions={loadOptions}
         onSuccess={() => {
           success('Gate OUT processed successfully');
-          refreshData();
+          fetchData();
         }}
       />
 
