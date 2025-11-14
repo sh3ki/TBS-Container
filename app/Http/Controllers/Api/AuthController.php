@@ -46,6 +46,9 @@ class AuthController extends Controller
         if ($attemptResult) {
             $user = Auth::user();
             
+            // Regenerate session to prevent fixation attacks
+            $request->session()->regenerate();
+            
             Log::info('After Auth::attempt', [
                 'auth_check' => Auth::check(),
                 'user_id' => $user ? $user->user_id : null,
