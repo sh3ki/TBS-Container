@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\StorageRate;
 use App\Models\HandlingRate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -441,12 +442,13 @@ class BillingController extends Controller
         $csv = stream_get_contents($handle);
         fclose($handle);
 
-        // Log export
-        Log::info('Billing exported to CSV', [
-            'user' => auth()->user()->username ?? 'system',
-            'start_date' => $request->start,
-            'end_date' => $request->end,
-            'count' => count($billingData),
+        // Log audit - REPORTS action
+        DB::table('audit_logs')->insert([
+            'action' => 'REPORTS',
+            'description' => '[BILLING] Exported ' . count($billingData) . ' billing record(s) to CSV file: ' . $filename,
+            'user_id' => auth()->user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
         ]);
 
         return response($csv, 200)
