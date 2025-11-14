@@ -88,11 +88,11 @@ class BanContainersController extends Controller
                 'date_added' => now(),
             ]);
 
-            // Log to audit
+            // Log to audit - ADD action with all fields
             DB::table('audit_logs')->insert([
-                'action' => 'CREATE',
-                'description' => 'Banned container: ' . strtoupper($request->container_no),
-                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
+                'action' => 'ADD',
+                'description' => '[BANCON] Added ban container: Container No: "' . strtoupper($request->container_no) . '", Notes: "' . $request->notes . '"',
+                'user_id' => Auth::user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -197,14 +197,21 @@ class BanContainersController extends Controller
                     'notes' => $request->notes,
                 ]);
 
-            // Log to audit
-            DB::table('audit_logs')->insert([
-                'action' => 'UPDATE',
-                'description' => 'Updated ban record for container: ' . $ban->container_no,
-                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
-                'date_added' => now(),
-                'ip_address' => $request->ip(),
-            ]);
+            // Log to audit - EDIT action with old->new tracking
+            $changes = [];
+            if ($ban->notes !== $request->notes) {
+                $changes[] = 'Notes: "' . $ban->notes . '" -> "' . $request->notes . '"';
+            }
+            
+            if (count($changes) > 0) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[BANCON] Edited ban container "' . $ban->container_no . '": ' . implode(', ', $changes),
+                    'user_id' => Auth::user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
 
             DB::commit();
 
@@ -243,11 +250,11 @@ class BanContainersController extends Controller
                 ->where('b_id', $id)
                 ->delete();
 
-            // Log to audit
+            // Log to audit - DELETE action
             DB::table('audit_logs')->insert([
                 'action' => 'DELETE',
-                'description' => 'Removed ban for container: ' . $ban->container_no,
-                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
+                'description' => '[BANCON] Deleted ban container: Container No: "' . $ban->container_no . '", Notes: "' . $ban->notes . '"',
+                'user_id' => Auth::user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -388,14 +395,16 @@ class BanContainersController extends Controller
                 $succeeded[] = $containerNo;
             }
 
-            // Log to audit
-            DB::table('audit_logs')->insert([
-                'action' => 'CREATE',
-                'description' => 'Bulk added ' . count($succeeded) . ' containers to ban list',
-                'user_id' => Auth::check() ? Auth::user()->user_id : 0,
-                'date_added' => now(),
-                'ip_address' => $request->ip(),
-            ]);
+            // Log to audit - ADD action for bulk ban with details
+            if (count($succeeded) > 0) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'ADD',
+                    'description' => '[BANCON] Bulk banned ' . count($succeeded) . ' container(s): Containers: [' . implode(', ', $succeeded) . '], Notes: "' . $request->notes . '"',
+                    'user_id' => Auth::user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
 
             DB::commit();
 
