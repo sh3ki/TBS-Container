@@ -26,6 +26,47 @@ return new class extends Migration
     }
 
     /**
+     * Drop all existing indexes from all tables
+     */
+    private function dropAllExistingIndexes(): void
+    {
+        $prefix = DB::getTablePrefix();
+        
+        // Get all tables with indexes
+        $tables = [
+            'inventory', 'audit_logs', 'pre_inventory', 'bookings', 'clients',
+            'storage_rate', 'handling_rate', 'hold_containers', 'ban_containers',
+            'privileges', 'users', 'pages_access', 'client_reg_hours', 'container_size_type'
+        ];
+        
+        foreach ($tables as $table) {
+            $fullTable = $prefix . $table;
+            
+            // Get all indexes for this table
+            $indexes = DB::select("SHOW INDEX FROM `{$fullTable}`");
+            
+            // Group indexes by name and drop non-primary ones
+            $indexNames = [];
+            foreach ($indexes as $index) {
+                if ($index->Key_name !== 'PRIMARY' && !in_array($index->Key_name, $indexNames)) {
+                    $indexNames[] = $index->Key_name;
+                }
+            }
+            
+            // Drop each index
+            foreach ($indexNames as $indexName) {
+                try {
+                    Schema::table($table, function (Blueprint $t) use ($indexName) {
+                        $t->dropIndex($indexName);
+                    });
+                } catch (\Exception $e) {
+                    // Index might not exist or already dropped, continue
+                }
+            }
+        }
+    }
+
+    /**
      * Run the migrations.
      * 
      * Comprehensive index migration for all tables in the database.
@@ -34,25 +75,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Drop ALL existing indexes first to avoid conflicts
+        $this->dropAllExistingIndexes();
+        
         // ========================================
         // fjp_inventory - Main inventory table
         // ========================================
-        
-        // Drop existing indexes if they exist
-        $this->dropIndexIfExists('inventory', 'container_no');
-        $this->dropIndexIfExists('inventory', 'idx_complete');
-        $this->dropIndexIfExists('inventory', 'idx_date_added');
-        $this->dropIndexIfExists('inventory', 'idx_inventory_out_id');
-        $this->dropIndexIfExists('inventory', 'dmr_aging');
-        $this->dropIndexIfExists('inventory', 'dmr_inv');
-        $this->dropIndexIfExists('inventory', 'dmr_outgoing');
-        $this->dropIndexIfExists('inventory', 'dmr_size');
-        $this->dropIndexIfExists('inventory', 'idx_complete_date');
-        $this->dropIndexIfExists('inventory', 'idx_dashboard_stats');
-        $this->dropIndexIfExists('inventory', 'idx_inventory_billing_date');
-        $this->dropIndexIfExists('inventory', 'idx_inventory_client_status');
-        $this->dropIndexIfExists('inventory', 'idx_inventory_container_complete');
-        $this->dropIndexIfExists('inventory', 'inv_i');
         
         Schema::table('inventory', function (Blueprint $table) {
             // Single column indexes
