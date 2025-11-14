@@ -19,6 +19,8 @@ interface DashboardStats {
         repo: number;
         available: number;
         hold: number;
+        damaged: number;
+        banned: number;
     };
     bookings: {
         total: number;
@@ -37,7 +39,7 @@ interface DashboardStats {
 export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats>({
         preInventory: { totalPreIn: 0, totalPreOut: 0, pendingPreIn: 0, pendingPreOut: 0 },
-        inventory: { total: 0, gateIn: 0, gateOut: 0, repo: 0, available: 0, hold: 0 },
+        inventory: { total: 0, gateIn: 0, gateOut: 0, repo: 0, available: 0, hold: 0, damaged: 0, banned: 0 },
         bookings: { total: 0, active: 0, expired: 0, totalContainers: 0, remainingContainers: 0 },
         gateActivity: {
             today: { gateIn: 0, gateOut: 0 },
@@ -219,9 +221,9 @@ export default function Dashboard() {
                             <p className="text-sm mt-1 text-gray-600">Container Management System Overview</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Activity className="w-4 h-4" />
-                        <span>Real-time updates</span>
+                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
+                        <Activity className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-700">Real-time updates</span>
                     </div>
                 </div>
 
@@ -288,23 +290,42 @@ export default function Dashboard() {
                             icon={<LogOut className="w-6 h-6" />}
                             color="#8b5cf6"
                         />
-                        <StatCard
-                            title="Repo"
-                            value={stats.inventory.repo}
-                            icon={<Package className="w-6 h-6" />}
-                            color="#f59e0b"
-                        />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                         <StatCard
                             title="Available"
                             value={stats.inventory.available}
                             icon={<Package className="w-6 h-6" />}
+                            subtitle="AVL"
                             color="#06b6d4"
+                        />
+                        <StatCard
+                            title="Repo"
+                            value={stats.inventory.repo}
+                            icon={<Package className="w-6 h-6" />}
+                            subtitle="REPO"
+                            color="#f59e0b"
+                        />
+                        <StatCard
+                            title="Damaged"
+                            value={stats.inventory.damaged}
+                            icon={<Package className="w-6 h-6" />}
+                            subtitle="DMG"
+                            color="#ef4444"
                         />
                         <StatCard
                             title="On Hold"
                             value={stats.inventory.hold}
                             icon={<Package className="w-6 h-6" />}
-                            color="#ef4444"
+                            subtitle="HLD"
+                            color="#dc2626"
+                        />
+                        <StatCard
+                            title="Banned"
+                            value={stats.inventory.banned}
+                            icon={<Package className="w-6 h-6" />}
+                            subtitle="BAN"
+                            color="#991b1b"
                         />
                     </div>
                 </div>
@@ -456,23 +477,6 @@ export default function Dashboard() {
                         />
                     </div>
 
-                    {/* Containers by Client */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                <BarChart3 className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                                Top Clients
-                            </h3>
-                        </div>
-                        <SimpleBarChart 
-                            data={chartData.containersByClient.slice(0, 8).map(item => ({ 
-                                label: item.client, 
-                                value: item.count 
-                            }))} 
-                            color={colors.brand.secondary}
-                        />
-                    </div>
-
                     {/* Booking Trend */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div className="flex items-center justify-between mb-6">
@@ -490,6 +494,24 @@ export default function Dashboard() {
                         />
                     </div>
                 </div>
+
+                    {/* Containers by Client */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5" style={{ color: colors.brand.primary }} />
+                                Top Clients
+                            </h3>
+                        </div>
+                        <SimpleBarChart 
+                            data={chartData.containersByClient.slice(0, 8).map(item => ({ 
+                                label: item.client, 
+                                value: item.count 
+                            }))} 
+                            color={colors.brand.secondary}
+                        />
+                    </div>
+
             </div>
         </AuthenticatedLayout>
     );
