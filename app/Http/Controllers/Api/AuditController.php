@@ -62,27 +62,30 @@ class AuditController extends Controller
         $sortOrder = $request->get('sort_order', 'desc');
         $query->orderBy($sortBy, $sortOrder);
 
-        // Pagination
-        $perPage = $request->get('per_page', 100);
-        $logs = $query->paginate($perPage);
+        // Get ALL results without pagination
+        $logs = $query->get();
 
         // Add hashed IDs and extracted module/action type
-        $logs->getCollection()->transform(function ($log) {
-            $log->hashed_id = md5($log->a_id);
-            $log->module = $this->extractModule($log->description);
-            $log->action_type = $this->getActionType($log->action);
-            $log->username = $log->user->username ?? 'System';
-            $log->full_name = $log->user->full_name ?? 'System';
-            return $log;
+        $formattedLogs = $logs->map(function ($log) {
+            return [
+                'a_id' => $log->a_id,
+                'hashed_id' => md5($log->a_id),
+                'action' => $log->action,
+                'description' => $log->description,
+                'user_id' => $log->user_id,
+                'username' => $log->user->username ?? 'System',
+                'full_name' => $log->user->full_name ?? 'System',
+                'date_added' => $log->date_added,
+                'ip_address' => $log->ip_address,
+                'module' => $this->extractModule($log->description),
+                'action_type' => $this->getActionType($log->action),
+                'user' => $log->user,
+            ];
         });
 
         return response()->json([
             'success' => true,
-            'data' => $logs->items(),
-            'total' => $logs->total(),
-            'current_page' => $logs->currentPage(),
-            'per_page' => $logs->perPage(),
-            'last_page' => $logs->lastPage(),
+            'data' => $formattedLogs->toArray(),
         ]);
     }
 
