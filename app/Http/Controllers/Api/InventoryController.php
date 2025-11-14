@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class InventoryController extends Controller
@@ -504,18 +505,20 @@ class InventoryController extends Controller
         try {
             $prefix = DB::getTablePrefix();
             
-            $inventory = DB::selectOne("SELECT i_id, container_no FROM {$prefix}inventory WHERE MD5(i_id) = ?", [$hashedId]);
+            // Get full old record for change tracking
+            $oldInventory = DB::selectOne("SELECT * FROM {$prefix}inventory WHERE MD5(i_id) = ?", [$hashedId]);
             
-            if (!$inventory) {
+            if (!$oldInventory) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Container not found',
                 ], 404);
             }
 
-            // Build update dynamically
+            // Build update dynamically and track changes
             $updateFields = [];
             $params = [];
+            $changes = [];
 
             $allowedFields = [
                 'container_no', 'client_id', 'size_type', 'container_status', 'class',
@@ -527,8 +530,14 @@ class InventoryController extends Controller
 
             foreach ($allowedFields as $field) {
                 if ($request->has($field)) {
-                    $updateFields[] = "{$field} = :{$field}";
-                    $params[":{$field}"] = $request->input($field);
+                    $newValue = $request->input($field);
+                    $oldValue = $oldInventory->$field ?? null;
+                    
+                    if ($oldValue != $newValue) {
+                        $updateFields[] = "{$field} = :{$field}";
+                        $params[":{$field}"] = $newValue;
+                        $changes[] = str_replace('_', ' ', $field) . ' from "' . ($oldValue ?? 'empty') . '" to "' . ($newValue ?? 'empty') . '"';
+                    }
                 }
             }
 
@@ -539,16 +548,24 @@ class InventoryController extends Controller
                 ], 422);
             }
 
-            $params[':i_id'] = $inventory->i_id;
+            $params[':i_id'] = $oldInventory->i_id;
 
             $sql = "UPDATE {$prefix}inventory SET " . implode(', ', $updateFields) . " WHERE i_id = :i_id";
             
             DB::update($sql, $params);
 
-            Log::info('Inventory updated', [
-                'i_id' => $inventory->i_id,
-                'container_no' => $inventory->container_no,
-            ]);
+            // Log audit - EDIT action with detailed changes
+            if (count($changes) > 0) {
+                $description = '[INVENTORY] Updated container "' . $oldInventory->container_no . '": ' . implode(', ', $changes);
+                
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => $description,
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -589,9 +606,13 @@ class InventoryController extends Controller
 
             DB::delete("DELETE FROM {$prefix}inventory WHERE i_id = ?", [$inventory->i_id]);
 
-            Log::info('Inventory deleted', [
-                'i_id' => $inventory->i_id,
-                'container_no' => $inventory->container_no,
+            // Log audit - DELETE action
+            DB::table('audit_logs')->insert([
+                'action' => 'DELETE',
+                'description' => '[INVENTORY] Deleted container "' . $inventory->container_no . '" (ID: ' . $inventory->i_id . ')',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
             ]);
 
             return response()->json([
@@ -627,9 +648,13 @@ class InventoryController extends Controller
 
             DB::delete("DELETE FROM {$prefix}inventory WHERE i_id = ?", [$id]);
 
-            Log::info('Inventory deleted', [
-                'i_id' => $id,
-                'container_no' => $inventory->container_no,
+            // Log audit - DELETE action
+            DB::table('audit_logs')->insert([
+                'action' => 'DELETE',
+                'description' => '[INVENTORY] Deleted container "' . $inventory->container_no . '" (ID: ' . $id . ')',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
             ]);
 
             return response()->json([
@@ -693,10 +718,13 @@ class InventoryController extends Controller
                 [$inventory->container_no, $request->notes]
             );
 
-            Log::info('Container placed on hold', [
-                'i_id' => $id,
-                'container_no' => $inventory->container_no,
-                'notes' => $request->notes,
+            // Log audit - EDIT action for placing on hold
+            DB::table('audit_logs')->insert([
+                'action' => 'EDIT',
+                'description' => '[INVENTORY] Placed container "' . $inventory->container_no . '" on hold with notes: ' . $request->notes,
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
             ]);
 
             return response()->json([
@@ -743,9 +771,13 @@ class InventoryController extends Controller
                 [$inventory->container_no]
             );
 
-            Log::info('Container released from hold', [
-                'i_id' => $id,
-                'container_no' => $inventory->container_no,
+            // Log audit - EDIT action for removing from hold
+            DB::table('audit_logs')->insert([
+                'action' => 'EDIT',
+                'description' => '[INVENTORY] Removed container "' . $inventory->container_no . '" from hold',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
             ]);
 
             return response()->json([
@@ -789,23 +821,26 @@ class InventoryController extends Controller
 
             // Toggle: if status is 8 (Repo), change to 1 (Available), otherwise change to 8 (Repo)
             $newStatus = ($inventory->container_status == 8) ? 1 : 8;
-            $statusText = ($newStatus == 8) ? 'Repo' : 'Available';
+            $oldStatusText = ($inventory->container_status == 8) ? 'Repo' : 'Available';
+            $newStatusText = ($newStatus == 8) ? 'Repo' : 'Available';
 
             DB::update(
                 "UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?",
                 [$newStatus, $id]
             );
 
-            Log::info('Container status updated', [
-                'i_id' => $id,
-                'container_no' => $inventory->container_no,
-                'old_status' => $inventory->container_status,
-                'new_status' => $newStatus,
+            // Log audit - EDIT action for status change
+            DB::table('audit_logs')->insert([
+                'action' => 'EDIT',
+                'description' => '[INVENTORY] Updated container "' . $inventory->container_no . '" status from "' . $oldStatusText . '" to "' . $newStatusText . '"',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => "Container updated to {$statusText}",
+                'message' => "Container updated to {$newStatusText}",
             ]);
 
         } catch (\Exception $e) {
@@ -1319,6 +1354,15 @@ class InventoryController extends Controller
             
             fclose($file);
             
+            // Log audit - REPORTS action for exporting report
+            DB::table('audit_logs')->insert([
+                'action' => 'REPORTS',
+                'description' => '[INVENTORY] Exported ' . count($data['data']) . ' inventory record(s) to CSV file: ' . $filename,
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
+            
             return response()->download($filePath)->deleteFileAfterSend(true);
             
         } catch (\Exception $e) {
@@ -1370,10 +1414,13 @@ class InventoryController extends Controller
                 [$request->approval_notes, $dateApprove, $id]
             );
 
-            Log::info('Container approved', [
-                'i_id' => $id,
-                'container_no' => $inventory->container_no,
-                'approval_notes' => $request->approval_notes,
+            // Log audit - APPROVE action
+            DB::table('audit_logs')->insert([
+                'action' => 'APPROVE',
+                'description' => '[INVENTORY] Approved container "' . $inventory->container_no . '" with notes: ' . $request->approval_notes,
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
             ]);
 
             return response()->json([
