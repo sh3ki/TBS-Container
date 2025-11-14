@@ -43,17 +43,14 @@ class AuthController extends Controller
             'password' => $credentials['password'],
         ], $request->filled('remember'));
         
-        Log::info('Auth attempt result', [
-            'success' => $attemptResult,
-            'user_id' => Auth::check() ? Auth::user()->user_id : null,
-            'guard' => Auth::getDefaultDriver(),
-        ]);
-        
         if ($attemptResult) {
             $user = Auth::user();
             
-            // Regenerate session to prevent session fixation
-            $request->session()->regenerate();
+            Log::info('After Auth::attempt', [
+                'auth_check' => Auth::check(),
+                'user_id' => $user ? $user->user_id : null,
+                'session_id' => $request->session()->getId(),
+            ]);
             
             // Check if user is archived
             if ($user->archived) {
