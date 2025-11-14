@@ -53,12 +53,10 @@ return new class extends Migration
                 }
             }
             
-            // Drop each index
+            // Drop each index using raw SQL
             foreach ($indexNames as $indexName) {
                 try {
-                    Schema::table($table, function (Blueprint $t) use ($indexName) {
-                        $t->dropIndex($indexName);
-                    });
+                    DB::statement("ALTER TABLE `{$fullTable}` DROP INDEX `{$indexName}`");
                 } catch (\Exception $e) {
                     // Index might not exist or already dropped, continue
                 }
