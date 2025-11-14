@@ -41,15 +41,19 @@ class AuthController extends Controller
         $attemptResult = Auth::attempt([
             'username' => strtolower($credentials['username']),
             'password' => $credentials['password'],
-        ]);
+        ], $request->filled('remember'));
         
         Log::info('Auth attempt result', [
             'success' => $attemptResult,
             'user_id' => Auth::check() ? Auth::user()->user_id : null,
+            'guard' => Auth::getDefaultDriver(),
         ]);
         
         if ($attemptResult) {
             $user = Auth::user();
+            
+            // Regenerate session to prevent session fixation
+            $request->session()->regenerate();
             
             // Check if user is archived
             if ($user->archived) {
@@ -88,16 +92,13 @@ class AuthController extends Controller
                 ->orderBy('pages.arrange_no')
                 ->get();
             
-            // Create sanctum token for API requests
-            $token = $user->createToken('auth-token')->plainTextToken;
-            
             // If this is an Inertia/web request, redirect to dashboard
             if ($request->header('X-Inertia')) {
-                // Regenerate session to prevent session fixation
-                $request->session()->regenerate();
-                
                 return redirect()->route('dashboard');
             }
+            
+            // Create sanctum token for API requests
+            $token = $user->createToken('auth-token')->plainTextToken;
             
             // Otherwise return JSON for API
             return response()->json([
