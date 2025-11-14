@@ -212,8 +212,18 @@ class UsersController extends Controller
                 'archived' => $request->input('archived', 0)
             ]);
             
-            // Log action
-            $this->logAudit('CREATE_USER', "Created user: {$request->username}", $request->user()->user_id ?? 0);
+            // Get privilege name for logging
+            $privilege = DB::table('privileges')->where('p_code', $request->priv_id)->first();
+            $privilegeName = $privilege ? $privilege->p_desc : 'Unknown';
+            
+            // Log to audit - ADD action with all fields
+            DB::table('audit_logs')->insert([
+                'action' => 'ADD',
+                'description' => '[USERS] Added new user: Username: "' . $request->username . '", Full Name: "' . $request->full_name . '", Email: "' . $request->email . '", Privilege: "' . $privilegeName . '", Contact: "' . ($request->contact ?? 'N/A') . '"',
+                'user_id' => $request->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
             
             return response()->json([
                 'success' => true,
@@ -271,6 +281,13 @@ class UsersController extends Controller
         }
         
         try {
+            // Get old user data for comparison
+            $oldUser = DB::table('users as u')
+                ->leftJoin('privileges as p', 'p.p_code', '=', 'u.priv_id')
+                ->select('u.username', 'u.full_name', 'u.email', 'u.priv_id', 'u.checker_id', 'p.p_desc as privilege_name')
+                ->where('u.user_id', $userId)
+                ->first();
+            
             $updateData = [
                 'full_name' => $request->full_name,
                 'email' => $request->email,
@@ -280,18 +297,49 @@ class UsersController extends Controller
             ];
             
             // Update password if requested
+            $passwordChanged = false;
             if ($request->change_password && $request->new_password) {
                 $salt = substr(md5(uniqid()), 0, 5);
                 $updateData['password'] = md5($request->new_password . $salt);
                 $updateData['salt'] = $salt;
+                $passwordChanged = true;
             }
             
             DB::table('users')
                 ->where('user_id', $userId)
                 ->update($updateData);
             
-            // Log action
-            $this->logAudit('UPDATE_USER', "Updated user ID: {$userId}", $request->user()->user_id ?? 0);
+            // Get new privilege name
+            $newPrivilege = DB::table('privileges')->where('p_code', $request->priv_id)->first();
+            $newPrivilegeName = $newPrivilege ? $newPrivilege->p_desc : 'Unknown';
+            
+            // Log to audit - EDIT action with old->new tracking
+            $changes = [];
+            if ($oldUser->full_name !== $request->full_name) {
+                $changes[] = 'Full Name: "' . $oldUser->full_name . '" -> "' . $request->full_name . '"';
+            }
+            if ($oldUser->email !== $request->email) {
+                $changes[] = 'Email: "' . $oldUser->email . '" -> "' . $request->email . '"';
+            }
+            if ($oldUser->priv_id !== $request->priv_id) {
+                $changes[] = 'Privilege: "' . $oldUser->privilege_name . '" -> "' . $newPrivilegeName . '"';
+            }
+            if (($oldUser->checker_id ?? '') !== ($request->contact ?? '')) {
+                $changes[] = 'Contact: "' . ($oldUser->checker_id ?? 'N/A') . '" -> "' . ($request->contact ?? 'N/A') . '"';
+            }
+            if ($passwordChanged) {
+                $changes[] = 'Password: Changed';
+            }
+            
+            if (count($changes) > 0) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[USERS] Edited user "' . $oldUser->username . '": ' . implode(', ', $changes),
+                    'user_id' => $request->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
             
             return response()->json([
                 'success' => true,
@@ -341,12 +389,25 @@ class UsersController extends Controller
         }
         
         try {
+            // Get user details before deletion
+            $userDetails = DB::table('users as u')
+                ->leftJoin('privileges as p', 'p.p_code', '=', 'u.priv_id')
+                ->select('u.username', 'u.full_name', 'u.email', 'p.p_desc as privilege_name', 'u.checker_id')
+                ->where('u.user_id', $userId)
+                ->first();
+            
             DB::table('users')
                 ->where('user_id', $userId)
                 ->delete();
             
-            // Log action
-            $this->logAudit('DELETE_USER', "Deleted user: {$username} (ID: {$userId})", $currentUserId);
+            // Log to audit - DELETE action with all details
+            DB::table('audit_logs')->insert([
+                'action' => 'DELETE',
+                'description' => '[USERS] Deleted user: Username: "' . ($userDetails->username ?? 'Unknown') . '", Full Name: "' . ($userDetails->full_name ?? 'N/A') . '", Email: "' . ($userDetails->email ?? 'N/A') . '", Privilege: "' . ($userDetails->privilege_name ?? 'N/A') . '"',
+                'user_id' => $currentUserId,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
             
             return response()->json([
                 'success' => true,
@@ -596,15 +657,29 @@ class UsersController extends Controller
         }
         
         try {
+            // Get username before update
+            $userInfo = DB::table('users')
+                ->select('username', 'archived')
+                ->where('user_id', $userId)
+                ->first();
+            
+            $currentStatus = $userInfo->archived ?? 0;
             $newStatus = $currentStatus == 0 ? 1 : 0;
             
             DB::table('users')
                 ->where('user_id', $userId)
                 ->update(['archived' => $newStatus]);
             
-            // Log action
-            $statusText = $newStatus == 0 ? 'Activated' : 'Deactivated';
-            $this->logAudit('TOGGLE_USER_STATUS', "{$statusText} user ID: {$userId}", $request->user()->user_id ?? 0);
+            // Log to audit - EDIT action with status change
+            $statusChange = 'Status: "' . ($currentStatus == 0 ? 'Active' : 'Inactive') . '" -> "' . ($newStatus == 0 ? 'Active' : 'Inactive') . '"';
+            
+            DB::table('audit_logs')->insert([
+                'action' => 'EDIT',
+                'description' => '[USERS] ' . ($newStatus == 1 ? 'Deactivated' : 'Activated') . ' user "' . ($userInfo->username ?? 'Unknown') . '": ' . $statusChange,
+                'user_id' => $request->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
             
             return response()->json([
                 'success' => true,
