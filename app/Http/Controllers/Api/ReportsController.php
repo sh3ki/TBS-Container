@@ -970,6 +970,15 @@ class ReportsController extends Controller
         
         fclose($file);
 
+        // Log audit - REPORTS action
+        DB::table('audit_logs')->insert([
+            'action' => 'REPORTS',
+            'description' => '[REPORTS] Incoming Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'user_id' => auth()->user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->download($filePath)->deleteFileAfterSend(true);
     }
 
@@ -1036,6 +1045,15 @@ class ReportsController extends Controller
         
         fclose($file);
 
+        // Log audit - REPORTS action
+        DB::table('audit_logs')->insert([
+            'action' => 'REPORTS',
+            'description' => '[REPORTS] Outgoing Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'user_id' => auth()->user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->download($filePath)->deleteFileAfterSend(true);
     }
 
@@ -1089,6 +1107,15 @@ class ReportsController extends Controller
         
         fclose($file);
 
+        // Log audit - REPORTS action
+        DB::table('audit_logs')->insert([
+            'action' => 'REPORTS',
+            'description' => '[REPORTS] DMR Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'user_id' => auth()->user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->download($filePath)->deleteFileAfterSend(true);
     }
 
@@ -1133,6 +1160,15 @@ class ReportsController extends Controller
         }
         
         fclose($file);
+
+        // Log audit - REPORTS action
+        DB::table('audit_logs')->insert([
+            'action' => 'REPORTS',
+            'description' => '[REPORTS] DCR Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'user_id' => auth()->user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
 
         return response()->download($filePath)->deleteFileAfterSend(true);
     }
@@ -1198,6 +1234,18 @@ class ReportsController extends Controller
         $outgoingTotal = $outgoing->sum('amount');
         $incomingCount = $incoming->count();
         $outgoingCount = $outgoing->count();
+
+        // Generate filename for audit log
+        $filename = 'DOCS_FEE_' . now()->format('M_d_Y') . '.csv';
+
+        // Log audit - REPORTS action
+        DB::table('audit_logs')->insert([
+            'action' => 'REPORTS',
+            'description' => '[REPORTS] Docs Fee DCR exported ' . ($incomingCount + $outgoingCount) . ' record(s) to CSV file: ' . $filename,
+            'user_id' => auth()->user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
 
         return response()->json([
             'success' => true,
