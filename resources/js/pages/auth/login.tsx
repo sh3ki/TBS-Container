@@ -29,7 +29,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
             <Head title="Log in" />
 
             {/* Left Side - Branding */}
-            <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden" style={{ backgroundColor: colors.brand.primary }}>
+            <div className="hidden lg:flex lg:w-3/5 relative overflow-hidden" style={{ backgroundColor: colors.brand.primary }}>
                 <div className="absolute inset-0 opacity-10">
                     <div className="absolute top-20 left-20 animate-pulse">
                         <Ship className="w-32 h-32 text-white" />
@@ -98,7 +98,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
             </div>
 
             {/* Right Side - Login Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
+            <div className="w-full lg:w-2/5 flex items-center justify-center p-8 bg-white">
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="lg:hidden mb-8 text-center">
@@ -194,7 +194,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                             tabIndex={3}
                                         />
                                         <Label htmlFor="remember" className="text-sm font-medium cursor-pointer">
-                                            Remember me for 30 days
+                                            Remember me
                                         </Label>
                                     </div>
 
@@ -211,20 +211,6 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         Sign In
                                     </ModernButton>
                                 </div>
-
-                                <div className="text-center">
-                                    <p className="text-sm" style={{ color: colors.text.secondary }}>
-                                        Don't have an account?{' '}
-                                        <TextLink 
-                                            href={register()} 
-                                            tabIndex={5}
-                                            className="font-semibold"
-                                            style={{ color: colors.brand.primary }}
-                                        >
-                                            Sign up
-                                        </TextLink>
-                                    </p>
-                                </div>
                             </>
                         )}
                     </Form>
@@ -232,7 +218,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     {/* Footer */}
                     <div className="mt-8 pt-6 border-t text-center">
                         <p className="text-xs" style={{ color: colors.text.secondary }}>
-                            © {new Date().getFullYear()} FJPWL Container Management System. All rights reserved.
+                            © {new Date().getFullYear()} TBS Container Management System. All rights reserved.
                         </p>
                     </div>
                 </div>
