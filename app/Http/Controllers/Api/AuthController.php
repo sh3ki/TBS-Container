@@ -60,8 +60,18 @@ class AuthController extends Controller
                 ], 403);
             }
             
-            // Log successful login
-            $this->audit->logLogin($user->user_id, true);
+            // Log successful login with detailed info - wrap in try-catch to ensure it doesn't fail silently
+            try {
+                DB::table('audit_logs')->insert([
+                    'action' => 'LOGIN',
+                    'description' => '[AUTH] User logged in: Username: "' . $user->username . '", Full Name: "' . $user->full_name . '"',
+                    'user_id' => $user->user_id,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to log login audit: ' . $e->getMessage());
+            }
             
             // Get user permissions with page details
             $permissions = DB::table('pages_access')
@@ -105,12 +115,18 @@ class AuthController extends Controller
             ]);
         }
 
-        // Log failed login attempt
-        $this->audit->log(
-            'LOGIN',
-            'Failed login attempt for username: ' . $credentials['username'],
-            'AUTH'
-        );
+        // Log failed login attempt with username - wrap in try-catch
+        try {
+            DB::table('audit_logs')->insert([
+                'action' => 'LOGIN',
+                'description' => '[AUTH] Failed login attempt for username: "' . $credentials['username'] . '"',
+                'user_id' => null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to log failed login audit: ' . $e->getMessage());
+        }
 
         // If this is an Inertia/web request, redirect back with error
         if ($request->header('X-Inertia')) {
@@ -134,8 +150,14 @@ class AuthController extends Controller
         $user = Auth::user();
         
         if ($user) {
-            // Log logout
-            $this->audit->logLogout($user->user_id);
+            // Log logout with detailed info
+            DB::table('audit_logs')->insert([
+                'action' => 'LOGOUT',
+                'description' => '[AUTH] User logged out: Username: "' . $user->username . '", Full Name: "' . $user->full_name . '"',
+                'user_id' => $user->user_id,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
         }
         
         // Use web guard for session-based logout
