@@ -186,11 +186,11 @@ class SizeTypeController extends Controller
                 'date_added' => now(),
             ]);
 
-            // Log to audit
+            // Log to audit - ADD action
             DB::table('audit_logs')->insert([
-                'action' => 'CREATE',
-                'description' => 'Added new size/type: ' . $request->size . '/' . strtoupper($request->type),
-                'user_id' => session('user_id') ?? 0,
+                'action' => 'ADD',
+                'description' => '[SIZE/TYPE] Added new size/type: "' . $request->size . '/' . strtoupper($request->type) . '", Description: "' . ($request->description ?? 'N/A') . '", ISO Code: "' . ($request->iso_code ?? 'N/A') . '"',
+                'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -289,14 +289,27 @@ class SizeTypeController extends Controller
                     'iso_code' => $request->iso_code ?? '',
                 ]);
 
-            // Log to audit
-            DB::table('audit_logs')->insert([
-                'action' => 'UPDATE',
-                'description' => 'Updated size/type: ' . $request->size . '/' . strtoupper($request->type),
-                'user_id' => session('user_id') ?? 0,
-                'date_added' => now(),
-                'ip_address' => $request->ip(),
-            ]);
+            // Log to audit - EDIT action with old->new tracking
+            $changes = [];
+            if ($sizeType->size !== $request->size || $sizeType->type !== strtoupper($request->type)) {
+                $changes[] = 'Size/Type: "' . $sizeType->size . '/' . $sizeType->type . '" -> "' . $request->size . '/' . strtoupper($request->type) . '"';
+            }
+            if ($sizeType->description !== $request->description) {
+                $changes[] = 'Description: "' . ($sizeType->description ?? 'N/A') . '" -> "' . ($request->description ?? 'N/A') . '"';
+            }
+            if (($sizeType->iso_code ?? '') !== ($request->iso_code ?? '')) {
+                $changes[] = 'ISO Code: "' . ($sizeType->iso_code ?? 'N/A') . '" -> "' . ($request->iso_code ?? 'N/A') . '"';
+            }
+            
+            if (count($changes) > 0) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[SIZE/TYPE] Edited size/type "' . $request->size . '/' . strtoupper($request->type) . '": ' . implode(', ', $changes),
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
 
             DB::commit();
 
@@ -347,11 +360,11 @@ class SizeTypeController extends Controller
                 ->where('s_id', $id)
                 ->delete();
 
-            // Log to audit
+            // Log to audit - DELETE action
             DB::table('audit_logs')->insert([
                 'action' => 'DELETE',
-                'description' => 'Deleted size/type: ' . $sizeType->size . '/' . $sizeType->type,
-                'user_id' => session('user_id') ?? 0,
+                'description' => '[SIZE/TYPE] Deleted size/type: "' . $sizeType->size . '/' . $sizeType->type . '", Description: "' . ($sizeType->description ?? 'N/A') . '"',
+                'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
@@ -395,11 +408,13 @@ class SizeTypeController extends Controller
                 ->where('s_id', $id)
                 ->update(['archived' => $newStatus]);
 
-            // Log to audit
+            // Log to audit - EDIT action for status toggle
+            $statusChange = 'Status: "' . ($sizeType->archived == 0 ? 'Active' : 'Inactive') . '" -> "' . ($newStatus == 0 ? 'Active' : 'Inactive') . '"';
+            
             DB::table('audit_logs')->insert([
-                'action' => 'UPDATE',
-                'description' => ($newStatus == 1 ? 'Deactivated' : 'Activated') . ' size/type: ' . $sizeType->size . '/' . $sizeType->type,
-                'user_id' => session('user_id') ?? 0,
+                'action' => 'EDIT',
+                'description' => '[SIZE/TYPE] ' . ($newStatus == 1 ? 'Deactivated' : 'Activated') . ' size/type "' . $sizeType->size . '/' . $sizeType->type . '": ' . $statusChange,
+                'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
