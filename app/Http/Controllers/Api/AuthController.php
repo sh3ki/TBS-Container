@@ -75,17 +75,17 @@ class AuthController extends Controller
             
             // Get user permissions with page details
             $permissions = DB::table('pages_access')
-                ->Join('pages', 'fjp_pages_access.page_id', '=', 'fjp_pages.p_id')
-                ->where('fjp_pages_access.privilege', $user->priv_id)
+                ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+                ->where('pages_access.privilege', $user->priv_id)
                 ->select(
-                    'fjp_pages.p_id',
-                    'fjp_pages.page',
-                    'fjp_pages.page_name',
-                    'fjp_pages.page_icon',
-                    'fjp_pages_access.acs_edit',
-                    'fjp_pages_access.acs_delete'
+                    'pages.p_id',
+                    'pages.page',
+                    'pages.page_name',
+                    'pages.page_icon',
+                    'pages_access.acs_edit',
+                    'pages_access.acs_delete'
                 )
-                ->orderBy('fjp_pages.arrange_no')
+                ->orderBy('pages.arrange_no')
                 ->get();
             
             // Create sanctum token for API requests
