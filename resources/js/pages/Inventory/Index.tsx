@@ -98,6 +98,8 @@ const Index: React.FC = () => {
     const [showRepoToggleConfirm, setShowRepoToggleConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditConfirm, setShowEditConfirm] = useState(false);
+    const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+    const [showExportConfirm, setShowExportConfirm] = useState(false);
     const [recordToDelete, setRecordToDelete] = useState<InventoryRecord | null>(null);
     const [recordForAction, setRecordForAction] = useState<InventoryRecord | null>(null);
 
@@ -628,7 +630,12 @@ const Index: React.FC = () => {
         }
     };
 
+    const handleOpenGenerateConfirm = () => {
+        setShowGenerateConfirm(true);
+    };
+
     const handleSearch = async () => {
+        setShowGenerateConfirm(false);
         setLoading(true);
         setCurrentPage(1);
 
@@ -681,7 +688,12 @@ const Index: React.FC = () => {
         }
     };
 
+    const handleOpenExportConfirm = () => {
+        setShowExportConfirm(true);
+    };
+
     const handleExport = async () => {
+        setShowExportConfirm(false);
         setLoading(true);
 
         try {
@@ -699,6 +711,7 @@ const Index: React.FC = () => {
             window.URL.revokeObjectURL(url);
             
             success('Inventory exported successfully');
+            // Note: Not refreshing table data after export
         } catch (error_caught: unknown) {
             const err = error_caught as { response?: { data?: { message?: string } } };
             error(err.response?.data?.message || 'Failed to export inventory');
@@ -730,7 +743,7 @@ const Index: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <ModernButton 
                             variant="primary" 
-                            onClick={handleSearch} 
+                            onClick={handleOpenGenerateConfirm} 
                             disabled={loading}
                             className="px-6 py-3"
                         >
@@ -739,7 +752,7 @@ const Index: React.FC = () => {
                         </ModernButton>
                         <ModernButton 
                             variant="add" 
-                            onClick={handleExport} 
+                            onClick={handleOpenExportConfirm} 
                             disabled={loading || reportData.length === 0}
                             className="px-6 py-3"
                         >
@@ -1947,6 +1960,28 @@ const Index: React.FC = () => {
                 description={`Are you sure you want to edit container ${editFormData?.container_no}?`}
                 confirmText="Yes, Edit"
                 onConfirm={handleConfirmEdit}
+            />
+
+            {/* Generate Confirmation Dialog */}
+            <ModernConfirmDialog
+                open={showGenerateConfirm}
+                onOpenChange={setShowGenerateConfirm}
+                type="warning"
+                title="Generate Report?"
+                description="Are you sure you want to generate the inventory report with the current filters?"
+                confirmText="Yes, Generate"
+                onConfirm={handleSearch}
+            />
+
+            {/* Export Confirmation Dialog */}
+            <ModernConfirmDialog
+                open={showExportConfirm}
+                onOpenChange={setShowExportConfirm}
+                type="success"
+                title="Export to CSV?"
+                description={`Are you sure you want to export ${reportData.length} records to CSV?`}
+                confirmText="Yes, Export"
+                onConfirm={handleExport}
             />
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
