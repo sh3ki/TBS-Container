@@ -33,7 +33,7 @@ return new class extends Migration
         $prefix = DB::getTablePrefix();
         
         // Temporarily disable strict mode to handle invalid dates
-        $originalSqlMode = DB::select("SELECT @@SESSION.sql_mode as mode")[0]->mode;
+        // NOTE: We don't restore it - the up() method will restore it at the end
         DB::statement("SET SESSION sql_mode = ''");
         
         // Get all tables with indexes
@@ -87,9 +87,6 @@ return new class extends Migration
                 echo "  ! Warning: Reached max attempts for {$fullTable}\n";
             }
         }
-        
-        // Restore original SQL mode
-        DB::statement("SET SESSION sql_mode = '{$originalSqlMode}'");
         
         echo "\n";
     }
@@ -299,6 +296,9 @@ return new class extends Migration
         // - fjp_fjp_scheduled_notifications_to_user_delivered_index
         // - fjp_fjp_scheduled_notifications_trigger_date_delivered_index
         // - fjp_fjp_scheduled_notifications_type_trigger_date_index
+        
+        // Restore default SQL mode (re-enable strict mode)
+        DB::statement("SET SESSION sql_mode = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
     }
 
     /**
