@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ModernTable, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernTable, ModernCard, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -244,16 +244,8 @@ export default function Index() {
                 </div>
 
                 {/* Filters Section */}
-                <div className="bg-white rounded-lg shadow-sm border" style={{ borderColor: colors.table.border }}>
-                    <div className="px-6 py-4 flex items-center gap-3" style={{ backgroundColor: colors.brand.primary }}>
-                        <Search className="w-5 h-5 text-white" />
-                        <div>
-                            <h2 className="text-lg font-semibold text-white">Search & Filter Audit Logs</h2>
-                            <p className="text-sm text-white/80 mt-0.5">Filter audit logs by user, action, and date range</p>
-                        </div>
-                    </div>
-                    
-                    <div className="p-6 space-y-4">
+                <ModernCard title="Search & Filter Audit Logs" subtitle="Filter audit logs by user, action, and date range" icon={<Search className="w-5 h-5" />}>
+                    <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div>
                                 <Label className="text-sm font-semibold mb-2" style={{ color: colors.text.secondary }}>
@@ -333,13 +325,13 @@ export default function Index() {
                             </div>
                         </div>
 
-                        <div className="border-t pt-4" style={{ borderColor: colors.table.border }}>
-                            <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                                {filteredLogs.length} {filteredLogs.length === 1 ? 'audit' : 'audits'} found
+                        <div className="border-t pt-4 border-gray-200">
+                            <p className="text-sm text-gray-600">
+                                <span className="font-semibold text-gray-900">{filteredLogs.length}</span> {filteredLogs.length === 1 ? 'audit' : 'audits'} found
                             </p>
                         </div>
                     </div>
-                </div>
+                </ModernCard>
 
                 {/* Audit Logs Table */}
                 <ModernTable
