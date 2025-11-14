@@ -366,7 +366,7 @@ export default function Index() {
                             label: 'Description',
                             render: (item: AuditLog) => (
                                 <div 
-                                    className="max-w-md truncate text-sm" 
+                                    className="max-w-md text-sm" 
                                     style={{ color: colors.text.primary }}
                                     title={item.description}
                                 >
