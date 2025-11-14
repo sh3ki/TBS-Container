@@ -221,7 +221,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     className={`fixed left-0 top-16 h-[calc(100vh-4rem)] z-40 transition-all duration-300 shadow-2xl flex flex-col
                         ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
                         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-                        w-64 lg:w-auto
+                        w-64
                     `}
                     style={{
                         backgroundColor: colors.sidebar.background,
