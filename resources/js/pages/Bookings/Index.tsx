@@ -99,7 +99,6 @@ export default function Index() {
   });
   
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [viewContainers, setViewContainers] = useState<string[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [shipperSuggestions, setShipperSuggestions] = useState<string[]>([]);
   const [showShipperSuggestions, setShowShipperSuggestions] = useState(false);
@@ -368,21 +367,10 @@ export default function Index() {
     }
   };
 
-  const handleViewContainers = useCallback(async (booking: Booking) => {
-    // Set booking data immediately from local state - NO loading state to keep row active
+  const handleViewContainers = useCallback((booking: Booking) => {
+    // Set booking data immediately from local state - all data is already in booking object
     setSelectedBooking(booking);
     setShowViewModal(true);
-    
-    // Fetch containers from inventory in background silently
-    try {
-      const response = await axios.get(`/api/bookings/${booking.hashed_id}/containers`);
-      if (response.data.success) {
-        setViewContainers(response.data.data);
-      }
-    } catch {
-      // Silently fail - modal is already open with booking data
-      console.error('Failed to fetch containers');
-    }
   }, []);
 
   const getContainerListArray = (contList: string) => {
@@ -892,73 +880,78 @@ export default function Index() {
 
       {/* View Containers Modal */}
       <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>Booked Containers</DialogTitle>
             <DialogDescription>List of containers in this booking</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
             <div className="py-4">
-              <div className="mb-4 pb-4 border-b">
+              <div className="mb-6 pb-4 border-b">
                 <p className="text-sm text-gray-600">Booking Number: <span className="font-semibold text-gray-900">{selectedBooking.book_no}</span></p>
                 <p className="text-sm text-gray-600">Shipper: <span className="font-semibold text-gray-900">{selectedBooking.shipper}</span></p>
               </div>
               
-              {/* Container List from Booking */}
-              {selectedBooking.cont_list && selectedBooking.cont_list.trim() && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Container List:</h3>
-                  <div className="max-h-96 overflow-auto space-y-2">
-                    {getContainerListArray(selectedBooking.cont_list).map((container, idx) => (
-                      <div 
-                        key={`list-${idx}`}
-                        className="p-3 rounded-lg border font-mono text-sm bg-blue-50 border-blue-200"
-                      >
-                        {container}
+              {/* Two Column Layout - Same as table */}
+              <div className="grid grid-cols-2 gap-8">
+                {/* Left Column - CONTAINERS */}
+                <div>
+                  <div className="bg-blue-500 text-white text-center py-2 px-4 rounded-t-lg font-semibold">
+                    CONTAINERS
+                  </div>
+                  <div className="border border-t-0 rounded-b-lg p-4 bg-gray-50">
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-900 mb-2">Allocated:</h3>
+                      <div className="text-gray-700 space-y-1">
+                        <p>x20: {selectedBooking.twenty}</p>
+                        <p>x40: {selectedBooking.fourty}</p>
+                        <p>x45: {selectedBooking.fourty_five}</p>
                       </div>
-                    ))}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Remaining:</h3>
+                      <div className="text-gray-700 space-y-1">
+                        <p>x20 rem: <span className={selectedBooking.twenty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.twenty_rem}</span></p>
+                        <p>x40 rem: <span className={selectedBooking.fourty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_rem}</span></p>
+                        <p>x45 rem: <span className={selectedBooking.fourty_five_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_five_rem}</span></p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-              
-              {/* Remaining Containers */}
-              {selectedBooking.cont_list_rem && selectedBooking.cont_list_rem.trim() && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Remaining Containers:</h3>
-                  <div className="max-h-96 overflow-auto space-y-2">
-                    {getContainerListArray(selectedBooking.cont_list_rem).map((container, idx) => (
-                      <div 
-                        key={`rem-${idx}`}
-                        className="p-3 rounded-lg border font-mono text-sm bg-green-50 border-green-200"
-                      >
-                        {container}
+                
+                {/* Right Column - CONTAINER LISTS */}
+                <div>
+                  <div className="bg-blue-500 text-white text-center py-2 px-4 rounded-t-lg font-semibold">
+                    CONTAINER LISTS
+                  </div>
+                  <div className="border border-t-0 rounded-b-lg p-4 bg-gray-50">
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-900 mb-2">List:</h3>
+                      <div className="space-y-1">
+                        {selectedBooking.cont_list && selectedBooking.cont_list.trim() ? (
+                          getContainerListArray(selectedBooking.cont_list).map((container, idx) => (
+                            <p key={`list-${idx}`} className="text-gray-700 font-mono text-sm">{container}</p>
+                          ))
+                        ) : (
+                          <p className="text-gray-500">-</p>
+                        )}
                       </div>
-                    ))}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Rem:</h3>
+                      <div className="space-y-1">
+                        {selectedBooking.cont_list_rem && selectedBooking.cont_list_rem.trim() ? (
+                          getContainerListArray(selectedBooking.cont_list_rem).map((container, idx) => (
+                            <p key={`rem-${idx}`} className="text-gray-700 font-mono text-sm">{container}</p>
+                          ))
+                        ) : (
+                          <p className="text-gray-500">-</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-              
-              {/* Containers from Inventory (gated in) */}
-              {viewContainers.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Containers in Yard (from Inventory):</h3>
-                  <div className="max-h-96 overflow-auto space-y-2">
-                    {viewContainers.map((container, idx) => (
-                      <div 
-                        key={`inv-${idx}`}
-                        className="p-3 rounded-lg border font-mono text-sm bg-gray-50 border-gray-200"
-                      >
-                        {container}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* No containers at all */}
-              {!selectedBooking.cont_list && !selectedBooking.cont_list_rem && viewContainers.length === 0 && (
-                <p className="text-center py-8 text-gray-500">No containers found</p>
-              )}
+              </div>
             </div>
           )}
           <DialogFooter>
