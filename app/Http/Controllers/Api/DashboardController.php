@@ -203,35 +203,32 @@ class DashboardController extends Controller
      */
     public function getStats(Request $request)
     {
+        $startTime = microtime(true);
+        $timings = [];
+        
         try {
             // Pre-Inventory Statistics - Optimized with single query
+            $queryStart = microtime(true);
             $totalPreIn = 0;
             $pendingPreIn = 0;
             $totalPreOut = 0;
             $pendingPreOut = 0;
 
             try {
-                $prefix = DB::getTablePrefix();
-                // Single query to get all pre-inventory counts
-                $preResult = DB::selectOne("
-                    SELECT 
-                        SUM(CASE WHEN gate_status = 'IN' THEN 1 ELSE 0 END) as total_in,
-                        SUM(CASE WHEN gate_status = 'IN' AND status = 0 THEN 1 ELSE 0 END) as pending_in,
-                        SUM(CASE WHEN gate_status = 'OUT' THEN 1 ELSE 0 END) as total_out,
-                        SUM(CASE WHEN gate_status = 'OUT' AND status = 0 THEN 1 ELSE 0 END) as pending_out
-                    FROM {$prefix}pre_inventory
-                ");
-                
-                $totalPreIn = (int) $preResult->total_in;
-                $pendingPreIn = (int) $preResult->pending_in;
-                $totalPreOut = (int) $preResult->total_out;
-                $pendingPreOut = (int) $preResult->pending_out;
+                // Optimized separate COUNT queries using index
+                $totalPreIn = (int) DB::table('pre_inventory')->where('gate_status', 'IN')->count();
+                $pendingPreIn = (int) DB::table('pre_inventory')->where('gate_status', 'IN')->where('status', 0)->count();
+                $totalPreOut = (int) DB::table('pre_inventory')->where('gate_status', 'OUT')->count();
+                $pendingPreOut = (int) DB::table('pre_inventory')->where('gate_status', 'OUT')->where('status', 0)->count();
+                $timings['pre_inventory'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 // Pre-inventory table might not exist or have different structure
                 // Keep default 0 values
+                $timings['pre_inventory'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Inventory Statistics - Optimized with single query
+            $queryStart = microtime(true);
             $totalInventory = 0;
             $gateInCount = 0;
             $gateOutCount = 0;
@@ -242,38 +239,28 @@ class DashboardController extends Controller
             $bannedCount = 0;
 
             try {
-                $prefix = DB::getTablePrefix();
                 $monthStart = now()->startOfMonth()->format('Y-m-d H:i:s');
                 
-                // Single optimized query to get all counts at once
-                $result = DB::selectOne("
-                    SELECT 
-                        SUM(CASE WHEN i.gate_status = 'IN' AND i.complete = 0 THEN 1 ELSE 0 END) as total_in_yard,
-                        SUM(CASE WHEN i.gate_status = 'IN' AND i.date_added >= ? THEN 1 ELSE 0 END) as gate_in_month,
-                        SUM(CASE WHEN i.gate_status = 'OUT' AND i.date_added >= ? THEN 1 ELSE 0 END) as gate_out_month,
-                        SUM(CASE WHEN i.gate_status = 'IN' AND i.complete = 0 AND cs.status = 'AVL' THEN 1 ELSE 0 END) as avl_count,
-                        SUM(CASE WHEN i.gate_status = 'IN' AND i.complete = 0 AND cs.status = 'REPO' THEN 1 ELSE 0 END) as repo_count,
-                        SUM(CASE WHEN i.gate_status = 'IN' AND i.complete = 0 AND cs.status = 'DMG' THEN 1 ELSE 0 END) as dmg_count,
-                        SUM(CASE WHEN i.gate_status = 'IN' AND i.complete = 0 AND cs.status = 'HLD' THEN 1 ELSE 0 END) as hld_count
-                    FROM {$prefix}inventory i
-                    LEFT JOIN {$prefix}container_status cs ON i.container_status = cs.s_id
-                ", [$monthStart, $monthStart]);
+                // Optimized separate queries using dashboard index
+                $totalInventory = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->count();
+                $gateInCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('date_added', '>=', $monthStart)->count();
+                $gateOutCount = (int) DB::table('inventory')->where('gate_status', 'OUT')->where('date_added', '>=', $monthStart)->count();
                 
-                $totalInventory = (int) $result->total_in_yard;
-                $gateInCount = (int) $result->gate_in_month;
-                $gateOutCount = (int) $result->gate_out_month;
-                $availableCount = (int) $result->avl_count;
-                $repoCount = (int) $result->repo_count;
-                $damagedCount = (int) $result->dmg_count;
-                $holdCount = (int) $result->hld_count;
+                // Status counts with direct ID lookups (faster than joins)
+                $availableCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 1)->count();
+                $repoCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 8)->count();
+                $damagedCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 3)->count();
+                $holdCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 4)->count();
                 
-                // Banned containers - simple count query
                 $bannedCount = (int) DB::table('ban_containers')->count();
+                $timings['inventory_stats'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 // Handle inventory table errors
+                $timings['inventory_stats'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Booking Statistics - Optimized with single query
+            $queryStart = microtime(true);
             $totalBookings = 0;
             $activeBookings = 0;
             $expiredBookings = 0;
@@ -281,31 +268,29 @@ class DashboardController extends Controller
             $remainingContainers = 0;
 
             try {
-                $prefix = DB::getTablePrefix();
-                $now = now()->format('Y-m-d H:i:s');
+                $now = now()->format('Y-m-d');
                 
-                // Single optimized query for all booking stats
-                $bookingResult = DB::selectOne("
-                    SELECT 
-                        COUNT(*) as total,
-                        SUM(CASE WHEN (twenty_rem > 0 OR fourty_rem > 0 OR fourty_five_rem > 0) 
-                            AND expiration_date >= ? THEN 1 ELSE 0 END) as active,
-                        SUM(CASE WHEN expiration_date < ? THEN 1 ELSE 0 END) as expired,
-                        SUM(COALESCE(twenty, 0) + COALESCE(fourty, 0) + COALESCE(fourty_five, 0)) as total_containers,
-                        SUM(COALESCE(twenty_rem, 0) + COALESCE(fourty_rem, 0) + COALESCE(fourty_five_rem, 0)) as remaining
-                    FROM {$prefix}bookings
-                ", [$now, $now]);
-                
-                $totalBookings = (int) $bookingResult->total;
-                $activeBookings = (int) $bookingResult->active;
-                $expiredBookings = (int) $bookingResult->expired;
-                $totalBookedContainers = (int) $bookingResult->total_containers;
-                $remainingContainers = (int) $bookingResult->remaining;
+                // Optimized separate queries
+                $totalBookings = (int) DB::table('bookings')->count();
+                $activeBookings = (int) DB::table('bookings')
+                    ->where(function($q) {
+                        $q->where('twenty_rem', '>', 0)
+                          ->orWhere('fourty_rem', '>', 0)
+                          ->orWhere('fourty_five_rem', '>', 0);
+                    })
+                    ->where('expiration_date', '>=', $now)
+                    ->count();
+                $expiredBookings = (int) DB::table('bookings')->where('expiration_date', '<', $now)->count();
+                $totalBookedContainers = (int) DB::table('bookings')->sum(DB::raw('COALESCE(twenty, 0) + COALESCE(fourty, 0) + COALESCE(fourty_five, 0)'));
+                $remainingContainers = (int) DB::table('bookings')->sum(DB::raw('COALESCE(twenty_rem, 0) + COALESCE(fourty_rem, 0) + COALESCE(fourty_five_rem, 0)'));
+                $timings['booking_stats'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 // Handle booking errors
+                $timings['booking_stats'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Gate Activity - Optimized single query
+            $queryStart = microtime(true);
             $todayGateIn = 0;
             $todayGateOut = 0;
             $weekGateIn = 0;
@@ -318,31 +303,25 @@ class DashboardController extends Controller
                 $weekStart = now()->startOfWeek()->format('Y-m-d H:i:s');
                 $monthStart = now()->startOfMonth()->format('Y-m-d H:i:s');
                 
-                $gateResult = DB::selectOne("
-                    SELECT 
-                        SUM(CASE WHEN gate_status = 'IN' AND date_added >= ? THEN 1 ELSE 0 END) as today_in,
-                        SUM(CASE WHEN gate_status = 'OUT' AND date_added >= ? THEN 1 ELSE 0 END) as today_out,
-                        SUM(CASE WHEN gate_status = 'IN' AND date_added >= ? THEN 1 ELSE 0 END) as week_in,
-                        SUM(CASE WHEN gate_status = 'OUT' AND date_added >= ? THEN 1 ELSE 0 END) as week_out,
-                        SUM(CASE WHEN gate_status = 'IN' AND date_added >= ? THEN 1 ELSE 0 END) as month_in,
-                        SUM(CASE WHEN gate_status = 'OUT' AND date_added >= ? THEN 1 ELSE 0 END) as month_out
-                    FROM {$prefix}inventory
-                ", [$todayStart, $todayStart, $weekStart, $weekStart, $monthStart, $monthStart]);
-                
-                $todayGateIn = (int) $gateResult->today_in;
-                $todayGateOut = (int) $gateResult->today_out;
-                $weekGateIn = (int) $gateResult->week_in;
-                $weekGateOut = (int) $gateResult->week_out;
-                $monthGateIn = (int) $gateResult->month_in;
-                $monthGateOut = (int) $gateResult->month_out;
+                // Optimized separate queries
+                $todayGateIn = (int) DB::table('inventory')->where('gate_status', 'IN')->where('date_added', '>=', $todayStart)->count();
+                $todayGateOut = (int) DB::table('inventory')->where('gate_status', 'OUT')->where('date_added', '>=', $todayStart)->count();
+                $weekGateIn = (int) DB::table('inventory')->where('gate_status', 'IN')->where('date_added', '>=', $weekStart)->count();
+                $weekGateOut = (int) DB::table('inventory')->where('gate_status', 'OUT')->where('date_added', '>=', $weekStart)->count();
+                $monthGateIn = (int) DB::table('inventory')->where('gate_status', 'IN')->where('date_added', '>=', $monthStart)->count();
+                $monthGateOut = (int) DB::table('inventory')->where('gate_status', 'OUT')->where('date_added', '>=', $monthStart)->count();
+                $timings['gate_activity'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 // Handle gate activity errors
+                $timings['gate_activity'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Chart Data: 7-Day Gate Activity - Optimized single query
+            $queryStart = microtime(true);
             $gateActivity7Days = [];
             try {
                 $sevenDaysAgo = now()->subDays(6)->startOfDay()->format('Y-m-d H:i:s');
+                $prefix = DB::getTablePrefix();
                 
                 $dayData = DB::select("
                     SELECT 
@@ -372,6 +351,7 @@ class DashboardController extends Controller
                         'gateOut' => $dataByDate[$dateKey]['gateOut'] ?? 0,
                     ];
                 }
+                $timings['gate_7day_chart'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 for ($i = 6; $i >= 0; $i--) {
                     $date = now()->subDays($i);
@@ -381,9 +361,11 @@ class DashboardController extends Controller
                         'gateOut' => 0,
                     ];
                 }
+                $timings['gate_7day_chart'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Chart Data: Container Status Distribution (only containers in yard)
+            $queryStart = microtime(true);
             $containersByStatus = [];
             try {
                 // Get status distribution from inventory (gate_status='IN' and complete=0)
@@ -411,6 +393,7 @@ class DashboardController extends Controller
                         'count' => $bannedCount,
                     ];
                 }
+                $timings['status_distribution'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 $containersByStatus = [
                     ['status' => 'AVL', 'count' => 0],
@@ -419,12 +402,15 @@ class DashboardController extends Controller
                     ['status' => 'HLD', 'count' => 0],
                     ['status' => 'BAN', 'count' => 0],
                 ];
+                $timings['status_distribution'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
             
             // Chart Data: Pre-Inventory Trend (Last 7 Days) - Optimized single query
+            $queryStart = microtime(true);
             $preInventoryTrend = [];
             try {
                 $sevenDaysAgo = now()->subDays(6)->startOfDay()->format('Y-m-d H:i:s');
+                $prefix = DB::getTablePrefix();
                 
                 $preData = DB::select("
                     SELECT 
@@ -454,6 +440,7 @@ class DashboardController extends Controller
                         'preOut' => $preDataByDate[$dateKey]['preOut'] ?? 0,
                     ];
                 }
+                $timings['preinv_7day_chart'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 for ($i = 6; $i >= 0; $i--) {
                     $date = now()->subDays($i);
@@ -463,11 +450,14 @@ class DashboardController extends Controller
                         'preOut' => 0,
                     ];
                 }
+                $timings['preinv_7day_chart'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Chart Data: Containers by Client (Top 10) - Optimized
+            $queryStart = microtime(true);
             $containersByClient = [];
             try {
+                $prefix = DB::getTablePrefix();
                 $clientData = DB::select("
                     SELECT 
                         c.client_name as client,
@@ -486,14 +476,18 @@ class DashboardController extends Controller
                         'count' => (int) $row->count,
                     ];
                 }
+                $timings['containers_by_client'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 $containersByClient = [];
+                $timings['containers_by_client'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
 
             // Chart Data: Booking Trend (Last 6 Months) - Optimized single query
+            $queryStart = microtime(true);
             $bookingTrend = [];
             try {
                 $sixMonthsAgo = now()->subMonths(5)->startOfMonth()->format('Y-m-d H:i:s');
+                $prefix = DB::getTablePrefix();
                 
                 $monthlyData = DB::select("
                     SELECT 
@@ -526,6 +520,7 @@ class DashboardController extends Controller
                         'containers' => $monthContainers,
                     ];
                 }
+                $timings['booking_trend'] = round((microtime(true) - $queryStart) * 1000, 2);
             } catch (\Exception $e) {
                 for ($i = 5; $i >= 0; $i--) {
                     $monthStart = now()->subMonths($i);
@@ -535,10 +530,15 @@ class DashboardController extends Controller
                         'containers' => 0,
                     ];
                 }
+                $timings['booking_trend'] = round((microtime(true) - $queryStart) * 1000, 2);
             }
+
+            $totalTime = round((microtime(true) - $startTime) * 1000, 2);
+            $timings['total'] = $totalTime;
 
             return response()->json([
                 'success' => true,
+                'timings' => $timings,
                 'stats' => [
                     'preInventory' => [
                         'totalPreIn' => $totalPreIn,
