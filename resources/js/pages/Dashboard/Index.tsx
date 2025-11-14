@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Package, LogIn, LogOut, Calendar, TrendingUp, TrendingDown, BarChart3, PieChart, Activity } from 'lucide-react';
