@@ -886,71 +886,70 @@ export default function Index() {
             <DialogDescription>List of containers in this booking</DialogDescription>
           </DialogHeader>
           {selectedBooking && (
-            <div className="py-4">
-              <div className="mb-6 pb-4 border-b">
-                <p className="text-sm text-gray-600">Booking Number: <span className="font-semibold text-gray-900">{selectedBooking.book_no}</span></p>
-                <p className="text-sm text-gray-600">Shipper: <span className="font-semibold text-gray-900">{selectedBooking.shipper}</span></p>
-              </div>
+            <div className="space-y-6">
               
-              {/* Two Column Layout - Same as table */}
-              <div className="grid grid-cols-2 gap-8">
+              <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Booking Information</div>
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-900">Booking Number: <span className="font-semibold">{selectedBooking.book_no}</span></div>
+                  <div className="text-sm text-gray-900">Shipper: <span className="font-semibold">{selectedBooking.shipper}</span></div>
+                </div>
+              <div className="border-t pt-4">
+                
+              <div className="grid grid-cols-2 gap-6">
                 {/* Left Column - CONTAINERS */}
-                <div>
-                  <div className="bg-blue-500 text-white text-center py-2 px-4 rounded-t-lg font-semibold">
-                    CONTAINERS
-                  </div>
-                  <div className="border border-t-0 rounded-b-lg p-4 bg-gray-50">
-                    <div className="mb-4">
-                      <h3 className="font-semibold text-gray-900 mb-2">Allocated:</h3>
-                      <div className="text-gray-700 space-y-1">
-                        <p>x20: {selectedBooking.twenty}</p>
-                        <p>x40: {selectedBooking.fourty}</p>
-                        <p>x45: {selectedBooking.fourty_five}</p>
-                      </div>
+                <div className="space-y-4">
+                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Containers</div>
+                  
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Allocated</div>
+                    <div className="space-y-1">
+                      <div className="text-gray-900">x20: {selectedBooking.twenty}</div>
+                      <div className="text-gray-900">x40: {selectedBooking.fourty}</div>
+                      <div className="text-gray-900">x45: {selectedBooking.fourty_five}</div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Remaining:</h3>
-                      <div className="text-gray-700 space-y-1">
-                        <p>x20 rem: <span className={selectedBooking.twenty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.twenty_rem}</span></p>
-                        <p>x40 rem: <span className={selectedBooking.fourty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_rem}</span></p>
-                        <p>x45 rem: <span className={selectedBooking.fourty_five_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_five_rem}</span></p>
-                      </div>
+                  </div>
+                  
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Remaining</div>
+                    <div className="space-y-1">
+                      <div className="text-gray-900">x20 rem: <span className={selectedBooking.twenty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.twenty_rem}</span></div>
+                      <div className="text-gray-900">x40 rem: <span className={selectedBooking.fourty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_rem}</span></div>
+                      <div className="text-gray-900">x45 rem: <span className={selectedBooking.fourty_five_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_five_rem}</span></div>
                     </div>
                   </div>
                 </div>
                 
                 {/* Right Column - CONTAINER LISTS */}
-                <div>
-                  <div className="bg-blue-500 text-white text-center py-2 px-4 rounded-t-lg font-semibold">
-                    CONTAINER LISTS
-                  </div>
-                  <div className="border border-t-0 rounded-b-lg p-4 bg-gray-50">
-                    <div className="mb-4">
-                      <h3 className="font-semibold text-gray-900 mb-2">List:</h3>
-                      <div className="space-y-1">
-                        {selectedBooking.cont_list && selectedBooking.cont_list.trim() ? (
-                          getContainerListArray(selectedBooking.cont_list).map((container, idx) => (
-                            <p key={`list-${idx}`} className="text-gray-700 font-mono text-sm">{container}</p>
-                          ))
-                        ) : (
-                          <p className="text-gray-500">-</p>
-                        )}
-                      </div>
+                <div className="space-y-4">
+                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Container Lists</div>
+                  
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">List</div>
+                    <div className="space-y-1">
+                      {selectedBooking.cont_list && selectedBooking.cont_list.trim() ? (
+                        getContainerListArray(selectedBooking.cont_list).map((container, idx) => (
+                          <div key={`list-${idx}`} className="text-gray-900 font-mono text-sm">{container}</div>
+                        ))
+                      ) : (
+                        <div className="text-gray-500">-</div>
+                      )}
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Rem:</h3>
-                      <div className="space-y-1">
-                        {selectedBooking.cont_list_rem && selectedBooking.cont_list_rem.trim() ? (
-                          getContainerListArray(selectedBooking.cont_list_rem).map((container, idx) => (
-                            <p key={`rem-${idx}`} className="text-gray-700 font-mono text-sm">{container}</p>
-                          ))
-                        ) : (
-                          <p className="text-gray-500">-</p>
-                        )}
-                      </div>
+                  </div>
+                  
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Rem</div>
+                    <div className="space-y-1">
+                      {selectedBooking.cont_list_rem && selectedBooking.cont_list_rem.trim() ? (
+                        getContainerListArray(selectedBooking.cont_list_rem).map((container, idx) => (
+                          <div key={`rem-${idx}`} className="text-gray-900 font-mono text-sm">{container}</div>
+                        ))
+                      ) : (
+                        <div className="text-gray-500">-</div>
+                      )}
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           )}
