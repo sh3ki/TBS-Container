@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, Ship } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -104,7 +104,6 @@ export default function Index() {
   const [shipperSuggestions, setShipperSuggestions] = useState<string[]>([]);
   const [showShipperSuggestions, setShowShipperSuggestions] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
-  const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     fetchBookings();
@@ -284,40 +283,36 @@ export default function Index() {
     }
   };
 
-  const handleEditBooking = useCallback(async (booking: Booking) => {
-    const loadingKey = `edit-${booking.hashed_id}`;
-    if (actionLoading[loadingKey]) return; // Prevent double-click
+  const handleEditBooking = useCallback((booking: Booking) => {
+    // Use already-loaded booking data - no API call needed!
+    const client = clients.find(c => c.code === booking.client.client_code);
     
-    setActionLoading(prev => ({ ...prev, [loadingKey]: true }));
-    try {
-      const response = await axios.get(`/api/bookings/${booking.hashed_id}/edit`);
-      if (response.data.success) {
-        const data = response.data.data;
-        const client = clients.find(c => c.code === data.client_code);
-        
-        setEditFormData({
-          id: booking.hashed_id,
-          bnum: data.book_no,
-          cid: client?.id || '',
-          shipper: data.shipper,
-          two: data.twenty,
-          four: data.fourty,
-          fourf: data.fourty_five,
-          cnums: '',
-          exp: data.expiration_date,
-          clientid: client?.id || '',
-          ship: data.shipper,
-        });
-        
-        setBookingType(data.has_container_list ? 'with' : 'without');
-        setShowEditModal(true);
+    // Format expiration date properly for date input (YYYY-MM-DD)
+    let formattedExp = '';
+    if (booking.expiration_date) {
+      const expDate = new Date(booking.expiration_date);
+      if (!isNaN(expDate.getTime())) {
+        formattedExp = expDate.toISOString().split('T')[0];
       }
-    } catch {
-      error('Failed to load booking data');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [loadingKey]: false }));
     }
-  }, [clients, error, actionLoading]);
+    
+    setEditFormData({
+      id: booking.hashed_id,
+      bnum: booking.book_no,
+      cid: client?.id || '',
+      shipper: booking.shipper,
+      two: booking.twenty,
+      four: booking.fourty,
+      fourf: booking.fourty_five,
+      cnums: '',
+      exp: formattedExp,
+      clientid: client?.id || '',
+      ship: booking.shipper,
+    });
+    
+    setBookingType(booking.cont_list && booking.cont_list.trim() !== '' ? 'with' : 'without');
+    setShowEditModal(true);
+  }, [clients]);
 
   const submitUpdateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,6 +321,9 @@ export default function Index() {
   };
 
   const handleUpdateBooking = async () => {
+    // Close confirmation modal immediately
+    setConfirmUpdateBooking(false);
+    
     try {
       const response = await axios.put(`/api/bookings/${editFormData.id}`, {
         bnum: editFormData.bnum,
@@ -340,11 +338,9 @@ export default function Index() {
       if (response.data.success) {
         success('Booking updated successfully');
         setShowEditModal(false);
-        setConfirmUpdateBooking(false);
         fetchBookings();
       }
     } catch (err: unknown) {
-      setConfirmUpdateBooking(false);
       const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } };
       if (e.response?.data?.errors) {
         setErrors(e.response.data.errors);
@@ -373,23 +369,21 @@ export default function Index() {
   };
 
   const handleViewContainers = useCallback(async (booking: Booking) => {
-    const loadingKey = `view-${booking.hashed_id}`;
-    if (actionLoading[loadingKey]) return; // Prevent double-click
+    // Set booking data immediately from local state - NO loading state to keep row active
+    setSelectedBooking(booking);
+    setShowViewModal(true);
     
-    setActionLoading(prev => ({ ...prev, [loadingKey]: true }));
+    // Fetch containers from inventory in background silently
     try {
       const response = await axios.get(`/api/bookings/${booking.hashed_id}/containers`);
       if (response.data.success) {
         setViewContainers(response.data.data);
-        setSelectedBooking(booking);
-        setShowViewModal(true);
       }
     } catch {
-      error('Failed to fetch containers');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [loadingKey]: false }));
+      // Silently fail - modal is already open with booking data
+      console.error('Failed to fetch containers');
     }
-  }, [error, actionLoading]);
+  }, []);
 
   const getContainerListArray = (contList: string) => {
     if (!contList) return [];
@@ -610,19 +604,12 @@ export default function Index() {
               {
                 key: 'actions',
                 label: 'Actions',
-                render: (booking: Booking) => {
-                  const viewLoadingKey = `view-${booking.hashed_id}`;
-                  const editLoadingKey = `edit-${booking.hashed_id}`;
-                  const isViewLoading = actionLoading[viewLoadingKey];
-                  const isEditLoading = actionLoading[editLoadingKey];
-                  
-                  return (
+                render: (booking: Booking) => (
                     <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
                       <ModernButton 
                         variant="primary" 
                         size="sm" 
                         onClick={() => handleViewContainers(booking)}
-                        disabled={isViewLoading || isEditLoading}
                       >
                         <Eye className="w-3.5 h-3.5" />
                       </ModernButton>
@@ -630,7 +617,6 @@ export default function Index() {
                         variant="edit" 
                         size="sm" 
                         onClick={() => handleEditBooking(booking)}
-                        disabled={isViewLoading || isEditLoading}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </ModernButton>
@@ -641,13 +627,11 @@ export default function Index() {
                           setBookingToDelete(booking);
                           setConfirmDeleteBooking(true);
                         }}
-                        disabled={isViewLoading || isEditLoading}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </ModernButton>
                     </div>
-                  );
-                },
+                ),
               },
             ]}
             data={paginatedBookings}
@@ -847,17 +831,21 @@ export default function Index() {
                 </div>
                 <div>
                   <Label className="text-gray-900">Client <span className="text-red-500">*</span></Label>
-                  <select 
+                  <Select 
                     value={editFormData.clientid}
-                    onChange={(e) => setEditFormData({ ...editFormData, clientid: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                    style={{ '--tw-ring-color': colors.brand.primary } as React.CSSProperties}
+                    onValueChange={(value) => setEditFormData({ ...editFormData, clientid: value })}
                   >
-                    <option value="">Select Client</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>{client.text}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.text}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
