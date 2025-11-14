@@ -14,9 +14,10 @@ Artisan::command('inspire', function () {
 // Based on legacy FJPWL background jobs documentation
 //
 // Legacy timings:
-// - FORCE_LOGOFF: Hourly at :05 past hour
 // - Email/Notifications: Every 45 seconds (jPAM background job)
 // - Booking checks: Daily at start of business day
+//
+// NOTE: Force logout is now handled by frontend inactivity monitor (30 min)
 // ============================================================================
 
 // 1. PROCESS SCHEDULED NOTIFICATIONS - Multi-channel notification system
@@ -28,15 +29,6 @@ Artisan::command('inspire', function () {
 Schedule::command('notifications:process --once')
     ->everyMinute()
     ->name('process-notifications')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// 2. FORCE LOGOUT - Automatic user logout after shift
-// Legacy: public/cron/FORCE_LOGOFF/index.php
-// Runs hourly to check for users who exceeded their shift end time
-Schedule::command('users:force-logout')
-    ->hourlyAt(5) // Run at :05 past every hour (like legacy)
-    ->name('force-logout-users')
     ->withoutOverlapping()
     ->onOneServer();
 
