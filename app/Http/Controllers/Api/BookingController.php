@@ -140,12 +140,25 @@ class BookingController extends Controller
 
         $booking = Booking::create($data);
 
-        // Log the action
-        $this->audit->logCreate(
-            'BOOKINGS',
-            $booking->b_id,
-            "Added booking: {$booking->book_no} for shipper: {$booking->shipper}"
-        );
+        // Get client name for logging
+        $clientName = $client->client_name ?? 'Unknown';
+        
+        // Log to audit - ADD action with all fields
+        $description = '[BOOKING] Added new booking: Booking No: "' . $booking->book_no . '", Client: "' . $clientName . '", Shipper: "' . $booking->shipper . '", Expiration: "' . $booking->expiration_date . '"';
+        
+        if ($booking->cont_list) {
+            $description .= ', Container List: "' . $booking->cont_list . '"';
+        } else {
+            $description .= ', 20ft: ' . $booking->twenty . ', 40ft: ' . $booking->fourty . ', 45ft: ' . $booking->fourty_five;
+        }
+        
+        DB::table('audit_logs')->insert([
+            'action' => 'ADD',
+            'description' => $description,
+            'user_id' => Auth::user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => request()->ip(),
+        ]);
 
         return response()->json([
             'success' => true,
@@ -330,6 +343,10 @@ class BookingController extends Controller
             $data['fourty_five_rem'] = $newFourtyFiveRem;
         }
 
+        // Get old client name
+        $oldClient = Client::find($booking->client_id);
+        $oldClientName = $oldClient ? $oldClient->client_name : 'Unknown';
+        
         $booking->update($data);
 
         // If booking number or shipper changed, update inventory records
@@ -347,12 +364,45 @@ class BookingController extends Controller
             }
         }
 
-        // Log the action
-        $this->audit->logUpdate(
-            'BOOKINGS',
-            $booking->b_id,
-            "Updated booking: {$booking->book_no}"
-        );
+        // Log to audit - EDIT action with old->new tracking
+        $newClientName = $client->client_name ?? 'Unknown';
+        $changes = [];
+        
+        if ($oldBookNo !== $newBookNo) {
+            $changes[] = 'Booking No: "' . $oldBookNo . '" -> "' . $newBookNo . '"';
+        }
+        if ($booking->client_id !== $client->c_id) {
+            $changes[] = 'Client: "' . $oldClientName . '" -> "' . $newClientName . '"';
+        }
+        if ($oldShipper !== strtoupper($request->ship)) {
+            $changes[] = 'Shipper: "' . $oldShipper . '" -> "' . strtoupper($request->ship) . '"';
+        }
+        if ($booking->expiration_date !== $request->exp) {
+            $changes[] = 'Expiration: "' . $booking->expiration_date . '" -> "' . $request->exp . '"';
+        }
+        
+        // Track quantity changes if not container list based
+        if ($request->isc == '0') {
+            if (isset($oldTwenty) && $oldTwenty !== ($request->two ?? 0)) {
+                $changes[] = '20ft: ' . $oldTwenty . ' -> ' . ($request->two ?? 0);
+            }
+            if (isset($oldFourty) && $oldFourty !== ($request->four ?? 0)) {
+                $changes[] = '40ft: ' . $oldFourty . ' -> ' . ($request->four ?? 0);
+            }
+            if (isset($oldFourtyFive) && $oldFourtyFive !== ($request->fourf ?? 0)) {
+                $changes[] = '45ft: ' . $oldFourtyFive . ' -> ' . ($request->fourf ?? 0);
+            }
+        }
+        
+        if (count($changes) > 0) {
+            DB::table('audit_logs')->insert([
+                'action' => 'EDIT',
+                'description' => '[BOOKING] Edited booking "' . $newBookNo . '": ' . implode(', ', $changes),
+                'user_id' => Auth::user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
+            ]);
+        }
 
         return response()->json([
             'success' => true,
@@ -379,15 +429,23 @@ class BookingController extends Controller
         }
 
         $bookNo = $booking->book_no;
+        $shipper = $booking->shipper;
         $bookingId = $booking->b_id;
+        
+        // Get client name before deletion
+        $client = Client::find($booking->client_id);
+        $clientName = $client ? $client->client_name : 'Unknown';
+        
         $booking->delete();
 
-        // Log the action
-        $this->audit->logDelete(
-            'BOOKINGS',
-            $bookingId,
-            "Deleted booking: {$bookNo}"
-        );
+        // Log to audit - DELETE action with all details
+        DB::table('audit_logs')->insert([
+            'action' => 'DELETE',
+            'description' => '[BOOKING] Deleted booking: Booking No: "' . $bookNo . '", Client: "' . $clientName . '", Shipper: "' . $shipper . '"',
+            'user_id' => Auth::user()->user_id ?? null,
+            'date_added' => now(),
+            'ip_address' => request()->ip(),
+        ]);
 
         return response()->json([
             'success' => true,
