@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Dashboard
     Route::get('/dashboard/statistics', [DashboardController::class, 'statistics']);
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
     // Clients - Full API with all 18 actions
     Route::prefix('clients')->group(function () {
