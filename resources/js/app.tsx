@@ -6,6 +6,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
 import { router } from '@inertiajs/react';
+import { initializeInactivityMonitor } from './utils/inactivityMonitor';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -28,6 +29,9 @@ createInertiaApp({
 
 // This will set light / dark mode on load...
 initializeTheme();
+
+// Initialize inactivity monitor (30 minute timeout)
+initializeInactivityMonitor();
 
 // Update CSRF token in meta tag whenever Inertia navigates to a new page
 // This ensures the token stays fresh after login or any session regeneration
