@@ -180,6 +180,40 @@ class AuthController extends Controller
     }
 
     /**
+     * Handle automatic logout due to inactivity.
+     */
+    public function logoutInactive(Request $request)
+    {
+        $user = Auth::user();
+        
+        if ($user) {
+            $inactiveDuration = $request->input('inactive_duration', 1800); // default 30 min
+            
+            // Log inactivity logout
+            DB::table('audit_logs')->insert([
+                'action' => 'FORCE LOGOUT',
+                'description' => '[AUTH] User logged out due to inactivity (' . round($inactiveDuration / 60) . ' minutes): Username: "' . $user->username . '", Full Name: "' . $user->full_name . '"',
+                'user_id' => $user->user_id,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
+        }
+        
+        // Use web guard for session-based logout
+        Auth::guard('web')->logout();
+        
+        // Clear session
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Logged out due to inactivity',
+            'reason' => 'inactivity',
+        ]);
+    }
+
+    /**
      * Get current authenticated user.
      */
     public function me(Request $request)
