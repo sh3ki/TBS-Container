@@ -180,6 +180,7 @@ class BookingController extends Controller
     public function edit($hashedId)
     {
         // Find booking by hashed ID
+        // NOTE: This loads all bookings - frontend should use already-loaded data instead
         $booking = Booking::with('client')->get()->first(function($b) use ($hashedId) {
             return $b->hashed_id === $hashedId;
         });
@@ -213,7 +214,9 @@ class BookingController extends Controller
             'fourty_five_rem' => $booking->fourty_five_rem,
             'cont_list' => $booking->cont_list,
             'cont_list_rem' => $booking->cont_list_rem,
-            'expiration_date' => $booking->expiration_date->format('Y-m-d'),
+            'expiration_date' => $booking->expiration_date instanceof \Illuminate\Support\Carbon 
+                ? $booking->expiration_date->format('Y-m-d') 
+                : $booking->expiration_date,
             'has_container_list' => !empty($booking->cont_list),
         ];
 
@@ -361,9 +364,12 @@ class BookingController extends Controller
     /**
      * Remove the specified booking.
      */
-    public function destroy($id)
+    public function destroy($hashedId)
     {
-        $booking = Booking::find($id);
+        // Find booking by hashed ID (same as edit/getContainers)
+        $booking = Booking::get()->first(function($b) use ($hashedId) {
+            return $b->hashed_id === $hashedId;
+        });
 
         if (!$booking) {
             return response()->json([
@@ -373,12 +379,13 @@ class BookingController extends Controller
         }
 
         $bookNo = $booking->book_no;
+        $bookingId = $booking->b_id;
         $booking->delete();
 
         // Log the action
         $this->audit->logDelete(
             'BOOKINGS',
-            $id,
+            $bookingId,
             "Deleted booking: {$bookNo}"
         );
 
@@ -394,8 +401,8 @@ class BookingController extends Controller
     public function getContainers($hashedId)
     {
         // Find booking by hashed ID
-        $booking = Booking::all()->first(function($b) use ($hashedId) {
-            return $b->hashed_id === $hashedId;
+        $booking = Booking::select('b_id', 'book_no')->get()->first(function($b) use ($hashedId) {
+            return md5($b->b_id) === $hashedId;
         });
 
         if (!$booking) {
@@ -437,10 +444,9 @@ class BookingController extends Controller
             ->limit(500)
             ->get();
 
-        // Add computed fields
+        // Add computed fields (hashed_id is already computed via accessor)
         $bookings->transform(function($booking) {
             $booking->status_text = $booking->is_active ? 'Active' : 'Expired';
-            $booking->hashed_id = $booking->hashed_id;
             return $booking;
         });
 
