@@ -173,6 +173,8 @@ export default function Index() {
             'DELETE': 'bg-red-100 text-red-700',
             'LOGIN': 'bg-yellow-100 text-yellow-700',
             'LOGOUT': 'bg-yellow-100 text-yellow-700',
+            'APPROVE': 'bg-emerald-100 text-emerald-700',
+            'REPORTS': 'bg-sky-100 text-sky-700',
         };
         return colors[actionUpper] || 'bg-gray-100 text-gray-700';
     };
