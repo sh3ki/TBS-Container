@@ -903,21 +903,62 @@ export default function Index() {
                 <p className="text-sm text-gray-600">Booking Number: <span className="font-semibold text-gray-900">{selectedBooking.book_no}</span></p>
                 <p className="text-sm text-gray-600">Shipper: <span className="font-semibold text-gray-900">{selectedBooking.shipper}</span></p>
               </div>
-              <div className="max-h-96 overflow-auto space-y-2">
-                {viewContainers.length > 0 ? (
-                  viewContainers.map((container, idx) => (
-                    <div 
-                      key={idx} 
-                      className="p-3 rounded-lg border font-mono text-sm"
-                      style={{ backgroundColor: '#F9FAFB' }}
-                    >
-                      {container}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center py-8 text-gray-500">No containers found</p>
-                )}
-              </div>
+              
+              {/* Container List from Booking */}
+              {selectedBooking.cont_list && selectedBooking.cont_list.trim() && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Container List:</h3>
+                  <div className="max-h-96 overflow-auto space-y-2">
+                    {getContainerListArray(selectedBooking.cont_list).map((container, idx) => (
+                      <div 
+                        key={`list-${idx}`}
+                        className="p-3 rounded-lg border font-mono text-sm bg-blue-50 border-blue-200"
+                      >
+                        {container}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Remaining Containers */}
+              {selectedBooking.cont_list_rem && selectedBooking.cont_list_rem.trim() && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Remaining Containers:</h3>
+                  <div className="max-h-96 overflow-auto space-y-2">
+                    {getContainerListArray(selectedBooking.cont_list_rem).map((container, idx) => (
+                      <div 
+                        key={`rem-${idx}`}
+                        className="p-3 rounded-lg border font-mono text-sm bg-green-50 border-green-200"
+                      >
+                        {container}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Containers from Inventory (gated in) */}
+              {viewContainers.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Containers in Yard (from Inventory):</h3>
+                  <div className="max-h-96 overflow-auto space-y-2">
+                    {viewContainers.map((container, idx) => (
+                      <div 
+                        key={`inv-${idx}`}
+                        className="p-3 rounded-lg border font-mono text-sm bg-gray-50 border-gray-200"
+                      >
+                        {container}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* No containers at all */}
+              {!selectedBooking.cont_list && !selectedBooking.cont_list_rem && viewContainers.length === 0 && (
+                <p className="text-center py-8 text-gray-500">No containers found</p>
+              )}
             </div>
           )}
           <DialogFooter>
