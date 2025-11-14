@@ -148,7 +148,16 @@ class GateinoutController extends Controller
                 ]
             );
             
-            $this->logAudit('Add Pre-In', "Created pre-in record: {$containerNo}", Auth::check() ? Auth::user()->user_id : 0);
+            // Log audit - ADD action for pre-in
+            $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
+            
+            DB::table('audit_logs')->insert([
+                'action' => 'ADD',
+                'description' => '[GATE IN/OUT] Added Pre-In record for container "' . $containerNo . '", Client: "' . $clientName . '"',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
+            ]);
             
             return response()->json([
                 'message' => ['success', '<strong>Success!</strong> Pre-In has been added!']
@@ -202,7 +211,14 @@ class GateinoutController extends Controller
                 ]
             );
             
-            $this->logAudit('Add Pre-Out', "Created pre-out record: Plate {$plateNo}", Auth::check() ? Auth::user()->user_id : 0);
+            // Log audit - ADD action for pre-out
+            DB::table('audit_logs')->insert([
+                'action' => 'ADD',
+                'description' => '[GATE IN/OUT] Added Pre-Out record for Plate No: "' . $plateNo . '", Hauler: "' . $hauler . '"',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
+            ]);
             
             return response()->json([
                 'message' => ['success', '<strong>Success!</strong> Pre-Out has been added!']
@@ -303,6 +319,20 @@ class GateinoutController extends Controller
                 ]);
             }
             
+            // Get old values for audit log
+            $oldRecord = DB::selectOne("SELECT * FROM {$this->prefix}pre_inventory WHERE p_id = :id", ['id' => $realId]);
+            $oldClientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $oldRecord->client_id])->client_name ?? 'Unknown';
+            $newClientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
+            
+            // Track changes
+            $changes = [];
+            if ($oldRecord->container_no !== $containerNo) {
+                $changes[] = 'Container No: "' . $oldRecord->container_no . '" -> "' . $containerNo . '"';
+            }
+            if ($oldRecord->client_id != $client->c_id) {
+                $changes[] = 'Client: "' . $oldClientName . '" -> "' . $newClientName . '"';
+            }
+            
             // Update
             DB::update(
                 "UPDATE {$this->prefix}pre_inventory 
@@ -311,7 +341,18 @@ class GateinoutController extends Controller
                 ['cno' => $containerNo, 'cid' => $client->c_id, 'id' => $realId]
             );
             
-            $this->logAudit('Update Pre-In', "Updated pre-in: {$containerNo}", Auth::check() ? Auth::user()->user_id : 0);
+            // Log audit - EDIT action with changes
+            if (count($changes) > 0) {
+                $description = '[GATE IN/OUT] Edited Pre-In record for "' . $containerNo . '": ' . implode(', ', $changes);
+                
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => $description,
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => request()->ip(),
+                ]);
+            }
             
             return response()->json([
                 'message' => ['success', '<strong>Success!</strong> Pre-In has been updated!']
@@ -396,6 +437,18 @@ class GateinoutController extends Controller
                 ]);
             }
             
+            // Get old values for audit log
+            $oldRecord = DB::selectOne("SELECT * FROM {$this->prefix}pre_inventory WHERE p_id = :id", ['id' => $realId]);
+            
+            // Track changes
+            $changes = [];
+            if ($oldRecord->plate_no !== $plateNo) {
+                $changes[] = 'Plate No: "' . $oldRecord->plate_no . '" -> "' . $plateNo . '"';
+            }
+            if ($oldRecord->hauler !== $hauler) {
+                $changes[] = 'Hauler: "' . $oldRecord->hauler . '" -> "' . $hauler . '"';
+            }
+            
             // Update
             DB::update(
                 "UPDATE {$this->prefix}pre_inventory 
@@ -404,7 +457,18 @@ class GateinoutController extends Controller
                 ['pno' => $plateNo, 'hau' => $hauler, 'id' => $realId]
             );
             
-            $this->logAudit('Update Pre-Out', "Updated pre-out: Plate {$plateNo}", Auth::check() ? Auth::user()->user_id : 0);
+            // Log audit - EDIT action with changes
+            if (count($changes) > 0) {
+                $description = '[GATE IN/OUT] Edited Pre-Out record for Plate No "' . $plateNo . '": ' . implode(', ', $changes);
+                
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => $description,
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => request()->ip(),
+                ]);
+            }
             
             return response()->json([
                 'message' => ['success', '<strong>Success!</strong> Pre-Out has been updated!']
@@ -451,7 +515,14 @@ class GateinoutController extends Controller
             // Delete the record (only pending can be deleted)
             DB::delete("DELETE FROM {$this->prefix}pre_inventory WHERE p_id = :id AND status = 0", ['id' => $realId]);
             
-            $this->logAudit("Delete Pre-{$gateStatus}", "Deleted pre-{$gateStatus}: {$identifier}", Auth::check() ? Auth::user()->user_id : 0);
+            // Log audit - DELETE action
+            DB::table('audit_logs')->insert([
+                'action' => 'DELETE',
+                'description' => '[GATE IN/OUT] Deleted Pre-' . $gateStatus . ' record: "' . $identifier . '"',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
+            ]);
             
             return response()->json([
                 'message' => ['success', '<strong>Success!</strong> Record has been deleted!']
@@ -813,13 +884,17 @@ class GateinoutController extends Controller
                     [$inventoryId, now(), $validated['p_id']]
                 );
 
-                // Log audit
-                $user = Auth::user();
-                $this->logAudit(
-                    'PROCESS_GATE_IN',
-                    "Processed Gate IN for container: {$validated['container_no']}",
-                    $user ? $user->user_id : null
-                );
+                // Log audit - APPROVE action
+                $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $request->input('client_id')])->client_name ?? 'Unknown';
+                $sizeType = DB::selectOne("SELECT CONCAT(size, '/', type) as size_type FROM {$this->prefix}container_size_type WHERE s_id = :sid", ['sid' => $validated['size_type']])->size_type ?? 'Unknown';
+                
+                DB::table('audit_logs')->insert([
+                    'action' => 'APPROVE',
+                    'description' => '[GATE IN/OUT] Processed Gate IN for container "' . $validated['container_no'] . '", Client: "' . $clientName . '", Size/Type: "' . $sizeType . '", Vessel: "' . $validated['vessel'] . '", Voyage: "' . $validated['voyage'] . '"',
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => request()->ip(),
+                ]);
 
                 DB::commit();
 
@@ -946,13 +1021,17 @@ class GateinoutController extends Controller
                     [now(), $validated['p_id']]
                 );
 
-                // Log audit
-                $user = Auth::user();
-                $this->logAudit(
-                    'PROCESS_GATE_OUT',
-                    "Processed Gate OUT for container: {$validated['container_no']}",
-                    $user ? $user->user_id : null
-                );
+                // Log audit - APPROVE action
+                $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $validated['client_id']])->client_name ?? 'Unknown';
+                $sizeType = DB::selectOne("SELECT CONCAT(size, '/', type) as size_type FROM {$this->prefix}container_size_type WHERE s_id = :sid", ['sid' => $validated['size_type']])->size_type ?? 'Unknown';
+                
+                DB::table('audit_logs')->insert([
+                    'action' => 'APPROVE',
+                    'description' => '[GATE IN/OUT] Processed Gate OUT for container "' . $validated['container_no'] . '", Client: "' . $clientName . '", Size/Type: "' . $sizeType . '", Booking: "' . $validated['booking_no'] . '", Seal No: "' . $validated['seal_no'] . '"',
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => request()->ip(),
+                ]);
 
                 DB::commit();
 
