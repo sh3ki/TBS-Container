@@ -110,6 +110,6 @@ class User extends Authenticatable
      */
     public function getAuthIdentifierName()
     {
-        return 'username';
+        return 'user_id';
     }
 }
