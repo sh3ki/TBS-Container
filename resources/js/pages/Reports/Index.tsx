@@ -35,6 +35,7 @@ const Index: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
+    const [showDocsFeeConfirm, setShowDocsFeeConfirm] = useState(false);
     const [incomingData, setIncomingData] = useState<Record<string, unknown>[]>([]);
     const [outgoingData, setOutgoingData] = useState<Record<string, unknown>[]>([]);
     const [dmrData, setDmrData] = useState<Record<string, unknown>[]>([]);
@@ -168,7 +169,16 @@ const Index: React.FC = () => {
         }
     };
 
+    const handleDocsFeeExportClick = () => {
+        if (!singleDate) {
+            error('Please select a date');
+            return;
+        }
+        setShowDocsFeeConfirm(true);
+    };
+
     const handleDocsFeeExport = async () => {
+        setShowDocsFeeConfirm(false);
         if (!singleDate) {
             error('Please select a date');
             return;
@@ -999,7 +1009,7 @@ const Index: React.FC = () => {
                         {activeTab === 'dcr' && (
                             <ModernButton
                                 variant="primary"
-                                onClick={handleDocsFeeExport}
+                                onClick={handleDocsFeeExportClick}
                                 disabled={loading || !singleDate}
                                 className="px-6 py-3"
                             >
@@ -1025,6 +1035,16 @@ const Index: React.FC = () => {
                     onConfirm={handleExportConfirm}
                     title="Export Report Data"
                     description={`Are you sure you want to export the ${activeTab.toUpperCase()} report?`}
+                    confirmText="Export"
+                    cancelText="Cancel"
+                />
+
+                <ModernConfirmDialog
+                    open={showDocsFeeConfirm}
+                    onOpenChange={setShowDocsFeeConfirm}
+                    onConfirm={handleDocsFeeExport}
+                    title="Export Docs Fee Report"
+                    description="Are you sure you want to export the Docs Fee report?"
                     confirmText="Export"
                     cancelText="Cancel"
                 />
