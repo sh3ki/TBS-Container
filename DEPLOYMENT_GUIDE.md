@@ -9,6 +9,17 @@
 
 ---
 
+## ⚠️ IMPORTANT: Database File
+
+The database file `tbs_db.sql` is **over 100MB** and is **NOT included in GitHub**.
+You will need to upload it manually to the server. See **DATABASE_UPLOAD_GUIDE.md** for detailed instructions.
+
+**Only 2 migrations will be run:**
+1. `2025_11_14_000002_change_audit_logs_description_to_text.php` - Changes audit_logs description to TEXT
+2. `2025_11_14_100000_add_all_database_indexes.php` - Adds all database indexes for performance
+
+---
+
 ## Step 1: Initial Server Setup
 
 SSH into your server:
@@ -38,7 +49,8 @@ systemctl enable nginx
 apt install software-properties-common -y
 add-apt-repository ppa:ondrej/php -y
 apt update
-apt install php8.2-fpm php8.2-cli php8.2-common php8.2-mysql php8.2-zip php8.2-gd php8.2-mbstring php8.2-curl php8.2-xml php8.2-bcmath php8.2-intl php8.2-redis -y
+apt install php8.3-fpm php8.3-cli php8.3-common php8.3-mysql php8.3-zip php8.3-gd php8.3-mbstring php8.3-curl php8.3-xml php8.3-bcmath php8.3-intl php8.3-redis -y
+
 ```
 
 ### Install MySQL
@@ -87,6 +99,27 @@ FLUSH PRIVILEGES;
 EXIT;
 ```
 
+**Important: Upload Database File**
+
+Since the database file (tbs_db.sql) is over 100MB and cannot be committed to GitHub, you need to upload it manually:
+
+```bash
+# On your local machine (PowerShell/Command Prompt)
+scp C:\Users\USER\Documents\SYSTEMS\WEB\PHP\LARAVEL\fjpwl\tbs_db.sql root@72.60.42.105:/tmp/tbs_db.sql
+```
+
+Then import it on the server:
+```bash
+# SSH into server
+ssh root@72.60.42.105
+
+# Import the database
+mysql -u tbs_user -p tbs_container < /tmp/tbs_db.sql
+
+# Clean up
+rm /tmp/tbs_db.sql
+```
+
 ---
 
 ## Step 4: Clone Repository and Configure Application
@@ -119,7 +152,7 @@ DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=tbs_container
 DB_USERNAME=tbs_user
-DB_PASSWORD=your_secure_password_here
+DB_PASSWORD=tbscontainer
 ```
 
 ### Install dependencies and set up Laravel
@@ -136,8 +169,10 @@ npm run build
 # Generate application key
 php artisan key:generate
 
-# Run migrations
-php artisan migrate --force
+# Run ONLY specific migrations (database already imported)
+# These migrations add indexes and modify audit_logs description column
+php artisan migrate --path=/database/migrations/2025_11_14_000002_change_audit_logs_description_to_text.php --force
+php artisan migrate --path=/database/migrations/2025_11_14_100000_add_all_database_indexes.php --force
 
 # Create storage link
 php artisan storage:link

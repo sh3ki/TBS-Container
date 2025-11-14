@@ -1,5 +1,8 @@
 # TBS Container - Quick Deployment Commands
 
+## ⚠️ IMPORTANT
+**Database file (100MB+) must be uploaded manually! See DATABASE_UPLOAD_GUIDE.md**
+
 ## SSH into Server
 ```bash
 ssh root@72.60.42.105
@@ -56,6 +59,23 @@ FLUSH PRIVILEGES;
 EXIT;
 ```
 
+### 3.5. Upload and Import Database
+**On your local machine:**
+```bash
+# Upload the database file (100MB+)
+scp C:\Users\USER\Documents\SYSTEMS\WEB\PHP\LARAVEL\fjpwl\tbs_db.sql root@72.60.42.105:/tmp/tbs_db.sql
+```
+
+**Back on the server:**
+```bash
+# Import the database
+mysql -u tbs_user -p tbs_container < /tmp/tbs_db.sql
+# Enter password: TbsSecure2025!
+
+# Clean up
+rm /tmp/tbs_db.sql
+```
+
 ### 4. Clone Repository
 ```bash
 cd /var/www
@@ -89,7 +109,11 @@ npm run build
 
 # Laravel setup
 php artisan key:generate
-php artisan migrate --force
+
+# Run ONLY specific migrations (database already imported)
+php artisan migrate --path=/database/migrations/2025_11_14_000002_change_audit_logs_description_to_text.php --force
+php artisan migrate --path=/database/migrations/2025_11_14_100000_add_all_database_indexes.php --force
+
 php artisan storage:link
 php artisan config:cache
 php artisan route:cache

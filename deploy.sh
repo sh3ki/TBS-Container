@@ -24,9 +24,10 @@ npm install
 echo "🏗️  Building assets..."
 npm run build
 
-# Run database migrations
-echo "🗄️  Running database migrations..."
-php artisan migrate --force
+# Run ONLY specific migrations (indexes and audit logs)
+echo "🗄️  Running specific migrations..."
+php artisan migrate --path=/database/migrations/2025_11_14_000002_change_audit_logs_description_to_text.php --force
+php artisan migrate --path=/database/migrations/2025_11_14_100000_add_all_database_indexes.php --force
 
 # Clear all caches
 echo "🧹 Clearing all caches..."
