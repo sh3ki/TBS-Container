@@ -102,7 +102,7 @@ Route::get('/debug-session', function () {
     $userId = Auth::id();
     $authCheck = Auth::check();
     
-    $sessionData = DB::table('fjp_sessions')
+    $sessionData = DB::table('sessions')
         ->where('id', $sessionId)
         ->first();
     
