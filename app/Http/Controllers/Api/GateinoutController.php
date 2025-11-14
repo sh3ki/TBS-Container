@@ -884,13 +884,35 @@ class GateinoutController extends Controller
                     [$inventoryId, now(), $validated['p_id']]
                 );
 
-                // Log audit - APPROVE action
+                // Log audit - APPROVE action with ALL fields
                 $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $request->input('client_id')])->client_name ?? 'Unknown';
                 $sizeType = DB::selectOne("SELECT CONCAT(size, '/', type) as size_type FROM {$this->prefix}container_size_type WHERE s_id = :sid", ['sid' => $validated['size_type']])->size_type ?? 'Unknown';
+                $status = DB::selectOne("SELECT status FROM {$this->prefix}container_status WHERE s_id = :sid", ['sid' => $validated['cnt_status']])->status ?? 'Unknown';
+                $loadType = DB::selectOne("SELECT type FROM {$this->prefix}load_type WHERE l_id = :lid", ['lid' => $validated['load_type']])->type ?? 'Unknown';
+                
+                $description = '[GATE IN/OUT] Processed Gate IN: Container "' . $validated['container_no'] . '", ' .
+                    'Client: "' . $clientName . '", ' .
+                    'Size/Type: "' . $sizeType . '", ' .
+                    'Status: "' . $status . '", ' .
+                    'ISO Code: "' . $validated['iso_code'] . '", ' .
+                    'Class: "' . $validated['cnt_class'] . '", ' .
+                    'Date Manufactured: "' . $validated['date_mnfg'] . '", ' .
+                    'Vessel: "' . $validated['vessel'] . '", ' .
+                    'Voyage: "' . $validated['voyage'] . '", ' .
+                    'Ex-Consignee: "' . $validated['ex_consignee'] . '", ' .
+                    'Load: "' . $loadType . '", ' .
+                    'Plate No: "' . $validated['plate_no'] . '", ' .
+                    'Hauler: "' . $validated['hauler'] . '", ' .
+                    'Driver: "' . $validated['hauler_driver'] . '", ' .
+                    'License: "' . $validated['license_no'] . '", ' .
+                    'Location: "' . $validated['location'] . '", ' .
+                    'Chasis: "' . $validated['chasis'] . '", ' .
+                    'Contact: "' . $validated['contact_no'] . '", ' .
+                    'BOL: "' . $validated['bol'] . '"';
                 
                 DB::table('audit_logs')->insert([
                     'action' => 'APPROVE',
-                    'description' => '[GATE IN/OUT] Processed Gate IN for container "' . $validated['container_no'] . '", Client: "' . $clientName . '", Size/Type: "' . $sizeType . '", Vessel: "' . $validated['vessel'] . '", Voyage: "' . $validated['voyage'] . '"',
+                    'description' => $description,
                     'user_id' => auth()->user()->user_id ?? null,
                     'date_added' => now(),
                     'ip_address' => request()->ip(),
@@ -1021,13 +1043,35 @@ class GateinoutController extends Controller
                     [now(), $validated['p_id']]
                 );
 
-                // Log audit - APPROVE action
+                // Log audit - APPROVE action with ALL fields
                 $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $validated['client_id']])->client_name ?? 'Unknown';
                 $sizeType = DB::selectOne("SELECT CONCAT(size, '/', type) as size_type FROM {$this->prefix}container_size_type WHERE s_id = :sid", ['sid' => $validated['size_type']])->size_type ?? 'Unknown';
+                $status = DB::selectOne("SELECT status FROM {$this->prefix}container_status WHERE s_id = :sid", ['sid' => $validated['container_status']])->status ?? 'Unknown';
+                $loadType = DB::selectOne("SELECT type FROM {$this->prefix}load_type WHERE l_id = :lid", ['lid' => $validated['load_type']])->type ?? 'Unknown';
+                
+                $description = '[GATE IN/OUT] Processed Gate OUT: Container "' . $validated['container_no'] . '", ' .
+                    'Client: "' . $clientName . '", ' .
+                    'Size/Type: "' . $sizeType . '", ' .
+                    'Status: "' . $status . '", ' .
+                    'ISO Code: "' . $validated['iso_code'] . '", ' .
+                    'Vessel: "' . $validated['vessel'] . '", ' .
+                    'Voyage: "' . $validated['voyage'] . '", ' .
+                    'Shipper: "' . $validated['shipper'] . '", ' .
+                    'Booking No: "' . $validated['booking_no'] . '", ' .
+                    'Seal No: "' . $validated['seal_no'] . '", ' .
+                    'Load: "' . $loadType . '", ' .
+                    'Plate No: "' . $validated['plate_no'] . '", ' .
+                    'Hauler: "' . $validated['hauler'] . '", ' .
+                    'Driver: "' . $validated['hauler_driver'] . '", ' .
+                    'License: "' . $validated['license_no'] . '", ' .
+                    'Checker: "' . $validated['checker'] . '", ' .
+                    'Location: "' . $validated['location'] . '", ' .
+                    'Chasis: "' . $validated['chasis'] . '", ' .
+                    'Contact: "' . $validated['contact_no'] . '"';
                 
                 DB::table('audit_logs')->insert([
                     'action' => 'APPROVE',
-                    'description' => '[GATE IN/OUT] Processed Gate OUT for container "' . $validated['container_no'] . '", Client: "' . $clientName . '", Size/Type: "' . $sizeType . '", Booking: "' . $validated['booking_no'] . '", Seal No: "' . $validated['seal_no'] . '"',
+                    'description' => $description,
                     'user_id' => auth()->user()->user_id ?? null,
                     'date_added' => now(),
                     'ip_address' => request()->ip(),
