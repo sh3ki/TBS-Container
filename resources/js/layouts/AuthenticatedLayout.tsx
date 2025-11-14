@@ -176,9 +176,9 @@ export default function Authenticated({ children }: PropsWithChildren) {
 
                         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                             <Container className="h-8 w-8 text-white" />
-                            <div className="text-white hidden sm:block">
+                            <div className="text-white">
                                 <div className="text-lg font-bold tracking-wide">TBS</div>
-                                <div className="text-xs opacity-90 -mt-1">Container Management System</div>
+                                <div className="text-xs opacity-90 -mt-1 hidden sm:block">Container Management System</div>
                             </div>
                         </Link>
                     </div>
@@ -208,17 +208,27 @@ export default function Authenticated({ children }: PropsWithChildren) {
             </nav>
 
             <div className="flex pt-16">
+                {/* Mobile Backdrop Overlay */}
+                {mobileMenuOpen && (
+                    <div
+                        className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+                        onClick={() => setMobileMenuOpen(false)}
+                    />
+                )}
+
                 {/* Modern Professional Sidebar */}
                 <aside
-                    className={`fixed left-0 top-16 h-[calc(100vh-4rem)] z-40 transition-all duration-300 shadow-2xl flex flex-col ${
-                        sidebarCollapsed ? 'w-16' : 'w-64'
-                    }`}
+                    className={`fixed left-0 top-16 h-[calc(100vh-4rem)] z-40 transition-all duration-300 shadow-2xl flex flex-col
+                        ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
+                        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                        w-64 lg:w-auto
+                    `}
                     style={{
                         backgroundColor: colors.sidebar.background,
                     }}
                 >
                     {/* Scrollable Menu Section */}
-                    <nav className="flex-1 py-4 overflow-hidden">
+                    <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
                         <ul className="space-y-1 px-2">
                             {/* Dashboard */}
                             <li>
@@ -237,18 +247,16 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                             }}
                                         >
                                             <Home className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard') ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
-                                            {!sidebarCollapsed && (
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-semibold">Dashboard</div>
-                                                </div>
-                                            )}
+                                            <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                                <div className="text-sm font-semibold">Dashboard</div>
+                                            </div>
                                             {!sidebarCollapsed && isActivePath('/dashboard') && (
                                                 <div className="w-1 h-6 rounded-full bg-white"></div>
                                             )}
                                         </Link>
                                     </TooltipTrigger>
                                     {sidebarCollapsed && (
-                                        <TooltipContent side="right" className="bg-gray-700 text-white border-gray-700">
+                                        <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
                                             Dashboard
                                         </TooltipContent>
                                     )}
@@ -279,18 +287,16 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                                     <span className={`${isActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`}>
                                                         {icon}
                                                     </span>
-                                                    {!sidebarCollapsed && (
-                                                        <span className="text-sm font-medium flex-1">
-                                                            {permission.page_name}
-                                                        </span>
-                                                    )}
+                                                    <span className={`text-sm font-medium flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                                        {permission.page_name}
+                                                    </span>
                                                     {!sidebarCollapsed && isActive && (
                                                         <div className="w-1 h-6 rounded-full bg-white"></div>
                                                     )}
                                                 </Link>
                                             </TooltipTrigger>
                                             {sidebarCollapsed && (
-                                                <TooltipContent side="right" className="bg-gray-700 text-white border-gray-700">
+                                                <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
                                                     {permission.page_name}
                                                 </TooltipContent>
                                             )}
@@ -310,13 +316,13 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-white transition-all duration-200 group w-full"
                                 >
                                     <LogOutIcon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                                    {!sidebarCollapsed && (
-                                        <span className="text-sm font-medium">Logout</span>
-                                    )}
+                                    <span className={`text-sm font-medium ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                        Logout
+                                    </span>
                                 </button>
                             </TooltipTrigger>
                             {sidebarCollapsed && (
-                                <TooltipContent side="right" className="bg-gray-700 text-white border-gray-700">
+                                <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
                                     Logout
                                 </TooltipContent>
                             )}
@@ -326,11 +332,11 @@ export default function Authenticated({ children }: PropsWithChildren) {
 
                 {/* Main Content Area */}
                 <main
-                    className={`flex-1 transition-all duration-300 overflow-x-hidden ${
-                        sidebarCollapsed ? 'ml-16' : 'ml-64'
-                    }`}
+                    className={`flex-1 transition-all duration-300 overflow-x-hidden
+                        ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}
+                    `}
                 >
-                    <div className="p-8" style={{ backgroundColor: colors.secondary, minHeight: 'calc(100vh - 4rem)' }}>
+                    <div className="p-4 sm:p-8" style={{ backgroundColor: colors.secondary, minHeight: 'calc(100vh - 4rem)' }}>
                         {children}
                     </div>
                 </main>
