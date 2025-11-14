@@ -131,7 +131,8 @@ export default function Index() {
     };
 
     const handleExport = async () => {
-        if (auditLogs.length === 0) {
+        const safeAuditLogs = Array.isArray(auditLogs) ? auditLogs : [];
+        if (safeAuditLogs.length === 0) {
             toast.error('No data to export. Please generate audit logs first.');
             return;
         }
@@ -170,6 +171,8 @@ export default function Index() {
             'UPDATE': 'bg-blue-100 text-blue-700',
             'EDIT': 'bg-blue-100 text-blue-700',
             'DELETE': 'bg-red-100 text-red-700',
+            'LOGIN': 'bg-yellow-100 text-yellow-700',
+            'LOGOUT': 'bg-yellow-100 text-yellow-700',
         };
         return colors[actionUpper] || 'bg-gray-100 text-gray-700';
     };
