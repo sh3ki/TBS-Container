@@ -16,7 +16,6 @@ import {
     Ban,
     ChevronLeft,
     ChevronRight,
-    Settings,
     Bell,
     Container,
 } from 'lucide-react';
@@ -208,19 +207,6 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     </li>
                                 );
                             })}
-
-                            {/* Settings */}
-                            <li>
-                                <Link
-                                    href="/settings"
-                                    className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-white/10 hover:text-white transition-all duration-200 group"
-                                >
-                                    <Settings className="h-5 w-5 flex-shrink-0 group-hover:animate-[wiggle_0.6s_ease-in-out] transition-transform" />
-                                    {!sidebarCollapsed && (
-                                        <span className="text-sm font-medium">Settings</span>
-                                    )}
-                                </Link>
-                            </li>
                         </ul>
                     </nav>
 
