@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 // Redirect root to login or dashboard
@@ -93,3 +95,22 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Profile/Edit');
     })->name('profile.edit');
 });
+
+// Debug endpoint to check session state
+Route::get('/debug-session', function () {
+    $sessionId = session()->getId();
+    $userId = Auth::id();
+    $authCheck = Auth::check();
+    
+    $sessionData = DB::table('fjp_sessions')
+        ->where('id', $sessionId)
+        ->first();
+    
+    return response()->json([
+        'session_id' => $sessionId,
+        'auth_check' => $authCheck,
+        'auth_user_id' => $userId,
+        'session_record' => $sessionData,
+        'cookies' => request()->cookies->all(),
+    ]);
+})->middleware('web');
