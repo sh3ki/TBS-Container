@@ -3,20 +3,57 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
+    /**
+     * Helper method to drop index if it exists
+     */
+    private function dropIndexIfExists(string $table, string $indexName): void
+    {
+        $prefix = DB::getTablePrefix();
+        $fullTable = $prefix . $table;
+        
+        // Check if index exists
+        $indexExists = DB::select("SHOW INDEX FROM `{$fullTable}` WHERE Key_name = ?", [$indexName]);
+        
+        if (!empty($indexExists)) {
+            Schema::table($table, function (Blueprint $t) use ($indexName) {
+                $t->dropIndex($indexName);
+            });
+        }
+    }
+
     /**
      * Run the migrations.
      * 
      * Comprehensive index migration for all tables in the database.
      * This migration creates all necessary indexes for optimal query performance.
+     * Drops existing indexes first to avoid conflicts.
      */
     public function up(): void
     {
         // ========================================
         // fjp_inventory - Main inventory table
         // ========================================
+        
+        // Drop existing indexes if they exist
+        $this->dropIndexIfExists('inventory', 'container_no');
+        $this->dropIndexIfExists('inventory', 'idx_complete');
+        $this->dropIndexIfExists('inventory', 'idx_date_added');
+        $this->dropIndexIfExists('inventory', 'idx_inventory_out_id');
+        $this->dropIndexIfExists('inventory', 'dmr_aging');
+        $this->dropIndexIfExists('inventory', 'dmr_inv');
+        $this->dropIndexIfExists('inventory', 'dmr_outgoing');
+        $this->dropIndexIfExists('inventory', 'dmr_size');
+        $this->dropIndexIfExists('inventory', 'idx_complete_date');
+        $this->dropIndexIfExists('inventory', 'idx_dashboard_stats');
+        $this->dropIndexIfExists('inventory', 'idx_inventory_billing_date');
+        $this->dropIndexIfExists('inventory', 'idx_inventory_client_status');
+        $this->dropIndexIfExists('inventory', 'idx_inventory_container_complete');
+        $this->dropIndexIfExists('inventory', 'inv_i');
+        
         Schema::table('inventory', function (Blueprint $table) {
             // Single column indexes
             $table->index('container_no', 'container_no');
