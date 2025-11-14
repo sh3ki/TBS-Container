@@ -53,6 +53,12 @@ class LegacyHasher implements HasherContract
             return false;
         }
 
+        // Check if this is a bcrypt hash (modern Laravel hash)
+        if (str_starts_with($hashedValue, '$2y$') || str_starts_with($hashedValue, '$2a$') || str_starts_with($hashedValue, '$2b$')) {
+            return password_verify($value, $hashedValue);
+        }
+
+        // Otherwise use legacy SHA1 hashing
         $salt = $options['salt'] ?? '';
         
         return $this->hashWithSalt($value, $salt) === $hashedValue;
