@@ -147,31 +147,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     {/* Scrollable Menu Section */}
                     <nav className="flex-1 py-4 overflow-hidden">
                         <ul className="space-y-1 px-2">
-                            {/* Dashboard */}
-                            <li>
-                                <Link
-                                    href="/dashboard"
-                                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                        isActivePath('/dashboard')
-                                            ? 'shadow-lg'
-                                            : 'hover:bg-white/10 hover:text-white'
-                                    }`}
-                                    style={{
-                                        ...(isActivePath('/dashboard') && { backgroundColor: colors.sidebar.active }),
-                                        color: isActivePath('/dashboard') ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
-                                    }}
-                                >
-                                    <Home className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard') ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
-                                    {!sidebarCollapsed && (
-                                        <div className="flex-1">
-                                            <div className="text-sm font-semibold">Dashboard</div>
-                                        </div>
-                                    )}
-                                    {!sidebarCollapsed && isActivePath('/dashboard') && (
-                                        <div className="w-1 h-6 rounded-full bg-white"></div>
-                                    )}
-                                </Link>
-                            </li>
+                            
 
                             {/* Dynamic Menu Items */}
                             {auth.permissions?.map((permission) => {
