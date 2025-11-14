@@ -10,6 +10,7 @@ use App\Models\ClientRegularHours;
 use App\Models\ContainerSize;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class ClientsController extends Controller
 {
@@ -97,11 +98,11 @@ class ClientsController extends Controller
             'archived' => 0,
         ]);
 
-        // Log audit
+        // Log audit - ADD action
         DB::table('audit_logs')->insert([
-            'action' => 'CREATE',
-            'description' => 'Created client: ' . $validated['client_name'],
-            'user_id' => session('user_id') ?? 0,
+            'action' => 'ADD',
+            'description' => '[CLIENTS] Added client "' . $validated['client_name'] . '" (Code: ' . $validated['client_code'] . ')',
+            'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
@@ -132,6 +133,16 @@ class ClientsController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Get old client data for detailed audit logging
+        $oldClient = DB::table('clients')->where('c_id', $id)->first();
+        
+        if (!$oldClient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client not found'
+            ], 404);
+        }
+
         $validated = $request->validate([
             'client_name' => 'required|string|max:100',
             'client_code' => 'required|string|max:45|unique:clients,client_code,' . $id . ',c_id',
@@ -152,11 +163,37 @@ class ClientsController extends Controller
             'fax_number' => $validated['fax_number'] ?? null,
         ]);
 
-        // Log audit
+        // Build detailed change description
+        $changes = [];
+        if ($oldClient->client_name !== $validated['client_name']) {
+            $changes[] = 'name from "' . $oldClient->client_name . '" to "' . $validated['client_name'] . '"';
+        }
+        if ($oldClient->client_code !== $validated['client_code']) {
+            $changes[] = 'code from "' . $oldClient->client_code . '" to "' . $validated['client_code'] . '"';
+        }
+        if ($oldClient->client_address !== ($validated['client_address'] ?? null)) {
+            $changes[] = 'address from "' . ($oldClient->client_address ?? 'empty') . '" to "' . ($validated['client_address'] ?? 'empty') . '"';
+        }
+        if ($oldClient->client_email !== ($validated['client_email'] ?? null)) {
+            $changes[] = 'email from "' . ($oldClient->client_email ?? 'empty') . '" to "' . ($validated['client_email'] ?? 'empty') . '"';
+        }
+        if ($oldClient->contact_person !== $validated['contact_person']) {
+            $changes[] = 'contact person from "' . $oldClient->contact_person . '" to "' . $validated['contact_person'] . '"';
+        }
+        if ($oldClient->phone_number !== ($validated['phone_number'] ?? null)) {
+            $changes[] = 'phone from "' . ($oldClient->phone_number ?? 'empty') . '" to "' . ($validated['phone_number'] ?? 'empty') . '"';
+        }
+        if ($oldClient->fax_number !== ($validated['fax_number'] ?? null)) {
+            $changes[] = 'fax from "' . ($oldClient->fax_number ?? 'empty') . '" to "' . ($validated['fax_number'] ?? 'empty') . '"';
+        }
+
+        $changeDescription = count($changes) > 0 ? implode(', ', $changes) : 'no changes detected';
+
+        // Log audit - EDIT action with detailed changes
         DB::table('audit_logs')->insert([
-            'action' => 'UPDATE',
-            'description' => 'Updated client: ' . $validated['client_name'],
-            'user_id' => session('user_id') ?? 0,
+            'action' => 'EDIT',
+            'description' => '[CLIENTS] Updated client "' . $oldClient->client_name . '": ' . $changeDescription,
+            'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
@@ -181,11 +218,11 @@ class ClientsController extends Controller
         // Soft delete by setting archived = 1
         DB::table('clients')->where('c_id', $id)->update(['archived' => 1]);
 
-        // Log audit
+        // Log audit - DELETE action
         DB::table('audit_logs')->insert([
             'action' => 'DELETE',
-            'description' => 'Deleted client: ' . $client->client_name,
-            'user_id' => session('user_id') ?? 0,
+            'description' => '[CLIENTS] Deleted client "' . $client->client_name . '" (Code: ' . $client->client_code . ')',
+            'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
@@ -215,12 +252,12 @@ class ClientsController extends Controller
         
         DB::table('clients')->where('c_id', $id)->update(['archived' => $newStatus]);
 
-        // Log audit
+        // Log audit - EDIT action for status change
         $statusText = $newStatus === 0 ? 'activated' : 'deactivated';
         DB::table('audit_logs')->insert([
-            'action' => 'UPDATE',
-            'description' => 'Client ' . $statusText . ': ' . $client->client_name,
-            'user_id' => session('user_id') ?? 0,
+            'action' => 'EDIT',
+            'description' => '[CLIENTS] Updated client "' . $client->client_name . '" ' . $statusText,
+            'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
