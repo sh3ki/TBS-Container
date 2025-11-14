@@ -104,7 +104,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                             <Container className="h-8 w-8 text-white" />
                             <div className="text-white">
-                                <div className="text-lg font-bold tracking-wide">FJPWL</div>
+                                <div className="text-lg font-bold tracking-wide">TBS</div>
                                 <div className="text-xs opacity-90 -mt-1">Container Management System</div>
                             </div>
                         </Link>
