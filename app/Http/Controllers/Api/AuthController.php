@@ -96,7 +96,7 @@ class AuthController extends Controller
                 // Regenerate session to prevent session fixation
                 $request->session()->regenerate();
                 
-                return redirect()->intended(route('dashboard'));
+                return redirect()->route('dashboard');
             }
             
             // Otherwise return JSON for API
