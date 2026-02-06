@@ -1,0 +1,14 @@
+# Cloudflare Tunnel Configuration for Laravel + Vite
+# This config file allows tunneling both Laravel (8000) and Vite (5173)
+
+tunnel: tbs-container
+credentials-file: C:\Users\USER\Documents\SYSTEMS\WEB\PHP\LARAVEL\fjpwl\.cloudflared\tunnel-credentials.json
+
+ingress:
+  # Route for Vite HMR and assets
+  - hostname: "*"
+    service: http://localhost:8000
+    originRequest:
+      noTLSVerify: true
+  # Catch-all rule (required)
+  - service: http_status:404
