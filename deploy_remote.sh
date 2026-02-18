@@ -33,6 +33,7 @@ cd /var/www/tbscontainermnl
 
 composer install --no-dev --optimize-autoloader --no-interaction
 npm install
+rm -f resources/js/pages/dashboard.tsx
 npm run build
 
 cp -f .env.example .env
