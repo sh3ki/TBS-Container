@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "🚀 Starting deployment..."
 
@@ -10,11 +11,13 @@ php artisan down
 
 # Pull latest changes
 echo "📥 Pulling latest changes from GitHub..."
+git fetch origin
 git pull origin master
 
 # Install/Update dependencies
 echo "📦 Installing dependencies..."
 composer install --optimize-autoloader --no-dev
+php artisan wayfinder:generate
 npm install
 npm run build
 
@@ -39,7 +42,7 @@ chmod -R 775 /var/www/tbscontainermnl/bootstrap/cache
 # Restart services
 echo "🔄 Restarting services..."
 systemctl reload nginx
-systemctl restart php8.2-fpm
+systemctl restart php8.3-fpm
 
 # Bring application back up
 php artisan up
