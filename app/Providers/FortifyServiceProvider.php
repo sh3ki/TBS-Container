@@ -9,7 +9,6 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\Failed;
@@ -89,8 +88,8 @@ class FortifyServiceProvider extends ServiceProvider
                         'ip_address' => request()->ip(),
                     ]);
                 }
-            } catch (\Exception $e) {
-                Log::error('Failed to log login audit: ' . $e->getMessage());
+            } catch (\Throwable $e) {
+                // Never allow audit logging issues to break authentication flow.
             }
         });
 
@@ -111,13 +110,13 @@ class FortifyServiceProvider extends ServiceProvider
                     DB::table('audit_logs')->insert([
                         'action' => 'LOGIN',
                         'description' => '[AUTH] Failed login attempt: Username: "' . $username . '" (user not found)',
-                        'user_id' => null,
+                        'user_id' => 0,
                         'date_added' => now(),
                         'ip_address' => request()->ip(),
                     ]);
                 }
-            } catch (\Exception $e) {
-                Log::error('Failed to log failed login audit: ' . $e->getMessage());
+            } catch (\Throwable $e) {
+                // Never allow audit logging issues to break authentication flow.
             }
         });
 
@@ -133,8 +132,8 @@ class FortifyServiceProvider extends ServiceProvider
                         'ip_address' => request()->ip(),
                     ]);
                 }
-            } catch (\Exception $e) {
-                Log::error('Failed to log logout audit: ' . $e->getMessage());
+            } catch (\Throwable $e) {
+                // Never allow audit logging issues to break authentication flow.
             }
         });
     }
