@@ -7,45 +7,33 @@ import { colors } from '@/lib/colors';
 
 interface DashboardStats {
     preInventory: {
-        totalPreIn: number;
-        totalPreOut: number;
         pendingPreIn: number;
         pendingPreOut: number;
+        processedPreInToday: number;
+        processedPreOutToday: number;
     };
     inventory: {
-        total: number;
-        gateIn: number;
-        gateOut: number;
-        repo: number;
+        containers: number;
+        gateInToday: number;
+        gateOutToday: number;
         available: number;
-        hold: number;
+        repo: number;
+        wash: number;
         damaged: number;
         banned: number;
     };
     bookings: {
-        total: number;
         active: number;
-        expired: number;
-        totalContainers: number;
-        remainingContainers: number;
-    };
-    gateActivity: {
-        today: { gateIn: number; gateOut: number };
-        week: { gateIn: number; gateOut: number };
-        month: { gateIn: number; gateOut: number };
+        totalContainersInActive: number;
+        remainingContainersInActive: number;
     };
 }
 
 export default function Dashboard() {
     const [stats, setStats] = useState<DashboardStats>({
-        preInventory: { totalPreIn: 0, totalPreOut: 0, pendingPreIn: 0, pendingPreOut: 0 },
-        inventory: { total: 0, gateIn: 0, gateOut: 0, repo: 0, available: 0, hold: 0, damaged: 0, banned: 0 },
-        bookings: { total: 0, active: 0, expired: 0, totalContainers: 0, remainingContainers: 0 },
-        gateActivity: {
-            today: { gateIn: 0, gateOut: 0 },
-            week: { gateIn: 0, gateOut: 0 },
-            month: { gateIn: 0, gateOut: 0 }
-        }
+        preInventory: { pendingPreIn: 0, pendingPreOut: 0, processedPreInToday: 0, processedPreOutToday: 0 },
+        inventory: { containers: 0, gateInToday: 0, gateOutToday: 0, available: 0, repo: 0, wash: 0, damaged: 0, banned: 0 },
+        bookings: { active: 0, totalContainersInActive: 0, remainingContainersInActive: 0 },
     });
     const [loading, setLoading] = useState(true);
     const [chartData, setChartData] = useState<{
@@ -229,65 +217,72 @@ export default function Dashboard() {
 
                 {/* Pre-Inventory Stats */}
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Package className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                        Pre-Inventory Overview
-                    </h2>
+                    <div className="rounded-lg px-4 py-3 mb-4" style={{ backgroundColor: colors.brand.primary }}>
+                        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <Package className="w-5 h-5 text-white" />
+                            Pre-Inventory Overview
+                        </h2>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <StatCard
-                            title="Total Pre-In"
-                            value={stats.preInventory.totalPreIn}
-                            icon={<LogIn className="w-6 h-6" />}
-                            subtitle="Containers registered for gate in"
-                            color={colors.brand.primary}
-                        />
-                        <StatCard
-                            title="Pending Pre-In"
+                            title="Pending Pre-IN"
                             value={stats.preInventory.pendingPreIn}
                             icon={<LogIn className="w-6 h-6" />}
                             subtitle="Awaiting gate in process"
                             color="#f59e0b"
                         />
                         <StatCard
-                            title="Total Pre-Out"
-                            value={stats.preInventory.totalPreOut}
-                            icon={<LogOut className="w-6 h-6" />}
-                            subtitle="Containers registered for gate out"
-                            color={colors.brand.secondary}
-                        />
-                        <StatCard
-                            title="Pending Pre-Out"
+                            title="Pending Pre-OUT"
                             value={stats.preInventory.pendingPreOut}
                             icon={<LogOut className="w-6 h-6" />}
                             subtitle="Awaiting gate out process"
                             color="#ef4444"
+                        />
+                        <StatCard
+                            title="Processed Pre-IN"
+                            value={stats.preInventory.processedPreInToday}
+                            icon={<LogIn className="w-6 h-6" />}
+                            subtitle="Processed today"
+                            color="#10b981"
+                        />
+                        <StatCard
+                            title="Processed Pre-OUT"
+                            value={stats.preInventory.processedPreOutToday}
+                            icon={<LogOut className="w-6 h-6" />}
+                            subtitle="Processed today"
+                            color="#8b5cf6"
                         />
                     </div>
                 </div>
 
                 {/* Inventory Stats */}
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Package className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                        Inventory Status
-                    </h2>
+                    <div className="rounded-lg px-4 py-3 mb-4" style={{ backgroundColor: colors.brand.primary }}>
+                        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <Package className="w-5 h-5 text-white" />
+                            Inventory Status
+                        </h2>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <StatCard
-                            title="Total Containers"
-                            value={stats.inventory.total}
+                            title="Containers"
+                            value={stats.inventory.containers}
                             icon={<Package className="w-6 h-6" />}
+                            subtitle="Total IN containers"
                             color={colors.brand.primary}
                         />
                         <StatCard
-                            title="Gate In"
-                            value={stats.inventory.gateIn}
+                            title="Gate IN Today"
+                            value={stats.inventory.gateInToday}
                             icon={<LogIn className="w-6 h-6" />}
+                            subtitle="Today's gate in"
                             color="#10b981"
                         />
                         <StatCard
-                            title="Gate Out"
-                            value={stats.inventory.gateOut}
+                            title="Gate OUT Today"
+                            value={stats.inventory.gateOutToday}
                             icon={<LogOut className="w-6 h-6" />}
+                            subtitle="Today's gate out"
                             color="#8b5cf6"
                         />
                     </div>
@@ -307,18 +302,18 @@ export default function Dashboard() {
                             color="#f59e0b"
                         />
                         <StatCard
+                            title="Wash"
+                            value={stats.inventory.wash}
+                            icon={<Package className="w-6 h-6" />}
+                            subtitle="WSH"
+                            color="#3b82f6"
+                        />
+                        <StatCard
                             title="Damaged"
                             value={stats.inventory.damaged}
                             icon={<Package className="w-6 h-6" />}
                             subtitle="DMG"
                             color="#ef4444"
-                        />
-                        <StatCard
-                            title="On Hold"
-                            value={stats.inventory.hold}
-                            icon={<Package className="w-6 h-6" />}
-                            subtitle="HLD"
-                            color="#dc2626"
                         />
                         <StatCard
                             title="Banned"
@@ -332,103 +327,34 @@ export default function Dashboard() {
 
                 {/* Booking Stats */}
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Calendar className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                        Booking Statistics
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <StatCard
-                            title="Total Bookings"
-                            value={stats.bookings.total}
-                            icon={<Calendar className="w-6 h-6" />}
-                            color={colors.brand.primary}
-                        />
+                    <div className="rounded-lg px-4 py-3 mb-4" style={{ backgroundColor: colors.brand.primary }}>
+                        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-white" />
+                            Booking Statistics
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <StatCard
                             title="Active Bookings"
                             value={stats.bookings.active}
                             icon={<Calendar className="w-6 h-6" />}
+                            subtitle="Active bookings"
                             color="#10b981"
                         />
                         <StatCard
-                            title="Expired Bookings"
-                            value={stats.bookings.expired}
-                            icon={<Calendar className="w-6 h-6" />}
-                            color="#ef4444"
+                            title="Total Containers"
+                            value={stats.bookings.totalContainersInActive}
+                            icon={<Package className="w-6 h-6" />}
+                            subtitle="In current active bookings"
+                            color={colors.brand.primary}
                         />
                         <StatCard
-                            title="Total Containers"
-                            value={stats.bookings.totalContainers}
+                            title="Remaining Containers"
+                            value={stats.bookings.remainingContainersInActive}
                             icon={<Package className="w-6 h-6" />}
-                            subtitle="Booked containers"
+                            subtitle="In current active bookings"
                             color={colors.brand.secondary}
                         />
-                    </div>
-                </div>
-
-                {/* Gate Activity */}
-                <div>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Activity className="w-5 h-5" style={{ color: colors.brand.primary }} />
-                        Gate Activity
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-4">Today</h3>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LogIn className="w-4 h-4 text-green-600" />
-                                        <span className="text-sm text-gray-600">Gate In</span>
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{stats.gateActivity.today.gateIn}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LogOut className="w-4 h-4 text-purple-600" />
-                                        <span className="text-sm text-gray-600">Gate Out</span>
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{stats.gateActivity.today.gateOut}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-4">This Week</h3>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LogIn className="w-4 h-4 text-green-600" />
-                                        <span className="text-sm text-gray-600">Gate In</span>
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{stats.gateActivity.week.gateIn}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LogOut className="w-4 h-4 text-purple-600" />
-                                        <span className="text-sm text-gray-600">Gate Out</span>
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{stats.gateActivity.week.gateOut}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-4">This Month</h3>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LogIn className="w-4 h-4 text-green-600" />
-                                        <span className="text-sm text-gray-600">Gate In</span>
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{stats.gateActivity.month.gateIn}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <LogOut className="w-4 h-4 text-purple-600" />
-                                        <span className="text-sm text-gray-600">Gate Out</span>
-                                    </div>
-                                    <span className="text-lg font-bold text-gray-900">{stats.gateActivity.month.gateOut}</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
