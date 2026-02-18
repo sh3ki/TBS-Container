@@ -19,6 +19,9 @@ set_kv() {
 # Navigate to project directory
 cd "$APP_DIR"
 
+# Fix git safe directory (prevents 'dubious ownership' error when www-data owns the files)
+git config --global --add safe.directory "$APP_DIR"
+
 # Put application in maintenance mode
 php artisan down || true
 
@@ -58,8 +61,9 @@ php artisan route:cache
 php artisan view:cache
 
 # Set permissions
+# Only chown storage and cache — NOT the whole app (chowning .git to www-data breaks git for root)
 echo "🔐 Setting permissions..."
-chown -R www-data:www-data "$APP_DIR"
+chown -R www-data:www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" "$APP_DIR/public"
 chmod -R 755 "$APP_DIR"
 chmod -R 775 "$APP_DIR/storage"
 chmod -R 775 "$APP_DIR/bootstrap/cache"
