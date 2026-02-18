@@ -31,17 +31,16 @@ cleanup() {
 trap cleanup EXIT
 
 # Enforce stable production environment values
-set_kv "APP_NAME" '"TBS"'
-set_kv "VITE_APP_NAME" '"TBS"'
+set_kv "APP_NAME" '"TBS System"'
+set_kv "VITE_APP_NAME" '"TBS System"'
 set_kv "APP_URL" "https://tbscontainermnl.com"
 set_kv "SESSION_DOMAIN" ".tbscontainermnl.com"
 set_kv "SESSION_SECURE_COOKIE" "true"
 
-# Pull latest changes — reset hard so any server-side edits to tracked files
-# never block the deploy. .env is in .gitignore so it is never touched.
+# Pull latest changes
 echo "📥 Pulling latest changes from GitHub..."
 git fetch origin
-git reset --hard origin/master
+git pull origin master
 
 # Install/Update dependencies
 echo "📦 Installing dependencies..."
