@@ -12,14 +12,14 @@ class ProcessNotificationsCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'notifications:process';
+    protected $signature = 'notifications:dispatch-job';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Manually trigger notification processing job to send pending notifications';
+    protected $description = 'Manually dispatch the scheduled notification processor job';
 
     /**
      * Execute the console command.
