@@ -50,7 +50,9 @@ class DashboardController extends Controller
             // Containers in yard - Use inventory table instead
             $containersInYard = DB::table('inventory')
                 ->where('gate_status', 'IN')
-                ->whereNull('out_id')
+                ->where(function ($query) {
+                    $query->whereNull('out_id')->orWhere('out_id', 0);
+                })
                 ->count();
 
             // Recent gate activities - Count from inventory
@@ -252,6 +254,9 @@ class DashboardController extends Controller
                     ->where('i.gate_status', 'IN')
                     ->where('i.complete', 0)
                     ->where(function ($query) {
+                        $query->whereNull('i.out_id')->orWhere('i.out_id', 0);
+                    })
+                    ->where(function ($query) {
                         $query->where('c.archived', 0)
                               ->orWhereNull('c.archived');
                     })
@@ -262,10 +267,10 @@ class DashboardController extends Controller
                 $gateOutToday = (int) DB::table('inventory')->where('gate_status', 'OUT')->where('date_added', '>=', $todayStart)->count();
                 
                 // Status counts (only for containers IN yard)
-                $availableCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 1)->count();
-                $repoCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 8)->count();
-                $washCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 2)->count();
-                $damagedCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where('container_status', 3)->count();
+                $availableCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where(function($q){ $q->whereNull('out_id')->orWhere('out_id', 0); })->where('container_status', 1)->count();
+                $repoCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where(function($q){ $q->whereNull('out_id')->orWhere('out_id', 0); })->where('container_status', 8)->count();
+                $washCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where(function($q){ $q->whereNull('out_id')->orWhere('out_id', 0); })->where('container_status', 2)->count();
+                $damagedCount = (int) DB::table('inventory')->where('gate_status', 'IN')->where('complete', 0)->where(function($q){ $q->whereNull('out_id')->orWhere('out_id', 0); })->where('container_status', 3)->count();
                 
                 // Banned containers
                 $bannedCount = (int) DB::table('ban_containers')->count();
