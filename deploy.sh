@@ -37,10 +37,11 @@ set_kv "APP_URL" "https://tbscontainermnl.com"
 set_kv "SESSION_DOMAIN" ".tbscontainermnl.com"
 set_kv "SESSION_SECURE_COOKIE" "true"
 
-# Pull latest changes
+# Pull latest changes — reset hard so any server-side edits to tracked files
+# never block the deploy. .env is in .gitignore so it is never touched.
 echo "📥 Pulling latest changes from GitHub..."
 git fetch origin
-git pull origin master
+git reset --hard origin/master
 
 # Install/Update dependencies
 echo "📦 Installing dependencies..."
