@@ -13,12 +13,6 @@ window.axios.interceptors.request.use(
             config.headers['X-CSRF-TOKEN'] = token.getAttribute('content');
         }
         
-        // Add Authorization token from localStorage
-        const authToken = localStorage.getItem('auth_token');
-        if (authToken) {
-            config.headers['Authorization'] = `Bearer ${authToken}`;
-        }
-        
         return config;
     },
     (error) => {
