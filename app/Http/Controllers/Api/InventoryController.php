@@ -201,6 +201,7 @@ class InventoryController extends Controller
                     CASE WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate}) ELSE NULL END as time_in,
                     i.complete,
                     i.out_id,
+                    i.gate_status,
                     i.remarks,
                     i.approval_notes as app_notes,
                     CASE 
@@ -214,10 +215,26 @@ class InventoryController extends Controller
                 LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
-                WHERE i.gate_status = 'IN' AND i.complete = 0
+                WHERE 1=1
             ";
 
             $params = [];
+
+            // Handle gate status filter (default to Real Time Inventory)
+            $gateStatusFilter = $request->input('gate_status', 'CURRENTLY');
+            
+            if ($gateStatusFilter === 'CURRENTLY') {
+                // Real Time Inventory - only IN and not complete
+                $query .= " AND i.gate_status = 'IN' AND i.complete = 0";
+            } elseif ($gateStatusFilter === 'IN') {
+                // All IN containers
+                $query .= " AND i.gate_status = 'IN'";
+            } elseif ($gateStatusFilter === 'OUT') {
+                // All OUT containers
+                $query .= " AND i.gate_status = 'OUT'";
+            } elseif ($gateStatusFilter === 'BOTH') {
+                // Both IN and OUT - no additional filter needed
+            }
 
             // Apply all search filters
             if ($request->container_no) {
@@ -280,11 +297,6 @@ class InventoryController extends Controller
                 $params[':iso_code'] = "%{$request->iso_code}%";
             }
 
-            if ($request->gate_status) {
-                $query .= " AND i.gate_status = :gate_status";
-                $params[':gate_status'] = $request->gate_status;
-            }
-
             // Date range - Gate IN
             if ($request->date_in_from && $request->date_in_to) {
                 $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to";
@@ -306,11 +318,14 @@ class InventoryController extends Controller
                 $query .= " AND NOT EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no)";
             }
 
-            $query .= " ORDER BY i.i_id DESC LIMIT 2000";
+            $query .= " ORDER BY i.i_id DESC";
 
             $results = DB::select($query, $params);
 
             $data = [];
+            $summaryByClient = [];
+            $sizeTypeList = [];
+            
             foreach ($results as $item) {
                 $daysInYard = 0;
                 if ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
@@ -355,12 +370,40 @@ class InventoryController extends Controller
                     'remarks' => $item->remarks,
                     'app_notes' => $item->app_notes ?? '',
                 ];
+                
+                // Build summary report data
+                $clientDisplay = $item->client_code ?: $item->client_name;
+                $sizeType = $item->size . $item->type;
+                
+                if (!empty($sizeType) && !empty($clientDisplay)) {
+                    // Track unique size types
+                    if (!in_array($sizeType, $sizeTypeList)) {
+                        $sizeTypeList[] = $sizeType;
+                    }
+                    
+                    // Initialize client entry if not exists
+                    if (!isset($summaryByClient[$clientDisplay])) {
+                        $summaryByClient[$clientDisplay] = [];
+                    }
+                    
+                    // Initialize size type count if not exists
+                    if (!isset($summaryByClient[$clientDisplay][$sizeType])) {
+                        $summaryByClient[$clientDisplay][$sizeType] = 0;
+                    }
+                    
+                    // Increment count
+                    $summaryByClient[$clientDisplay][$sizeType]++;
+                }
             }
 
             return response()->json([
                 'success' => true,
                 'data' => $data,
                 'total' => count($data),
+                'summary' => [
+                    'by_client' => $summaryByClient,
+                    'size_types' => $sizeTypeList,
+                ],
             ]);
 
         } catch (\Exception $e) {
@@ -1176,23 +1219,20 @@ class InventoryController extends Controller
                     LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                     LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
                     LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
-                    WHERE (c.archived = 0 OR c.archived IS NULL)
-                        AND i.gate_status = 'IN'
-                        AND i.complete = 0";
+                    WHERE (c.archived = 0 OR c.archived IS NULL)";
             
             $params = [];
             
-            // Handle gate status filter only when explicitly provided
-            $gateStatus = $filters['gate_status'] ?? null;
+            // Handle gate status filter (default to CURRENTLY for Real Time Inventory)
+            $gateStatus = $filters['gate_status'] ?? 'CURRENTLY';
             if ($gateStatus === 'CURRENTLY') {
-                $query .= " AND i.gate_status = 'IN' AND (i.out_id IS NULL OR i.out_id = 0)";
+                $query .= " AND i.gate_status = 'IN' AND i.complete = 0";
             } elseif ($gateStatus === 'IN') {
                 $query .= " AND i.gate_status = 'IN'";
             } elseif ($gateStatus === 'OUT') {
                 $query .= " AND i.gate_status = 'OUT'";
-            } elseif ($gateStatus === 'BOTH') {
-                // no-op, included for completeness
             }
+            // For 'BOTH', no additional gate status filter
             
             // Client filter
             if (!empty($filters['client']) && $filters['client'] !== 'all') {
@@ -1312,9 +1352,42 @@ class InventoryController extends Controller
             
             $results = DB::select($query, $params);
             
+            // Build summary report data
+            $summaryByClient = [];
+            $sizeTypeList = [];
+            
+            foreach ($results as $item) {
+                $clientDisplay = $item->client_code ?: $item->client;
+                $sizeType = $item->size;
+                
+                if (!empty($sizeType) && !empty($clientDisplay)) {
+                    // Track unique size types
+                    if (!in_array($sizeType, $sizeTypeList)) {
+                        $sizeTypeList[] = $sizeType;
+                    }
+                    
+                    // Initialize client entry if not exists
+                    if (!isset($summaryByClient[$clientDisplay])) {
+                        $summaryByClient[$clientDisplay] = [];
+                    }
+                    
+                    // Initialize size type count if not exists
+                    if (!isset($summaryByClient[$clientDisplay][$sizeType])) {
+                        $summaryByClient[$clientDisplay][$sizeType] = 0;
+                    }
+                    
+                    // Increment count
+                    $summaryByClient[$clientDisplay][$sizeType]++;
+                }
+            }
+            
             return response()->json([
                 'success' => true,
-                'data' => $results
+                'data' => $results,
+                'summary' => [
+                    'by_client' => $summaryByClient,
+                    'size_types' => $sizeTypeList,
+                ],
             ]);
             
         } catch (\Exception $e) {
