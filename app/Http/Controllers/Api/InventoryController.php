@@ -224,8 +224,8 @@ class InventoryController extends Controller
             $gateStatusFilter = $request->input('gate_status', 'CURRENTLY');
             
             if ($gateStatusFilter === 'CURRENTLY') {
-                // Real Time Inventory - only IN and not complete
-                $query .= " AND i.gate_status = 'IN' AND i.complete = 0";
+                // Real Time Inventory - only IN, not complete, and no out_id (matches legacy system)
+                $query .= " AND i.gate_status = 'IN' AND i.complete = 0 AND (i.out_id IS NULL OR i.out_id = 0)";
             } elseif ($gateStatusFilter === 'IN') {
                 // All IN containers
                 $query .= " AND i.gate_status = 'IN'";
@@ -1226,7 +1226,8 @@ class InventoryController extends Controller
             // Handle gate status filter (default to CURRENTLY for Real Time Inventory)
             $gateStatus = $filters['gate_status'] ?? 'CURRENTLY';
             if ($gateStatus === 'CURRENTLY') {
-                $query .= " AND i.gate_status = 'IN' AND i.complete = 0";
+                // Real Time Inventory - only IN, not complete, and no out_id (matches legacy system)
+                $query .= " AND i.gate_status = 'IN' AND i.complete = 0 AND (i.out_id IS NULL OR i.out_id = 0)";
             } elseif ($gateStatus === 'IN') {
                 $query .= " AND i.gate_status = 'IN'";
             } elseif ($gateStatus === 'OUT') {
