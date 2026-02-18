@@ -71,8 +71,16 @@ const Index: React.FC = () => {
     const [statusesIn, setStatusesIn] = useState<string[]>([]);
     const [statusesOut, setStatusesOut] = useState<string[]>([]);
     const [reportData, setReportData] = useState<InventoryRecord[]>([]);
+    const [totalCount, setTotalCount] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
+
+    // Summary report data
+    const [summaryData, setSummaryData] = useState<{
+        by_client: Record<string, Record<string, number>>;
+        size_types: string[];
+    } | null>(null);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
 
     // Approval modal states
     const [showApprovalModal, setShowApprovalModal] = useState(false);
@@ -143,6 +151,7 @@ const Index: React.FC = () => {
         size_type: 'all',
         bill_of_lading: '',
         status_out: 'all',
+        gate_status: 'CURRENTLY',
         auto_clear: false,
     });
 
@@ -206,10 +215,14 @@ const Index: React.FC = () => {
     const loadAllInventory = async () => {
         setLoading(true);
         try {
-            const response = await axios.post('/api/inventory/search', {});
+            const response = await axios.post('/api/inventory/search', {
+                gate_status: 'CURRENTLY'
+            });
             
             if (response.data.success) {
                 setReportData(response.data.data || []);
+                setTotalCount(response.data.total || 0);
+                setSummaryData(response.data.summary || null);
             }
         } catch (err) {
             console.error('Failed to load inventory:', err);
@@ -645,6 +658,7 @@ const Index: React.FC = () => {
             
             if (response.data.success) {
                 setReportData(response.data.data || []);
+                setSummaryData(response.data.summary || null);
                 success(`Found ${response.data.data?.length || 0} records`);
                 
                 if (filters.auto_clear) {
@@ -672,17 +686,20 @@ const Index: React.FC = () => {
                         size_type: 'all',
                         bill_of_lading: '',
                         status_out: 'all',
+                        gate_status: 'CURRENTLY',
                         auto_clear: filters.auto_clear,
                     });
                 }
             } else {
                 error(response.data.message || 'Failed to load inventory data');
                 setReportData([]);
+                setSummaryData(null);
             }
         } catch (error_caught: unknown) {
             const err = error_caught as { response?: { data?: { message?: string } } };
             error(err.response?.data?.message || 'Failed to search inventory');
             setReportData([]);
+            setSummaryData(null);
         } finally {
             setLoading(false);
         }
@@ -739,7 +756,7 @@ const Index: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Generate and Export Buttons */}
+                    {/* Generate, Summary, and Export Buttons */}
                     <div className="flex items-center gap-3">
                         <ModernButton 
                             variant="primary" 
@@ -749,6 +766,25 @@ const Index: React.FC = () => {
                         >
                             <FileText className="w-5 h-5" />
                             {loading ? 'Generating...' : 'Generate'}
+                        </ModernButton>
+                        <ModernButton 
+                            variant="edit" 
+                            onClick={() => {
+                                if (reportData.length === 0) {
+                                    error('Please generate a report first to view the summary');
+                                    return;
+                                }
+                                if (!summaryData) {
+                                    error('Summary data is not available. Please regenerate the report.');
+                                    return;
+                                }
+                                setShowSummaryModal(true);
+                            }} 
+                            disabled={loading}
+                            className="px-6 py-3"
+                        >
+                            <Eye className="w-5 h-5" />
+                            View Summary Report
                         </ModernButton>
                         <ModernButton 
                             variant="add" 
@@ -1057,6 +1093,21 @@ const Index: React.FC = () => {
                                 </Select>
                             </div>
 
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">In/Out</Label>
+                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={(value) => handleFilterChange('gate_status', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="Real Time Inventory" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="CURRENTLY">Real Time Inventory</SelectItem>
+                                        <SelectItem value="IN">In</SelectItem>
+                                        <SelectItem value="OUT">Out</SelectItem>
+                                        <SelectItem value="BOTH">Both</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <div className="flex items-center space-x-2 mt-2">
                                 <Checkbox
                                     id="auto-clear"
@@ -1090,7 +1141,7 @@ const Index: React.FC = () => {
                     {/* Container Count */}
                     <div className="px-6 py-4 bg-white border-t border-gray-200">
                         <p className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{filteredReportData.length}</span> container{filteredReportData.length !== 1 ? 's' : ''} found
+                            <span className="font-semibold text-gray-900">{filteredReportData.length.toLocaleString()}</span> container{filteredReportData.length !== 1 ? 's' : ''} found
                         </p>
                     </div>
                 </div>
@@ -1983,6 +2034,138 @@ const Index: React.FC = () => {
                 confirmText="Yes, Export"
                 onConfirm={handleExport}
             />
+
+            {/* Summary Report Modal */}
+            <Dialog open={showSummaryModal} onOpenChange={setShowSummaryModal}>
+                <DialogContent className="!max-w-[90vw] !w-[90vw] !max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                            Summary Report
+                        </DialogTitle>
+                        <DialogDescription>
+                            Container inventory summary by client and size/type with TEUs calculation
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    {summaryData && Object.keys(summaryData.by_client || {}).length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse border border-gray-300 text-xs">
+                                <thead>
+                                    <tr style={{ backgroundColor: colors.brand.primary }}>
+                                        <th className="border border-gray-300 px-2 py-2 text-left text-white font-semibold whitespace-nowrap">
+                                            Client Name
+                                        </th>
+                                        {summaryData.size_types.map((sizeType) => (
+                                            <th key={sizeType} className="border border-gray-300 px-2 py-2 text-center text-white font-semibold whitespace-nowrap">
+                                                {sizeType}
+                                            </th>
+                                        ))}
+                                        <th className="border border-gray-300 px-2 py-2 text-center text-white font-semibold whitespace-nowrap">
+                                            Total
+                                        </th>
+                                        <th className="border border-gray-300 px-2 py-2 text-center text-white font-semibold whitespace-nowrap">
+                                            TEUS
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.entries(summaryData.by_client).map(([client, sizeCounts], idx) => {
+                                        let totalCount = 0;
+                                        let totalTeus = 0;
+                                        
+                                        // Calculate totals - EXACT logic from legacy system
+                                        summaryData.size_types.forEach((sizeType) => {
+                                            const count = sizeCounts[sizeType] || 0;
+                                            totalCount += count;
+                                            
+                                            // Calculate TEUs based on size (first 2 characters)
+                                            const size = sizeType.substring(0, 2);
+                                            if (size === '45') {
+                                                totalTeus += count * 2.0;
+                                            } else if (size === '40') {
+                                                totalTeus += count * 2.0;
+                                            } else if (size === '20') {
+                                                totalTeus += count * 1.0;
+                                            }
+                                        });
+                                        
+                                        return (
+                                            <tr key={client} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                <td className="border border-gray-300 px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">
+                                                    {client}
+                                                </td>
+                                                {summaryData.size_types.map((sizeType) => (
+                                                    <td key={sizeType} className="border border-gray-300 px-2 py-1.5 text-center text-gray-700">
+                                                        {sizeCounts[sizeType] || 0}
+                                                    </td>
+                                                ))}
+                                                <td className="border border-gray-300 px-2 py-1.5 text-center font-semibold text-gray-900">
+                                                    {totalCount}
+                                                </td>
+                                                <td className="border border-gray-300 px-2 py-1.5 text-center font-semibold text-gray-900">
+                                                    {totalTeus.toFixed(1)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    
+                                    {/* Grand Total Row - EXACT logic from legacy system */}
+                                    <tr style={{ backgroundColor: colors.brand.primary }}>
+                                        <td className="border border-gray-300 px-2 py-2 font-bold text-white whitespace-nowrap">
+                                            Total
+                                        </td>
+                                        {summaryData.size_types.map((sizeType) => {
+                                            const grandTotal = Object.values(summaryData.by_client).reduce(
+                                                (sum, client) => sum + (client[sizeType] || 0),
+                                                0
+                                            );
+                                            return (
+                                                <td key={sizeType} className="border border-gray-300 px-2 py-2 text-center font-bold text-white">
+                                                    {grandTotal}
+                                                </td>
+                                            );
+                                        })}
+                                        <td className="border border-gray-300 px-2 py-2 text-center font-bold text-white">
+                                            {Object.values(summaryData.by_client).reduce((sum, client) => {
+                                                return sum + summaryData.size_types.reduce((s, st) => s + (client[st] || 0), 0);
+                                            }, 0)}
+                                        </td>
+                                        <td className="border border-gray-300 px-2 py-2 text-center font-bold text-white">
+                                            {Object.values(summaryData.by_client).reduce((sum, client) => {
+                                                return sum + summaryData.size_types.reduce((s, st) => {
+                                                    const count = client[st] || 0;
+                                                    const size = st.substring(0, 2);
+                                                    if (size === '45') {
+                                                        return s + (count * 2.0);
+                                                    } else if (size === '40') {
+                                                        return s + (count * 2.0);
+                                                    } else if (size === '20') {
+                                                        return s + (count * 1.0);
+                                                    }
+                                                    return s;
+                                                }, 0);
+                                            }, 0).toFixed(1)}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <p className="text-gray-600">No summary data available. Please try generating the report again.</p>
+                        </div>
+                    )}
+{/*                     
+                    <DialogFooter>
+                        <ModernButton
+                            variant="toggle"
+                            onClick={() => setShowSummaryModal(false)}
+                        >
+                            Close
+                        </ModernButton>
+                    </DialogFooter> */}
+                </DialogContent>
+            </Dialog>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
