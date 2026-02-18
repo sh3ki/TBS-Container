@@ -42,10 +42,11 @@ server {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        fastcgi_buffer_size 64k;
-        fastcgi_buffers 16 32k;
-        fastcgi_busy_buffers_size 128k;
-        fastcgi_temp_file_write_size 128k;
+      fastcgi_read_timeout 300;
+      fastcgi_buffer_size 256k;
+      fastcgi_buffers 32 64k;
+      fastcgi_busy_buffers_size 512k;
+      fastcgi_temp_file_write_size 512k;
     }
 
     location ~ /\.(?!well-known).* {
@@ -69,6 +70,7 @@ server {
 NGINX
 
 cd "$APP_DIR"
+php artisan migrate --force
 php artisan wayfinder:generate
 npm install
 npm run build
