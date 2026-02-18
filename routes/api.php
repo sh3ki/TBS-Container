@@ -38,7 +38,7 @@ Route::get('/csrf-token', function () {
 });
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-inactive', [AuthController::class, 'logoutInactive']);
