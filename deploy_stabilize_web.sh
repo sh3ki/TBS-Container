@@ -21,10 +21,13 @@ set_kv "SESSION_DOMAIN" ".tbscontainermnl.com"
 set_kv "SESSION_SECURE_COOKIE" "true"
 
 cat > /etc/nginx/sites-available/tbscontainermnl <<'NGINX'
+# ── Canonical app server (apex only) ─────────────────────────────────────────
 server {
-    server_name tbscontainermnl.com www.tbscontainermnl.com;
-    root /var/www/tbscontainermnl/public;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name tbscontainermnl.com;
 
+    root /var/www/tbscontainermnl/public;
     index index.php;
     charset utf-8;
 
@@ -42,30 +45,44 @@ server {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-      fastcgi_read_timeout 300;
-      fastcgi_buffer_size 256k;
-      fastcgi_buffers 32 64k;
-      fastcgi_busy_buffers_size 512k;
-      fastcgi_temp_file_write_size 512k;
+        fastcgi_read_timeout 300;
+        fastcgi_buffer_size 256k;
+        fastcgi_buffers 32 64k;
+        fastcgi_busy_buffers_size 512k;
+        fastcgi_temp_file_write_size 512k;
     }
 
     location ~ /\.(?!well-known).* {
         deny all;
     }
 
-    listen [::]:443 ssl ipv6only=on;
-    listen 443 ssl;
     ssl_certificate /etc/letsencrypt/live/tbscontainermnl.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/tbscontainermnl.com/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 }
 
+# ── www → apex redirect (HTTPS) ───────────────────────────────────────────────
+# Keeps all traffic on one canonical domain so sessions/cookies never mismatch.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name www.tbscontainermnl.com;
+
+    ssl_certificate /etc/letsencrypt/live/tbscontainermnl.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tbscontainermnl.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://tbscontainermnl.com$request_uri;
+}
+
+# ── HTTP → HTTPS redirect (both hosts) ───────────────────────────────────────
 server {
     listen 80;
     listen [::]:80;
     server_name tbscontainermnl.com www.tbscontainermnl.com;
-    return 301 https://$host$request_uri;
+    return 301 https://tbscontainermnl.com$request_uri;
 }
 NGINX
 
