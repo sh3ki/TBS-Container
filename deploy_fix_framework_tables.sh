@@ -36,6 +36,43 @@ CREATE TABLE IF NOT EXISTS \`${PREFIX}cache_locks\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 "
 
+mysql -u root -D "$DB_NAME" -e "
+CREATE TABLE IF NOT EXISTS \`${PREFIX}scheduled_notifications\` (
+  \`pam_id\` bigint unsigned NOT NULL AUTO_INCREMENT,
+  \`from_user\` int DEFAULT NULL,
+  \`to_user\` int DEFAULT NULL,
+  \`sent_date\` datetime DEFAULT NULL,
+  \`trigger_date\` datetime DEFAULT NULL,
+  \`type\` varchar(100) DEFAULT NULL,
+  \`message\` text,
+  \`screen\` tinyint(1) NOT NULL DEFAULT 0,
+  \`email1\` tinyint(1) NOT NULL DEFAULT 0,
+  \`email2\` tinyint(1) NOT NULL DEFAULT 0,
+  \`sms1\` tinyint(1) NOT NULL DEFAULT 0,
+  \`sms2\` tinyint(1) NOT NULL DEFAULT 0,
+  \`tel1\` tinyint(1) NOT NULL DEFAULT 0,
+  \`tel2\` tinyint(1) NOT NULL DEFAULT 0,
+  \`mobile1\` tinyint(1) NOT NULL DEFAULT 0,
+  \`mobile2\` tinyint(1) NOT NULL DEFAULT 0,
+  \`fax1\` tinyint(1) NOT NULL DEFAULT 0,
+  \`fax2\` tinyint(1) NOT NULL DEFAULT 0,
+  \`ack_required\` tinyint(1) NOT NULL DEFAULT 0,
+  \`ack_date\` datetime DEFAULT NULL,
+  \`ack_message\` text,
+  \`delivered\` tinyint(1) NOT NULL DEFAULT 0,
+  \`retry_count\` int NOT NULL DEFAULT 0,
+  \`error_message\` text,
+  \`to_email\` varchar(255) DEFAULT NULL,
+  \`to_phone\` varchar(20) DEFAULT NULL,
+  \`to_address\` varchar(255) DEFAULT NULL,
+  \`deleted\` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (\`pam_id\`),
+  KEY \`${PREFIX}scheduled_notifications_trigger_delivered_index\` (\`trigger_date\`,\`delivered\`),
+  KEY \`${PREFIX}scheduled_notifications_to_user_delivered_index\` (\`to_user\`,\`delivered\`),
+  KEY \`${PREFIX}scheduled_notifications_type_trigger_index\` (\`type\`,\`trigger_date\`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"
+
 cd /var/www/tbscontainermnl
 php artisan optimize:clear
 php artisan config:cache
