@@ -63,6 +63,7 @@ export const ModernTable = <T extends Record<string, unknown>>({
         }}
       >
         <style>{`
+          /* Chrome / Safari / Edge – custom scrollbar */
           .overflow-x-auto::-webkit-scrollbar {
             height: 8px;
           }
@@ -77,6 +78,9 @@ export const ModernTable = <T extends Record<string, unknown>>({
           .overflow-x-auto::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
           }
+          /* Firefox – custom scrollbar (overrides scrollbarColor on the inline style
+             only if a more specific scrollbar-color is needed per table instance;
+             the inline scrollbarWidth/scrollbarColor handle this already) */
         `}</style>
         <table className="w-full border-collapse">
           <thead>
