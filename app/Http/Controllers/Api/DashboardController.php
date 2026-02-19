@@ -253,13 +253,7 @@ class DashboardController extends Controller
                     ->leftJoin('clients as c', 'c.c_id', '=', 'i.client_id')
                     ->where('i.gate_status', 'IN')
                     ->where('i.complete', 0)
-                    ->where(function ($query) {
-                        $query->whereNull('i.out_id')->orWhere('i.out_id', 0);
-                    })
-                    ->where(function ($query) {
-                        $query->where('c.archived', 0)
-                              ->orWhereNull('c.archived');
-                    })
+                    ->where('c.archived', 0)
                     ->count();
                 
                 // Gate IN and OUT today
