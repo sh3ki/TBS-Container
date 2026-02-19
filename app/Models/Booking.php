@@ -154,26 +154,19 @@ class Booking extends Model
     }
 
     /**
-     * Scope for active bookings (not expired with at least 1 container).
+     * Scope for active bookings (not expired, has remaining containers, client not archived).
+     * Matches legacy system: only shows bookings where remaining (_rem) containers > 0.
      */
     public function scopeActive($query)
     {
-        return $query->where('expiration_date', '>=', now()->toDateString())
+        return $query->where('expiration_date', '>', now()->toDateString())
                      ->where(function($q) {
-                         $q->where('twenty', '>', 0)
-                           ->orWhere('fourty', '>', 0)
-                           ->orWhere('fourty_five', '>', 0)
-                           ->orWhere('twenty_rem', '>', 0)
+                         $q->where('twenty_rem', '>', 0)
                            ->orWhere('fourty_rem', '>', 0)
-                           ->orWhere('fourty_five_rem', '>', 0)
-                           ->orWhere(function($q2) {
-                               $q2->whereNotNull('cont_list')
-                                  ->where('cont_list', '!=', '');
-                           })
-                           ->orWhere(function($q2) {
-                               $q2->whereNotNull('cont_list_rem')
-                                  ->where('cont_list_rem', '!=', '');
-                           });
+                           ->orWhere('fourty_five_rem', '>', 0);
+                     })
+                     ->whereHas('client', function($q) {
+                         $q->where('archived', 0);
                      });
     }
 
