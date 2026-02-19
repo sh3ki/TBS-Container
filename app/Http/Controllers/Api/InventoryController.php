@@ -1219,7 +1219,7 @@ class InventoryController extends Controller
                     LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                     LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
                     LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
-                    WHERE (c.archived = 0 OR c.archived IS NULL)";
+                    WHERE c.archived = 0";
             
             $params = [];
             
