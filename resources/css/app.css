@@ -205,4 +205,34 @@
     input[type="date"]::-webkit-datetime-edit {
         color: #111827;
     }
+
+    /* -------------------------------------------------------
+     * Firefox Compatibility Fixes
+     * The rules below apply only to Firefox or are safe
+     * fallbacks that don't affect Chrome/Safari/Edge.
+     * ------------------------------------------------------- */
+
+    /* Firefox: hide number input spin buttons.
+     * Chrome/Safari use ::-webkit-inner/outer-spin-button (handled
+     * in input.tsx via Tailwind); Firefox needs -moz-appearance. */
+    input[type="number"] {
+        -moz-appearance: textfield;
+    }
+
+    /* Firefox: date and time inputs – set text color on the element
+     * itself because Firefox does not support ::-webkit-datetime-edit.
+     * Chrome/Safari ignore this since their text is painted by
+     * ::-webkit-datetime-edit which has higher specificity. */
+    input[type="date"],
+    input[type="time"] {
+        color: #111827;
+    }
+
+    /* Firefox: scrollbar utilities (Firefox ignores ::-webkit-scrollbar).
+     * Apply thin, styled scrollbars to the common overflow containers
+     * that use webkit scrollbar Tailwind classes. */
+    .firefox-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #d1d5db #f3f4f6;
+    }
 }
