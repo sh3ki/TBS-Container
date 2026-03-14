@@ -1446,6 +1446,170 @@ class InventoryController extends Controller
     }
 
     /**
+     * Legacy-compatible single EIR print template.
+     * Mirrors old: inventory/getPrintData?id={md5(i_id)}
+     */
+    public function printLegacy($id)
+    {
+        try {
+            $prefix = DB::getTablePrefix();
+            $isNumeric = is_numeric($id);
+
+            $where = $isNumeric ? 'i.i_id = ?' : 'MD5(i.i_id) = ?';
+
+            $record = DB::selectOne("SELECT
+                        i.i_id,
+                        CASE
+                            WHEN i.gate_status='IN' THEN CONCAT(i.i_id,'I')
+                            ELSE CONCAT(i.i_id,'O')
+                        END as eirno,
+                        i.container_no as cno,
+                        c.client_name as client,
+                        c.client_code,
+                        CONCAT(st.size,st.type) as size_type,
+                        DATE_FORMAT(DATE(i.date_added),'%m/%d/%Y') as date,
+                        DATE_FORMAT(i.date_added, '%H:%i') as time,
+                        cs.status as container_status,
+                        i.class,
+                        DATE_FORMAT(i.date_manufactured,'%Y-%m') as date_manufactured,
+                        i.location,
+                        i.remarks,
+                        i.gate_status,
+                        i.seal_no,
+                        i.booking,
+                        i.ex_consignee,
+                        i.vessel,
+                        i.voyage,
+                        lt.type as type,
+                        i.hauler,
+                        i.plate_no,
+                        i.iso_code as iso,
+                        i.hauler_driver as haud,
+                        i.license_no as lno,
+                        u.full_name as fn,
+                        i.origin,
+                        i.chasis,
+                        i.shipper
+                    FROM {$prefix}inventory i
+                    LEFT JOIN {$prefix}container_status cs ON i.container_status=cs.s_id
+                    LEFT JOIN {$prefix}container_size_type st ON i.size_type=st.s_id
+                    LEFT JOIN {$prefix}clients c ON c.c_id=i.client_id
+                    LEFT JOIN {$prefix}hold_containers hc ON hc.container_no=i.container_no
+                    LEFT JOIN {$prefix}load_type lt ON lt.l_id=i.load_type
+                    LEFT JOIN {$prefix}users u ON u.user_id=i.user_id
+                    WHERE {$where} AND c.archived=0", [$id]);
+
+            if (!$record) {
+                abort(404, 'Print record not found');
+            }
+
+            $data = (array) $record;
+            return view('pdfs.inventory-print-single', compact('data'));
+        } catch (\Exception $e) {
+            Log::error('Inventory legacy print error', ['id' => $id, 'error' => $e->getMessage()]);
+            abort(500, 'Failed to generate print document');
+        }
+    }
+
+    /**
+     * Legacy-compatible IN/OUT combined print template.
+     * Mirrors old: inventory/getPrintDataInOut?id={md5(i_id)}&s={IN|OUT}
+     */
+    public function printLegacyInOut(Request $request)
+    {
+        try {
+            $prefix = DB::getTablePrefix();
+            $id = (string) $request->query('id', '');
+            $status = strtoupper((string) $request->query('s', 'IN'));
+
+            if ($id === '') {
+                abort(422, 'Missing print identifier');
+            }
+
+            $isNumeric = is_numeric($id);
+            if ($status === 'IN') {
+                $where = $isNumeric ? 'i.i_id = ?' : 'MD5(i.i_id)=?';
+            } else {
+                $where = $isNumeric ? 'i.out_id = ?' : 'MD5(i.out_id)=?';
+            }
+
+            $record = DB::selectOne("SELECT
+                        CONCAT(i.i_id,'I') as ieirno,
+                        i.container_no as icno,
+                        CONCAT(st.size,st.type) as isize_type,
+                        DATE_FORMAT(DATE(i.date_added),'%m/%d/%Y') as idate,
+                        DATE_FORMAT(i.date_added, '%H:%i') as itime,
+                        DATE_FORMAT(DATE(pi.date_added),'%m/%d/%Y') as ipredate,
+                        DATE_FORMAT(pi.date_added, '%H:%i') as ipretime,
+                        cs.status as icontainer_status,
+                        i.class as iclass,
+                        DATE_FORMAT(i.date_manufactured,'%Y-%m') as idate_manufactured,
+                        i.remarks as iremarks,
+                        CASE WHEN c.client_code IS NOT NULL AND c.client_code <> '' THEN c.client_code ELSE c.client_name END as client,
+                        i.ex_consignee as iconsignee,
+                        i.vessel as ivessel,
+                        i.voyage as ivoyage,
+                        lt.type as itype,
+                        i.hauler as ihau,
+                        i.hauler_driver as ihaud,
+                        i.plate_no as ipno,
+                        i.chasis as ichasis,
+                        i.iso_code as iiso,
+                        i.origin as iorigin,
+                        u.full_name as ifn,
+
+                        CONCAT(o.i_id,'O') as oeirno,
+                        CONCAT(ost.size,ost.type) as osize_type,
+                        DATE_FORMAT(DATE(o.date_added),'%m/%d/%Y') as odate,
+                        DATE_FORMAT(o.date_added, '%H:%i') as otime,
+                        DATE_FORMAT(DATE(po.date_added),'%m/%d/%Y') as opredate,
+                        DATE_FORMAT(po.date_added, '%H:%i') as opretime,
+                        o.vessel as ovessel,
+                        o.voyage as ovoyage,
+                        o.hauler as ohau,
+                        o.plate_no as opno,
+                        o.chasis as ochasis,
+                        ocs.status as ocontainer_status,
+                        o.location as olocation,
+                        olt.type as otype,
+                        o.booking as obooking,
+                        o.seal_no as oseal_no,
+                        o.shipper as oshipper,
+                        o.remarks as oremarks,
+                        o.origin as oorigin
+                    FROM {$prefix}inventory i
+                    LEFT JOIN {$prefix}pre_inventory pi ON pi.inv_id=i.i_id
+                    LEFT JOIN {$prefix}container_status cs ON i.container_status=cs.s_id
+                    LEFT JOIN {$prefix}container_size_type st ON i.size_type=st.s_id
+                    LEFT JOIN {$prefix}clients c ON c.c_id=i.client_id
+                    LEFT JOIN {$prefix}load_type lt ON lt.l_id=i.load_type
+                    LEFT JOIN {$prefix}users u ON u.user_id=i.user_id
+
+                    LEFT JOIN {$prefix}inventory o ON i.out_id=o.i_id
+                    LEFT JOIN {$prefix}pre_inventory po ON po.inv_id=o.i_id
+                    LEFT JOIN {$prefix}container_status ocs ON o.container_status=ocs.s_id
+                    LEFT JOIN {$prefix}container_size_type ost ON o.size_type=ost.s_id
+                    LEFT JOIN {$prefix}load_type olt ON olt.l_id=o.load_type
+                    LEFT JOIN {$prefix}users ou ON ou.user_id=o.user_id
+                    WHERE {$where}", [$id]);
+
+            if (!$record) {
+                abort(404, 'Print record not found');
+            }
+
+            $data = (array) $record;
+            return view('pdfs.inventory-print-inout', compact('data'));
+        } catch (\Exception $e) {
+            Log::error('Inventory legacy IN/OUT print error', [
+                'id' => $request->query('id'),
+                'status' => $request->query('s'),
+                'error' => $e->getMessage(),
+            ]);
+            abort(500, 'Failed to generate IN/OUT print document');
+        }
+    }
+
+    /**
      * Approve container with notes
      * POST /api/inventory/{id}/approve
      */
