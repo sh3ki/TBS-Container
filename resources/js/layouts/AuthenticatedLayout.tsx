@@ -17,6 +17,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Container,
+    Mail,
     Menu,
     X,
 } from 'lucide-react';
@@ -258,6 +259,38 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     {sidebarCollapsed && (
                                         <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
                                             Dashboard
+                                        </TooltipContent>
+                                    )}
+                                </Tooltip>
+                            </li>
+
+                            <li>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Link
+                                            href="/dashboard/email-automation"
+                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                isActivePath('/dashboard/email-automation')
+                                                    ? 'shadow-lg'
+                                                    : 'hover:bg-white/10 hover:text-white'
+                                            }`}
+                                            style={{
+                                                ...(isActivePath('/dashboard/email-automation') && { backgroundColor: colors.sidebar.active }),
+                                                color: isActivePath('/dashboard/email-automation') ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
+                                            }}
+                                        >
+                                            <Mail className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard/email-automation') ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
+                                            <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                                <div className="text-sm font-semibold">Email Automation</div>
+                                            </div>
+                                            {!sidebarCollapsed && isActivePath('/dashboard/email-automation') && (
+                                                <div className="w-1 h-6 rounded-full bg-white"></div>
+                                            )}
+                                        </Link>
+                                    </TooltipTrigger>
+                                    {sidebarCollapsed && (
+                                        <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
+                                            Email Automation
                                         </TooltipContent>
                                     )}
                                 </Tooltip>
