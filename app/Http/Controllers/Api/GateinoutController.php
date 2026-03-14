@@ -1109,10 +1109,10 @@ class GateinoutController extends Controller
             // Get inventory record with all related data
             $record = DB::selectOne("
                 SELECT 
-                    i.inv_id,
+                    i.i_id,
                     CASE 
-                        WHEN i.gate_status='IN' THEN CONCAT(i.inv_id,'I')
-                        ELSE CONCAT(i.inv_id,'O')
+                        WHEN i.gate_status='IN' THEN CONCAT(i.i_id,'I')
+                        ELSE CONCAT(i.i_id,'O')
                     END as eirno,
                     i.container_no,
                     c.client_name,
@@ -1147,7 +1147,7 @@ class GateinoutController extends Controller
                 LEFT JOIN {$this->prefix}clients c ON c.c_id=i.client_id
                 LEFT JOIN {$this->prefix}load_type lt ON lt.l_id=i.load_type
                 LEFT JOIN {$this->prefix}users u ON u.user_id=i.user_id
-                WHERE i.inv_id = ? AND c.archived=0
+                WHERE i.i_id = ? AND c.archived=0
             ", [$id]);
 
             if (!$record) {
