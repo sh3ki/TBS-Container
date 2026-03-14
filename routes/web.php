@@ -28,6 +28,10 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Dashboard/Index');
     })->name('dashboard');
 
+    Route::get('/dashboard/email-automation', function () {
+        return Inertia::render('Dashboard/EmailAutomationStatus');
+    })->name('dashboard.email-automation');
+
     // Clients
     Route::get('/clients', function () {
         return Inertia::render('Clients/Index');
