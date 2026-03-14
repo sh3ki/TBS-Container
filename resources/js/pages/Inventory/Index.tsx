@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, Search, Printer } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -647,6 +647,17 @@ const Index: React.FC = () => {
         setShowGenerateConfirm(true);
     };
 
+    const openLegacyPrintSingle = (row: InventoryRecord) => {
+        const idForPrint = row.hashed_id || row.i_id;
+        window.open(`/api/inventory/print/${idForPrint}`, '_blank', 'width=1280,height=800');
+    };
+
+    const openLegacyPrintInOut = (row: InventoryRecord) => {
+        const idForPrint = row.hashed_id || row.i_id;
+        const status = row.gate || 'IN';
+        window.open(`/api/inventory/print-inout?id=${idForPrint}&s=${status}`, '_blank', 'width=1280,height=900');
+    };
+
     const handleSearch = async () => {
         setShowGenerateConfirm(false);
         setLoading(true);
@@ -1166,7 +1177,14 @@ const Index: React.FC = () => {
                                     key: 'container_no', 
                                     label: 'Cont. No.',
                                     render: (row: InventoryRecord) => (
-                                        <div className="font-medium text-gray-900 min-w-[110px]">{row.container_no}</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => openLegacyPrintInOut(row)}
+                                            className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
+                                            title="Print IN/OUT legacy template"
+                                        >
+                                            {row.container_no}
+                                        </button>
                                     )
                                 },
                                 { 
@@ -1337,6 +1355,16 @@ const Index: React.FC = () => {
                                                 title="Edit Container"
                                             >
                                                 <Pencil className="w-3.5 h-3.5" />
+                                            </ModernButton>
+
+                                            {/* Print Button (Legacy single print template) */}
+                                            <ModernButton
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => openLegacyPrintSingle(row)}
+                                                title="Print"
+                                            >
+                                                <Printer className="w-3.5 h-3.5" />
                                             </ModernButton>
 
                                             {/* Hold/Unhold Button */}
