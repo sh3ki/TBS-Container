@@ -28,6 +28,10 @@ That's it. The script will:
 9. Restart PHP-FPM and reload Nginx
 10. Bring app back online
 
+It should also keep these long-running workers active:
+1. `tbs-worker` (queue)
+2. `tbs-email-automation` (POP3 intake + scheduled SMTP + auto replies)
+
 ---
 
 ## Option B — Manual Step-by-Step Update
@@ -79,6 +83,11 @@ npm install
 npm run build
 ```
 
+### 7.1 Ensure IMAP extension is installed (required for POP3 intake)
+```bash
+php -m | grep -i imap || (apt update && apt install -y php8.3-imap && systemctl restart php8.3-fpm)
+```
+
 ### 8. Run any new database migrations
 ```bash
 php artisan migrate --force
@@ -105,6 +114,7 @@ chmod -R 775 /var/www/tbscontainermnl/bootstrap/cache
 systemctl reload nginx
 systemctl restart php8.3-fpm
 supervisorctl restart tbs-worker:*
+supervisorctl restart tbs-email-automation
 ```
 
 ### 12. Bring app back online
@@ -124,6 +134,9 @@ systemctl is-active nginx php8.3-fpm mysql redis-server supervisor
 
 # Workers should show RUNNING
 supervisorctl status
+
+# Verify email automation command is available
+php artisan list | grep email:automation
 
 # Confirm correct URL, DB, and debug=false
 php artisan about | grep -E 'Environment|Debug|URL|Database'
@@ -215,6 +228,32 @@ npm run build
 ```bash
 supervisorctl status
 supervisorctl restart tbs-worker:*
+```
+
+### Email automation not running
+```bash
+supervisorctl status
+supervisorctl restart tbs-email-automation
+
+# One-shot test cycle
+cd /var/www/tbscontainermnl
+php artisan email:automation --once
+
+# Continuous local foreground run for diagnostics
+php artisan email:automation --sleep=45
+```
+
+### POP3 processing fails (incoming mail)
+```bash
+# Confirm extension is loaded
+php -m | grep -i imap
+
+# Confirm env values
+grep EMAIL_AUTOMATION_POP3_ /var/www/tbscontainermnl/.env
+
+# Check app logs
+tail -n 50 /var/www/tbscontainermnl/storage/logs/laravel.log
+tail -n 50 /var/www/tbscontainermnl/storage/logs/email-automation.log
 ```
 
 ### APP_KEY missing after reset
