@@ -10,9 +10,113 @@ use App\Models\GateLog;
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
+    /**
+     * Email automation status snapshot for admin monitoring.
+     */
+    public function emailAutomationStatus(Request $request)
+    {
+        $notificationTable = null;
+        foreach ((array) config('email_automation.notification_table_candidates', []) as $candidate) {
+            if (Schema::hasTable($candidate)) {
+                $notificationTable = $candidate;
+                break;
+            }
+        }
+
+        $hasLogs = Schema::hasTable('email_automation_logs');
+        $hasReplyQueue = Schema::hasTable('email_reply_queue');
+
+        $logCounts = [
+            'incoming' => ['ok' => 0, 'error' => 0, 'skipped' => 0],
+            'scheduled' => ['ok' => 0, 'error' => 0, 'skipped' => 0],
+            'reply' => ['ok' => 0, 'error' => 0, 'skipped' => 0],
+        ];
+
+        $lastCycleAt = null;
+        if ($hasLogs) {
+            $lastCycleAt = DB::table('email_automation_logs')->max('processed_at');
+
+            $grouped = DB::table('email_automation_logs')
+                ->selectRaw('direction, status, COUNT(*) as total')
+                ->where('created_at', '>=', now()->subDay())
+                ->groupBy('direction', 'status')
+                ->get();
+
+            foreach ($grouped as $row) {
+                if (isset($logCounts[$row->direction]) && isset($logCounts[$row->direction][$row->status])) {
+                    $logCounts[$row->direction][$row->status] = (int) $row->total;
+                }
+            }
+        }
+
+        $replyQueue = ['pending' => 0, 'sent' => 0, 'failed' => 0, 'total' => 0];
+        if ($hasReplyQueue) {
+            $replyQueue['pending'] = (int) DB::table('email_reply_queue')->where('status', 'pending')->count();
+            $replyQueue['sent'] = (int) DB::table('email_reply_queue')->where('status', 'sent')->count();
+            $replyQueue['failed'] = (int) DB::table('email_reply_queue')->where('status', 'failed')->count();
+            $replyQueue['total'] = (int) DB::table('email_reply_queue')->count();
+        }
+
+        $scheduled = ['pending' => 0, 'delivered' => 0, 'failed' => 0, 'table' => $notificationTable];
+        if ($notificationTable !== null) {
+            $scheduled['pending'] = (int) DB::table($notificationTable)
+                ->where(function ($q) {
+                    $q->where('email1', 1)->orWhere('email2', 1);
+                })
+                ->where(function ($q) {
+                    $q->whereNull('delivered')->orWhere('delivered', 0);
+                })
+                ->where(function ($q) {
+                    $q->whereNull('deleted')->orWhere('deleted', 0);
+                })
+                ->where('trigger_date', '<=', now())
+                ->count();
+
+            $scheduled['delivered'] = (int) DB::table($notificationTable)
+                ->where(function ($q) {
+                    $q->where('email1', 1)->orWhere('email2', 1);
+                })
+                ->where('delivered', 1)
+                ->count();
+
+            $scheduled['failed'] = (int) DB::table($notificationTable)
+                ->where(function ($q) {
+                    $q->where('email1', 1)->orWhere('email2', 1);
+                })
+                ->where('retry_count', '>', 0)
+                ->where(function ($q) {
+                    $q->whereNull('delivered')->orWhere('delivered', 0);
+                })
+                ->count();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'config' => [
+                    'enabled' => (bool) config('email_automation.enabled', true),
+                    'incoming_enabled' => (bool) config('email_automation.incoming.enabled', true),
+                    'reply_enabled' => (bool) config('email_automation.reply.enabled', true),
+                    'scheduled_enabled' => (bool) config('email_automation.scheduled.enabled', true),
+                    'loop_sleep_seconds' => (int) config('email_automation.loop_sleep_seconds', 45),
+                ],
+                'tables' => [
+                    'email_automation_logs' => $hasLogs,
+                    'email_reply_queue' => $hasReplyQueue,
+                    'notification_table' => $notificationTable,
+                ],
+                'last_cycle_at' => $lastCycleAt,
+                'last_24h' => $logCounts,
+                'reply_queue' => $replyQueue,
+                'scheduled' => $scheduled,
+            ],
+        ]);
+    }
+
     /**
      * Get dashboard statistics.
      */
