@@ -49,6 +49,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::get('/dashboard/statistics', [DashboardController::class, 'statistics']);
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
+    Route::get('/dashboard/email-automation-status', [DashboardController::class, 'emailAutomationStatus']);
 
     // Clients - Full API with all 18 actions
     Route::prefix('clients')->group(function () {
@@ -110,6 +111,10 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         
         // Export
         Route::post('/export', [InventoryController::class, 'export']);
+
+        // Legacy print templates (carbon-copy format)
+        Route::get('/print/{id}', [InventoryController::class, 'printLegacy']);
+        Route::get('/print-inout', [InventoryController::class, 'printLegacyInOut']);
         
         // CRUD operations (hashed ID)
         Route::get('/{hashedId}', [InventoryController::class, 'getDetails']);
