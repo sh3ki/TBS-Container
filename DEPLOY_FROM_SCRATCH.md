@@ -40,7 +40,7 @@ apt update
 ```bash
 apt install -y php8.3 php8.3-fpm php8.3-cli php8.3-mysql php8.3-mbstring \
   php8.3-xml php8.3-curl php8.3-zip php8.3-bcmath php8.3-intl \
-  php8.3-redis php8.3-gd php8.3-tokenizer php8.3-fileinfo
+    php8.3-redis php8.3-gd php8.3-tokenizer php8.3-fileinfo php8.3-imap
 ```
 
 Verify:
@@ -190,6 +190,25 @@ MAIL_PASSWORD=your_mail_password
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=your@email.com
 MAIL_FROM_NAME="TBS"
+
+EMAIL_AUTOMATION_ENABLED=true
+EMAIL_AUTOMATION_LOOP_SLEEP=45
+
+EMAIL_AUTOMATION_INCOMING_ENABLED=true
+EMAIL_AUTOMATION_POP3_HOST=pop.bizmail.yahoo.com
+EMAIL_AUTOMATION_POP3_PORT=110
+EMAIL_AUTOMATION_POP3_USERNAME=your_pop3_user@email.com
+EMAIL_AUTOMATION_POP3_PASSWORD=your_pop3_password
+EMAIL_AUTOMATION_POP3_ENCRYPTION=none
+EMAIL_AUTOMATION_POP3_VALIDATE_CERT=false
+EMAIL_AUTOMATION_POP3_FOLDER=INBOX
+EMAIL_AUTOMATION_POP3_DELETE_PROCESSED=false
+
+EMAIL_AUTOMATION_REPLY_ENABLED=true
+EMAIL_AUTOMATION_REPLY_FROM_NAME="TBS Automation"
+
+EMAIL_AUTOMATION_SCHEDULED_ENABLED=true
+EMAIL_AUTOMATION_SCHEDULED_MAX_PER_CYCLE=100
 ```
 
 Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
@@ -224,6 +243,15 @@ php artisan migrate --force
 ```
 
 This creates all required tables including `fjp_sessions`, `fjp_cache`, `fjp_cache_locks`, `fjp_scheduled_notifications`, etc.
+
+Run the new email automation migration tables:
+```bash
+php artisan migrate --force
+```
+
+The automation uses these tables:
+- `email_reply_queue`
+- `email_automation_logs`
 
 ---
 
@@ -381,6 +409,19 @@ numprocs=2
 redirect_stderr=true
 stdout_logfile=/var/www/tbscontainermnl/storage/logs/worker.log
 stopwaitsecs=3600
+
+[program:tbs-email-automation]
+process_name=%(program_name)s
+command=php /var/www/tbscontainermnl/artisan email:automation --sleep=45
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/var/www/tbscontainermnl/storage/logs/email-automation.log
+stopwaitsecs=3600
 ```
 
 Save and load:
@@ -388,6 +429,7 @@ Save and load:
 supervisorctl reread
 supervisorctl update
 supervisorctl start tbs-worker:*
+supervisorctl start tbs-email-automation
 supervisorctl status
 ```
 
@@ -403,6 +445,11 @@ Add this line:
 ```
 * * * * * cd /var/www/tbscontainermnl && php artisan schedule:run >> /dev/null 2>&1
 ```
+
+Note:
+- Scheduler runs one automation cycle per minute (`email:automation --once`).
+- Supervisor process keeps a continuous 45-second loop for parity with legacy AutoMail.
+- Keep both enabled for resilience.
 
 ---
 
