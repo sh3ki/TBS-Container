@@ -20,15 +20,11 @@ Artisan::command('inspire', function () {
 // NOTE: Force logout is now handled by frontend inactivity monitor (30 min)
 // ============================================================================
 
-// 1. PROCESS SCHEDULED NOTIFICATIONS - Multi-channel notification system
-// Legacy: public/php/tbs/web/export.ro (jPAM routine)
-// Processes pending notifications and dispatches email jobs to queue
-// Legacy ran every 45 seconds in continuous loop
-// NOTE: Run this command separately: php artisan notifications:process
-// For production, use supervisor to keep it running 24/7
-Schedule::command('notifications:process --once')
+// 1. EMAIL AUTOMATION - POP3 incoming + scheduled SMTP + auto replies
+// Legacy parity for working features from AutoMail/PAM
+Schedule::command('email:automation --once')
     ->everyMinute()
-    ->name('process-notifications')
+    ->name('email-automation-cycle')
     ->withoutOverlapping()
     ->onOneServer();
 
@@ -39,7 +35,15 @@ Schedule::command('notifications:process --once')
 // Cleanup old delivered notifications (keep last 90 days)
 Schedule::call(function () {
     try {
-        \Illuminate\Support\Facades\DB::table('fjp_scheduled_notifications')
+        $table = \Illuminate\Support\Facades\Schema::hasTable('scheduled_notifications')
+            ? 'scheduled_notifications'
+            : 'fjp_scheduled_notifications';
+
+        if (!\Illuminate\Support\Facades\Schema::hasTable($table)) {
+            return;
+        }
+
+        \Illuminate\Support\Facades\DB::table($table)
             ->where('delivered', 1)
             ->where('trigger_date', '<', now()->subDays(90))
             ->delete();
@@ -49,6 +53,26 @@ Schedule::call(function () {
         \Illuminate\Support\Facades\Log::error('Failed to cleanup old notifications: ' . $e->getMessage());
     }
 })->weekly()->sundays()->at('02:00')->name('cleanup-old-notifications');
+
+// Cleanup old email automation logs/replies
+Schedule::call(function () {
+    try {
+        if (\Illuminate\Support\Facades\Schema::hasTable('email_automation_logs')) {
+            \Illuminate\Support\Facades\DB::table('email_automation_logs')
+                ->where('created_at', '<', now()->subDays(90))
+                ->delete();
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('email_reply_queue')) {
+            \Illuminate\Support\Facades\DB::table('email_reply_queue')
+                ->where('status', 'sent')
+                ->where('sent_at', '<', now()->subDays(30))
+                ->delete();
+        }
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Failed to cleanup email automation tables: ' . $e->getMessage());
+    }
+})->dailyAt('02:30')->name('cleanup-email-automation');
 
 // Cleanup old audit logs (keep last 180 days)
 Schedule::call(function () {
