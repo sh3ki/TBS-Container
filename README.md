@@ -222,6 +222,25 @@ MAIL_PASSWORD=your-password
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=your-email@domain.com
 MAIL_FROM_NAME="${APP_NAME}"
+
+EMAIL_AUTOMATION_ENABLED=true
+EMAIL_AUTOMATION_LOOP_SLEEP=45
+
+EMAIL_AUTOMATION_INCOMING_ENABLED=true
+EMAIL_AUTOMATION_POP3_HOST=pop.bizmail.yahoo.com
+EMAIL_AUTOMATION_POP3_PORT=110
+EMAIL_AUTOMATION_POP3_USERNAME=your_pop3_user@email.com
+EMAIL_AUTOMATION_POP3_PASSWORD=your_pop3_password
+EMAIL_AUTOMATION_POP3_ENCRYPTION=none
+EMAIL_AUTOMATION_POP3_VALIDATE_CERT=false
+EMAIL_AUTOMATION_POP3_FOLDER=INBOX
+EMAIL_AUTOMATION_POP3_DELETE_PROCESSED=false
+
+EMAIL_AUTOMATION_REPLY_ENABLED=true
+EMAIL_AUTOMATION_REPLY_FROM_NAME="${APP_NAME} Automation"
+
+EMAIL_AUTOMATION_SCHEDULED_ENABLED=true
+EMAIL_AUTOMATION_SCHEDULED_MAX_PER_CYCLE=100
 ```
 
 Test email sending:
@@ -254,9 +273,31 @@ SMS_GATEWAY_PASSWORD=passw0rd
 
 The following background jobs are configured:
 
-1. **Force Logoff** - Hourly
-2. **Process Scheduled Notifications** - Every minute
-3. **Process Incoming Emails** - Every 10 minutes
+1. **Force Logoff** - Scheduled in Laravel console routes
+2. **Email Automation Cycle** - Every minute via `php artisan schedule:run`
+    - POP3 incoming email processing
+    - Attachment handling and storage
+    - Scheduled SMTP notification delivery
+    - Ack updates (`ack_date`, `ack_message`)
+    - Auto reply queue sending (success/error)
+
+Run one cycle manually:
+
+```powershell
+php artisan email:automation --once
+```
+
+Run continuous loop (legacy-style, every 45s):
+
+```powershell
+php artisan email:automation --sleep=45
+```
+
+Run queue worker (for other queued jobs):
+
+```powershell
+php artisan queue:work --sleep=3 --tries=3
+```
 
 To start the scheduler, add this to your task scheduler or cron:
 
@@ -270,6 +311,23 @@ For Windows Task Scheduler:
 - Arguments: `artisan schedule:run`
 - Start in: `c:\Users\USER\Documents\SYSTEMS\WEB\PHP\LARAVEL\fjpwl`
 - Trigger: Daily, repeat every 1 minute
+
+Production recommendation:
+- Keep `schedule:run` every minute.
+- Run `email:automation --sleep=45` as a Supervisor-managed process.
+- Keep queue workers running separately.
+
+### Email Automation Tables
+
+Run migration:
+
+```powershell
+php artisan migrate --force
+```
+
+This creates:
+- `email_reply_queue`
+- `email_automation_logs`
 
 ---
 
