@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>EIR Print Out Form - Gate {{ $data['gate_status'] }}</title>
+<title>EIR Print Out Form - Gate In</title>
 </head>
 <body style="margin:0 !important;">
 <table width="1280" border="0" align="center" cellpadding="0" cellspacing="0">
@@ -107,6 +107,6 @@
 </td>
 </tr>
 </table>
-<script type="text/javascript">window.print();</script>
+<!-- <script type="text/javascript">window.print();</script> -->
 </body>
 </html>
