@@ -167,7 +167,7 @@ export default function EmailAutomationStatus() {
                                 <ListChecks className="w-4 h-4" />
                                 Backing Tables
                             </div>
-                            <div className="space-y-2 text-sm">
+                            <div className="space-y-2 text-sm text-gray-900">
                                 <div>email_automation_logs: {data.tables.email_automation_logs ? 'present' : 'missing'}</div>
                                 <div>email_reply_queue: {data.tables.email_reply_queue ? 'present' : 'missing'}</div>
                                 <div>notification table: {data.tables.notification_table ?? 'not found'}</div>
