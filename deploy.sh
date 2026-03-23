@@ -73,6 +73,13 @@ echo "🔄 Restarting services..."
 systemctl reload nginx
 systemctl restart php8.3-fpm
 
+# Restart supervisor workers to load latest code
+if command -v supervisorctl >/dev/null 2>&1; then
+	echo "🔁 Restarting supervisor workers..."
+	supervisorctl restart tbs-worker:* || true
+	supervisorctl restart tbs-email-automation || true
+fi
+
 # Bring application back up
 php artisan up
 trap - EXIT
