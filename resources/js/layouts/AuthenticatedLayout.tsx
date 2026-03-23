@@ -139,6 +139,9 @@ export default function Authenticated({ children }: PropsWithChildren) {
         return currentPath === path || currentPath.startsWith(`${path}/`);
     };
 
+    const isDashboardActive = currentPath === '/dashboard';
+    const isEmailAutomationActive = isActivePath('/dashboard/email-automation');
+
     return (
         <div className="min-h-screen" style={{ backgroundColor: colors.secondary }}>
             {/* Modern Professional Header */}
@@ -238,20 +241,20 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                         <Link
                                             href="/dashboard"
                                             className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                                isActivePath('/dashboard')
+                                                isDashboardActive
                                                     ? 'shadow-lg'
                                                     : 'hover:bg-white/10 hover:text-white'
                                             }`}
                                             style={{
-                                                ...(isActivePath('/dashboard') && { backgroundColor: colors.sidebar.active }),
-                                                color: isActivePath('/dashboard') ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
+                                                ...(isDashboardActive && { backgroundColor: colors.sidebar.active }),
+                                                color: isDashboardActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
                                             }}
                                         >
-                                            <Home className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard') ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
+                                            <Home className={`h-5 w-5 flex-shrink-0 ${isDashboardActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
                                             <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
                                                 <div className="text-sm font-semibold">Dashboard</div>
                                             </div>
-                                            {!sidebarCollapsed && isActivePath('/dashboard') && (
+                                            {!sidebarCollapsed && isDashboardActive && (
                                                 <div className="w-1 h-6 rounded-full bg-white"></div>
                                             )}
                                         </Link>
@@ -259,38 +262,6 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     {sidebarCollapsed && (
                                         <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
                                             Dashboard
-                                        </TooltipContent>
-                                    )}
-                                </Tooltip>
-                            </li>
-
-                            <li>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Link
-                                            href="/dashboard/email-automation"
-                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                                isActivePath('/dashboard/email-automation')
-                                                    ? 'shadow-lg'
-                                                    : 'hover:bg-white/10 hover:text-white'
-                                            }`}
-                                            style={{
-                                                ...(isActivePath('/dashboard/email-automation') && { backgroundColor: colors.sidebar.active }),
-                                                color: isActivePath('/dashboard/email-automation') ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
-                                            }}
-                                        >
-                                            <Mail className={`h-5 w-5 flex-shrink-0 ${isActivePath('/dashboard/email-automation') ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
-                                            <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
-                                                <div className="text-sm font-semibold">Email Automation</div>
-                                            </div>
-                                            {!sidebarCollapsed && isActivePath('/dashboard/email-automation') && (
-                                                <div className="w-1 h-6 rounded-full bg-white"></div>
-                                            )}
-                                        </Link>
-                                    </TooltipTrigger>
-                                    {sidebarCollapsed && (
-                                        <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
-                                            Email Automation
                                         </TooltipContent>
                                     )}
                                 </Tooltip>
@@ -337,6 +308,38 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     </li>
                                 );
                             })}
+
+                            <li>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Link
+                                            href="/dashboard/email-automation"
+                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                isEmailAutomationActive
+                                                    ? 'shadow-lg'
+                                                    : 'hover:bg-white/10 hover:text-white'
+                                            }`}
+                                            style={{
+                                                ...(isEmailAutomationActive && { backgroundColor: colors.sidebar.active }),
+                                                color: isEmailAutomationActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
+                                            }}
+                                        >
+                                            <Mail className={`h-5 w-5 flex-shrink-0 ${isEmailAutomationActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
+                                            <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                                <div className="text-sm font-semibold">Email Automation</div>
+                                            </div>
+                                            {!sidebarCollapsed && isEmailAutomationActive && (
+                                                <div className="w-1 h-6 rounded-full bg-white"></div>
+                                            )}
+                                        </Link>
+                                    </TooltipTrigger>
+                                    {sidebarCollapsed && (
+                                        <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
+                                            Email Automation
+                                        </TooltipContent>
+                                    )}
+                                </Tooltip>
+                            </li>
                         </ul>
                     </nav>
 
