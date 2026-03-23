@@ -26,7 +26,8 @@ That's it. The script will:
 7. Clear and rebuild all caches
 8. Fix permissions
 9. Restart PHP-FPM and reload Nginx
-10. Bring app back online
+10. Restart Supervisor workers (`tbs-worker`, `tbs-email-automation`)
+11. Bring app back online
 
 It should also keep these long-running workers active:
 1. `tbs-worker` (queue)
