@@ -39,6 +39,7 @@ set_kv "SESSION_SECURE_COOKIE" "true"
 
 # Pull latest changes
 echo "📥 Pulling latest changes from GitHub..."
+git stash
 git fetch origin
 git pull origin master
 
