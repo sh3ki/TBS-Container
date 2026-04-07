@@ -1,0 +1,127 @@
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+				<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+				<title>EIR Print Out Form - Gate In</title>
+				</head>
+				<body style="margin:0 !important;">
+				<table width="1280" cellspacing="0" cellpadding="0" border="0" align="center">
+				<tbody><tr>
+				<td width="100%" valign="top" align="left"><table style="padding-bottom:10px; font-size: 18px; font-family:Arial, Helvetica, sans-serif;" width="100%" cellspacing="0" cellpadding="0" border="0">
+				<tbody><tr>
+				<td colspan="2" height="3" bgcolor="#FFFFFF" align="right"><table width="100%" cellspacing="0" cellpadding="0" border="0">
+				<tbody><tr>
+				<td width="50%" height="150">&nbsp;</td>
+				<td style="font-size: 18px; font-family:Arial, Helvetica, sans-serif; letter-spacing: 7px;" valign="bottom" align="right">549963I</td>
+				</tr>
+				</tbody></table></td>
+				</tr>
+				<tr>
+				<td><table width="100%" cellspacing="0" cellpadding="0" border="0">
+				<tbody><tr>
+				<td style="font-size: 20px; font-family:Arial, Helvetica, sans-serif; letter-spacing: 7px;" width="50%" valign="bottom" height="70"><strong>GATE IN</strong></td>
+				<td style="font-size: 18px; font-family:Arial, Helvetica, sans-serif; letter-spacing:5px;" width="50%" valign="bottom" align="right">03/24/2026 <span style="font-size:18px">16:31</span></td>
+				</tr>
+				</tbody></table></td>
+				</tr>
+				<tr></tr>
+				<tr><td width="550" valign="top"><table style="padding-left:15px; padding-top:15px; padding-right:100px; font-family:Arial, Helvetica, sans-serif; font-size:18px; letter-spacing: 7px;" width="100%" cellspacing="0" cellpadding="0" border="0">
+				<tbody><tr><td style="padding-top:15px;"></td></tr>
+				<tr>
+				<td width="15%" valign="bottom" height="48">&nbsp;</td>
+				<td width="20%" valign="top">SEKU9102178</td>
+				<td width="20%" valign="top">&nbsp;</td>
+				<td width="25%" valign="top">AVL</td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="43">&nbsp;</td>
+				<td width="25%" valign="top">MRO</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top"></td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="43">&nbsp;</td>
+				<td width="25%" valign="top">047N</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top">Empty</td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="44">&nbsp;</td>
+				<td width="25%" valign="top">MARVIN RC</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top"></td>	
+				</tr>
+				<tr>
+				<td valign="bottom" height="46">&nbsp;</td>
+				<td width="25%" valign="top">CBP5576</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top"></td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="44">&nbsp;</td>
+				<td width="25%" valign="top">-/B</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top">Rcl Feeders</td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="53">&nbsp;</td>
+				<td width="25%" valign="top">40RH - 45R1</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top">PERFETTI</td>
+				</tr>
+				<tr>
+				<td colspan="4" style="padding:10px;" valign="top"><table width="100%" cellspacing="0" cellpadding="8" border="0">
+				<tbody><tr>
+				<td colspan="4" style="font-family:Arial, Helvetica, sans-serif; font-size:14px; letter-spacing:7px;" valign="top" height="140">IC
+IP
+ABP CARRIER W/SAFETY PIN INTACT
+18M CORD
+TFA IXXX DY WW
+NOT WASH</td>
+				</tr>
+				<!--<tr>
+				<td height="53" valign="bottom"  >&nbsp;</td>
+				<td width="25%" valign="top"  ></td>
+				<td valign="top"  >&nbsp;</td>
+				<td width="25%" valign="top"  ></td>
+				</tr>
+				<tr>
+				<td height="53" valign="bottom"  >&nbsp;</td>
+				<td width="25%" valign="top"  ></td>
+				<td valign="top"  >&nbsp;</td>
+				<td width="25%" valign="top"  ></td>
+				</tr>-->
+				<tr>
+				<td valign="bottom" height="53">&nbsp;</td>
+				<td width="25%" valign="top" align="right">IN CHECKER N.TABIJE</td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top"></td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="53">&nbsp;</td>
+				<td width="25%" valign="top"></td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="top"></td>
+				</tr>
+				<tr>
+				<td valign="bottom" height="53" align="center">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;M.MACATANGAY/009147</td>
+				<td width="25%" valign="top"></td>
+				<td valign="top">&nbsp;</td>
+				<td width="25%" valign="bottom" align="right">JM.LLANTERO</td>
+				</tr>
+				</tbody></table></td>
+				</tr>
+				<tr></tr>
+				</tbody></table></td>
+				</tr><tr><td></td></tr>
+				<tr><td valign="top" bgcolor="#FFFFFF"><table style="padding-right:200px;" width="100%" cellspacing="0" cellpadding="0" border="0">
+				</table></td>
+				</tr>
+				</tbody></table></td>
+				</tr>
+				
+				</tbody></table>
+				
+				
+				
+				<!-- <script type="text/javascript">window.print();</script> -->
+				
+				</body></html>
