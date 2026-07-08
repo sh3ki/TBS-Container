@@ -1162,8 +1162,8 @@ class GateinoutController extends Controller
             // Convert stdClass to array for view
             $data = (array) $record;
 
-            // Return HTML view for printing (auto-print via JavaScript)
-            return view('pdfs.gate-pass', compact('data'));
+            // Return HTML view for printing (auto-print via JavaScript) - using unified template
+            return view('pdfs.gate-pass-unified', compact('data'));
 
         } catch (\Exception $e) {
             Log::error('Print Gate Pass Error: ' . $e->getMessage());
