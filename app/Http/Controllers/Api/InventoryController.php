@@ -1463,8 +1463,8 @@ class InventoryController extends Controller
                             WHEN i.gate_status='IN' THEN CONCAT(i.i_id,'I')
                             ELSE CONCAT(i.i_id,'O')
                         END as eirno,
-                        i.container_no as cno,
-                        c.client_name as client,
+                        i.container_no,
+                        c.client_name,
                         c.client_code,
                         CONCAT(st.size,st.type) as size_type,
                         DATE_FORMAT(DATE(i.date_added),'%m/%d/%Y') as date,
@@ -1480,14 +1480,14 @@ class InventoryController extends Controller
                         i.ex_consignee,
                         i.vessel,
                         i.voyage,
-                        lt.type as type,
+                        lt.type as load_type,
                         i.hauler,
                         i.plate_no,
-                        i.iso_code as iso,
-                        i.hauler_driver as haud,
-                        i.license_no as lno,
-                        u.full_name as fn,
-                        i.origin,
+                        i.iso_code,
+                        i.hauler_driver,
+                        i.license_no,
+                        u.full_name as user_full_name,
+                        i.origin as checker,
                         i.chasis,
                         i.shipper
                     FROM {$prefix}inventory i
@@ -1504,7 +1504,8 @@ class InventoryController extends Controller
             }
 
             $data = (array) $record;
-            return view('pdfs.inventory-print-single', compact('data'));
+            // Use unified template instead of old template
+            return view('pdfs.gate-pass-unified', compact('data'));
         } catch (\Exception $e) {
             Log::error('Inventory legacy print error', ['id' => $id, 'error' => $e->getMessage()]);
             abort(500, 'Failed to generate print document');
