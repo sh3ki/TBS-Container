@@ -159,7 +159,7 @@ export default function ProcessGateInModal({
                 cnt_class: formData.class,
                 vessel: formData.vessel,
                 voyage: formData.voyage,
-                checker_id: formData.checker,
+                checker: formData.checker,
                 ex_consignee: formData.ex_consignee,
                 load_type: parseInt(formData.load),
                 plate_no: formData.plate_no,
