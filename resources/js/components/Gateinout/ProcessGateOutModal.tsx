@@ -165,7 +165,7 @@ export default function ProcessGateOutModal({
                     voyage: data.voyage || '',
                     hauler_driver: data.hauler_driver || '',
                     license_no: data.license_no || '',
-                    checker: data.checker_id || '',
+                    checker: data.origin || '',
                     location: data.location || '',
                     load: data.load_type?.toString() || '',
                     chasis: data.chasis || '',
