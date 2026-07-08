@@ -497,7 +497,6 @@ export default function Index({ auth }: Record<string, unknown>) {
                 label: 'Role',
                 render: (user: UserData) => (
                   <ModernBadge variant="info">
-                    <Shield className="w-3 h-3" />
                     {user.privilege_name}
                   </ModernBadge>
                 ),
