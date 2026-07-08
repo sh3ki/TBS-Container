@@ -41,187 +41,187 @@
             overflow: hidden;
         }
         
-        /* EIR NO. - 2.1" from top, 6.75" from left */
+        /* EIR NO. - 2.2" from top, 6.75" from left */
         .eirno {
-            top: 2.1in;
+            top: 2.2in;
             left: 6.75in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 5px;
             font-weight: normal;
         }
         
-        /* GATE IN/OUT TEXT - 2.72" from top, 1" from left */
+        /* GATE IN/OUT TEXT - 2.82" from top, 1" from left */
         .gate-status-text {
-            top: 2.72in;
+            top: 2.82in;
             left: 1in;
             font-size: 20px;
             letter-spacing: 7px;
             font-weight: bold;
         }
         
-        /* DATE TIME - 2.72" from top, 6" from left */
+        /* DATE TIME - 2.82" from top, 6" from left */
         .datetime {
-            top: 2.72in;
-            left: 6in;
+            top: 2.82in;
+            left: 5.7in;
             font-size: 18px;
-            letter-spacing: 5px;
+            letter-spacing: 2px;
         }
         
-        /* Container NO. - 3.23" from top, 1.87" from left */
+        /* Container NO. - 3.33" from top, 1.87" from left */
         .container-no {
-            top: 3.23in;
+            top: 3.33in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing:2px;
         }
         
-        /* Vessel - 3.65" from top, 1.87" from left */
+        /* Vessel - 3.75" from top, 1.87" from left */
         .vessel {
-            top: 3.65in;
+            top: 3.75in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Voyage - 4.1" from top, 1.87" from left */
+        /* Voyage - 4.2" from top, 1.87" from left */
         .voyage {
-            top: 4.1in;
+            top: 4.2in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Hauler - 4.55" from top, 1.87" from left */
+        /* Hauler - 4.65" from top, 1.87" from left */
         .hauler {
-            top: 4.55in;
+            top: 4.65in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Plate NO. - 4.97" from top, 1.87" from left */
+        /* Plate NO. - 5.07" from top, 1.87" from left */
         .plate-no {
-            top: 4.97in;
+            top: 5.07in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Chassis/Location - 5.37" from top, 1.87" from left */
+        /* Chassis/Location - 5.47" from top, 1.87" from left */
         .chasis-location {
-            top: 5.37in;
+            top: 5.47in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Size/Type - 5.83" from top, 1.87" from left */
+        /* Size/Type - 5.93" from top, 1.87" from left */
         .size-type {
-            top: 5.83in;
+            top: 5.93in;
             left: 1.87in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Status - 3.23" from top, 5.25" from left */
+        /* Status - 3.33" from top, 5.25" from left */
         .status {
-            top: 3.23in;
+            top: 3.33in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Destination - 3.65" from top, 5.25" from left */
+        /* Destination - 3.75" from top, 5.25" from left */
         .destination {
-            top: 3.65in;
+            top: 3.75in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Load - 4.1" from top, 5.25" from left */
+        /* Load - 4.2" from top, 5.25" from left */
         .load {
-            top: 4.1in;
+            top: 4.2in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Booking - 4.55" from top, 5.25" from left */
+        /* Booking - 4.65" from top, 5.25" from left */
         .booking {
-            top: 4.55in;
+            top: 4.65in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Seal NO. - 4.97" from top, 5.25" from left */
+        /* Seal NO. - 5.07" from top, 5.25" from left */
         .seal-no {
-            top: 4.97in;
+            top: 5.07in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Client - 5.37" from top, 5.25" from left */
+        /* Client - 5.47" from top, 5.25" from left */
         .client {
-            top: 5.37in;
+            top: 5.47in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Shipper/Consignee - 5.83" from top, 5.25" from left */
+        /* Shipper/Consignee - 5.93" from top, 5.25" from left */
         .shipper-consignee {
-            top: 5.83in;
+            top: 5.93in;
             left: 5.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* EIR Notes/Remarks - 6.3" from top, 1" from left */
+        /* EIR Notes/Remarks - 6.4" from top, 1" from left */
         .remarks {
-            top: 6.3in;
+            top: 6.4in;
             left: 1in;
             width: 6.5in;
             font-size: 14px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
             white-space: pre-wrap;
             word-break: break-word;
             max-height: 0.8in;
             overflow: hidden;
         }
         
-        /* IN CHECKER text - 7.1" from top, 5" from left */
+        /* IN CHECKER text - 7.2" from top, 5" from left */
         .checker-label {
-            top: 7.1in;
+            top: 7.2in;
             left: 5in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 5px;
         }
         
-        /* Checker name - 7.4" from top, 5" from left */
+        /* Checker name - 7.5" from top, 5" from left */
         .checker-name {
-            top: 7.4in;
+            top: 7.5in;
             left: 5in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Hauler with license NO. - 9.95" from top, 1.75" from left */
+        /* Hauler with license NO. - 10.05" from top, 1.75" from left */
         .hauler-license {
-            top: 9.95in;
+            top: 10.05in;
             left: 1.75in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
-        /* Username/Full Name - 9.95" from top, 6.25" from left */
+        /* Username/Full Name - 10.05" from top, 6.25" from left */
         .username-fullname {
-            top: 9.95in;
+            top: 10.05in;
             left: 6.25in;
             font-size: 18px;
-            letter-spacing: 7px;
+            letter-spacing: 2px;
         }
         
         /* Print-specific styles */
