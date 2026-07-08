@@ -790,6 +790,7 @@ class GateinoutController extends Controller
                 'cnt_class' => 'required|string|in:A,B,C',
                 'vessel' => 'required|string',
                 'voyage' => 'required|string',
+                'checker' => 'required|string',
                 'ex_consignee' => 'required|string',
                 'load_type' => 'required|integer',
                 'plate_no' => 'required|string',
@@ -844,9 +845,9 @@ class GateinoutController extends Controller
                 DB::insert(
                     "INSERT INTO {$this->prefix}inventory 
                     (container_no, client_id, date_manufactured, container_status, size_type, iso_code, class, 
-                     vessel, voyage, ex_consignee, load_type, plate_no, hauler, hauler_driver, 
+                     vessel, voyage, origin, ex_consignee, load_type, plate_no, hauler, hauler_driver, 
                      license_no, location, chasis, contact_no, bill_of_lading, remarks, date_added, complete, gate_status, user_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     [
                         $validated['container_no'],
                         $request->input('client_id'),
@@ -857,6 +858,7 @@ class GateinoutController extends Controller
                         $validated['cnt_class'],
                         $validated['vessel'],
                         $validated['voyage'],
+                        $validated['checker'],
                         $validated['ex_consignee'],
                         $validated['load_type'],
                         $validated['plate_no'],
@@ -899,6 +901,7 @@ class GateinoutController extends Controller
                     'Date Manufactured: "' . $validated['date_mnfg'] . '", ' .
                     'Vessel: "' . $validated['vessel'] . '", ' .
                     'Voyage: "' . $validated['voyage'] . '", ' .
+                    'Checker: "' . $validated['checker'] . '", ' .
                     'Ex-Consignee: "' . $validated['ex_consignee'] . '", ' .
                     'Load: "' . $loadType . '", ' .
                     'Plate No: "' . $validated['plate_no'] . '", ' .
@@ -1008,6 +1011,7 @@ class GateinoutController extends Controller
                          hauler = ?,
                          hauler_driver = ?,
                          license_no = ?,
+                         origin = ?,
                          location = ?,
                          load_type = ?,
                          chasis = ?,
@@ -1025,6 +1029,7 @@ class GateinoutController extends Controller
                         $validated['hauler'],
                         $validated['hauler_driver'],
                         $validated['license_no'],
+                        $validated['checker'],
                         $validated['location'],
                         $validated['load_type'],
                         $validated['chasis'],
@@ -1264,6 +1269,7 @@ class GateinoutController extends Controller
                     i.contact_no,
                     COALESCE(i.shipper, '-') AS shipper,
                     i.remarks,
+                    i.origin,
                     DATEDIFF(NOW(), i.date_added) AS days_in_yard
                 FROM {$this->prefix}inventory i
                 LEFT JOIN {$this->prefix}clients c ON c.c_id = i.client_id
