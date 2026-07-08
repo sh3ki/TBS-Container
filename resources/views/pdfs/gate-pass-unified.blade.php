@@ -305,6 +305,13 @@
                 window.print();
             }, 500);
         });
+        
+        // Auto-close tab after printing is done or cancelled
+        window.addEventListener('afterprint', function() {
+            setTimeout(function() {
+                window.close();
+            }, 300);
+        });
     </script>
 </body>
 </html>
