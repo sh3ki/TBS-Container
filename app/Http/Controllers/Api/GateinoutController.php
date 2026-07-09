@@ -1042,11 +1042,50 @@ class GateinoutController extends Controller
                     ]
                 );
 
-                // Update pre_inventory status to finished
+                // Update pre_inventory status to finished with inventory ID
                 DB::update(
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, date_completed = ? WHERE p_id = ?",
                     [now(), $validated['p_id']]
                 );
+
+                // BOOKING SLOT DEDUCTION - Decrement booking slots based on container size
+                // Get container size type
+                $sizeInfo = DB::selectOne(
+                    "SELECT st.size FROM {$this->prefix}container_size_type st
+                     WHERE st.s_id = ?",
+                    [$validated['size_type']]
+                );
+
+                if ($sizeInfo) {
+                    $containerSize = $sizeInfo->size;
+                    
+                    // Verify booking belongs to same client
+                    $bookingInfo = DB::selectOne(
+                        "SELECT b.b_id, b.client_id FROM {$this->prefix}bookings b
+                         WHERE b.book_no = ? AND b.client_id = ?",
+                        [$validated['booking_no'], $validated['client_id']]
+                    );
+
+                    if ($bookingInfo) {
+                        // Decrement slots based on container size
+                        if ($containerSize == 20 || $containerSize == 22) {
+                            DB::update(
+                                "UPDATE {$this->prefix}bookings SET twenty_rem = (twenty_rem - 1) WHERE b_id = ? AND twenty_rem > 0",
+                                [$bookingInfo->b_id]
+                            );
+                        } elseif ($containerSize == 40 || $containerSize == 42) {
+                            DB::update(
+                                "UPDATE {$this->prefix}bookings SET fourty_rem = (fourty_rem - 1) WHERE b_id = ? AND fourty_rem > 0",
+                                [$bookingInfo->b_id]
+                            );
+                        } elseif ($containerSize == 45) {
+                            DB::update(
+                                "UPDATE {$this->prefix}bookings SET fourty_five_rem = (fourty_five_rem - 1) WHERE b_id = ? AND fourty_five_rem > 0",
+                                [$bookingInfo->b_id]
+                            );
+                        }
+                    }
+                }
 
                 // Log audit - APPROVE action with ALL fields
                 $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $validated['client_id']])->client_name ?? 'Unknown';
@@ -1313,6 +1352,169 @@ class GateinoutController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to validate container'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Bookings List for autocomplete in Process Gate Out modal
+     * Searches active bookings by booking number for a specific client
+     * Only returns bookings that match the client AND have available slots for container size
+     * Returns list of matching bookings with available slot info
+     */
+    public function getBookingsList(Request $request)
+    {
+        try {
+            $key = $request->input('key', '');
+            $clientId = $request->input('client_id');
+
+            if (empty($clientId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Client ID is required'
+                ], 422);
+            }
+
+            // Search bookings by book_no, filter by client_id ONLY
+            // This ensures cross-client booking pollution is prevented
+            // OLD SYSTEM LOGIC: Only show ACTIVE bookings
+            // ACTIVE = expiration_date > TODAY AND has available slots (any of twenty_rem, fourty_rem, fourty_five_rem > 0)
+            $query = "
+                SELECT 
+                    b.b_id,
+                    b.book_no,
+                    b.shipper,
+                    b.client_id,
+                    COALESCE(b.twenty, 0) - COALESCE(b.twenty_rem, 0) AS booked_20,
+                    COALESCE(b.twenty_rem, 0) AS available_20,
+                    COALESCE(b.fourty, 0) - COALESCE(b.fourty_rem, 0) AS booked_40,
+                    COALESCE(b.fourty_rem, 0) AS available_40,
+                    COALESCE(b.fourty_five, 0) - COALESCE(b.fourty_five_rem, 0) AS booked_45,
+                    COALESCE(b.fourty_five_rem, 0) AS available_45,
+                    b.expiration_date
+                FROM {$this->prefix}bookings b
+                WHERE b.client_id = ?
+                  AND b.expiration_date > CURDATE()
+                  AND (b.twenty_rem > 0 OR b.fourty_rem > 0 OR b.fourty_five_rem > 0)
+            ";
+
+            $params = [$clientId];
+
+            if (!empty($key)) {
+                $query .= " AND b.book_no LIKE ?";
+                $params[] = '%' . $key . '%';
+            }
+
+            $query .= " ORDER BY b.book_no DESC LIMIT 50";
+
+            $bookings = DB::select($query, $params);
+
+            return response()->json([
+                'success' => true,
+                'bookings' => $bookings
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Bookings List Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch bookings list'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Shipper for selected booking in Process Gate Out modal
+     * Validates: 1) Booking belongs to correct client, 2) Booking is active/not expired, 3) Container is in yard
+     * Critical: Prevents using booking from different client
+     * Returns shipper information to populate the field
+     */
+    public function getShipper(Request $request)
+    {
+        try {
+            $bookingNo = $request->input('booking_no');
+            $containerNo = $request->input('container_no');
+            $clientId = $request->input('client_id');
+
+            if (empty($bookingNo) || empty($containerNo) || empty($clientId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking No, Container No, and Client ID are required'
+                ], 422);
+            }
+
+            // Get booking and verify it belongs to the client (CRITICAL SECURITY CHECK)
+            // OLD SYSTEM LOGIC: Only check if booking exists and expiration_date >= today
+            $booking = DB::selectOne("
+                SELECT 
+                    b.book_no,
+                    b.shipper,
+                    b.client_id,
+                    c.client_name,
+                    b.expiration_date,
+                    COALESCE(b.twenty_rem, 0) AS available_20,
+                    COALESCE(b.fourty_rem, 0) AS available_40,
+                    COALESCE(b.fourty_five_rem, 0) AS available_45
+                FROM {$this->prefix}bookings b
+                LEFT JOIN {$this->prefix}clients c ON c.c_id = b.client_id
+                WHERE b.book_no = ? AND b.client_id = ?
+            ", [$bookingNo, $clientId]);
+
+            if (!$booking) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking not found or CLIENT MISMATCH - you can only use bookings for the selected client'
+                ], 404);
+            }
+
+            // Check if booking is expired
+            $today = date('Y-m-d');
+            if ($booking->expiration_date && strtotime($booking->expiration_date) < strtotime($today)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Booking has expired on ' . $booking->expiration_date
+                ], 422);
+            }
+
+            // Verify container exists in yard and belongs to same client
+            $containerCheck = DB::selectOne("
+                SELECT i.i_id, i.client_id
+                FROM {$this->prefix}inventory i
+                WHERE i.container_no = ? AND i.client_id = ? AND i.gate_status = 'IN' AND i.complete = 0
+                LIMIT 1
+            ", [$containerNo, $clientId]);
+
+            if (!$containerCheck) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found in yard or CLIENT MISMATCH'
+                ], 404);
+            }
+
+            // Double-check booking and container have same client (final validation)
+            if ($booking->client_id != $clientId || $containerCheck->client_id != $clientId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'CLIENT MISMATCH - Booking and Container must belong to the same client'
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => true,
+                'shipper' => $booking->shipper,
+                'client_name' => $booking->client_name,
+                'available_slots' => [
+                    '20' => $booking->available_20,
+                    '40' => $booking->available_40,
+                    '45' => $booking->available_45
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Shipper Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get shipper information'
             ], 500);
         }
     }
