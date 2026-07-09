@@ -79,8 +79,6 @@ export default function Index() {
   const [showProcessGateInModal, setShowProcessGateInModal] = useState(false);
   const [showProcessGateOutModal, setShowProcessGateOutModal] = useState(false);
 
-  const [confirmAddPreIn, setConfirmAddPreIn] = useState(false);
-  const [confirmAddPreOut, setConfirmAddPreOut] = useState(false);
   const [confirmUpdatePreIn, setConfirmUpdatePreIn] = useState(false);
   const [confirmUpdatePreOut, setConfirmUpdatePreOut] = useState(false);
   const [confirmDeleteRecord, setConfirmDeleteRecord] = useState(false);
@@ -239,7 +237,7 @@ export default function Index() {
       error('Please select a client');
       return;
     }
-    setConfirmAddPreIn(true);
+    handleAddPreIn();
   };
 
   const handleAddPreIn = async () => {
@@ -254,16 +252,13 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-In added successfully');
           setShowAddPreInModal(false);
-          setConfirmAddPreIn(false);
           setPreInForm({ container_no: '', client_id: '' });
           await fetchData();
         } else {
-          setConfirmAddPreIn(false);
           error(msg.replace(/<[^>]*>/g, ''));
         }
       }
     } catch (err: unknown) {
-      setConfirmAddPreIn(false);
       const e = err as { response?: { data?: { message?: string } } };
       error(e.response?.data?.message || 'Failed to add Pre-In');
     }
@@ -279,7 +274,7 @@ export default function Index() {
       error('Hauler is required');
       return;
     }
-    setConfirmAddPreOut(true);
+    handleAddPreOut();
   };
 
   const handleAddPreOut = async () => {
@@ -294,16 +289,13 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-Out added successfully');
           setShowAddPreOutModal(false);
-          setConfirmAddPreOut(false);
           setPreOutForm({ plate_no: '', hauler: '' });
           await fetchData();
         } else {
-          setConfirmAddPreOut(false);
           error(msg.replace(/<[^>]*>/g, ''));
         }
       }
     } catch (err: unknown) {
-      setConfirmAddPreOut(false);
       const e = err as { response?: { data?: { message?: string } } };
       error(e.response?.data?.message || 'Failed to add Pre-Out');
     }
@@ -1011,26 +1003,6 @@ export default function Index() {
       />
 
       {/* Confirmation Modals */}
-      <ModernConfirmDialog
-        open={confirmAddPreIn}
-        onOpenChange={setConfirmAddPreIn}
-        onConfirm={handleAddPreIn}
-        title="Add Pre In"
-        description="Are you sure you want to add this Pre-In record?"
-        confirmText="Add Pre In"
-        type="success"
-      />
-
-      <ModernConfirmDialog
-        open={confirmAddPreOut}
-        onOpenChange={setConfirmAddPreOut}
-        onConfirm={handleAddPreOut}
-        title="Add Pre Out"
-        description="Are you sure you want to add this Pre-Out record?"
-        confirmText="Add Pre Out"
-        type="danger"
-      />
-
       <ModernConfirmDialog
         open={confirmUpdatePreIn}
         onOpenChange={setConfirmUpdatePreIn}
