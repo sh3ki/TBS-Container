@@ -86,7 +86,7 @@ export default function ProcessGateOutModal({
         license_no: '',
         checker: '',
         location: '',
-        load: 'empty', // Default to 'empty' - matches old system
+        load: '', // Will be set to 'Empty' l_id once options load
         chasis: '',
         contact_no: '',
         booking: '',
@@ -100,6 +100,7 @@ export default function ProcessGateOutModal({
     const [showBookingDropdown, setShowBookingDropdown] = useState(false);
     const [bookingSearchTerm, setBookingSearchTerm] = useState('');
     const [defaultStatusId, setDefaultStatusId] = useState<string>('');
+    const [defaultLoadId, setDefaultLoadId] = useState<string>('');
 
     // Set default status to AVL when statusOptions are loaded
     useEffect(() => {
@@ -110,6 +111,20 @@ export default function ProcessGateOutModal({
             }
         }
     }, [statusOptions]);
+
+    // Set default load to 'Empty' when loadOptions are loaded
+    useEffect(() => {
+        if (loadOptions && loadOptions.length > 0) {
+            const emptyLoad = loadOptions.find((l: any) => l.type === 'Empty');
+            if (emptyLoad) {
+                setDefaultLoadId(emptyLoad.l_id.toString());
+                setFormData(prev => ({
+                    ...prev,
+                    load: emptyLoad.l_id.toString()
+                }));
+            }
+        }
+    }, [loadOptions]);
 
     // Fetch available containers on mount and when search term changes
     useEffect(() => {
@@ -184,7 +199,7 @@ export default function ProcessGateOutModal({
                     license_no: '',
                     checker: '',
                     location: '',
-                    load: 'empty', // Load defaults to empty - matches old system
+                    load: defaultLoadId, // Load defaults to 'Empty' l_id
                     chasis: '',
                     contact_no: '',
                     booking: '',
