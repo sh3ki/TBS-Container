@@ -86,14 +86,30 @@ export default function ProcessGateOutModal({
         license_no: '',
         checker: '',
         location: '',
-        load: '',
+        load: 'empty', // Default to 'empty' - matches old system
         chasis: '',
         contact_no: '',
         booking: '',
         seal_no: '',
-        remarks: '',
+        gate_in_remarks: '', // Readonly remarks from inventory
+        remarks: '', // Editable remarks for user input
         save_and_book: 'NO',
     });
+
+    const [bookingOptions, setBookingOptions] = useState<Array<{ book_no: string }>>([]);
+    const [showBookingDropdown, setShowBookingDropdown] = useState(false);
+    const [bookingSearchTerm, setBookingSearchTerm] = useState('');
+    const [defaultStatusId, setDefaultStatusId] = useState<string>('');
+
+    // Set default status to AVL when statusOptions are loaded
+    useEffect(() => {
+        if (statusOptions && statusOptions.length > 0) {
+            const avlStatus = statusOptions.find(s => s.status === 'AVL');
+            if (avlStatus) {
+                setDefaultStatusId(avlStatus.s_id.toString());
+            }
+        }
+    }, [statusOptions]);
 
     // Fetch available containers on mount and when search term changes
     useEffect(() => {
@@ -148,7 +164,8 @@ export default function ProcessGateOutModal({
             if (response.data.success) {
                 const data = response.data.data;
                 
-                // Auto-fill all fields from validated container
+                // Only populate container-related fields, leave everything else empty
+                // This replicates old system logic where fields are enabled but empty
                 setFormData({
                     container_no: data.container_no,
                     client_id: data.client_id,
@@ -158,22 +175,22 @@ export default function ProcessGateOutModal({
                     iso_code: data.iso_code || '',
                     plate_no: record?.plate_no || data.plate_no || '',
                     hauler: record?.hauler || data.hauler || '',
-                    shipper: data.shipper || '',
-                    // Pre-fill editable fields with existing data
-                    status: data.cnt_status?.toString() || '',
-                    vessel: data.vessel || '',
-                    voyage: data.voyage || '',
-                    hauler_driver: data.hauler_driver || '',
-                    license_no: data.license_no || '',
-                    checker: data.origin || '',
-                    location: data.location || '',
-                    load: data.load_type?.toString() || '',
-                    chasis: data.chasis || '',
-                    contact_no: data.contact_no || '',
-                    // Empty fields for new input
+                    shipper: '', // Will be filled from booking selection
+                    // All editable fields empty - user must fill them (old system behavior)
+                    status: defaultStatusId, // Default to AVL status
+                    vessel: '',
+                    voyage: '',
+                    hauler_driver: '',
+                    license_no: '',
+                    checker: '',
+                    location: '',
+                    load: 'empty', // Load defaults to empty - matches old system
+                    chasis: '',
+                    contact_no: '',
                     booking: '',
                     seal_no: '',
-                    remarks: data.remarks || '',
+                    gate_in_remarks: data.remarks || '', // Readonly from inventory
+                    remarks: '', // Empty for user to fill
                     save_and_book: 'NO',
                 });
                 
@@ -194,6 +211,55 @@ export default function ProcessGateOutModal({
 
     const handleInputChange = (field: string, value: string | number) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
+    };
+
+    // Fetch bookings list for autocomplete
+    const fetchBookingsList = async (search: string) => {
+        if (!isContainerSelected || !formData.client_id) {
+            return;
+        }
+        
+        try {
+            const response = await axios.post('/api/gateinout/get-bookings-list', {
+                key: search,
+                client_id: formData.client_id,
+            });
+            
+            if (response.data.success) {
+                setBookingOptions(response.data.bookings || []);
+                if ((response.data.bookings || []).length > 0) {
+                    setShowBookingDropdown(true);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch bookings:', error);
+            alert('Error fetching bookings: ' + (error as any).response?.data?.message || 'Unknown error');
+        }
+    };
+
+    // Fetch shipper when booking is selected
+    const handleBookingSelect = async (bookingNo: string) => {
+        try {
+            const response = await axios.post('/api/gateinout/get-shipper', {
+                booking_no: bookingNo,
+                container_no: formData.container_no,
+                client_id: formData.client_id,
+            });
+            
+            if (response.data.success) {
+                setFormData((prev) => ({
+                    ...prev,
+                    booking: bookingNo,
+                    shipper: response.data.shipper || '',
+                }));
+                setShowBookingDropdown(false);
+                setBookingSearchTerm(bookingNo);
+            } else {
+                alert(response.data.message || 'Booking not found or client mismatch');
+            }
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Failed to get shipper');
+        }
     };
 
     const handleConfirm = async () => {
@@ -250,6 +316,10 @@ export default function ProcessGateOutModal({
             alert('Please enter Booking number');
             return;
         }
+        if (!formData.shipper || formData.shipper.trim() === '') {
+            alert('Please select a booking first');
+            return;
+        }
         if (!formData.seal_no || formData.seal_no.trim() === '') {
             alert('Please enter Seal No.');
             return;
@@ -297,21 +367,16 @@ export default function ProcessGateOutModal({
                     'width=1280,height=800'
                 );
 
-                // Handle Save and Book
+                // Handle Save and Book - Open external CSP portal like old system
                 if (formData.save_and_book === 'YES') {
-                    sessionStorage.setItem('pendingBooking', JSON.stringify({
-                        container_no: formData.container_no,
-                        plate_no: formData.plate_no,
-                        client_id: formData.client_id,
-                        client_name: formData.client_name,
-                        hauler: formData.hauler,
-                        from_gate_out: true,
-                    }));
-                    window.location.href = '/bookings?action=create';
-                } else {
-                    onSuccess();
-                    onClose();
+                    window.open(
+                        `http://cdap.ph/csp/acyop-booking/admin/fjp/PreCNTBooking.csp?a=FJP||${formData.plate_no}||${formData.container_no}`,
+                        '_blank'
+                    );
                 }
+                
+                onSuccess();
+                onClose();
             }
         } catch (error: any) {
             alert(error.response?.data?.message || 'Failed to process Gate OUT');
@@ -391,21 +456,13 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Shipper</Label>
-                                <Input value={formData.shipper} disabled className="bg-gray-50" />
-                            </div>
-
-                            <div>
                                 <Label>Hauler</Label>
                                 <Input
                                     value={formData.hauler}
                                     onChange={(e) => handleInputChange('hauler', e.target.value)}
                                 />
                             </div>
-                        </div>
-
-                        {/* COLUMN 2: Editable Fields 1 */}
-                        <div className="space-y-4">
+                            
                             <div>
                                 <Label>Status *</Label>
                                 <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)} disabled={!isContainerSelected}>
@@ -421,6 +478,10 @@ export default function ProcessGateOutModal({
                                     </SelectContent>
                                 </Select>
                             </div>
+                        </div>
+
+                        {/* COLUMN 2: Editable Fields 1 */}
+                        <div className="space-y-4">
 
                             <div>
                                 <Label>Vessel *</Label>
@@ -475,10 +536,7 @@ export default function ProcessGateOutModal({
                                     disabled={!isContainerSelected}
                                 />
                             </div>
-                        </div>
-
-                        {/* COLUMN 3: Editable Fields 2 + New Inputs */}
-                        <div className="space-y-4">
+                            
                             <div>
                                 <Label>Load *</Label>
                                 <Select value={formData.load} onValueChange={(value) => handleInputChange('load', value)} disabled={!isContainerSelected}>
@@ -494,6 +552,23 @@ export default function ProcessGateOutModal({
                                     </SelectContent>
                                 </Select>
                             </div>
+                            
+                            <div>
+                                <Label>Save and Book *</Label>
+                                <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)} disabled={!isContainerSelected}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="NO">NO</SelectItem>
+                                        <SelectItem value="YES">YES</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* COLUMN 3: Editable Fields 2 + New Inputs */}
+                        <div className="space-y-4">
 
                             <div>
                                 <Label>Chasis *</Label>
@@ -515,11 +590,52 @@ export default function ProcessGateOutModal({
 
                             <div>
                                 <Label>Booking *</Label>
-                                <Input
-                                    value={formData.booking}
-                                    onChange={(e) => handleInputChange('booking', e.target.value)}
-                                    disabled={!isContainerSelected}
-                                />
+                                <div className="relative">
+                                    <Input
+                                        value={bookingSearchTerm}
+                                        onChange={(e) => {
+                                            setBookingSearchTerm(e.target.value);
+                                            if (e.target.value.length >= 1) {
+                                                fetchBookingsList(e.target.value);
+                                            } else {
+                                                setShowBookingDropdown(false);
+                                            }
+                                        }}
+                                        onFocus={() => {
+                                            if (bookingOptions.length > 0 && bookingSearchTerm.length > 0) {
+                                                setShowBookingDropdown(true);
+                                            }
+                                        }}
+                                        placeholder="Search booking..."
+                                        disabled={!isContainerSelected}
+                                        autoComplete="off"
+                                    />
+                                    
+                                    {/* Booking Dropdown - Shows matching bookings for same client */}
+                                    {showBookingDropdown && bookingOptions.length > 0 && (
+                                        <div className="absolute z-50 w-full mt-1 bg-white text-gray-900 border border-gray-200 rounded-md shadow-md max-h-48 overflow-hidden">
+                                            <div
+                                                className="p-1 max-h-[150px] overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400"
+                                                style={{ scrollbarWidth: 'thin', scrollbarColor: '#d1d5db #f3f4f6' }}
+                                            >
+                                                {bookingOptions.map((booking, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        onClick={() => handleBookingSelect(booking.book_no)}
+                                                        className="relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-blue-50 hover:text-gray-900 text-gray-900"
+                                                    >
+                                                        {booking.book_no}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
+                                <Label>Shipper *</Label>
+                                <Input value={formData.shipper} disabled className="bg-gray-50" />
                             </div>
 
                             <div>
@@ -528,6 +644,15 @@ export default function ProcessGateOutModal({
                                     value={formData.seal_no}
                                     onChange={(e) => handleInputChange('seal_no', e.target.value)}
                                     disabled={!isContainerSelected}
+                                />
+                            </div>
+
+                            <div>
+                                <Label>Gate In Remarks</Label>
+                                <Textarea
+                                    value={formData.gate_in_remarks}
+                                    disabled
+                                    className="min-h-[60px] bg-gray-50"
                                 />
                             </div>
 
@@ -541,18 +666,6 @@ export default function ProcessGateOutModal({
                                 />
                             </div>
 
-                            <div>
-                                <Label>Save and Book *</Label>
-                                <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)} disabled={!isContainerSelected}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="NO">NO</SelectItem>
-                                        <SelectItem value="YES">YES</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
                     </div>
 
