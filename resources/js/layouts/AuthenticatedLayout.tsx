@@ -82,36 +82,33 @@ export default function Authenticated({ children }: PropsWithChildren) {
         setMobileMenuOpen(false);
     }, [currentPath]);
 
-    // Define menu order
-    const menuOrder = [
-        'gateinout',
-        'inventory', 
-        'booking',
-        'billing',
-        'reports',
-        'bancon',
-        'bancontainers',
-        'sizetype',
-        'clients',
-        'users',
-        'audit'
+    // Define categories with grouped menu items
+    const categories = [
+        {
+            name: 'Container Operations',
+            items: ['gateinout', 'inventory', 'booking']
+        },
+        {
+            name: 'Finance & Analytics',
+            items: ['billing', 'reports']
+        },
+        {
+            name: 'App Configuration',
+            items: ['bancon', 'bancontainers', 'sizetype', 'clients']
+        },
+        {
+            name: 'Administration',
+            items: ['users', 'audit']
+        }
     ];
 
-    // Sort permissions according to menuOrder
-    const sortedPermissions = [...(auth.permissions || [])].sort((a, b) => {
-        const indexA = menuOrder.indexOf(a.page.toLowerCase());
-        const indexB = menuOrder.indexOf(b.page.toLowerCase());
-        
-        // If both are in the order list, sort by their position
-        if (indexA !== -1 && indexB !== -1) {
-            return indexA - indexB;
-        }
-        // If only one is in the list, prioritize it
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        // If neither is in the list, maintain original order
-        return 0;
-    });
+    // Group permissions by category
+    const groupedPermissions = categories.map(category => ({
+        ...category,
+        permissions: (auth.permissions || []).filter(p => 
+            category.items.some(item => p.page.toLowerCase().includes(item))
+        )
+    })).filter(cat => cat.permissions.length > 0);
 
     const handleLogoutClick = () => {
         setShowLogoutConfirm(true);
@@ -267,79 +264,103 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                 </Tooltip>
                             </li>
 
-                            {/* Dynamic Menu Items */}
-                            {sortedPermissions?.map((permission) => {
-                                const icon = iconMap[permission.page.toLowerCase()] || <Package className="h-5 w-5" />;
-                                const isActive = isActivePath(`/${permission.page}`);
-
-                                return (
-                                    <li key={permission.p_id}>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Link
-                                                    href={`/${permission.page}`}
-                                                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                                        isActive
-                                                            ? 'shadow-lg'
-                                                            : 'hover:bg-white/10 hover:text-white'
-                                                    }`}
-                                                    style={{
-                                                        ...(isActive && { backgroundColor: colors.sidebar.active }),
-                                                        color: isActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
-                                                    }}
-                                                >
-                                                    <span className={`${isActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`}>
-                                                        {icon}
-                                                    </span>
-                                                    <span className={`text-sm font-medium flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
-                                                        {permission.page_name}
-                                                    </span>
-                                                    {!sidebarCollapsed && isActive && (
-                                                        <div className="w-1 h-6 rounded-full bg-white"></div>
-                                                    )}
-                                                </Link>
-                                            </TooltipTrigger>
-                                            {sidebarCollapsed && (
-                                                <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
-                                                    {permission.page_name}
-                                                </TooltipContent>
-                                            )}
-                                        </Tooltip>
-                                    </li>
-                                );
-                            })}
-
-                            <li>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Link
-                                            href="/dashboard/email-automation"
-                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                                isEmailAutomationActive
-                                                    ? 'shadow-lg'
-                                                    : 'hover:bg-white/10 hover:text-white'
-                                            }`}
-                                            style={{
-                                                ...(isEmailAutomationActive && { backgroundColor: colors.sidebar.active }),
-                                                color: isEmailAutomationActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
-                                            }}
-                                        >
-                                            <Mail className={`h-5 w-5 flex-shrink-0 ${isEmailAutomationActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
-                                            <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
-                                                <div className="text-sm font-semibold">Email Automation</div>
+                            {/* Dynamic Menu Items by Category */}
+                            {groupedPermissions.map((category, categoryIndex) => (
+                                <div key={category.name}>
+                                    {/* Category Separator with Title - Show for all categories */}
+                                    <div className="px-2 py-3 my-1">
+                                        {sidebarCollapsed && !mobileMenuOpen ? (
+                                            <div className="h-px bg-white/20"></div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-px bg-white/20"></div>
+                                                <span className="text-xs font-bold text-white/60 uppercase tracking-widest whitespace-nowrap px-1">
+                                                    {category.name}
+                                                </span>
+                                                <div className="flex-1 h-px bg-white/20"></div>
                                             </div>
-                                            {!sidebarCollapsed && isEmailAutomationActive && (
-                                                <div className="w-1 h-6 rounded-full bg-white"></div>
-                                            )}
-                                        </Link>
-                                    </TooltipTrigger>
-                                    {sidebarCollapsed && (
-                                        <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
-                                            Email Automation
-                                        </TooltipContent>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Category Items */}
+                                    {category.permissions.map((permission) => {
+                                        const icon = iconMap[permission.page.toLowerCase()] || <Package className="h-5 w-5" />;
+                                        const isActive = isActivePath(`/${permission.page}`);
+
+                                        return (
+                                            <li key={permission.p_id}>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Link
+                                                            href={`/${permission.page}`}
+                                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                                isActive
+                                                                    ? 'shadow-lg'
+                                                                    : 'hover:bg-white/10 hover:text-white'
+                                                            }`}
+                                                            style={{
+                                                                ...(isActive && { backgroundColor: colors.sidebar.active }),
+                                                                color: isActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
+                                                            }}
+                                                        >
+                                                            <span className={`${isActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`}>
+                                                                {icon}
+                                                            </span>
+                                                            <span className={`text-sm font-medium flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                                                {permission.page_name}
+                                                            </span>
+                                                            {!sidebarCollapsed && isActive && (
+                                                                <div className="w-1 h-6 rounded-full bg-white"></div>
+                                                            )}
+                                                        </Link>
+                                                    </TooltipTrigger>
+                                                    {sidebarCollapsed && (
+                                                        <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
+                                                            {permission.page_name}
+                                                        </TooltipContent>
+                                                    )}
+                                                </Tooltip>
+                                            </li>
+                                        );
+                                    })}
+                                    
+                                    {/* Email Automation - Only in Administration category */}
+                                    {category.name === 'Administration' && (
+                                        <li>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Link
+                                                        href="/dashboard/email-automation"
+                                                        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                            isEmailAutomationActive
+                                                                ? 'shadow-lg'
+                                                                : 'hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                        style={{
+                                                            ...(isEmailAutomationActive && { backgroundColor: colors.sidebar.active }),
+                                                            color: isEmailAutomationActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
+                                                        }}
+                                                    >
+                                                        <Mail className={`h-5 w-5 flex-shrink-0 ${isEmailAutomationActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
+                                                        <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+                                                            <div className="text-sm font-semibold">Email Automation</div>
+                                                        </div>
+                                                        {!sidebarCollapsed && isEmailAutomationActive && (
+                                                            <div className="w-1 h-6 rounded-full bg-white"></div>
+                                                        )}
+                                                    </Link>
+                                                </TooltipTrigger>
+                                                {sidebarCollapsed && (
+                                                    <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
+                                                        Email Automation
+                                                    </TooltipContent>
+                                                )}
+                                            </Tooltip>
+                                        </li>
                                     )}
-                                </Tooltip>
-                            </li>
+                                </div>
+                            ))}
+
                         </ul>
                     </nav>
 
