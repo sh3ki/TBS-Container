@@ -206,6 +206,10 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::get('/available-containers', [GateinoutController::class, 'getAvailableContainers']);
         Route::post('/validate-container', [GateinoutController::class, 'validateContainer']);
         
+        // Booking autocomplete and shipper lookup for Gate OUT modal
+        Route::post('/get-bookings-list', [GateinoutController::class, 'getBookingsList']);
+        Route::post('/get-shipper', [GateinoutController::class, 'getShipper']);
+        
         // Process Gate IN/OUT (final processing)
         Route::post('/process-in', [GateinoutController::class, 'processGateIn']);
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
