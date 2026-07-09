@@ -43,11 +43,11 @@
         
         /* EIR NO. - 2.2" from top, 6.75" from left */
         .eirno {
-            top: 2.2in;
+            top: 2.1in;
             left: 6.75in;
-            font-size: 18px;
+            font-size: 20px;
             letter-spacing: 5px;
-            font-weight: normal;
+            font-weight: bold;
         }
         
         /* GATE IN/OUT TEXT - 2.82" from top, 1" from left */
@@ -61,7 +61,7 @@
         
         /* DATE TIME - 2.82" from top, 6" from left */
         .datetime {
-            top: 2.82in;
+            top: 2.8in;
             left: 5.7in;
             font-size: 18px;
             letter-spacing: 2px;
@@ -69,56 +69,56 @@
         
         /* Container NO. - 3.33" from top, 1.87" from left */
         .container-no {
-            top: 3.33in;
-            left: 1.87in;
+            top: 3.3in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing:2px;
         }
         
         /* Vessel - 3.75" from top, 1.87" from left */
         .vessel {
-            top: 3.75in;
-            left: 1.87in;
+            top: 3.72in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing: 2px;
         }
         
         /* Voyage - 4.2" from top, 1.87" from left */
         .voyage {
-            top: 4.2in;
-            left: 1.87in;
+            top: 4.15in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing: 2px;
         }
         
         /* Hauler - 4.65" from top, 1.87" from left */
         .hauler {
-            top: 4.65in;
-            left: 1.87in;
+            top: 4.6in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing: 2px;
         }
         
         /* Plate NO. - 5.07" from top, 1.87" from left */
         .plate-no {
-            top: 5.07in;
-            left: 1.87in;
+            top: 5in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing: 2px;
         }
         
         /* Chassis/Location - 5.47" from top, 1.87" from left */
         .chasis-location {
-            top: 5.47in;
-            left: 1.87in;
+            top: 5.42in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing: 2px;
         }
         
         /* Size/Type - 5.93" from top, 1.87" from left */
         .size-type {
-            top: 5.93in;
-            left: 1.87in;
+            top: 5.88in;
+            left: 1.82in;
             font-size: 18px;
             letter-spacing: 2px;
         }
