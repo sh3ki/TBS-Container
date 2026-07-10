@@ -1449,9 +1449,12 @@ class InventoryController extends Controller
      * Legacy-compatible single EIR print template.
      * Mirrors old: inventory/getPrintData?id={md5(i_id)}
      */
-    public function printLegacy($id)
+    public function printLegacy($id, Request $request)
     {
         try {
+            // Get status from query parameter (IN or OUT), default to IN
+            $status = strtoupper($request->query('status', 'IN'));
+            
             $prefix = DB::getTablePrefix();
             $isNumeric = is_numeric($id);
 
@@ -1489,7 +1492,8 @@ class InventoryController extends Controller
                         u.full_name as user_full_name,
                         i.origin as checker,
                         i.chasis,
-                        i.shipper
+                        i.shipper,
+                        COALESCE(i.gate_status, 'IN') as gate_status_final
                     FROM {$prefix}inventory i
                     LEFT JOIN {$prefix}container_status cs ON i.container_status=cs.s_id
                     LEFT JOIN {$prefix}container_size_type st ON i.size_type=st.s_id
@@ -1504,6 +1508,13 @@ class InventoryController extends Controller
             }
 
             $data = (array) $record;
+            
+            // Override gate_status_final with the parameter from the request
+            $data['gate_status_final'] = $status;
+            
+            // Add currently logged-in user's full name for printing
+            $data['logged_in_user_fullname'] = auth()->user()->full_name ?? auth()->user()->name ?? 'Unknown';
+            
             // Use unified template instead of old template
             return view('pdfs.gate-pass-unified', compact('data'));
         } catch (\Exception $e) {
