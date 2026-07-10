@@ -289,7 +289,7 @@
         <div class="print-field remarks">{{ $data['remarks'] ?? '' }}</div>
         
         <!-- CHECKER SECTION -->
-        <div class="print-field checker-label">IN CHECKER</div>
+        <div class="print-field checker-label">{{ ($data['gate_status_final'] ?? $data['gate_status'] ?? '') === 'IN' ? 'IN CHECKER' : 'OUT CHECKER' }}</div>
         <div class="print-field checker-name">{{ $data['checker'] ?? $data['origin'] ?? '' }}</div>
         
         <!-- HAULER WITH LICENSE NO. AND USER FULLNAME -->
