@@ -377,7 +377,7 @@ export default function ProcessGateOutModal({
             if (response.data.success) {
                 // Open print window
                 window.open(
-                    `/api/gateinout/print-gate-pass/${response.data.inventory_id}`,
+                    `/api/gateinout/print-gate-pass/${response.data.inventory_id}?status=OUT`,
                     '_blank',
                     'width=1280,height=800'
                 );
