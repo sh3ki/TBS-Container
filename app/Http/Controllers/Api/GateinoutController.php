@@ -1147,9 +1147,12 @@ class GateinoutController extends Controller
      * Print Gate Pass (EXACT LEGACY FORMAT)
      * Generates HTML print document matching legacy system exactly
      */
-    public function printGatePass($id)
+    public function printGatePass($id, Request $request)
     {
         try {
+            // Get status from query parameter (IN or OUT)
+            $status = strtoupper($request->query('status', 'IN'));
+            
             // Get inventory record with all related data
             $record = DB::selectOne("
                 SELECT 
@@ -1184,7 +1187,8 @@ class GateinoutController extends Controller
                     u.full_name as user_full_name,
                     i.origin as checker,
                     i.chasis,
-                    i.shipper
+                    i.shipper,
+                    COALESCE(i.gate_status, 'IN') as gate_status_final
                 FROM {$this->prefix}inventory i
                 LEFT JOIN {$this->prefix}container_status cs ON i.container_status=cs.s_id
                 LEFT JOIN {$this->prefix}container_size_type st ON i.size_type=st.s_id
@@ -1200,6 +1204,12 @@ class GateinoutController extends Controller
 
             // Convert stdClass to array for view
             $data = (array) $record;
+            
+            // Override gate_status_final with the parameter from the request
+            $data['gate_status_final'] = $status;
+            
+            // Add currently logged-in user's full name for printing
+            $data['logged_in_user_fullname'] = auth()->user()->full_name ?? auth()->user()->name ?? 'Unknown';
 
             // Return HTML view for printing (auto-print via JavaScript) - using unified template
             return view('pdfs.gate-pass-unified', compact('data'));
