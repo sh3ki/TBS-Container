@@ -888,27 +888,91 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $data = DB::table('inventory as inv')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->whereDate('inv.date_added', $date)
-            ->where('c.archived', 0)
-            ->select(
-                DB::raw('CASE WHEN fjp_inv.gate_status = "IN" THEN CONCAT(fjp_inv.i_id, "I") ELSE CONCAT(fjp_inv.i_id, "O") END as eir_no'),
-                DB::raw('TIME(fjp_inv.date_added) as time'),
-                'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
-                'inv.hauler',
-                'inv.plate_no',
-                'cs.status',
-                'lt.type as load',
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
-                DB::raw('DATE(fjp_inv.date_added) as date')
-            )
-            ->orderBy('inv.date_added')
+        // Get aggregated counts grouped by client (matching export format)
+        $data = [];
+
+        // Get all clients
+        $clients = DB::table('clients')
+            ->where('archived', 0)
+            ->selectRaw('c_id, CASE WHEN client_code IS NOT NULL AND client_code <> "" THEN client_code ELSE client_name END as client_name')
+            ->orderBy('client_name')
             ->get();
+
+        // Get 20' IN counts by client
+        $twoin = DB::table('inventory as inv')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->whereIn('st.size', [20, 22])
+            ->where('inv.gate_status', 'IN')
+            ->whereDate('pi.date_added', $date)
+            ->where('c.archived', 0)
+            ->selectRaw('fjp_c.c_id, COUNT(*) as num')
+            ->groupByRaw('fjp_c.c_id')
+            ->pluck('num', 'c_id')
+            ->toArray();
+
+        // Get 40' IN counts by client
+        $fourin = DB::table('inventory as inv')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->whereIn('st.size', [40, 42, 45])
+            ->where('inv.gate_status', 'IN')
+            ->whereDate('pi.date_added', $date)
+            ->where('c.archived', 0)
+            ->selectRaw('fjp_c.c_id, COUNT(*) as num')
+            ->groupByRaw('fjp_c.c_id')
+            ->pluck('num', 'c_id')
+            ->toArray();
+
+        // Get 20' OUT counts by client
+        $twoout = DB::table('inventory as inv')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->whereIn('st.size', [20, 22])
+            ->where('inv.gate_status', 'OUT')
+            ->whereDate('pi.date_added', $date)
+            ->where('c.archived', 0)
+            ->selectRaw('fjp_c.c_id, COUNT(*) as num')
+            ->groupByRaw('fjp_c.c_id')
+            ->pluck('num', 'c_id')
+            ->toArray();
+
+        // Get 40' OUT counts by client
+        $fourout = DB::table('inventory as inv')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
+            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+            ->whereIn('st.size', [40, 42, 45])
+            ->where('inv.gate_status', 'OUT')
+            ->whereDate('pi.date_added', $date)
+            ->where('c.archived', 0)
+            ->selectRaw('fjp_c.c_id, COUNT(*) as num')
+            ->groupByRaw('fjp_c.c_id')
+            ->pluck('num', 'c_id')
+            ->toArray();
+
+        // Build client-level data
+        foreach ($clients as $client) {
+            $clientId = $client->c_id;
+            $tiVal = $twoin[$clientId] ?? 0;
+            $fiVal = $fourin[$clientId] ?? 0;
+            $toVal = $twoout[$clientId] ?? 0;
+            $foVal = $fourout[$clientId] ?? 0;
+
+            // Only include if there's any activity
+            if ($tiVal > 0 || $fiVal > 0 || $toVal > 0 || $foVal > 0) {
+                $data[] = [
+                    'client' => $client->client_name,
+                    'in_20' => $tiVal,
+                    'in_40' => $fiVal,
+                    'out_20' => $toVal,
+                    'out_40' => $foVal,
+                ];
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -1126,7 +1190,7 @@ class ReportsController extends Controller
     }
 
     /**
-     * Export DCR Report to CSV
+     * Export DCR Report to XLS - Daily Container Report
      */
     public function exportDcrReport(Request $request)
     {
@@ -1136,47 +1200,133 @@ class ReportsController extends Controller
 
         $date = $request->date;
 
-        $data = DB::table('inventory as inv')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
-            ->whereDate('inv.date_added', $date)
-            ->select(
-                'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
-                'cs.status',
-                'lt.type as load',
-                DB::raw('DATE(fjp_inv.date_added) as date')
-            )
-            ->orderBy('inv.date_added', 'desc')
-            ->get();
+        // === EXACT REPLICA OF OLD SYSTEM LOGIC ===
+        // Using sequential matching approach with separate queries
+        
+        // Get client list
+        $clientList = DB::select("
+            SELECT c_id, CASE WHEN client_code IS NOT NULL AND client_code <> '' THEN client_code ELSE client_name END as client_name
+            FROM fjp_clients WHERE archived = 0
+        ");
 
-        $filename = 'dcr_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
-        $filePath = storage_path('app/public/exports/' . $filename);
+        // 20' IN
+        $twoin = DB::select("
+            SELECT c.c_id, COUNT(*) as num FROM fjp_inventory i 
+            LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
+            LEFT JOIN fjp_clients c ON i.client_id=c.c_id 
+            LEFT JOIN fjp_container_size_type st ON i.size_type=st.s_id 
+            WHERE st.size IN(20,22) AND i.gate_status=? AND DATE(pi.date_added)=? AND c.archived=0 
+            GROUP BY c.c_id
+            ORDER BY c.c_id
+        ", ['IN', $date]);
 
-        if (!file_exists(dirname($filePath))) {
-            mkdir(dirname($filePath), 0755, true);
+        // 40' IN
+        $fourin = DB::select("
+            SELECT c.c_id, COUNT(*) as num FROM fjp_inventory i 
+            LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
+            LEFT JOIN fjp_clients c ON i.client_id=c.c_id 
+            LEFT JOIN fjp_container_size_type st ON i.size_type=st.s_id 
+            WHERE st.size IN(40,42,45) AND i.gate_status=? AND DATE(pi.date_added)=? AND c.archived=0 
+            GROUP BY c.c_id
+            ORDER BY c.c_id
+        ", ['IN', $date]);
+
+        // 20' OUT
+        $twoout = DB::select("
+            SELECT c.c_id, COUNT(*) as num FROM fjp_inventory i 
+            LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
+            LEFT JOIN fjp_clients c ON i.client_id=c.c_id 
+            LEFT JOIN fjp_container_size_type st ON i.size_type=st.s_id 
+            WHERE st.size IN(20,22) AND i.gate_status=? AND DATE(pi.date_added)=? AND c.archived=0 
+            GROUP BY c.c_id
+            ORDER BY c.c_id
+        ", ['OUT', $date]);
+
+        // 40' OUT
+        $fourout = DB::select("
+            SELECT c.c_id, COUNT(*) as num FROM fjp_inventory i 
+            LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
+            LEFT JOIN fjp_clients c ON i.client_id=c.c_id 
+            LEFT JOIN fjp_container_size_type st ON i.size_type=st.s_id 
+            WHERE st.size IN(40,42,45) AND i.gate_status=? AND DATE(pi.date_added)=? AND c.archived=0 
+            GROUP BY c.c_id
+            ORDER BY c.c_id
+        ", ['OUT', $date]);
+
+        // TEUS data - containers IN on or before report date, not yet OUT or OUT after report date
+        $teusList = DB::select("
+            SELECT 
+                CASE WHEN client_code IS NOT NULL AND client_code <> '' THEN client_code ELSE client_name END client_name, 
+                (SELECT COUNT(i.i_id) FROM fjp_inventory i
+                    LEFT JOIN fjp_inventory o ON i.out_id=o.i_id
+                    LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
+                    LEFT JOIN fjp_pre_inventory po ON po.inv_id=o.i_id
+                    LEFT JOIN fjp_container_size_type st ON st.s_id=i.size_type
+                    WHERE i.gate_status=? AND 
+                    (CASE WHEN DATE(pi.date_added) IS NULL THEN DATE(i.date_added) <= ? ELSE DATE(pi.date_added) <= ? END) AND 
+                    (i.complete=0 OR i.complete=1 AND (CASE WHEN DATE(po.date_added) IS NULL THEN DATE(o.date_added) > ? ELSE DATE(po.date_added) > ? END)) AND 
+                    st.size IN(20,22) AND i.client_id=fjp_clients.c_id) iin,
+                (SELECT COUNT(i.i_id) FROM fjp_inventory i
+                    LEFT JOIN fjp_inventory o ON i.out_id=o.i_id
+                    LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
+                    LEFT JOIN fjp_pre_inventory po ON po.inv_id=o.i_id
+                    LEFT JOIN fjp_container_size_type st ON st.s_id=i.size_type
+                    WHERE i.gate_status=? AND 
+                    (CASE WHEN DATE(pi.date_added) IS NULL THEN DATE(i.date_added) <= ? ELSE DATE(pi.date_added) <= ? END) AND 
+                    (i.complete=0 OR i.complete=1 AND (CASE WHEN DATE(po.date_added) IS NULL THEN DATE(o.date_added) > ? ELSE DATE(po.date_added) > ? END)) AND 
+                    st.size IN(40,42,45) AND i.client_id=fjp_clients.c_id) iout
+            FROM fjp_clients WHERE archived=0
+        ", ['IN', $date, $date, $date, $date, 'IN', $date, $date, $date, $date]);
+
+        // Calculate billing data from query results
+        $incomingCount = 0;
+        $outgoingCount = 0;
+        
+        foreach ($twoin as $item) {
+            $incomingCount += (int)$item->num;
+        }
+        foreach ($fourin as $item) {
+            $incomingCount += (int)$item->num;
+        }
+        foreach ($twoout as $item) {
+            $outgoingCount += (int)$item->num;
+        }
+        foreach ($fourout as $item) {
+            $outgoingCount += (int)$item->num;
         }
 
-        $file = fopen($filePath, 'w');
-        fputcsv($file, ['Container No.', 'Size/Type', 'Status', 'Load', 'Date']);
-        
-        foreach ($data as $row) {
-            fputcsv($file, (array) $row);
-        }
-        
-        fclose($file);
+        // Prepare DCR data array - matching old system structure
+        $dcrData = [
+            'clients' => $clientList,
+            'twoin' => $twoin,
+            'fourin' => $fourin,
+            'twoout' => $twoout,
+            'fourout' => $fourout,
+            'teusList' => $teusList,
+            'date' => $date,
+            'billingData' => [
+                'incoming_count' => $incomingCount,
+                'incoming_rate' => 950,
+                'outgoing_count' => $outgoingCount,
+                'outgoing_rate' => 750
+            ]
+        ];
+
+        // Generate XLS using the service
+        $exportService = new ReportExportService();
+        $filePath = $exportService->exportDcrReportByDate($dcrData, $date);
 
         // Log audit - REPORTS action
         DB::table('audit_logs')->insert([
             'action' => 'REPORTS',
-            'description' => '[REPORTS] DCR Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'description' => '[REPORTS] DCR Report exported for ' . $date . ' to XLS file',
             'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->download($filePath)->deleteFileAfterSend(true);
+        $filename = 'DCR_Report_' . $date . '.xlsx';
+        return response()->download($filePath, $filename)->deleteFileAfterSend(true);
     }
 
     /**
