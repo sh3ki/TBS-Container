@@ -1,10 +1,13 @@
 tbs_user
 pBjBBG13GGVMcatqYJyVwydr
 
-mysql -u tbs_user -p 
-use fjpwl_sys_db;
+cd /var/www/tbscontainermnl && bash deploy.sh
+
+mysql -u tbs_user -p fjpwl_sys_db
 DROP TABLE IF EXISTS fjp_cache;
 DROP TABLE IF EXISTS fjp_cache_locks;
+DROP TABLE IF EXISTS fjp_jobs;
+DROP TABLE IF EXISTS fjp_sessions;
 
 
 update db on deployed:
