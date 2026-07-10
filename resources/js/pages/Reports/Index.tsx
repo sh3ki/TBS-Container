@@ -1035,18 +1035,52 @@ const Index: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredReportData.map((row, index) => (
-                                        <tr key={index} style={{ borderBottom: `1px solid ${colors.table.border}` }}>
-                                            <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
-                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-600"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></td>
-                                            <td className="px-4 py-3 text-sm text-gray-600">{formatDate(String(row.date_in || ''))}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-600">{String(row.age || '-')}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-600"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></td>
-                                            <td className="px-4 py-3 text-sm text-gray-600">{String(row.class || '-')}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-600">{formatDate(String(row.dmf || ''))}</td>
-                                        </tr>
-                                    ))}
+                                    {(() => {
+                                        // Group data by size_type
+                                        const groupedBySizeType = new Map<string, Record<string, unknown>[]>();
+                                        filteredReportData.forEach((row) => {
+                                            const sizeType = String(row.size_type || 'Unknown');
+                                            if (!groupedBySizeType.has(sizeType)) {
+                                                groupedBySizeType.set(sizeType, []);
+                                            }
+                                            groupedBySizeType.get(sizeType)!.push(row);
+                                        });
+
+                                        let rowNumber = 1;
+                                        const rows: React.ReactNode[] = [];
+
+                                        // Iterate through each size type group
+                                        groupedBySizeType.forEach((items, sizeType) => {
+                                            // Add rows for this size type
+                                            items.forEach((row) => {
+                                                rows.push(
+                                                    <tr key={`${sizeType}-${rowNumber}`} style={{ borderBottom: `1px solid ${colors.table.border}` }}>
+                                                        <td className="px-4 py-3 text-sm text-gray-900">{rowNumber}</td>
+                                                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</td>
+                                                        <td className="px-4 py-3 text-sm text-gray-600"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></td>
+                                                        <td className="px-4 py-3 text-sm text-gray-600">{formatDate(String(row.date_in || ''))}</td>
+                                                        <td className="px-4 py-3 text-sm text-gray-600">{String(row.age || '-')}</td>
+                                                        <td className="px-4 py-3 text-sm text-gray-600"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></td>
+                                                        <td className="px-4 py-3 text-sm text-gray-600">{String(row.class || '-')}</td>
+                                                        <td className="px-4 py-3 text-sm text-gray-600">{formatDate(String(row.dmf || ''))}</td>
+                                                    </tr>
+                                                );
+                                                rowNumber++;
+                                            });
+
+                                            // Add subtotal row for this size type
+                                            rows.push(
+                                                <tr key={`${sizeType}-subtotal`} style={{ backgroundColor: colors.brand.primary, borderBottom: `1px solid ${colors.table.border}` }}>
+                                                    <td colSpan={2} className="px-4 py-3 text-sm font-bold text-white"></td>
+                                                    <td className="px-4 py-3 text-sm font-bold text-white">{items.length}</td>
+                                                    <td className="px-4 py-3 text-sm font-bold text-white">UNITS</td>
+                                                    <td colSpan={4} className="px-4 py-3 text-sm font-bold text-white"></td>
+                                                </tr>
+                                            );
+                                        });
+
+                                        return rows;
+                                    })()}
                                 </tbody>
                             </table>
 
