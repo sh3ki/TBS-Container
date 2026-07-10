@@ -159,6 +159,7 @@ APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
 APP_URL=https://tbscontainermnl.com
+APP_TIMEZONE=Asia/Manila
 
 VITE_APP_NAME="TBS"
 
