@@ -820,7 +820,7 @@ class ReportsController extends Controller
     }
 
     /**
-     * DMR Report - Daily Monitoring Report
+     * DMR Report - Daily Monitoring Report (Aging Report)
      */
     public function dmrReport(Request $request)
     {
@@ -832,38 +832,44 @@ class ReportsController extends Controller
         $date = $request->date;
         $clientId = $request->client_id;
 
+        // Query for incoming/aging containers
         $query = DB::table('inventory as inv')
             ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
-            ->whereDate('inv.date_added', $date)
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('inventory as o', 'o.i_id', '=', 'inv.out_id')
+            ->leftJoin('pre_inventory as po', 'po.inv_id', '=', 'o.i_id')
+            ->whereDate('inv.date_added', '<=', $date)
+            ->where('inv.gate_status', 'IN')
+            ->where(function ($query) use ($date) {
+                $query->where('inv.complete', 0)
+                    ->orWhere(function ($q) use ($date) {
+                        $q->where('inv.complete', 1)
+                            ->whereDate('o.date_added', '>', $date);
+                    });
+            })
+            ->whereNotNull('st.size')
             ->select(
-                DB::raw('CASE WHEN fjp_inv.gate_status = "IN" THEN CONCAT(fjp_inv.i_id, "I") ELSE CONCAT(fjp_inv.i_id, "O") END as eir_no'),
-                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
                 DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
                 'cs.status',
-                'inv.vessel',
-                'inv.voyage',
-                'inv.shipper',
-                'inv.hauler',
-                'inv.booking',
-                'inv.location as destination',
-                'inv.plate_no',
-                'lt.type as load',
-                'inv.chasis',
-                'inv.seal_no',
-                'inv.gate_status',
+                'inv.class',
+                'inv.date_manufactured as dmf',
+                DB::raw('DATE(fjp_inv.date_added) as date_in'),
+                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(fjp_inv.date_added), INTERVAL 1 DAY)) as age'),
                 DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
-                DB::raw('DATE(fjp_inv.date_added) as date')
+                'c.client_name'
             );
 
         if ($clientId && $clientId !== 'all' && $clientId !== '') {
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.date_added', 'desc')->get();
+        $data = $query->orderBy('st.size', 'asc')
+            ->orderBy('st.type', 'asc')
+            ->orderBy('inv.date_added', 'asc')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -1048,65 +1054,75 @@ class ReportsController extends Controller
     }
 
     /**
-     * Export DMR Report to CSV
+     * Export DMR Report to XLS
      */
     public function exportDmrReport(Request $request)
     {
         $request->validate([
             'date' => 'required|date',
-            'client_id' => 'nullable|string',
+            'client_id' => 'required|string',
         ]);
 
         $date = $request->date;
         $clientId = $request->client_id;
 
+        // Get the aging report data
         $query = DB::table('inventory as inv')
             ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
-            ->whereDate('inv.date_added', $date)
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
+            ->leftJoin('inventory as o', 'o.i_id', '=', 'inv.out_id')
+            ->leftJoin('pre_inventory as po', 'po.inv_id', '=', 'o.i_id')
+            ->whereDate('inv.date_added', '<=', $date)
+            ->where('inv.gate_status', 'IN')
+            ->where(function ($query) use ($date) {
+                $query->where('inv.complete', 0)
+                    ->orWhere(function ($q) use ($date) {
+                        $q->where('inv.complete', 1)
+                            ->whereDate('o.date_added', '>', $date);
+                    });
+            })
+            ->whereNotNull('st.size')
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
+                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
                 'cs.status',
-                'lt.type as load',
-                'c.client_name as client',
-                DB::raw('DATE(fjp_inv.date_added) as date')
+                'inv.class',
+                'inv.date_manufactured as dmf',
+                DB::raw('DATE(fjp_inv.date_added) as date_in'),
+                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(fjp_inv.date_added), INTERVAL 1 DAY)) as age'),
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                'c.client_name'
             );
 
         if ($clientId && $clientId !== 'all' && $clientId !== '') {
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.date_added', 'desc')->get();
+        $data = $query->orderBy('st.size', 'asc')
+            ->orderBy('st.type', 'asc')
+            ->orderBy('inv.date_added', 'asc')
+            ->get();
 
-        $filename = 'dmr_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
-        $filePath = storage_path('app/public/exports/' . $filename);
+        // Get the first row to get the client name
+        $clientName = $data->first()?->client_name ?? 'Unknown';
 
-        if (!file_exists(dirname($filePath))) {
-            mkdir(dirname($filePath), 0755, true);
-        }
-
-        $file = fopen($filePath, 'w');
-        fputcsv($file, ['Container No.', 'Size/Type', 'Status', 'Load', 'Client', 'Date']);
-        
-        foreach ($data as $row) {
-            fputcsv($file, (array) $row);
-        }
-        
-        fclose($file);
+        // Generate XLS using the service
+        $exportService = new ReportExportService();
+        $filePath = $exportService->exportDmrReportByClient($data, $date, $clientName);
 
         // Log audit - REPORTS action
         DB::table('audit_logs')->insert([
             'action' => 'REPORTS',
-            'description' => '[REPORTS] DMR Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'description' => '[REPORTS] DMR Report exported ' . count($data) . ' record(s) to XLS file',
             'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->download($filePath)->deleteFileAfterSend(true);
+        $filename = 'DMR_Report_' . $date . '.xlsx';
+        return response()->download($filePath, $filename)->deleteFileAfterSend(true);
     }
 
     /**
