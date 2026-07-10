@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Inventory;
 use App\Models\Booking;
 use App\Models\Client;
+use App\Services\ReportExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -727,6 +728,10 @@ class ReportsController extends Controller
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code != "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                'c.client_name',
+                'c.client_code',
+                'inv.client_id',
                 DB::raw('fjp_inv.i_id as eir_no'),
                 DB::raw('DATE(fjp_inv.date_added) as date'),
                 DB::raw('TIME(fjp_inv.date_added) as time'),
@@ -749,7 +754,7 @@ class ReportsController extends Controller
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.date_added', 'desc')->get();
+        $data = $query->orderBy('c.client_name', 'asc')->orderBy('inv.date_added', 'asc')->get();
 
         return response()->json([
             'success' => true,
@@ -780,6 +785,10 @@ class ReportsController extends Controller
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code != "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                'c.client_name',
+                'c.client_code',
+                'inv.client_id',
                 DB::raw('fjp_inv.i_id as eir_no'),
                 DB::raw('DATE(fjp_inv.date_added) as date'),
                 DB::raw('TIME(fjp_inv.date_added) as time'),
@@ -802,7 +811,7 @@ class ReportsController extends Controller
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.date_added', 'desc')->get();
+        $data = $query->orderBy('c.client_name', 'asc')->orderBy('inv.date_added', 'asc')->get();
 
         return response()->json([
             'success' => true,
@@ -902,7 +911,7 @@ class ReportsController extends Controller
     }
 
     /**
-     * Export Incoming Report to CSV
+     * Export Incoming Report to XLS
      */
     public function exportIncomingReport(Request $request)
     {
@@ -925,6 +934,10 @@ class ReportsController extends Controller
             ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'IN')
             ->select(
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code != "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                'c.client_name',
+                'c.client_code',
+                'inv.client_id',
                 DB::raw('fjp_inv.i_id as eir_no'),
                 DB::raw('DATE(fjp_inv.date_added) as date'),
                 DB::raw('TIME(fjp_inv.date_added) as time'),
@@ -947,39 +960,23 @@ class ReportsController extends Controller
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.date_added', 'desc')->get();
+        $data = $query->orderBy('c.client_name', 'asc')->orderBy('inv.date_added', 'asc')->get();
 
-        // Generate CSV
-        $filename = 'incoming_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
-        $filePath = storage_path('app/public/exports/' . $filename);
-
-        // Ensure directory exists
-        if (!file_exists(dirname($filePath))) {
-            mkdir(dirname($filePath), 0755, true);
-        }
-
-        $file = fopen($filePath, 'w');
-        
-        // Add headers
-        fputcsv($file, ['EIR No.', 'Date', 'Time', 'Container No.', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Class', 'Date Manufactured', 'Ex-Consignee', 'Hauler', 'Plate No.', 'Load', 'Origin', 'Chasis']);
-        
-        // Add data
-        foreach ($data as $row) {
-            fputcsv($file, (array) $row);
-        }
-        
-        fclose($file);
+        // Generate XLS using the service
+        $exportService = new ReportExportService();
+        $filePath = $exportService->exportIncomingReportByClient($data, $request->start_date, $request->end_date);
 
         // Log audit - REPORTS action
         DB::table('audit_logs')->insert([
             'action' => 'REPORTS',
-            'description' => '[REPORTS] Incoming Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'description' => '[REPORTS] Incoming Report exported ' . count($data) . ' record(s) to XLS file',
             'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->download($filePath)->deleteFileAfterSend(true);
+        $filename = 'IncomingReport_' . $request->start_date . '_to_' . $request->end_date . '.xlsx';
+        return response()->download($filePath, $filename)->deleteFileAfterSend(true);
     }
 
     /**
@@ -1002,12 +999,16 @@ class ReportsController extends Controller
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
             ->leftJoin('load_type as lt', 'inv.load_type', '=', 'lt.l_id')
-            ->whereBetween('inv.approval_date', [$startDate, $endDate])
+            ->whereBetween('inv.date_added', [$startDate, $endDate])
             ->where('inv.gate_status', 'OUT')
             ->select(
+                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code != "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                'c.client_name',
+                'c.client_code',
+                'inv.client_id',
                 DB::raw('fjp_inv.i_id as eir_no'),
-                DB::raw('DATE(fjp_inv.approval_date) as date'),
-                DB::raw('TIME(fjp_inv.approval_date) as time'),
+                DB::raw('DATE(fjp_inv.date_added) as date'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
                 DB::raw('CONCAT(fjp_st.size, "/", fjp_st.type) as size_type'),
                 'cs.status',
@@ -1027,34 +1028,23 @@ class ReportsController extends Controller
             $query->where('inv.client_id', $clientId);
         }
 
-        $data = $query->orderBy('inv.approval_date', 'desc')->get();
+        $data = $query->orderBy('c.client_name', 'asc')->orderBy('inv.date_added', 'asc')->get();
 
-        $filename = 'outgoing_report_' . now()->format('Y-m-d_H-i-s') . '.csv';
-        $filePath = storage_path('app/public/exports/' . $filename);
-
-        if (!file_exists(dirname($filePath))) {
-            mkdir(dirname($filePath), 0755, true);
-        }
-
-        $file = fopen($filePath, 'w');
-        fputcsv($file, ['EIR No.', 'Date', 'Time', 'Container No.', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Destination', 'Plate No.', 'Load', 'Chasis', 'Seal No.']);
-        
-        foreach ($data as $row) {
-            fputcsv($file, (array) $row);
-        }
-        
-        fclose($file);
+        // Generate XLS using the service
+        $exportService = new ReportExportService();
+        $filePath = $exportService->exportOutgoingReportByClient($data, $request->start_date, $request->end_date);
 
         // Log audit - REPORTS action
         DB::table('audit_logs')->insert([
             'action' => 'REPORTS',
-            'description' => '[REPORTS] Outgoing Report exported ' . count($data) . ' record(s) to CSV file: ' . $filename,
+            'description' => '[REPORTS] Outgoing Report exported ' . count($data) . ' record(s) to XLS file',
             'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->download($filePath)->deleteFileAfterSend(true);
+        $filename = 'OutgoingReport_' . $request->start_date . '_to_' . $request->end_date . '.xlsx';
+        return response()->download($filePath, $filename)->deleteFileAfterSend(true);
     }
 
     /**
