@@ -1107,8 +1107,8 @@ const Index: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <Search className="w-5 h-5 text-white" />
                         <div>
-                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
-                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
+                            <h2 className="text-xl font-bold text-white">Daily Container Report (DCR)</h2>
+                            <p className="text-sm text-white/90 mt-0.5">Generate and export daily container reports - showing IN/OUT by size and client</p>
                         </div>
                     </div>
                 </div>
@@ -1130,51 +1130,60 @@ const Index: React.FC = () => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Search Bar */}
-                    <div className="mb-6">
-                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                                placeholder="Search by container number or EIR number..."
-                            />
-                        </div>
-                    </div>
                 </div>
 
                 {/* Footer */}
                 <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
+                        DCR data will be generated and shown below when you click "Generate"
                     </p>
                 </div>
             </div>
 
             {filteredReportData.length > 0 && (
                 <div className="w-full max-w-full overflow-x-auto">
-                    <ModernTable
-                        columns={[
-                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
-                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
-                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
-                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
-                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
-                        ]}
-                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
-                            total: filteredReportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
+                    <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                        {/* Title */}
+                        <div className="px-6 py-4 border-b" style={{ borderColor: colors.table.border }}>
+                            <p className="text-sm font-bold text-gray-900">TBS CONTAINER YARD OPC</p>
+                            <p className="text-sm font-bold text-gray-900 mt-1">DAILY CONTAINER REPORT</p>
+                            <p className="text-sm font-bold text-gray-900 mt-1">DATE: {singleDate}</p>
+                        </div>
+                        
+                        <table className="w-full">
+                            <thead>
+                                <tr style={{ backgroundColor: colors.brand.primary }}>
+                                    <th className="px-4 py-3 text-left text-white font-semibold text-sm w-1/3">Client</th>
+                                    <th colSpan={2} className="px-4 py-3 text-center text-white font-semibold text-sm">IN</th>
+                                    <th colSpan={2} className="px-4 py-3 text-center text-white font-semibold text-sm">OUT</th>
+                                </tr>
+                                <tr style={{ backgroundColor: '#5A5A5A' }}>
+                                    <th className="px-4 py-2 text-left text-white font-semibold text-xs"></th>
+                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">20'</th>
+                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">40'</th>
+                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">20'</th>
+                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">40'</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredReportData.map((row, idx) => (
+                                    <tr key={idx} style={{ borderBottom: `1px solid ${colors.table.border}` }}>
+                                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">{String(row.client || '-')}</td>
+                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.in_20 || '-')}</td>
+                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.in_40 || '-')}</td>
+                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.out_20 || '-')}</td>
+                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.out_40 || '-')}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t" style={{ borderColor: colors.table.border, backgroundColor: colors.brand.primary }}>
+                            <p className="text-sm font-bold text-white">Total Records: <span>{filteredReportData.length}</span></p>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
