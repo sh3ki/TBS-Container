@@ -14,6 +14,7 @@ The `deploy.sh` script in the repo handles everything automatically.
 SSH into server and run:
 ```bash
 ssh root@YOUR_SERVER_IP "cd /var/www/tbscontainermnl && bash deploy.sh"
+
 ```
 
 That's it. The script will:
