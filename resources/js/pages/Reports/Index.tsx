@@ -222,54 +222,44 @@ const Index: React.FC = () => {
         setLoading(true);
 
         try {
-            const response = await axios.post('/api/reports/docs-fee/export', { date: singleDate });
+            const response = await axios.post('/api/reports/docs-fee/export', 
+                { date: singleDate },
+                { responseType: 'blob' }
+            );
             
-            if (response.data.success) {
-                const data = response.data.data;
-                
-                // Create CSV content
-                let csvContent = 'TBS\n';
-                csvContent += 'INCOMING & OUTGOING REPORT\n';
-                csvContent += `DATE: ${new Date(singleDate).toLocaleDateString()}\n\n\n`;
-                csvContent += 'EIR,Time,Container No.,Size/Type,Hauler,Plate No.,Amount,Client\n';
-                
-                // Add incoming data
-                data.incoming.forEach((row: Record<string, unknown>) => {
-                    csvContent += `${row.eir_no},${row.time},${row.container_no},${row.size_type},${row.hauler || ''},${row.plate_no || ''},${row.amount},${row.client_name}\n`;
-                });
-                
-                csvContent += `,,,,,,${data.summary.incoming_total},TOTAL INCOMING: ${data.summary.incoming_count}\n\n\n`;
-                
-                csvContent += 'TBS\n';
-                csvContent += 'OUTGOING\n';
-                csvContent += `DATE: ${new Date(singleDate).toLocaleDateString()}\n\n\n`;
-                csvContent += 'EIR,Time,Container No.,Size/Type,Hauler,Plate No.,Amount,Client\n';
-                
-                // Add outgoing data
-                data.outgoing.forEach((row: Record<string, unknown>) => {
-                    csvContent += `${row.eir_no},${row.time},${row.container_no},${row.size_type},${row.hauler || ''},${row.plate_no || ''},${row.amount},${row.client_name}\n`;
-                });
-                
-                csvContent += `,,,,,,${data.summary.outgoing_total},TOTAL OUTGOING: ${data.summary.outgoing_count}\n\n\n`;
-                csvContent += 'REGULAR\n';
-                csvContent += `INCOMING,${data.summary.incoming_total}\n`;
-                csvContent += `OUTGOING,${data.summary.outgoing_total}\n`;
-                csvContent += `TOTAL,${data.summary.grand_total}\n`;
-                
-                // Create blob and download
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                const filename = `DOCS_FEE_${new Date(singleDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }).replace(/,/g, '').replace(/ /g, '_')}.csv`;
-                link.setAttribute('download', filename);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.URL.revokeObjectURL(url);
-                
-                success('Docs Fee report exported successfully');
+            // Create download link from blob
+            const contentType = response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
+            const link = document.createElement('a');
+            link.href = url;
+            
+            // Get filename from content-disposition header
+            let filename = '';
+            const contentDisposition = response.headers['content-disposition'];
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?(.+?)"?$/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1];
+                }
             }
+            
+            // If filename not found, generate one
+            if (!filename) {
+                const dateStr = new Date(singleDate).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: '2-digit' 
+                }).replace(/,/g, '').replace(/ /g, '_');
+                filename = `DOCS_FEE_${dateStr}.xlsx`;
+            }
+            
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            
+            success('Docs Fee report exported successfully');
         } catch (error_caught: unknown) {
             const err = error_caught as { response?: { data?: { message?: string } } };
             error(err.response?.data?.message || 'Failed to export Docs Fee report');
