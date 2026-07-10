@@ -333,4 +333,164 @@ class ReportExportService
 
         return $filepath;
     }
+
+    /**
+     * Export DMR (Daily Monitoring Report) - Aging Report to XLS
+     *
+     * @param Collection $data
+     * @param string $date
+     * @param string $clientName
+     * @return string Path to the exported file
+     */
+    public function exportDmrReportByClient(Collection $data, string $date, string $clientName): string
+    {
+        // Create fresh spreadsheet for this export
+        $this->spreadsheet = new Spreadsheet();
+        $sheet = $this->spreadsheet->getActiveSheet();
+        $this->currentRow = 1;
+
+        // Styles
+        $titleStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true, 'color' => ['rgb' => '000000']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+        ];
+
+        $subtitleStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 10, 'bold' => true, 'color' => ['rgb' => '000000']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+        ];
+
+        $headerStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '366092']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+
+        $cellStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'color' => ['rgb' => '000000']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+
+        $subtotalStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => ['rgb' => '000000']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+
+        // Title
+        $sheet->setCellValue('A' . $this->currentRow, 'TBS CONTAINER YARD OPC, INC');
+        $sheet->getStyle('A' . $this->currentRow)->applyFromArray($titleStyle);
+        $this->currentRow++;
+
+        // Subtitle
+        $sheet->setCellValue('A' . $this->currentRow, 'INVENTORY REPORT AS OF ' . $date . ' FOR ' . strtoupper($clientName));
+        $sheet->getStyle('A' . $this->currentRow)->applyFromArray($subtitleStyle);
+        $this->currentRow += 2;
+
+        // Headers
+        $headers = ['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'AGE', 'STATUS', 'CLASS', 'DMF'];
+        $col = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($col . $this->currentRow, $header);
+            $sheet->getStyle($col . $this->currentRow)->applyFromArray($headerStyle);
+            $col++;
+        }
+        $this->currentRow++;
+
+        // Group data by size_type
+        $groupedBySizeType = $data->groupBy('size_type');
+        $rowNumber = 1;
+        $totalUnits = 0;
+
+        foreach ($groupedBySizeType as $sizeType => $sizeTypeData) {
+            $sizeTypeCount = 0;
+            
+            // Data rows for this size type
+            foreach ($sizeTypeData as $row) {
+                $col = 'A';
+                
+                // NO.
+                $sheet->setCellValue($col . $this->currentRow, $rowNumber);
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // CONTAINER NO.
+                $sheet->setCellValue($col . $this->currentRow, $row->container_no ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // SIZE/TYPE
+                $sheet->setCellValue($col . $this->currentRow, $row->size_type ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // DATE IN
+                $sheet->setCellValue($col . $this->currentRow, $row->date_in ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // AGE
+                $sheet->setCellValue($col . $this->currentRow, $row->age ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // STATUS
+                $sheet->setCellValue($col . $this->currentRow, $row->status ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // CLASS
+                $sheet->setCellValue($col . $this->currentRow, $row->class ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $col++;
+
+                // DMF
+                $sheet->setCellValue($col . $this->currentRow, $row->dmf ?? '');
+                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+
+                $this->currentRow++;
+                $rowNumber++;
+                $sizeTypeCount++;
+            }
+
+            // Subtotal row
+            $sheet->setCellValue('C' . $this->currentRow, $sizeTypeCount);
+            $sheet->getStyle('C' . $this->currentRow)->applyFromArray($subtotalStyle);
+            $sheet->setCellValue('D' . $this->currentRow, 'UNITS');
+            $sheet->getStyle('D' . $this->currentRow)->applyFromArray($subtotalStyle);
+            $this->currentRow += 2;
+
+            $totalUnits += $sizeTypeCount;
+        }
+
+        // Add spacing
+        $this->currentRow += 3;
+
+        // Total row
+        $sheet->setCellValue('B' . $this->currentRow, 'TOTAL NO. OF UNITS');
+        $sheet->getStyle('B' . $this->currentRow)->applyFromArray($subtotalStyle);
+        $sheet->setCellValue('D' . $this->currentRow, $totalUnits);
+        $sheet->getStyle('D' . $this->currentRow)->applyFromArray($subtotalStyle);
+
+        // Auto-size columns
+        foreach (range('A', 'H') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Save file
+        $filename = 'DMR_Report_' . $date . '.xlsx';
+        $filepath = storage_path('app/public/exports/' . $filename);
+
+        // Ensure directory exists
+        if (!file_exists(dirname($filepath))) {
+            mkdir(dirname($filepath), 0755, true);
+        }
+
+        $writer = new Xlsx($this->spreadsheet);
+        $writer->save($filepath);
+
+        return $filepath;
+    }
 }
