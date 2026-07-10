@@ -184,7 +184,7 @@ export default function ProcessGateInModal({
             if (response.data.success) {
                 // 🖨️ AUTO-PRINT: Open print window (EXACT LEGACY BEHAVIOR)
                 const inventoryId = response.data.inventory_id;
-                const printUrl = `/api/gateinout/print-gate-pass/${inventoryId}`;
+                const printUrl = `/api/gateinout/print-gate-pass/${inventoryId}?status=IN`;
                 window.open(printUrl, '_blank', 'width=1280,height=800');
                 
                 onSuccess();
