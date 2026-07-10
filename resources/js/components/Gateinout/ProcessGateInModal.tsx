@@ -148,11 +148,19 @@ export default function ProcessGateInModal({
         if (!record) return;
         
         try {
+            // Convert mm/yyyy to yyyy-mm-01 format for database
+            let dateForDB = formData.date_manufactured;
+            if (formData.date_manufactured && formData.date_manufactured.length === 7 && formData.date_manufactured[2] === '/') {
+                const month = formData.date_manufactured.slice(0, 2);
+                const year = formData.date_manufactured.slice(3);
+                dateForDB = `${year}-${month}-01`;
+            }
+            
             const response = await axios.post('/api/gateinout/process-in', {
                 p_id: record.p_id,
                 container_no: record.container_no,
                 client_id: record.client_id,
-                date_mnfg: formData.date_manufactured,
+                date_mnfg: dateForDB,
                 cnt_status: parseInt(formData.status),
                 size_type: parseInt(formData.sizetype),
                 iso_code: formData.iso_code,
@@ -215,14 +223,35 @@ export default function ProcessGateInModal({
                                     <Input value={record?.client_name || ''} disabled className="bg-gray-100" />
                                 </div>
                                 <div>
-                                    <Label>Date Manufactured <span className="text-red-500">*</span></Label>
+                                    <Label>Date Manufactured (mm/yyyy) <span className="text-red-500">*</span></Label>
                                     <div className="relative">
                                         <Input
-                                            type="date"
+                                            type="text"
                                             value={formData.date_manufactured}
-                                            onChange={(e) => setFormData({ ...formData, date_manufactured: e.target.value })}
+                                            onChange={(e) => {
+                                                let value = e.target.value;
+                                                
+                                                // Allow user to type mm/yyyy naturally
+                                                // Remove any invalid characters, keep only digits and slash
+                                                value = value.replace(/[^\d\/]/g, '');
+                                                
+                                                // Limit to mm/yyyy format (7 chars max)
+                                                if (value.length > 7) {
+                                                    value = value.slice(0, 7);
+                                                }
+                                                
+                                                // Auto-insert slash after 2 digits if not present
+                                                if (value.length === 2 && !value.includes('/')) {
+                                                    value = value + '/';
+                                                } else if (value.length > 2 && value[2] !== '/') {
+                                                    value = value.slice(0, 2) + '/' + value.slice(2);
+                                                }
+                                                
+                                                setFormData({ ...formData, date_manufactured: value });
+                                            }}
                                             className="pr-10"
-                                            placeholder="mm/dd/yyyy"
+                                            placeholder="mm/yyyy"
+                                            maxLength="7"
                                         />
                                         <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                     </div>
