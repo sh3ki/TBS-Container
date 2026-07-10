@@ -150,10 +150,36 @@ const Index: React.FC = () => {
 
             const response = await axios.post(endpoint, params, { responseType: 'blob' });
 
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+            // Determine MIME type based on content-type header or tab type
+            const contentType = response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
             const link = document.createElement('a');
             link.href = url;
-            const filename = `${activeTab.toUpperCase()}_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            
+            // Get filename from content-disposition header
+            let filename = '';
+            const contentDisposition = response.headers['content-disposition'];
+            if (contentDisposition) {
+                // Try to extract filename from content-disposition header
+                const filenameMatch = contentDisposition.match(/filename="?(.+?)"?$/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1];
+                }
+            }
+            
+            // If filename not found, generate one
+            if (!filename) {
+                if (activeTab === 'incoming') {
+                    filename = `IncomingReport_${startDate}_to_${endDate}.xlsx`;
+                } else if (activeTab === 'outgoing') {
+                    filename = `OutgoingReport_${startDate}_to_${endDate}.xlsx`;
+                } else if (activeTab === 'dmr') {
+                    filename = `DMR_Report_${singleDate}.csv`;
+                } else if (activeTab === 'dcr') {
+                    filename = `DCR_Report_${singleDate}.csv`;
+                }
+            }
+            
             link.setAttribute('download', filename);
             document.body.appendChild(link);
             link.click();
@@ -361,6 +387,24 @@ const Index: React.FC = () => {
         }
     };
 
+    // Group data by client
+    const groupDataByClient = (data: Record<string, unknown>[]) => {
+        const grouped = new Map<string, Record<string, unknown>[]>();
+        
+        data.forEach((row) => {
+            const client = String(row.client || 'Unknown');
+            if (!grouped.has(client)) {
+                grouped.set(client, []);
+            }
+            grouped.get(client)!.push(row);
+        });
+        
+        return Array.from(grouped.entries()).map(([clientName, records]) => ({
+            clientName,
+            records,
+        }));
+    };
+
     // Format date to "Oct 07, 2025"
     const formatDate = (dateString: string) => {
         if (!dateString) return '-';
@@ -445,122 +489,344 @@ const Index: React.FC = () => {
         return containerNo.includes(search) || eirNo.includes(search);
     });
 
-    const renderIncomingTab = () => (
-        <div className="space-y-6">
-            {/* Merged Filter and Fields Section */}
-            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                {/* Header */}
-                <div 
-                    className="cursor-pointer flex items-center justify-between px-6 py-5"
-                    onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
-                    style={{ backgroundColor: colors.brand.primary }}
-                >
-                    <div className="flex items-center gap-3">
-                        <Search className="w-5 h-5 text-white" />
-                        <div>
-                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
-                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
-                        </div>
-                    </div>
-                    {isFieldsCollapsed ? (
-                        <ChevronDown className="w-5 h-5 text-white" />
-                    ) : (
-                        <ChevronUp className="w-5 h-5 text-white" />
-                    )}
-                </div>
-                
-                {/* Content */}
-                <div className="p-6">
-                    {/* Filter Section */}
-                    <div className="mb-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
-                                <Select value={clientId} onValueChange={setClientId}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {clients.map((client) => (
-                                            <SelectItem key={client.id} value={client.id}>
-                                                {client.text}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
-                                <Input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
-                                <Input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-                        </div>
-                    </div>
+    const renderIncomingTab = () => {
+        const allClientGroups = groupDataByClient(filteredReportData);
+        const clientGroupsPerPage = 1; // Show 1 client group per "page"
+        const clientGroups = allClientGroups.slice(
+            (currentPage - 1) * clientGroupsPerPage,
+            currentPage * clientGroupsPerPage
+        );
 
-                    {/* Search Bar */}
-                    <div className="mb-6">
-                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                                placeholder="Search by container number or EIR number..."
-                            />
+        return (
+            <div className="space-y-6">
+                {/* Merged Filter and Fields Section */}
+                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    {/* Header */}
+                    <div 
+                        className="cursor-pointer flex items-center justify-between px-6 py-5"
+                        onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                        style={{ backgroundColor: colors.brand.primary }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Search className="w-5 h-5 text-white" />
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
+                                <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
+                            </div>
                         </div>
+                        {isFieldsCollapsed ? (
+                            <ChevronDown className="w-5 h-5 text-white" />
+                        ) : (
+                            <ChevronUp className="w-5 h-5 text-white" />
+                        )}
                     </div>
-
-                    {/* Fields Section */}
-                    {!isFieldsCollapsed && (
+                    
+                    {/* Content */}
+                    <div className="p-6">
+                        {/* Filter Section */}
                         <div className="mb-6">
-                            <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                                    <Select value={clientId} onValueChange={setClientId}>
+                                        <SelectTrigger className="mt-1.5">
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All</SelectItem>
+                                            {clients.map((client) => (
+                                                <SelectItem key={client.id} value={client.id}>
+                                                    {client.text}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="mt-1.5"
+                                        placeholder="yyyy-mm-dd"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="mt-1.5"
+                                        placeholder="yyyy-mm-dd"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Search Bar */}
+                        <div className="mb-6">
+                            <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10"
+                                    placeholder="Search by container number or EIR number..."
+                                />
+                            </div>
+                        </div>
+
+                        {/* Fields Section */}
+                        {!isFieldsCollapsed && (
+                            <div className="mb-6">
+                                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {[
+                                        { key: 'eir_no', label: 'EIR No.' },
+                                        { key: 'date', label: 'Date' },
+                                        { key: 'time', label: 'Time' },
+                                        { key: 'container_no', label: 'Cont. No.' },
+                                        { key: 'size_type', label: 'Size/Type' },
+                                        { key: 'status', label: 'Status' },
+                                        { key: 'vessel', label: 'Vessel' },
+                                        { key: 'voyage', label: 'Voyage' },
+                                        { key: 'class', label: 'Class' },
+                                        { key: 'date_manufactured', label: 'Date mfd' },
+                                        { key: 'ex_consignee', label: 'Ex-Consignee' },
+                                        { key: 'hauler', label: 'Hauler' },
+                                        { key: 'plate_no', label: 'Plate No.' },
+                                        { key: 'load', label: 'Load' },
+                                        { key: 'origin', label: 'Origin' },
+                                        { key: 'chasis', label: 'Chasis' },
+                                    ].map(({ key, label }) => (
+                                        <div key={key} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`incoming-${key}`}
+                                                checked={incomingFields[key]}
+                                                onCheckedChange={(checked) =>
+                                                    setIncomingFields({ ...incomingFields, [key]: checked === true })
+                                                }
+                                            />
+                                            <label
+                                                htmlFor={`incoming-${key}`}
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                                style={{ color: colors.text.primary }}
+                                            >
+                                                {label}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
+                    <div className="px-6 py-4 bg-gray-50">
+                        <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                            <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found in <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span> client groups
+                        </p>
+                    </div>
+                </div>
+
+                {/* Display grouped data */}
+                {clientGroups.length > 0 ? (
+                    <div className="space-y-8">
+                        {clientGroups.map((group, idx) => (
+                            <div key={idx} className="space-y-4">
+                                {/* Client Header */}
+                                <div className="px-6 py-3 rounded-lg" style={{ backgroundColor: colors.brand.primary }}>
+                                    <h3 className="text-lg font-bold text-white">{group.clientName}</h3>
+                                </div>
+                                
+                                {/* Client Data Table */}
+                                <div className="w-full max-w-full overflow-x-auto">
+                                    <ModernTable
+                                        columns={[
+                                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.eir_no || '-')}</div> },
+                                            { key: 'container_no', label: 'Cont. No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
+                                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
+                                            { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
+                                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
+                                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
+                                            { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
+                                            { key: 'voyage', label: 'Voyage', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.voyage || '-')}</div> },
+                                            { key: 'class', label: 'Class', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.class || '-')}</div> },
+                                            { key: 'date_manufactured', label: 'Date mfd', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date_manufactured || ''))}</div> },
+                                            { key: 'ex_consignee', label: 'Ex-Consignee', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.ex_consignee || '-')}</div> },
+                                            { key: 'hauler', label: 'Hauler', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.hauler || '-')}</div> },
+                                            { key: 'plate_no', label: 'Plate No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.plate_no || '-')}</div> },
+                                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
+                                            { key: 'origin', label: 'Origin', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.origin || '-')}</div> },
+                                            { key: 'chasis', label: 'Chasis', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.chasis || '-')}</div> },
+                                        ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
+                                        data={group.records}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
+
+                {/* Pagination by client groups */}
+                {allClientGroups.length > 1 && (
+                    <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: colors.table.border }}>
+                        <div className="text-sm" style={{ color: colors.text.secondary }}>
+                            Showing client group <span className="font-bold" style={{ color: colors.text.primary }}>{currentPage}</span> of <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
+                            >
+                                Previous
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(Math.min(allClientGroups.length, currentPage + 1))}
+                                disabled={currentPage === allClientGroups.length}
+                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderOutgoingTab = () => {
+        const allClientGroups = groupDataByClient(filteredReportData);
+        const clientGroupsPerPage = 1;
+        const clientGroups = allClientGroups.slice(
+            (currentPage - 1) * clientGroupsPerPage,
+            currentPage * clientGroupsPerPage
+        );
+
+        return (
+            <div className="space-y-6">
+                {/* Merged Filter and Fields Section */}
+                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                    {/* Header */}
+                    <div 
+                        className="cursor-pointer flex items-center justify-between px-6 py-5"
+                        onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
+                        style={{ backgroundColor: colors.brand.primary }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Search className="w-5 h-5 text-white" />
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
+                                <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
+                            </div>
+                        </div>
+                        {isFieldsCollapsed ? (
+                            <ChevronDown className="w-5 h-5 text-white" />
+                        ) : (
+                            <ChevronUp className="w-5 h-5 text-white" />
+                        )}
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="p-6">
+                        {/* Filter Section */}
+                        <div className="mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
+                                    <Select value={clientId} onValueChange={setClientId}>
+                                        <SelectTrigger className="mt-1.5">
+                                            <SelectValue placeholder="All" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All</SelectItem>
+                                            {clients.map((client) => (
+                                                <SelectItem key={client.id} value={client.id}>
+                                                    {client.text}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="mt-1.5"
+                                        placeholder="yyyy-mm-dd"
+                                    />
+                                </div>
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="mt-1.5"
+                                        placeholder="yyyy-mm-dd"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Search Bar */}
+                        <div className="mb-6">
+                            <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10"
+                                    placeholder="Search by container number or EIR number..."
+                                />
+                            </div>
+                        </div>
+
+                        {/* Fields Section */}
+                        {!isFieldsCollapsed && (
+                            <div className="mb-6">
+                                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {[
                                     { key: 'eir_no', label: 'EIR No.' },
                                     { key: 'date', label: 'Date' },
                                     { key: 'time', label: 'Time' },
-                                    { key: 'container_no', label: 'Cont. No.' },
+                                    { key: 'container_no', label: 'Container No.' },
                                     { key: 'size_type', label: 'Size/Type' },
                                     { key: 'status', label: 'Status' },
                                     { key: 'vessel', label: 'Vessel' },
                                     { key: 'voyage', label: 'Voyage' },
-                                    { key: 'class', label: 'Class' },
-                                    { key: 'date_manufactured', label: 'Date mfd' },
-                                    { key: 'ex_consignee', label: 'Ex-Consignee' },
+                                    { key: 'shipper', label: 'Shipper' },
                                     { key: 'hauler', label: 'Hauler' },
+                                    { key: 'booking', label: 'Booking' },
+                                    { key: 'destination', label: 'Destination' },
                                     { key: 'plate_no', label: 'Plate No.' },
                                     { key: 'load', label: 'Load' },
-                                    { key: 'origin', label: 'Origin' },
                                     { key: 'chasis', label: 'Chasis' },
-                                ].map(({ key, label }) => (
+                                    { key: 'seal_no', label: 'Seal No.' },
+                                ].map(({ key, label}) => (
                                     <div key={key} className="flex items-center space-x-2">
                                         <Checkbox
-                                            id={`incoming-${key}`}
-                                            checked={incomingFields[key]}
+                                            id={`outgoing-${key}`}
+                                            checked={outgoingFields[key]}
                                             onCheckedChange={(checked) =>
-                                                setIncomingFields({ ...incomingFields, [key]: checked === true })
+                                                setOutgoingFields({ ...outgoingFields, [key]: checked === true })
                                             }
                                         />
                                         <label
-                                            htmlFor={`incoming-${key}`}
+                                            htmlFor={`outgoing-${key}`}
                                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                                             style={{ color: colors.text.primary }}
                                         >
@@ -568,226 +834,88 @@ const Index: React.FC = () => {
                                         </label>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
-                <div className="px-6 py-4 bg-gray-50">
-                    <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
-                    </p>
-                </div>
-            </div>
-
-            {filteredReportData.length > 0 ? (
-                <div className="w-full max-w-full overflow-x-auto">
-                    <ModernTable
-                        columns={[
-                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.eir_no || '-')}</div> },
-                            { key: 'container_no', label: 'Cont. No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
-                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
-                            { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
-                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
-                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
-                            { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
-                            { key: 'voyage', label: 'Voyage', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.voyage || '-')}</div> },
-                            { key: 'class', label: 'Class', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.class || '-')}</div> },
-                            { key: 'date_manufactured', label: 'Date mfd', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date_manufactured || ''))}</div> },
-                            { key: 'ex_consignee', label: 'Ex-Consignee', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.ex_consignee || '-')}</div> },
-                            { key: 'hauler', label: 'Hauler', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.hauler || '-')}</div> },
-                            { key: 'plate_no', label: 'Plate No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.plate_no || '-')}</div> },
-                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
-                            { key: 'origin', label: 'Origin', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.origin || '-')}</div> },
-                            { key: 'chasis', label: 'Chasis', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.chasis || '-')}</div> },
-                        ].filter(col => incomingFields[col.key as keyof typeof incomingFields])}
-                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
-                            total: filteredReportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
-                </div>
-            ) : null}
-        </div>
-    );
-
-    const renderOutgoingTab = () => (
-        <div className="space-y-6">
-            {/* Merged Filter and Fields Section */}
-            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                {/* Header */}
-                <div 
-                    className="cursor-pointer flex items-center justify-between px-6 py-5"
-                    onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
-                    style={{ backgroundColor: colors.brand.primary }}
-                >
-                    <div className="flex items-center gap-3">
-                        <Search className="w-5 h-5 text-white" />
-                        <div>
-                            <h2 className="text-xl font-bold text-white">Search & Filter Reports</h2>
-                            <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
-                        </div>
-                    </div>
-                    {isFieldsCollapsed ? (
-                        <ChevronDown className="w-5 h-5 text-white" />
-                    ) : (
-                        <ChevronUp className="w-5 h-5 text-white" />
-                    )}
-                </div>
-                
-                {/* Content */}
-                <div className="p-6">
-                    {/* Filter Section */}
-                    <div className="mb-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
-                                <Select value={clientId} onValueChange={setClientId}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {clients.map((client) => (
-                                            <SelectItem key={client.id} value={client.id}>
-                                                {client.text}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date From <span className="text-red-500">*</span></Label>
-                                <Input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date To <span className="text-red-500">*</span></Label>
-                                <Input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Search Bar */}
-                    <div className="mb-6">
-                        <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                                placeholder="Search by container number or EIR number..."
-                            />
-                        </div>
-                    </div>
-
-                    {/* Fields Section */}
-                    {!isFieldsCollapsed && (
-                        <div className="mb-6">
-                            <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {[
-                                { key: 'eir_no', label: 'EIR No.' },
-                                { key: 'date', label: 'Date' },
-                                { key: 'time', label: 'Time' },
-                                { key: 'container_no', label: 'Container No.' },
-                                { key: 'size_type', label: 'Size/Type' },
-                                { key: 'status', label: 'Status' },
-                                { key: 'vessel', label: 'Vessel' },
-                                { key: 'voyage', label: 'Voyage' },
-                                { key: 'shipper', label: 'Shipper' },
-                                { key: 'hauler', label: 'Hauler' },
-                                { key: 'booking', label: 'Booking' },
-                                { key: 'destination', label: 'Destination' },
-                                { key: 'plate_no', label: 'Plate No.' },
-                                { key: 'load', label: 'Load' },
-                                { key: 'chasis', label: 'Chasis' },
-                                { key: 'seal_no', label: 'Seal No.' },
-                            ].map(({ key, label}) => (
-                                <div key={key} className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id={`outgoing-${key}`}
-                                        checked={outgoingFields[key]}
-                                        onCheckedChange={(checked) =>
-                                            setOutgoingFields({ ...outgoingFields, [key]: checked === true })
-                                        }
-                                    />
-                                    <label
-                                        htmlFor={`outgoing-${key}`}
-                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                        style={{ color: colors.text.primary }}
-                                    >
-                                        {label}
-                                    </label>
                                 </div>
-                            ))}
                             </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
+                    <div className="px-6 py-4 bg-gray-50">
+                        <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                            <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found in <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span> client groups
+                        </p>
+                    </div>
+                </div>
+
+                {/* Display grouped data */}
+                {clientGroups.length > 0 ? (
+                    <div className="space-y-8">
+                        {clientGroups.map((group, idx) => (
+                            <div key={idx} className="space-y-4">
+                                {/* Client Header */}
+                                <div className="px-6 py-3 rounded-lg" style={{ backgroundColor: colors.brand.primary }}>
+                                    <h3 className="text-lg font-bold text-white">{group.clientName}</h3>
+                                </div>
+                                
+                                {/* Client Data Table */}
+                                <div className="w-full max-w-full overflow-x-auto">
+                                    <ModernTable
+                                        columns={[
+                                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.eir_no || '-')}</div> },
+                                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
+                                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
+                                            { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
+                                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
+                                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
+                                            { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
+                                            { key: 'voyage', label: 'Voyage', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.voyage || '-')}</div> },
+                                            { key: 'shipper', label: 'Shipper', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.shipper || '-')}</div> },
+                                            { key: 'hauler', label: 'Hauler', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.hauler || '-')}</div> },
+                                            { key: 'booking', label: 'Booking', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.booking || '-')}</div> },
+                                            { key: 'destination', label: 'Destination', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.destination || '-')}</div> },
+                                            { key: 'plate_no', label: 'Plate No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.plate_no || '-')}</div> },
+                                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
+                                            { key: 'chasis', label: 'Chasis', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.chasis || '-')}</div> },
+                                            { key: 'seal_no', label: 'Seal No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.seal_no || '-')}</div> },
+                                        ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
+                                        data={group.records}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : null}
+
+                {/* Pagination by client groups */}
+                {allClientGroups.length > 1 && (
+                    <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: colors.table.border }}>
+                        <div className="text-sm" style={{ color: colors.text.secondary }}>
+                            Showing client group <span className="font-bold" style={{ color: colors.text.primary }}>{currentPage}</span> of <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span>
                         </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
-                <div className="px-6 py-4 bg-gray-50">
-                    <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                        <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found
-                    </p>
-                </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
+                            >
+                                Previous
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(Math.min(allClientGroups.length, currentPage + 1))}
+                                disabled={currentPage === allClientGroups.length}
+                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
-
-            {filteredReportData.length > 0 ? (
-                <div className="w-full max-w-full overflow-x-auto">
-                    <ModernTable
-                        columns={[
-                            { key: 'eir_no', label: 'EIR No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.eir_no || '-')}</div> },
-                            { key: 'container_no', label: 'Container No.', render: (row: Record<string, unknown>) => <div className="text-sm font-semibold text-gray-900">{String(row.container_no || '-')}</div> },
-                            { key: 'date', label: 'Date', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(String(row.date || ''))}</div> },
-                            { key: 'time', label: 'Time', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(String(row.time || ''))}</div> },
-                            { key: 'size_type', label: 'Size/Type', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getSizeTypeBadgeVariant(String(row.size_type || ''))}>{String(row.size_type || '-')}</ModernBadge></div> },
-                            { key: 'status', label: 'Status', render: (row: Record<string, unknown>) => <div className="min-w-[80px]"><ModernBadge variant={getStatusBadgeVariant(String(row.status || ''))}>{String(row.status || '-')}</ModernBadge></div> },
-                            { key: 'vessel', label: 'Vessel', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.vessel || '-')}</div> },
-                            { key: 'voyage', label: 'Voyage', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.voyage || '-')}</div> },
-                            { key: 'shipper', label: 'Shipper', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.shipper || '-')}</div> },
-                            { key: 'hauler', label: 'Hauler', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.hauler || '-')}</div> },
-                            { key: 'booking', label: 'Booking', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.booking || '-')}</div> },
-                            { key: 'destination', label: 'Destination', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.destination || '-')}</div> },
-                            { key: 'plate_no', label: 'Plate No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.plate_no || '-')}</div> },
-                            { key: 'load', label: 'Load', render: (row: Record<string, unknown>) => <div className="min-w-[70px]"><ModernBadge variant={getLoadBadgeVariant(String(row.load || ''))}>{String(row.load || '-')}</ModernBadge></div> },
-                            { key: 'chasis', label: 'Chasis', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.chasis || '-')}</div> },
-                            { key: 'seal_no', label: 'Seal No.', render: (row: Record<string, unknown>) => <div className="text-sm text-gray-600">{String(row.seal_no || '-')}</div> },
-                        ].filter(col => outgoingFields[col.key as keyof typeof outgoingFields])}
-                        data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
-                        pagination={{
-                            currentPage: currentPage,
-                            totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
-                            total: filteredReportData.length,
-                            perPage: itemsPerPage,
-                            onPageChange: setCurrentPage,
-                        }}
-                    />
-                </div>
-            ) : null}
-        </div>
-    );
+        );
+    };
 
     const renderDMRTab = () => (
         <div className="space-y-6">
