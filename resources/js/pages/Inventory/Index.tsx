@@ -649,12 +649,13 @@ const Index: React.FC = () => {
 
     const openLegacyPrintSingle = (row: InventoryRecord) => {
         const idForPrint = row.hashed_id || row.i_id;
-        window.open(`/api/inventory/print/${idForPrint}`, '_blank', 'width=1280,height=800');
+        const status = row.gate_status || row.gate || 'IN';
+        window.open(`/api/inventory/print/${idForPrint}?status=${status}`, '_blank', 'width=1280,height=800');
     };
 
     const openLegacyPrintInOut = (row: InventoryRecord) => {
         const idForPrint = row.hashed_id || row.i_id;
-        const status = row.gate || 'IN';
+        const status = row.gate_status || row.gate || 'IN';
         window.open(`/api/inventory/print-inout?id=${idForPrint}&s=${status}`, '_blank', 'width=1280,height=900');
     };
 
