@@ -962,6 +962,12 @@ class ReportsController extends Controller
         foreach ($teusList as $t) {
             $iin = (int)($t->iin ?? 0);
             $iout = (int)($t->iout ?? 0);
+            
+            // Skip clients with no TEUS activity
+            if ($iin === 0 && $iout === 0) {
+                continue;
+            }
+            
             $ts = $iin + ($iout * 2);
             
             $teusData[] = [
@@ -1370,7 +1376,8 @@ class ReportsController extends Controller
                 'st.size'
             )
             ->orderBy('pi.date_added')
-            ->get();
+            ->get()
+            ->toArray();
 
         // Get outgoing containers with 1000.00 fee
         $outgoing = DB::table('inventory as inv')
@@ -1392,41 +1399,34 @@ class ReportsController extends Controller
                 'st.size'
             )
             ->orderBy('pi.date_added')
-            ->get();
+            ->get()
+            ->toArray();
 
-        // Calculate totals
-        $incomingTotal = $incoming->sum('amount');
-        $outgoingTotal = $outgoing->sum('amount');
-        $incomingCount = $incoming->count();
-        $outgoingCount = $outgoing->count();
+        // Calculate totals for audit log
+        $incomingCount = count($incoming);
+        $outgoingCount = count($outgoing);
+        $totalRecords = $incomingCount + $outgoingCount;
 
-        // Generate filename for audit log
-        $filename = 'DOCS_FEE_' . now()->format('M_d_Y') . '.csv';
+        // Generate Excel file
+        $exportService = new ReportExportService();
+        $filepath = $exportService->exportDocsFeeReport($incoming, $outgoing, $date);
 
         // Log audit - REPORTS action
+        $filename = basename($filepath);
         DB::table('audit_logs')->insert([
             'action' => 'REPORTS',
-            'description' => '[REPORTS] Docs Fee DCR exported ' . ($incomingCount + $outgoingCount) . ' record(s) to CSV file: ' . $filename,
+            'description' => '[REPORTS] Docs Fee DCR exported ' . $totalRecords . ' record(s) to XLSX file: ' . $filename,
             'user_id' => auth()->user()->user_id ?? null,
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'incoming' => $incoming,
-                'outgoing' => $outgoing,
-                'summary' => [
-                    'incoming_total' => $incomingTotal,
-                    'outgoing_total' => $outgoingTotal,
-                    'incoming_count' => $incomingCount,
-                    'outgoing_count' => $outgoingCount,
-                    'grand_total' => $incomingTotal + $outgoingTotal,
-                ],
-                'date' => $date,
-            ],
-        ]);
+        // Download the file
+        return response()
+            ->download($filepath, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend(true);
     }
 }
 
