@@ -338,18 +338,22 @@ const Index: React.FC = () => {
                 switch (activeTab) {
                     case 'incoming':
                         setIncomingData(data);
+                        success(`Found ${data.length} records`);
                         break;
                     case 'outgoing':
                         setOutgoingData(data);
+                        success(`Found ${data.length} records`);
                         break;
                     case 'dmr':
                         setDmrData(data);
+                        success(`Found ${data.length} records`);
                         break;
                     case 'dcr':
                         setDcrData(data);
+                        const inOutCount = data.in_out?.length || 0;
+                        success(`Generated DCR report with ${inOutCount} clients`);
                         break;
                 }
-                success(`Found ${data.length} records`);
             } else {
                 error(response.data.message || 'Failed to load report data');
                 switch (activeTab) {
@@ -363,7 +367,7 @@ const Index: React.FC = () => {
                         setDmrData([]);
                         break;
                     case 'dcr':
-                        setDcrData([]);
+                        setDcrData({});
                         break;
                 }
             }
@@ -381,7 +385,7 @@ const Index: React.FC = () => {
                     setDmrData([]);
                     break;
                 case 'dcr':
-                    setDcrData([]);
+                    setDcrData({});
                     break;
             }
         } finally {
@@ -499,13 +503,22 @@ const Index: React.FC = () => {
     };
 
     // Filter report data based on search term
-    const filteredReportData = getCurrentTabData().filter((row) => {
-        if (!searchTerm) return true;
-        const search = searchTerm.toLowerCase();
-        const containerNo = String(row.container_no || '').toLowerCase();
-        const eirNo = String(row.eir_no || '').toLowerCase();
-        return containerNo.includes(search) || eirNo.includes(search);
-    });
+    const filteredReportData = (() => {
+        const data = getCurrentTabData();
+        // DCR returns an object with in_out, teus, billing - not an array
+        if (activeTab === 'dcr' && typeof data === 'object' && !Array.isArray(data)) {
+            return data.in_out || [];
+        }
+        // Other tabs return arrays
+        if (!Array.isArray(data)) return [];
+        return data.filter((row) => {
+            if (!searchTerm) return true;
+            const search = searchTerm.toLowerCase();
+            const containerNo = String(row.container_no || '').toLowerCase();
+            const eirNo = String(row.eir_no || '').toLowerCase();
+            return containerNo.includes(search) || eirNo.includes(search);
+        });
+    })();
 
     const renderIncomingTab = () => {
         const allClientGroups = groupDataByClient(filteredReportData);
@@ -1095,11 +1108,16 @@ const Index: React.FC = () => {
         );
     };
 
-    const renderDCRTab = () => (
+    const renderDCRTab = () => {
+        const inOutData = dcrData?.in_out || [];
+        const teusData = dcrData?.teus || [];
+        const billingData = dcrData?.billing || {};
+        const totals = dcrData?.totals || {};
+
+        return (
         <div className="space-y-6">
-            {/* Filter Section - Non-collapsible */}
+            {/* Filter Section */}
             <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                {/* Header */}
                 <div 
                     className="px-6 py-5"
                     style={{ backgroundColor: colors.brand.primary }}
@@ -1113,9 +1131,7 @@ const Index: React.FC = () => {
                     </div>
                 </div>
                 
-                {/* Content */}
                 <div className="p-6">
-                    {/* Filter Section */}
                     <div className="mb-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
@@ -1132,7 +1148,6 @@ const Index: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Footer */}
                 <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
                 <div className="px-6 py-4 bg-gray-50">
                     <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
@@ -1141,53 +1156,143 @@ const Index: React.FC = () => {
                 </div>
             </div>
 
-            {filteredReportData.length > 0 && (
-                <div className="w-full max-w-full overflow-x-auto">
-                    <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                        {/* Title */}
-                        <div className="px-6 py-4 border-b" style={{ borderColor: colors.table.border }}>
-                            <p className="text-sm font-bold text-gray-900">TBS CONTAINER YARD OPC</p>
-                            <p className="text-sm font-bold text-gray-900 mt-1">DAILY CONTAINER REPORT</p>
-                            <p className="text-sm font-bold text-gray-900 mt-1">DATE: {singleDate}</p>
-                        </div>
-                        
-                        <table className="w-full">
-                            <thead>
-                                <tr style={{ backgroundColor: colors.brand.primary }}>
-                                    <th className="px-4 py-3 text-left text-white font-semibold text-sm w-1/3">Client</th>
-                                    <th colSpan={2} className="px-4 py-3 text-center text-white font-semibold text-sm">IN</th>
-                                    <th colSpan={2} className="px-4 py-3 text-center text-white font-semibold text-sm">OUT</th>
-                                </tr>
-                                <tr style={{ backgroundColor: '#5A5A5A' }}>
-                                    <th className="px-4 py-2 text-left text-white font-semibold text-xs"></th>
-                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">20'</th>
-                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">40'</th>
-                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">20'</th>
-                                    <th className="px-4 py-2 text-center text-white font-semibold text-xs">40'</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredReportData.map((row, idx) => (
-                                    <tr key={idx} style={{ borderBottom: `1px solid ${colors.table.border}` }}>
-                                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">{String(row.client || '-')}</td>
-                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.in_20 || '-')}</td>
-                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.in_40 || '-')}</td>
-                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.out_20 || '-')}</td>
-                                        <td className="px-4 py-3 text-sm text-center text-gray-600">{String(row.out_40 || '-')}</td>
+            {inOutData && inOutData.length > 0 && (
+                <div className="space-y-6">
+                    {/* TABLE 1: IN/OUT BY CLIENT */}
+                    <div className="w-full max-w-full overflow-x-auto">
+                        <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                            <div className="px-6 py-4 border-b" style={{ borderColor: colors.table.border }}>
+                                <p className="text-sm font-bold text-gray-900">IN/OUT BY CLIENT</p>
+                                <p className="text-sm text-gray-600 mt-1">Date: {singleDate}</p>
+                            </div>
+                            
+                            <table className="w-full">
+                                <thead>
+                                    <tr style={{ backgroundColor: colors.brand.primary }}>
+                                        <th className="px-4 py-3 text-left text-white font-semibold text-sm">Client</th>
+                                        <th colSpan={2} className="px-4 py-3 text-center text-white font-semibold text-sm">IN</th>
+                                        <th colSpan={2} className="px-4 py-3 text-center text-white font-semibold text-sm">OUT</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        {/* Footer */}
-                        <div className="px-6 py-4 border-t" style={{ borderColor: colors.table.border, backgroundColor: colors.brand.primary }}>
-                            <p className="text-sm font-bold text-white">Total Records: <span>{filteredReportData.length}</span></p>
+                                    <tr style={{ backgroundColor: '#5A5A5A' }}>
+                                        <th className="px-4 py-2 text-left text-white font-semibold text-xs"></th>
+                                        <th className="px-4 py-2 text-center text-white font-semibold text-xs">20'</th>
+                                        <th className="px-4 py-2 text-center text-white font-semibold text-xs">40'</th>
+                                        <th className="px-4 py-2 text-center text-white font-semibold text-xs">20'</th>
+                                        <th className="px-4 py-2 text-center text-white font-semibold text-xs">40'</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {inOutData.map((row, idx) => (
+                                        <tr key={idx} style={{ borderBottom: `1px solid ${colors.table.border}` }}>
+                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.client || '-'}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{row.in_20}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{row.in_40}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{row.out_20}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{row.out_40}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr style={{ backgroundColor: colors.brand.primary }}>
+                                        <td className="px-4 py-3 text-sm font-bold text-white">TOTAL</td>
+                                        <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.ti || 0}</td>
+                                        <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.fi || 0}</td>
+                                        <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.to || 0}</td>
+                                        <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.fo || 0}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
                     </div>
+
+                    {/* TABLE 2: TEUS */}
+                    {teusData && teusData.length > 0 && (
+                        <div className="w-full max-w-full overflow-x-auto">
+                            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                                <div className="px-6 py-4 border-b" style={{ borderColor: colors.table.border }}>
+                                    <p className="text-sm font-bold text-gray-900">TEUS (TWENTY EQUIVALENT UNITS)</p>
+                                </div>
+                                
+                                <table className="w-full">
+                                    <thead>
+                                        <tr style={{ backgroundColor: colors.brand.primary }}>
+                                            <th className="px-4 py-3 text-left text-white font-semibold text-sm">Client</th>
+                                            <th className="px-4 py-3 text-center text-white font-semibold text-sm">IN</th>
+                                            <th className="px-4 py-3 text-center text-white font-semibold text-sm">OUT</th>
+                                            <th className="px-4 py-3 text-center text-white font-semibold text-sm">Total TEUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {teusData.map((row, idx) => (
+                                            <tr key={idx} style={{ borderBottom: `1px solid ${colors.table.border}` }}>
+                                                <td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.client || '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-center text-gray-600">{row.iin}</td>
+                                                <td className="px-4 py-3 text-sm text-center text-gray-600">{row.iout}</td>
+                                                <td className="px-4 py-3 text-sm text-center text-gray-600">{row.ts}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ backgroundColor: colors.brand.primary }}>
+                                            <td className="px-4 py-3 text-sm font-bold text-white">TOTAL</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.iin || 0}</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.iout || 0}</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-white">{totals.ts || 0}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TABLE 3: BILLING/TOTAL AMOUNT */}
+                    {billingData && Object.keys(billingData).length > 0 && (
+                        <div className="w-full max-w-full overflow-x-auto">
+                            <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                                <div className="px-6 py-4 border-b" style={{ borderColor: colors.table.border }}>
+                                    <p className="text-sm font-bold text-gray-900">TOTAL AMOUNT / BILLING</p>
+                                </div>
+                                
+                                <table className="w-full">
+                                    <thead>
+                                        <tr style={{ backgroundColor: colors.brand.primary }}>
+                                            <th className="px-4 py-3 text-left text-white font-semibold text-sm">Type</th>
+                                            <th className="px-4 py-3 text-center text-white font-semibold text-sm">Count</th>
+                                            <th className="px-4 py-3 text-center text-white font-semibold text-sm">Rate</th>
+                                            <th className="px-4 py-3 text-center text-white font-semibold text-sm">Total Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr style={{ borderBottom: `1px solid ${colors.table.border}` }}>
+                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900">IN</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{billingData.incoming_count || 0}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{(billingData.incoming_rate || 1200).toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-gray-900">{(billingData.incoming_total || 0).toLocaleString()}</td>
+                                        </tr>
+                                        <tr style={{ borderBottom: `1px solid ${colors.table.border}` }}>
+                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900">OUT</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{billingData.outgoing_count || 0}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{(billingData.outgoing_rate || 1000).toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-gray-900">{(billingData.outgoing_total || 0).toLocaleString()}</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ backgroundColor: colors.brand.primary }}>
+                                            <td className="px-4 py-3 text-sm font-bold text-white">GRAND TOTAL</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-white">{(billingData.incoming_count || 0) + (billingData.outgoing_count || 0)}</td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-white"></td>
+                                            <td className="px-4 py-3 text-sm text-center font-bold text-white">{(billingData.grand_total || 0).toLocaleString()}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
     );
+    };
 
     return (
         <AuthenticatedLayout>
