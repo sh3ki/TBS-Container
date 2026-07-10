@@ -251,7 +251,7 @@
         <div class="print-field eirno">{{ $data['eirno'] ?? '' }}</div>
         
         <!-- GATE IN/OUT STATUS TEXT -->
-        <div class="print-field gate-status-text">GATE {{ $data['gate_status'] ?? 'IN' }}</div>
+        <div class="print-field gate-status-text">GATE {{ $data['gate_status_final'] ?? $data['gate_status'] ?? 'IN' }}</div>
         
         <!-- DATE and TIME -->
         <div class="print-field datetime">{{ $data['date'] ?? '' }} {{ $data['time'] ?? '' }}</div>
@@ -264,7 +264,7 @@
         <div class="print-field plate-no">{{ $data['plate_no'] ?? '' }}</div>
         <div class="print-field chasis-location">
             {{ $data['chasis'] ?? '' }}
-            @if (!empty($data['location']) && ($data['gate_status'] ?? '') === 'IN')
+            @if (!empty($data['location']) && ($data['gate_status_final'] ?? $data['gate_status'] ?? '') === 'IN')
                 /{{ $data['location'] }}
             @endif
         </div>
@@ -272,13 +272,13 @@
         
         <!-- RIGHT COLUMN (5.25" from left) -->
         <div class="print-field status">{{ $data['container_status'] ?? '' }}</div>
-        <div class="print-field destination">{{ ($data['gate_status'] ?? '') === 'OUT' ? ($data['location'] ?? '') : '' }}</div>
+        <div class="print-field destination">{{ ($data['gate_status_final'] ?? $data['gate_status'] ?? '') === 'OUT' ? ($data['location'] ?? '') : '' }}</div>
         <div class="print-field load">{{ $data['load_type'] ?? $data['type'] ?? '' }}</div>
         <div class="print-field booking">{{ $data['booking'] ?? '' }}</div>
         <div class="print-field seal-no">{{ $data['seal_no'] ?? '' }}</div>
         <div class="print-field client">{{ substr($data['client_code'] ?? $data['client'] ?? '', 0, 18) }}</div>
         <div class="print-field shipper-consignee">
-            @if (($data['gate_status'] ?? '') === 'IN')
+            @if (($data['gate_status_final'] ?? $data['gate_status'] ?? '') === 'IN')
                 {{ substr($data['ex_consignee'] ?? '', 0, 18) }}
             @else
                 {{ substr($data['shipper'] ?? '', 0, 18) }}
@@ -289,12 +289,12 @@
         <div class="print-field remarks">{{ $data['remarks'] ?? '' }}</div>
         
         <!-- CHECKER SECTION -->
-        <div class="print-field checker-label">{{ ($data['gate_status'] ?? '') === 'IN' ? 'IN CHECKER' : 'OUT CHECKER' }}</div>
+        <div class="print-field checker-label">IN CHECKER</div>
         <div class="print-field checker-name">{{ $data['checker'] ?? $data['origin'] ?? '' }}</div>
         
         <!-- HAULER WITH LICENSE NO. AND USER FULLNAME -->
         <div class="print-field hauler-license">{{ $data['hauler_driver'] ?? $data['haud'] ?? '' }}/{{ $data['license_no'] ?? $data['lno'] ?? '' }}</div>
-        <div class="print-field username-fullname">{{ $data['user_full_name'] ?? $data['fn'] ?? '' }}</div>
+        <div class="print-field username-fullname">{{ $data['logged_in_user_fullname'] ?? '' }}</div>
     </div>
     
     <script type="text/javascript">
