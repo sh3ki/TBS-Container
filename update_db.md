@@ -1,6 +1,12 @@
 tbs_user
 pBjBBG13GGVMcatqYJyVwydr
 
+mysql -u tbs_user -p 
+use fjpwl_sys_db;
+DROP TABLE IF EXISTS fjp_cache;
+DROP TABLE IF EXISTS fjp_cache_locks;
+
+
 update db on deployed:
 scp C:/Users/USER/Downloads/local_data.sql root@72.60.42.105:/root/
 mysql -u tbs_user -p fjpwl_sys_db << EOF
