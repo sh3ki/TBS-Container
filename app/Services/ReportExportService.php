@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use Illuminate\Support\Collection;
+use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Writer\Xls;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -481,6 +483,316 @@ class ReportExportService
 
         // Save file
         $filename = 'DMR_Report_' . $date . '.xlsx';
+        $filepath = storage_path('app/public/exports/' . $filename);
+
+        // Ensure directory exists
+        if (!file_exists(dirname($filepath))) {
+            mkdir(dirname($filepath), 0755, true);
+        }
+
+        $writer = new Xlsx($this->spreadsheet);
+        $writer->save($filepath);
+
+        return $filepath;
+    }
+
+    /**
+     * Export DCR (Daily Container Report) - Summary report by container size
+     *
+     * @param array $dcrData Contains: clients, twoin, fourin, twoout, fourout, teusList
+     * @param string $date
+     * @return string Path to the exported file
+     */
+    public function exportDcrReportByDate(array $dcrData, string $date): string
+    {
+        // Create fresh spreadsheet for this export
+        $this->spreadsheet = new Spreadsheet();
+        $sheet = $this->spreadsheet->getActiveSheet();
+        
+        // ========== STYLES MATCHING OLD SYSTEM EXACTLY ==========
+        $normal = [
+            'font' => ['name' => 'Calibri', 'size' => 12, 'color' => ['rgb' => '333333']],
+            'borders' => ['bottom' => ['style' => Border::BORDER_THIN]],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ];
+
+        $fhead = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => ['rgb' => '333333']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFFFFF']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '333333']]],
+        ];
+
+        $bold = [
+            'font' => ['name' => 'Calibri', 'size' => 12, 'bold' => true, 'color' => ['rgb' => '333333']],
+        ];
+
+        $cfont = [
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ];
+
+        $cell = 'A';
+        $count = 1;
+
+        // ========== TITLE SECTION (matching old system exactly) ==========
+        $sheet->setCellValue('D' . $count, 'FJP WAREHOUSING & LOGISTICS');
+        $sheet->mergeCells('D' . $count . ':H' . $count);
+        $sheet->getStyle('D' . $count . ':H' . $count)->applyFromArray($cfont);
+        $count++;
+
+        $sheet->setCellValue('E' . $count, 'DAILY CONTAINER REPORT');
+        $sheet->mergeCells('E' . $count . ':G' . $count);
+        $sheet->getStyle('E' . $count . ':G' . $count)->applyFromArray($cfont);
+        $count++;
+
+        $sheet->setCellValue('D' . $count, 'DATE:');
+        $sheet->getStyle('D' . $count)->applyFromArray($cfont);
+        $sheet->setCellValue('E' . $count, Carbon::parse($date)->format('d-M-y'));
+        $sheet->getStyle('E' . $count)->applyFromArray($cfont);
+        $count += 2;
+
+        $sheet->setCellValue('D' . $count, 'IN');
+        $sheet->getStyle('D' . $count)->applyFromArray($cfont);
+        $sheet->setCellValue('G' . $count, 'OUT');
+        $sheet->getStyle('G' . $count)->applyFromArray($cfont);
+        $sheet->mergeCells('D' . $count . ':E' . $count);
+        $sheet->mergeCells('G' . $count . ':H' . $count);
+        $count++;
+
+        $sheet->setCellValue('D' . $count, "20'");
+        $sheet->getStyle('D' . $count)->applyFromArray($cfont);
+        $sheet->setCellValue('E' . $count, "40'");
+        $sheet->getStyle('E' . $count)->applyFromArray($cfont);
+        $sheet->setCellValue('G' . $count, "20'");
+        $sheet->getStyle('G' . $count)->applyFromArray($cfont);
+        $sheet->setCellValue('H' . $count, "40'");
+        $sheet->getStyle('H' . $count)->applyFromArray($cfont);
+        $count += 2;
+
+        // ========== CLIENT DATA SECTION (sequential matching like old system) ==========
+        $clientList = $dcrData['clients'] ?? [];
+        $twoin = $dcrData['twoin'] ?? [];
+        $fourin = $dcrData['fourin'] ?? [];
+        $twoout = $dcrData['twoout'] ?? [];
+        $fourout = $dcrData['fourout'] ?? [];
+
+        $count_ti = 0;
+        $count_fi = 0;
+        $count_to = 0;
+        $count_fo = 0;
+
+        $total_ti = 0;
+        $total_fi = 0;
+        $total_to = 0;
+        $total_fo = 0;
+
+        $get_in_out_crec = [];
+
+        foreach ($clientList as $cl) {
+            $it = 0;
+            $fi = 0;
+            $ot = 0;
+            $fo = 0;
+            $has_rec = 0;
+
+            // 20' IN
+            if ($count_ti < count($twoin) && $cl->c_id == $twoin[$count_ti]->c_id) {
+                $sheet->setCellValue('A' . $count, $cl->client_name);
+                $sheet->setCellValue('D' . $count, $twoin[$count_ti]->num);
+                $sheet->getStyle('D' . $count)->applyFromArray($normal);
+                $it = (int)$twoin[$count_ti]->num;
+                $count_ti++;
+                $total_ti += $it;
+                $has_rec = 1;
+            } else {
+                $sheet->setCellValue('D' . $count, '');
+                $sheet->getStyle('D' . $count)->applyFromArray($normal);
+            }
+
+            // 40' IN
+            if ($count_fi < count($fourin) && $cl->c_id == $fourin[$count_fi]->c_id) {
+                $sheet->setCellValue('A' . $count, $cl->client_name);
+                $sheet->setCellValue('E' . $count, $fourin[$count_fi]->num);
+                $sheet->getStyle('E' . $count)->applyFromArray($normal);
+                $fi = (int)$fourin[$count_fi]->num;
+                $count_fi++;
+                $total_fi += $fi;
+                $has_rec = 1;
+            } else {
+                $sheet->setCellValue('E' . $count, '');
+                $sheet->getStyle('E' . $count)->applyFromArray($normal);
+            }
+
+            // 20' OUT
+            if ($count_to < count($twoout) && $cl->c_id == $twoout[$count_to]->c_id) {
+                $sheet->setCellValue('A' . $count, $cl->client_name);
+                $sheet->setCellValue('G' . $count, $twoout[$count_to]->num);
+                $sheet->getStyle('G' . $count)->applyFromArray($normal);
+                $ot = (int)$twoout[$count_to]->num;
+                $count_to++;
+                $total_to += $ot;
+                $has_rec = 1;
+            } else {
+                $sheet->setCellValue('G' . $count, '');
+                $sheet->getStyle('G' . $count)->applyFromArray($normal);
+            }
+
+            // 40' OUT
+            if ($count_fo < count($fourout) && $cl->c_id == $fourout[$count_fo]->c_id) {
+                $sheet->setCellValue('A' . $count, $cl->client_name);
+                $sheet->setCellValue('H' . $count, $fourout[$count_fo]->num);
+                $sheet->getStyle('H' . $count)->applyFromArray($normal);
+                $fo = (int)$fourout[$count_fo]->num;
+                $count_fo++;
+                $total_fo += $fo;
+                $has_rec = 1;
+            } else {
+                $sheet->setCellValue('H' . $count, '');
+                $sheet->getStyle('H' . $count)->applyFromArray($normal);
+            }
+
+            $get_in_out_crec[$cl->client_name] = [$it, $fi, $ot, $fo];
+
+            if ($has_rec == 1) {
+                $count++;
+            }
+        }
+
+        // Totals row
+        $sheet->setCellValue('D' . $count, $total_ti);
+        $sheet->setCellValue('E' . $count, $total_fi);
+        $sheet->setCellValue('F' . $count, $total_ti + $total_fi);
+        $sheet->setCellValue('G' . $count, $total_to);
+        $sheet->setCellValue('H' . $count, $total_fo);
+        $sheet->setCellValue('I' . $count, $total_to + $total_fo);
+
+        $count += 4;
+
+        // ========== TEUS SECTION ==========
+        $sheet->setCellValue('A' . $count, 'TEUS');
+        $sheet->getStyle('A' . $count)->applyFromArray($normal);
+        $count += 2;
+
+        $teusList = $dcrData['teusList'] ?? [];
+        $total_iin = 0;
+        $total_iout = 0;
+        $total_tsf = 0;
+
+        foreach ($teusList as $t) {
+            $iin = (int)($t->iin ?? 0);
+            $iout = (int)($t->iout ?? 0);
+
+            if ($iin > 0 || $iout > 0) {
+                $sheet->setCellValue('A' . $count, $t->client_name);
+                $sheet->getStyle('A' . $count)->applyFromArray($normal);
+
+                $sheet->setCellValue('D' . $count, $iin > 0 ? $iin : '');
+                $sheet->getStyle('D' . $count)->applyFromArray($normal);
+                $total_iin += $iin;
+
+                $sheet->setCellValue('E' . $count, $iout > 0 ? $iout : '');
+                $sheet->getStyle('E' . $count)->applyFromArray($normal);
+                $total_iout += $iout;
+
+                $total_ts = $iin + ($iout * 2);
+                $sheet->setCellValue('G' . $count, $total_ts > 0 ? $total_ts : '');
+                $sheet->getStyle('G' . $count)->applyFromArray($normal);
+                $total_tsf += $total_ts;
+
+                $count++;
+            }
+        }
+
+        // TEUS totals
+        $sheet->setCellValue('D' . $count, $total_iin);
+        $sheet->getStyle('D' . $count)->applyFromArray($normal);
+        $sheet->setCellValue('E' . $count, $total_iout);
+        $sheet->getStyle('E' . $count)->applyFromArray($normal);
+        $sheet->setCellValue('G' . $count, $total_tsf);
+        $sheet->getStyle('G' . $count)->applyFromArray($normal);
+        $count++;
+
+        // ========== BILLING SECTION ==========
+        $billingData = $dcrData['billingData'] ?? [];
+        
+        $inCount = (int)($billingData['incoming_count'] ?? 0);
+        $inRate = (int)($billingData['incoming_rate'] ?? 950);
+        $inTotal = $inCount * $inRate;
+        
+        $outCount = (int)($billingData['outgoing_count'] ?? 0);
+        $outRate = (int)($billingData['outgoing_rate'] ?? 750);
+        $outTotal = $outCount * $outRate;
+        
+        $count++;
+
+        // IN header
+        $sheet->setCellValue('K' . $count, 'IN');
+        $sheet->getStyle('K' . $count)->applyFromArray($bold);
+        $sheet->setCellValue('O' . $count, 'TOTAL AMOUNT');
+        $sheet->getStyle('O' . $count)->applyFromArray($bold);
+        $count += 3;
+
+        // IN detail row
+        $sheet->setCellValue('K' . $count, $inCount > 0 ? $inCount : 0);
+        $sheet->setCellValue('L' . $count, $inRate > 0 ? $inRate : 0);
+        $sheet->setCellValue('M' . $count, $inTotal > 0 ? $inTotal : 0);
+        $sheet->getStyle('M' . $count)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $count++;
+
+        // Blank row
+        $count += 1;
+
+        // IN summary row
+        $sheet->setCellValue('K' . $count, $inCount > 0 ? $inCount : 0);
+        $sheet->getStyle('K' . $count)->applyFromArray($normal);
+        $sheet->setCellValue('M' . $count, $inTotal > 0 ? $inTotal : 0);
+        $sheet->getStyle('M' . $count)->applyFromArray($normal)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $sheet->setCellValue('O' . $count, $inTotal > 0 ? $inTotal : 0);
+        $sheet->getStyle('O' . $count)->applyFromArray($normal)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $count += 2;
+
+        // OUT header
+        $sheet->setCellValue('K' . $count, 'OUT');
+        $sheet->getStyle('K' . $count)->applyFromArray($bold);
+        $sheet->setCellValue('O' . $count, 'TOTAL AMOUNT');
+        $sheet->getStyle('O' . $count)->applyFromArray($bold);
+        $count += 3;
+
+        // OUT detail row
+        $sheet->setCellValue('K' . $count, $outCount > 0 ? $outCount : 0);
+        $sheet->setCellValue('L' . $count, $outRate > 0 ? $outRate : 0);
+        $sheet->setCellValue('M' . $count, $outTotal > 0 ? $outTotal : 0);
+        $sheet->getStyle('M' . $count)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $count++;
+
+        // Blank row
+        $count += 1;
+
+        // OUT summary row
+        $sheet->setCellValue('K' . $count, $outCount > 0 ? $outCount : 0);
+        $sheet->getStyle('K' . $count)->applyFromArray($normal);
+        $sheet->setCellValue('M' . $count, $outTotal > 0 ? $outTotal : 0);
+        $sheet->getStyle('M' . $count)->applyFromArray($normal)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $sheet->setCellValue('O' . $count, $outTotal > 0 ? $outTotal : 0);
+        $sheet->getStyle('O' . $count)->applyFromArray($normal)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $count += 2;
+
+        // Grand total row
+        $grandTotal = $inTotal + $outTotal;
+        $sheet->setCellValue('K' . $count, ($inCount + $outCount) > 0 ? ($inCount + $outCount) : 0);
+        $sheet->getStyle('K' . $count)->applyFromArray($normal);
+        $sheet->setCellValue('M' . $count, $grandTotal > 0 ? $grandTotal : 0);
+        $sheet->getStyle('M' . $count)->applyFromArray($normal)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+        $sheet->setCellValue('O' . $count, $grandTotal > 0 ? $grandTotal : 0);
+        $sheet->getStyle('O' . $count)->applyFromArray($normal)->getNumberFormat()->setFormatCode('#,##0;[Red]-#,##0');
+
+        // ========== AUTO-SIZE COLUMNS ==========
+        foreach (range('A', 'O') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // ========== SAVE FILE ==========
+        $filename = 'DCR ' . Carbon::parse($date)->format('M d Y') . '.xlsx';
         $filepath = storage_path('app/public/exports/' . $filename);
 
         // Ensure directory exists
