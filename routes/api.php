@@ -36,7 +36,6 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::prefix('mobile')->group(function () {
     Route::post('/login', [MobileAuthController::class, 'login']);
     Route::post('/logout', [MobileAuthController::class, 'logout']);
-    
     // Mobile Gate In/Out Routes
     Route::prefix('gateinout')->group(function () {
         Route::post('/list', [MobileGateinoutController::class, 'getPreInventoryList']);
