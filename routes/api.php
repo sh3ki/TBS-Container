@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileAuthController;
+use App\Http\Controllers\Api\MobileGateinoutController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientsController;
 use App\Http\Controllers\Api\InventoryController;
@@ -35,6 +36,19 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::prefix('mobile')->group(function () {
     Route::post('/login', [MobileAuthController::class, 'login']);
     Route::post('/logout', [MobileAuthController::class, 'logout']);
+    
+    // Mobile Gate In/Out Routes
+    Route::prefix('gateinout')->group(function () {
+        Route::post('/list', [MobileGateinoutController::class, 'getPreInventoryList']);
+        Route::get('/clients', [MobileGateinoutController::class, 'getClients']);
+        Route::get('/status-options', [MobileGateinoutController::class, 'getStatusOptions']);
+        Route::get('/sizetype-options', [MobileGateinoutController::class, 'getSizeTypeOptions']);
+        Route::get('/load-options', [MobileGateinoutController::class, 'getLoadOptions']);
+        Route::post('/check-container-in', [MobileGateinoutController::class, 'checkContainerIn']);
+        Route::post('/check-container-out', [MobileGateinoutController::class, 'checkContainerOut']);
+        Route::post('/process-in', [MobileGateinoutController::class, 'processGateIn']);
+        Route::post('/process-out', [MobileGateinoutController::class, 'processGateOut']);
+    });
 });
 
 // CSRF Token endpoint (accessible without authentication for token refresh)
