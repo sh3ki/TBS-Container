@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientsController;
 use App\Http\Controllers\Api\InventoryController;
@@ -29,6 +30,12 @@ use App\Http\Controllers\Api\DashboardController;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
+
+// Mobile App API Routes (Plain text login - separate from main auth)
+Route::prefix('mobile')->group(function () {
+    Route::post('/login', [MobileAuthController::class, 'login']);
+    Route::post('/logout', [MobileAuthController::class, 'logout']);
+});
 
 // CSRF Token endpoint (accessible without authentication for token refresh)
 Route::get('/csrf-token', function () {
