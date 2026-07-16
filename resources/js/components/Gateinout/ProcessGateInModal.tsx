@@ -54,7 +54,7 @@ export default function ProcessGateInModal({
         status: '',
         sizetype: '',
         iso_code: '',
-        class: 'A',
+        class: '',
         vessel: '',
         voyage: '',
         checker: '',
@@ -285,7 +285,7 @@ export default function ProcessGateInModal({
                                 <div>
                                     <Label>Class <span className="text-red-500">*</span></Label>
                                     <Select value={formData.class} onValueChange={(value) => setFormData({ ...formData, class: value })}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="A">A</SelectItem>
                                             <SelectItem value="B">B</SelectItem>
