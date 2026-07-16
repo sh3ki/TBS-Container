@@ -88,7 +88,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             </div>
                             <div>
                                 <h1 className="text-5xl font-bold tracking-tight">TBS</h1>
-                                <p className="text-xl text-white text-opacity-95 font-medium">Container Management System</p>
+                                <p className="text-xl text-white text-opacity-95 font-medium">Container Yard Management System</p>
                             </div>
                         </div>
                     </div>
@@ -278,7 +278,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     {/* Footer */}
                     <div className="mt-10 pt-6 border-t border-gray-200 text-center">
                         <p className="text-xs font-medium" style={{ color: colors.text.secondary }}>
-                            © {new Date().getFullYear()} TBS Container Management System. All rights reserved.
+                            © {new Date().getFullYear()} TBS Container Yard Management System. All rights reserved.
                         </p>
                     </div>
                 </div>
