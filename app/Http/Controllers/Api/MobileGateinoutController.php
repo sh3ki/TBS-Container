@@ -332,13 +332,13 @@ class MobileGateinoutController extends Controller
     {
         try {
             $username = $request->input('username', 'mobile-user');
-            $preId = $request->input('pre_id');
+            $pId = $request->input('p_id');
             $containerNo = $request->input('container_no');
             
-            if (!$preId || !$containerNo) {
+            if (!$pId || !$containerNo) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Container ID and number are required.'
+                    'message' => 'Record ID and container number are required.'
                 ], 400);
             }
 
@@ -348,13 +348,28 @@ class MobileGateinoutController extends Controller
             $user = DB::table('users')->where('username', $username)->first();
             $userId = $user ? $user->user_id : null;
 
-            // Update pre_inventory to mark as processed
+            // Prepare update data for pre_inventory
+            $updateData = [
+                'status' => 1,
+                'date_completed' => now(),
+                'container_no' => $containerNo,
+                'client_id' => $request->input('client_id'),
+                'size_type' => $request->input('size_type'),
+                'iso_code' => $request->input('iso_code'),
+                'cnt_status' => $request->input('cnt_status'),
+                'cnt_class' => $request->input('cnt_class'),
+                'remarks' => $request->input('remarks'),
+            ];
+
+            // Only add date if provided
+            if ($request->input('date_mnfg')) {
+                $updateData['date_mnfg'] = $request->input('date_mnfg');
+            }
+
+            // Update pre_inventory with container details
             DB::table('pre_inventory')
-                ->where('p_id', $preId)
-                ->update([
-                    'status' => 1,
-                    'date_completed' => now(),
-                ]);
+                ->where('p_id', $pId)
+                ->update($updateData);
 
             // Log to gate_inout table
             DB::table('gate_inout')->insert([
@@ -367,7 +382,7 @@ class MobileGateinoutController extends Controller
             // Log audit
             DB::table('audit_logs')->insert([
                 'action' => 'GATE_IN',
-                'description' => '[MOBILE] Gate IN processed: Container: ' . $containerNo,
+                'description' => '[MOBILE] Gate IN processed: Container: ' . $containerNo . ' | Status: ' . $request->input('cnt_status') . ' | Class: ' . $request->input('cnt_class'),
                 'user_id' => $userId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
@@ -449,6 +464,67 @@ class MobileGateinoutController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error processing gate OUT: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Container Details by Container Number
+     * Fetches container information from inventory for GATE IN/OUT processing
+     */
+    public function getContainerDetails(Request $request)
+    {
+        try {
+            $containerNo = strtoupper(trim($request->input('container_no', '')));
+            $username = $request->input('username', 'mobile-user');
+
+            if (empty($containerNo)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container number is required.'
+                ], 400);
+            }
+
+            $prefix = $this->prefix;
+
+            $result = DB::selectOne("
+                SELECT
+                    i.i_id,
+                    i.container_no,
+                    i.client_id,
+                    c.client_name,
+                    i.size_type as sizetype_id,
+                    CONCAT(st.size, '\" ', st.type) as size_type,
+                    i.iso_code,
+                    i.class,
+                    i.gate_in_remarks,
+                    i.approval_remarks
+                FROM {$prefix}inventory i
+                LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
+                WHERE i.container_no = ?
+                LIMIT 1
+            ", [$containerNo]);
+
+            if (!$result) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found in inventory.'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mobile getContainerDetails error', [
+                'username' => $request->input('username', 'unknown'),
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching container details: ' . $e->getMessage()
             ], 500);
         }
     }
