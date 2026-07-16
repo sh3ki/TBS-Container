@@ -179,7 +179,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                             <Container className="h-8 w-8 text-white" />
                             <div className="text-white">
                                 <div className="text-lg font-bold tracking-wide">TBS</div>
-                                <div className="text-xs opacity-90 -mt-1 hidden sm:block">Container Management System</div>
+                                <div className="text-xs opacity-90 -mt-1 hidden sm:block">Container Yard Management System</div>
                             </div>
                         </Link>
                     </div>
