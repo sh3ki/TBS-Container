@@ -496,9 +496,7 @@ class MobileGateinoutController extends Controller
                     i.size_type as sizetype_id,
                     CONCAT(st.size, '\" ', st.type) as size_type,
                     i.iso_code,
-                    i.class,
-                    i.gate_in_remarks,
-                    i.approval_remarks
+                    i.class
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
