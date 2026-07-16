@@ -496,16 +496,13 @@ class MobileGateinoutController extends Controller
                     p.container_no,
                     p.client_id,
                     c.client_name,
-                    p.size_type as sizetype_id,
-                    COALESCE(st.size, '') as size_id,
-                    COALESCE(st.type, '') as size_type,
+                    CAST(COALESCE(p.size_type, 0) AS UNSIGNED) as sizetype_id,
                     p.iso_code,
                     p.cnt_class as class,
                     p.date_mnfg,
                     p.remarks
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
-                LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
                 WHERE p.container_no = ? AND p.status = 0
                 LIMIT 1
             ", [$containerNo]);
