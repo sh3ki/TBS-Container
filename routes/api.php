@@ -44,6 +44,7 @@ Route::prefix('mobile')->group(function () {
         Route::get('/sizetype-options', [MobileGateinoutController::class, 'getSizeTypeOptions']);
         Route::get('/load-options', [MobileGateinoutController::class, 'getLoadOptions']);
         Route::get('/container-details', [MobileGateinoutController::class, 'getContainerDetails']);
+        Route::get('/available-containers', [MobileGateinoutController::class, 'searchAvailableContainers']);
         Route::post('/check-container-in', [MobileGateinoutController::class, 'checkContainerIn']);
         Route::post('/check-container-out', [MobileGateinoutController::class, 'checkContainerOut']);
         Route::post('/process-in', [MobileGateinoutController::class, 'processGateIn']);
