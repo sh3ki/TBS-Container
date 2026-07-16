@@ -46,7 +46,7 @@ export default function Register() {
                             </div>
                             <div>
                                 <h1 className="text-4xl font-bold">FJPWL</h1>
-                                <p className="text-lg text-white text-opacity-90">Container Management System</p>
+                                <p className="text-lg text-white text-opacity-90">Container Yard Management System</p>
                             </div>
                         </div>
                     </div>
@@ -103,7 +103,7 @@ export default function Register() {
                                 <h1 className="text-2xl font-bold" style={{ color: colors.text.primary }}>FJPWL</h1>
                             </div>
                         </div>
-                        <p className="text-sm" style={{ color: colors.text.secondary }}>Container Management System</p>
+                        <p className="text-sm" style={{ color: colors.text.secondary }}>Container Yard Management System</p>
                     </div>
 
                     <div className="mb-8">
@@ -238,7 +238,7 @@ export default function Register() {
                     {/* Footer */}
                     <div className="mt-8 pt-6 border-t text-center">
                         <p className="text-xs" style={{ color: colors.text.secondary }}>
-                            © {new Date().getFullYear()} TBS Container Management System. All rights reserved.
+                            © {new Date().getFullYear()} TBS Container Yard Management System. All rights reserved.
                         </p>
                     </div>
                 </div>
