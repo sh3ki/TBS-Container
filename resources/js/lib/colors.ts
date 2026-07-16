@@ -1,5 +1,5 @@
 /**
- * FJPWL Container Management System - Color Scheme
+ * FJPWL Container Yard Management System - Color Scheme
  * Professional, Modern, Minimalist Design
  * Light Mode Only
  */
