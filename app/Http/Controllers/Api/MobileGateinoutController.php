@@ -353,7 +353,6 @@ class MobileGateinoutController extends Controller
 
             // Prepare update data for pre_inventory
             $updateData = [
-                'status' => 1,
                 'date_completed' => now(),
                 'container_no' => $containerNo,
                 'client_id' => $request->input('client_id'),
