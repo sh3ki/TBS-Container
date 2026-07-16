@@ -374,14 +374,6 @@ class MobileGateinoutController extends Controller
                 ->where('p_id', $pId)
                 ->update($updateData);
 
-            // Log to gate_inout table
-            DB::table('gate_inout')->insert([
-                'container_no' => $containerNo,
-                'direction' => 'IN',
-                'date_time' => now(),
-                'user_id' => $userId,
-            ]);
-
             // Log audit
             DB::table('audit_logs')->insert([
                 'action' => 'GATE_IN',
