@@ -329,6 +329,77 @@ class MobileGateinoutController extends Controller
     }
 
     /**
+     * Search Available Containers for Gate OUT
+     * Searches containers that have been gated IN and are available for gate OUT
+     */
+    public function searchAvailableContainers(Request $request)
+    {
+        try {
+            $searchTerm = strtoupper(trim($request->input('search', '')));
+            $username = $request->input('username', 'mobile-user');
+
+            if (empty($searchTerm) || strlen($searchTerm) < 1) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+
+            $prefix = $this->prefix;
+
+            // Search for containers that have been gated IN and not yet gated OUT
+            // Looking in pre_inventory with gate_status = 'IN' and status = 1 (completed)
+            $results = DB::select("
+                SELECT
+                    p.p_id as i_id,
+                    p.container_no,
+                    c.client_name,
+                    p.client_id,
+                    CONCAT(st.size, '/', st.type) as size_type,
+                    st.s_id as sizetype_id,
+                    p.iso_code,
+                    CASE 
+                        WHEN p.cnt_class = 'A' THEN 1
+                        WHEN p.cnt_class = 'B' THEN 2
+                        WHEN p.cnt_class = 'C' THEN 3
+                        ELSE 1
+                    END as class,
+                    COALESCE(p.remarks, '') as gate_in_remarks,
+                    COALESCE(p.approval_remarks, '') as approval_remarks
+                FROM {$prefix}pre_inventory p
+                LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
+                WHERE p.gate_status = 'IN' 
+                AND p.status = 1
+                AND (
+                    UPPER(p.container_no) LIKE ?
+                    OR UPPER(c.client_name) LIKE ?
+                )
+                ORDER BY p.date_completed DESC
+                LIMIT 20
+            ", [
+                '%' . $searchTerm . '%',
+                '%' . $searchTerm . '%'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $results
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mobile searchAvailableContainers error', [
+                'username' => $request->input('username', 'unknown'),
+                'search' => $request->input('search', ''),
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to search containers: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Process Gate IN - Complete the gate in transaction
      */
     public function processGateIn(Request $request)
@@ -405,13 +476,13 @@ class MobileGateinoutController extends Controller
     {
         try {
             $username = $request->input('username', 'mobile-user');
-            $preId = $request->input('pre_id');
-            $plateNo = $request->input('plate_no');
+            $pId = $request->input('p_id');
+            $containerNo = $request->input('container_no');
             
-            if (!$preId || !$plateNo) {
+            if (!$pId || !$containerNo) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Record ID and plate number are required.'
+                    'message' => 'Record ID and container number are required.'
                 ], 400);
             }
 
@@ -421,17 +492,27 @@ class MobileGateinoutController extends Controller
             $user = DB::table('users')->where('username', $username)->first();
             $userId = $user ? $user->user_id : null;
 
-            // Update pre_inventory to mark as processed
+            // Prepare update data for pre_inventory with container details
+            $updateData = [
+                'status' => 2,  // Mark as gate-out processed
+                'date_completed' => now(),
+                'container_no' => $containerNo,
+                'client_id' => $request->input('client_id'),
+                'size_type' => $request->input('size_type'),
+                'iso_code' => $request->input('iso_code'),
+                'cnt_status' => $request->input('container_status'),
+                'cnt_class' => $request->input('class'),
+                'remarks' => $request->input('remarks'),
+            ];
+
+            // Update pre_inventory with container details
             DB::table('pre_inventory')
-                ->where('p_id', $preId)
-                ->update([
-                    'status' => 1,
-                    'date_completed' => now(),
-                ]);
+                ->where('p_id', $pId)
+                ->update($updateData);
 
             // Log to gate_inout table
             DB::table('gate_inout')->insert([
-                'plate_no' => $plateNo,
+                'container_no' => $containerNo,
                 'direction' => 'OUT',
                 'date_time' => now(),
                 'user_id' => $userId,
@@ -440,7 +521,7 @@ class MobileGateinoutController extends Controller
             // Log audit
             DB::table('audit_logs')->insert([
                 'action' => 'GATE_OUT',
-                'description' => '[MOBILE] Gate OUT processed: Plate: ' . $plateNo,
+                'description' => '[MOBILE] Gate OUT processed: Container: ' . $containerNo . ' | Status: ' . $request->input('container_status') . ' | Class: ' . $request->input('class'),
                 'user_id' => $userId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
@@ -448,7 +529,7 @@ class MobileGateinoutController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Record successfully gated OUT.'
+                'message' => 'Container successfully gated OUT.'
             ]);
         } catch (\Exception $e) {
             Log::error('Mobile processGateOut error', [
