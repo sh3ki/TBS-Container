@@ -252,7 +252,7 @@ class MobileGateinoutController extends Controller
             $prefix = $this->prefix;
 
             $statuses = DB::select("
-                SELECT s_id as id, status as label
+                SELECT s_id, status
                 FROM {$prefix}container_status
                 ORDER BY status ASC
             ");
