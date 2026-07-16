@@ -1,6 +1,6 @@
 /**
  * Modern UI Components
- * Professional, Clean, Minimalist Design for FJPWL Container Management System
+ * Professional, Clean, Minimalist Design for FJPWL Container Yard Management System
  */
 
 export { ModernButton } from './ModernButton';
