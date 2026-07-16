@@ -281,7 +281,7 @@ class MobileGateinoutController extends Controller
             $prefix = $this->prefix;
 
             $sizes = DB::select("
-                SELECT s_id as id, CONCAT(size, ' ', type) as label
+                SELECT s_id, size, type
                 FROM {$prefix}container_size_type
                 WHERE archived = 0
                 ORDER BY size ASC, type ASC
