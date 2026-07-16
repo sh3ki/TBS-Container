@@ -249,11 +249,13 @@ class MobileGateinoutController extends Controller
     public function getStatusOptions(Request $request)
     {
         try {
-            $statuses = [
-                ['id' => 0, 'name' => 'Pending'],
-                ['id' => 1, 'name' => 'Processed'],
-                ['id' => 2, 'name' => 'Completed'],
-            ];
+            $prefix = $this->prefix;
+
+            $statuses = DB::select("
+                SELECT s_id as id, status as label
+                FROM {$prefix}container_status
+                ORDER BY status ASC
+            ");
 
             return response()->json([
                 'success' => true,
@@ -279,9 +281,10 @@ class MobileGateinoutController extends Controller
             $prefix = $this->prefix;
 
             $sizes = DB::select("
-                SELECT st.st_id as id, st.st_name as name
-                FROM {$prefix}size_type st
-                ORDER BY st.st_name
+                SELECT s_id as id, CONCAT(size, ' ', type) as label
+                FROM {$prefix}container_size_type
+                WHERE archived = 0
+                ORDER BY size ASC, type ASC
             ");
 
             return response()->json([
