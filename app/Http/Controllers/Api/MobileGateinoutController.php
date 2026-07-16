@@ -500,7 +500,9 @@ class MobileGateinoutController extends Controller
                     COALESCE(st.size, '') as size_id,
                     COALESCE(st.type, '') as size_type,
                     p.iso_code,
-                    p.cnt_class as class
+                    p.cnt_class as class,
+                    p.date_mnfg,
+                    p.remarks
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
