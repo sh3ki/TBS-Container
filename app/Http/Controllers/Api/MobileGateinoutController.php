@@ -469,8 +469,8 @@ class MobileGateinoutController extends Controller
     }
 
     /**
-     * Get Container Details by Container Number
-     * Fetches container information from inventory for GATE IN/OUT processing
+     * Get Container Details by Container Number from PRE-INVENTORY
+     * Fetches container information from pre_inventory for GATE IN/OUT processing
      */
     public function getContainerDetails(Request $request)
     {
@@ -489,25 +489,26 @@ class MobileGateinoutController extends Controller
 
             $result = DB::selectOne("
                 SELECT
-                    i.i_id,
-                    i.container_no,
-                    i.client_id,
+                    p.p_id,
+                    p.container_no,
+                    p.client_id,
                     c.client_name,
-                    i.size_type as sizetype_id,
-                    CONCAT(st.size, '\" ', st.type) as size_type,
-                    i.iso_code,
-                    i.class
-                FROM {$prefix}inventory i
-                LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
-                LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
-                WHERE i.container_no = ?
+                    p.size_type as sizetype_id,
+                    COALESCE(st.size, '') as size_id,
+                    COALESCE(st.type, '') as size_type,
+                    p.iso_code,
+                    p.cnt_class as class
+                FROM {$prefix}pre_inventory p
+                LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
+                WHERE p.container_no = ? AND p.status = 0
                 LIMIT 1
             ", [$containerNo]);
 
             if (!$result) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Container not found in inventory.'
+                    'message' => 'Container not found in pre-inventory or already processed.'
                 ], 404);
             }
 
