@@ -236,6 +236,9 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::post('/process-in', [GateinoutController::class, 'processGateIn']);
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
         
+        // Get pre-inventory data for React modals (ProcessGateInModal)
+        Route::get('/pre-inventory/{containerNo}', [GateinoutController::class, 'getPreInventoryData']);
+        
         // Print Gate Pass (EXACT LEGACY FORMAT)
         Route::get('/print-gate-pass/{id}', [GateinoutController::class, 'printGatePass']);
     });
