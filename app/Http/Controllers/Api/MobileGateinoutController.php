@@ -330,15 +330,17 @@ class MobileGateinoutController extends Controller
 
     /**
      * Search Available Containers for Gate OUT
-     * Searches containers that have been gated IN and are available for gate OUT
+     * Searches containers IN yard and not yet processed (complete=0)
+     * Matches ProcessGateOutModal logic - excludes held containers and archived clients
+     * Uses partial search on container_no
      */
     public function searchAvailableContainers(Request $request)
     {
         try {
-            $searchTerm = strtoupper(trim($request->input('search', '')));
+            $searchTerm = $request->input('search', '');
             $username = $request->input('username', 'mobile-user');
 
-            if (empty($searchTerm) || strlen($searchTerm) < 1) {
+            if (empty($searchTerm) || strlen($searchTerm) < 3) {
                 return response()->json([
                     'success' => true,
                     'data' => []
@@ -347,31 +349,32 @@ class MobileGateinoutController extends Controller
 
             $prefix = $this->prefix;
 
-            // Search for containers that have been gated IN and completed
-            // Only select columns that exist in pre_inventory table
+            // Search inventory table for containers IN and not complete
+            // Excludes held containers and archived clients
             $results = DB::select("
-                SELECT
-                    p.p_id as i_id,
-                    p.container_no,
-                    COALESCE(c.client_name, '') as client_name,
-                    COALESCE(p.client_id, 0) as client_id,
-                    CONCAT(COALESCE(st.size, ''), '/', COALESCE(st.type, '')) as size_type,
-                    COALESCE(st.s_id, 0) as sizetype_id,
-                    p.iso_code,
-                    p.cnt_class as className,
-                    COALESCE(p.remarks, '') as gate_in_remarks
-                FROM {$prefix}pre_inventory p
-                LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
-                LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
-                WHERE p.gate_status = 'IN' 
-                AND p.status = 1
-                AND (
-                    UPPER(p.container_no) LIKE ?
-                    OR UPPER(c.client_name) LIKE ?
-                )
-                ORDER BY p.date_completed DESC
+                SELECT 
+                    i.i_id,
+                    i.container_no,
+                    COALESCE(c.client_code, c.client_name, '-') AS client_name,
+                    c.c_id AS client_id,
+                    CONCAT(st.size, st.type) AS size_type,
+                    st.s_id AS sizetype_id,
+                    i.iso_code,
+                    i.cnt_class as className,
+                    COALESCE(i.location, '') as location
+                FROM {$prefix}inventory i
+                LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                LEFT JOIN {$prefix}container_size_type st ON i.size_type = st.s_id
+                WHERE i.gate_status = 'IN' 
+                  AND i.complete = 0
+                  AND c.archived = 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {$prefix}hold_containers hc 
+                      WHERE hc.container_no = i.container_no
+                  )
+                  AND i.container_no LIKE ?
+                ORDER BY i.date_added DESC
             ", [
-                '%' . $searchTerm . '%',
                 '%' . $searchTerm . '%'
             ]);
 
