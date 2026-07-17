@@ -361,7 +361,6 @@ class MobileGateinoutController extends Controller
                     p.iso_code,
                     p.cnt_class as className,
                     COALESCE(p.remarks, '') as gate_in_remarks,
-                    COALESCE(p.approval_remarks, '') as approval_remarks,
                     COALESCE(p.location, '') as location,
                     COALESCE(p.plate_no, '') as plate_no,
                     COALESCE(p.hauler, '') as hauler
