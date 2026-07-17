@@ -353,10 +353,10 @@ class MobileGateinoutController extends Controller
                 SELECT
                     p.p_id as i_id,
                     p.container_no,
-                    c.client_name,
-                    p.client_id,
-                    CONCAT(st.size, '/', st.type) as size_type,
-                    st.s_id as sizetype_id,
+                    COALESCE(c.client_name, '') as client_name,
+                    COALESCE(p.client_id, 0) as client_id,
+                    CONCAT(COALESCE(st.size, ''), '/', COALESCE(st.type, '')) as size_type,
+                    COALESCE(st.s_id, 0) as sizetype_id,
                     p.iso_code,
                     p.cnt_class as className,
                     COALESCE(p.remarks, '') as gate_in_remarks
