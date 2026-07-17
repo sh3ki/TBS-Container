@@ -569,6 +569,7 @@ class MobileGateinoutController extends Controller
                     CAST(COALESCE(p.size_type, 0) AS UNSIGNED) as sizetype_id,
                     p.iso_code,
                     p.cnt_class as class,
+                    p.cnt_status,
                     p.date_mnfg,
                     p.remarks
                 FROM {$prefix}pre_inventory p
