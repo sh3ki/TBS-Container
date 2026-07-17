@@ -1528,4 +1528,51 @@ class GateinoutController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get Pre-Inventory Data by Container Number
+     * Used by React components (ProcessGateInModal) to load saved data
+     */
+    public function getPreInventoryData($containerNo)
+    {
+        try {
+            $prefix = $this->prefix;
+            
+            $result = DB::selectOne("
+                SELECT
+                    p.p_id,
+                    p.container_no,
+                    p.client_id,
+                    c.client_name,
+                    CAST(COALESCE(p.size_type, 0) AS UNSIGNED) as sizetype_id,
+                    p.iso_code,
+                    p.cnt_class as cnt_class,
+                    CAST(COALESCE(p.cnt_status, 0) AS UNSIGNED) as cnt_status,
+                    p.date_mnfg,
+                    p.remarks
+                FROM {$prefix}pre_inventory p
+                LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                WHERE p.container_no = ? AND p.status = 0
+                LIMIT 1
+            ", [$containerNo]);
+
+            if (!$result) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container not found in pre-inventory or already processed.'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Get Pre-Inventory Data Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching pre-inventory data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
