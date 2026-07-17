@@ -360,8 +360,10 @@ class MobileGateinoutController extends Controller
                     CONCAT(st.size, st.type) AS size_type,
                     st.s_id AS sizetype_id,
                     i.iso_code,
-                    i.cnt_class as className,
-                    COALESCE(i.location, '') as location
+                    i.location,
+                    i.plate_no,
+                    i.hauler,
+                    COALESCE(i.shipper, '-') AS shipper
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON i.size_type = st.s_id
