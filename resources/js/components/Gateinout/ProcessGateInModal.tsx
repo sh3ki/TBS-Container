@@ -77,6 +77,9 @@ export default function ProcessGateInModal({
             const cleanPlateNo = record.plate_no && record.plate_no.includes('-') ? '' : (record.plate_no || '');
             const cleanHauler = record.hauler && record.hauler.includes('-') ? '' : (record.hauler || '');
             
+            // Fetch existing data from pre_inventory
+            fetchContainerDetails(record.container_no);
+            
             setFormData(prev => ({
                 ...prev,
                 plate_no: cleanPlateNo,
@@ -84,6 +87,38 @@ export default function ProcessGateInModal({
             }));
         }
     }, [record, open]);
+
+    const fetchContainerDetails = async (containerNo: string) => {
+        try {
+            const response = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
+            if (response.data.success && response.data.data) {
+                const data = response.data.data;
+                setFormData(prev => ({
+                    ...prev,
+                    sizetype: data.sizetype_id ? data.sizetype_id.toString() : '',
+                    iso_code: data.iso_code || '',
+                    date_manufactured: data.date_mnfg ? formatDateForDisplay(data.date_mnfg) : '',
+                    class: data.cnt_class || '',
+                    status: data.cnt_status ? data.cnt_status.toString() : '',
+                    remarks: data.remarks || '',
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching container details:', error);
+        }
+    };
+
+    const formatDateForDisplay = (dateStr: string): string => {
+        if (!dateStr) return '';
+        try {
+            const date = new Date(dateStr);
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${month}/${year}`;
+        } catch {
+            return '';
+        }
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
