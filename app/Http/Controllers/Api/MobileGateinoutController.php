@@ -331,6 +331,7 @@ class MobileGateinoutController extends Controller
     /**
      * Search Available Containers for Gate OUT
      * Searches containers that have been gated IN and are available for gate OUT
+     * Returns same data structure as web ProcessGateOutModal
      */
     public function searchAvailableContainers(Request $request)
     {
@@ -347,8 +348,8 @@ class MobileGateinoutController extends Controller
 
             $prefix = $this->prefix;
 
-            // Search for containers that have been gated IN and not yet gated OUT
-            // Looking in pre_inventory with gate_status = 'IN' and status = 1 (completed)
+            // Search for containers that have been gated IN and completed
+            // Same logic as web ProcessGateOutModal - showing available containers for gate OUT
             $results = DB::select("
                 SELECT
                     p.p_id as i_id,
@@ -358,14 +359,12 @@ class MobileGateinoutController extends Controller
                     CONCAT(st.size, '/', st.type) as size_type,
                     st.s_id as sizetype_id,
                     p.iso_code,
-                    CASE 
-                        WHEN p.cnt_class = 'A' THEN 1
-                        WHEN p.cnt_class = 'B' THEN 2
-                        WHEN p.cnt_class = 'C' THEN 3
-                        ELSE 1
-                    END as class,
+                    p.cnt_class as className,
                     COALESCE(p.remarks, '') as gate_in_remarks,
-                    COALESCE(p.approval_remarks, '') as approval_remarks
+                    COALESCE(p.approval_remarks, '') as approval_remarks,
+                    COALESCE(p.location, '') as location,
+                    COALESCE(p.plate_no, '') as plate_no,
+                    COALESCE(p.hauler, '') as hauler
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
