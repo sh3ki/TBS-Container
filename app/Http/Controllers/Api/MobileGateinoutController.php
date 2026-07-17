@@ -370,7 +370,6 @@ class MobileGateinoutController extends Controller
                     OR UPPER(c.client_name) LIKE ?
                 )
                 ORDER BY p.date_completed DESC
-                LIMIT 20
             ", [
                 '%' . $searchTerm . '%',
                 '%' . $searchTerm . '%'
