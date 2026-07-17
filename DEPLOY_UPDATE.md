@@ -13,7 +13,7 @@ The `deploy.sh` script in the repo handles everything automatically.
 
 SSH into server and run:
 ```bash
-ssh root@YOUR_SERVER_IP "cd /var/www/tbscontainermnl && bash deploy.sh"
+ssh root@72.60.42.105 "cd /var/www/tbscontainermnl && bash deploy.sh"
 
 ```
 
