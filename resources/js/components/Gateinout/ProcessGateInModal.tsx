@@ -121,8 +121,15 @@ export default function ProcessGateInModal({
         if (!dateStr) return '';
         try {
             const date = new Date(dateStr);
+            // Check if date is valid
+            if (isNaN(date.getTime())) return '';
+            
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
+            
+            // Additional validation: year should be reasonable (not 0 or invalid)
+            if (year === 0 || isNaN(year) || isNaN(month)) return '';
+            
             return `${month}/${year}`;
         } catch {
             return '';
