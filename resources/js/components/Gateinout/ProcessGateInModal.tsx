@@ -336,18 +336,6 @@ export default function ProcessGateInModal({
                                     </Select>
                                 </div>
                                 <div>
-                                    <Label>Vessel <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value })} />
-                                </div>
-                            </div>
-
-                            {/* Column 2 */}
-                            <div className="space-y-3">
-                                <div>
-                                    <Label>Voyage <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} />
-                                </div>
-                                <div>
                                     <Label>Checker</Label>
                                     <Input 
                                         value={checkerName} 
@@ -355,6 +343,18 @@ export default function ProcessGateInModal({
                                         className="bg-gray-100 cursor-not-allowed"
                                         placeholder="Auto-populated from system"
                                     />
+                                </div>
+                            </div>
+
+                            {/* Column 2 */}
+                            <div className="space-y-3">
+                                <div>
+                                    <Label>Vessel <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value })} />
+                                </div>
+                                <div>
+                                    <Label>Voyage <span className="text-red-500">*</span></Label>
+                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} />
                                 </div>
                                 <div>
                                     <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
