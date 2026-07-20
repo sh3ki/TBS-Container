@@ -634,6 +634,17 @@ export default function Index() {
                 ),
               },
               {
+                key: 'gate_status',
+                label: 'Gate Status',
+                render: (record: PreInventoryRecord) => (
+                  <div className="min-w-[60px]">
+                    <ModernBadge variant={record.gate_status === 'IN' ? 'success' : 'error'}>
+                      {record.gate_status}
+                    </ModernBadge>
+                  </div>
+                ),
+              },
+              {
                 key: 'status',
                 label: 'Status',
                 render: (record: PreInventoryRecord) => (
@@ -773,6 +784,17 @@ export default function Index() {
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
                     {record.hauler || '-'}
+                  </div>
+                ),
+              },
+              {
+                key: 'gate_status',
+                label: 'Gate Status',
+                render: (record: PreInventoryRecord) => (
+                  <div className="min-w-[60px]">
+                    <ModernBadge variant={record.gate_status === 'IN' ? 'success' : 'error'}>
+                      {record.gate_status}
+                    </ModernBadge>
                   </div>
                 ),
               },
