@@ -49,6 +49,7 @@ export default function ProcessGateInModal({
     onSuccess,
 }: ProcessGateInModalProps) {
     const [showConfirm, setShowConfirm] = useState(false);
+    const [checkerName, setCheckerName] = useState('');
     const [formData, setFormData] = useState({
         date_manufactured: '',
         status: '',
@@ -93,13 +94,6 @@ export default function ProcessGateInModal({
             const response = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
             if (response.data.success && response.data.data) {
                 const data = response.data.data;
-                
-                // Build checker full name from user data if available
-                let checkerFullName = '';
-                if (data.checker_user_id && data.checker_first_name && data.checker_last_name) {
-                    checkerFullName = `${data.checker_first_name} ${data.checker_last_name}`.trim();
-                }
-                
                 setFormData(prev => ({
                     ...prev,
                     sizetype: data.sizetype_id ? data.sizetype_id.toString() : '',
@@ -107,12 +101,19 @@ export default function ProcessGateInModal({
                     date_manufactured: data.date_mnfg ? formatDateForDisplay(data.date_mnfg) : '',
                     class: data.cnt_class || '',
                     status: data.cnt_status ? data.cnt_status.toString() : '',
-                    checker: checkerFullName,
                     remarks: data.remarks || '',
                 }));
+                
+                // Set checker name if available
+                if (data.checker_name) {
+                    setCheckerName(data.checker_name);
+                } else {
+                    setCheckerName('');
+                }
             }
         } catch (error) {
             console.error('Error fetching container details:', error);
+            setCheckerName('');
         }
     };
 
@@ -164,7 +165,6 @@ export default function ProcessGateInModal({
             { field: 'iso_code', label: 'ISO Code' },
             { field: 'vessel', label: 'Vessel' },
             { field: 'voyage', label: 'Voyage' },
-            { field: 'checker', label: 'Checker' },
             { field: 'ex_consignee', label: 'Ex-Consignee' },
             { field: 'plate_no', label: 'Plate No.' },
             { field: 'hauler', label: 'Hauler' },
@@ -210,7 +210,6 @@ export default function ProcessGateInModal({
                 cnt_class: formData.class,
                 vessel: formData.vessel,
                 voyage: formData.voyage,
-                checker: formData.checker,
                 ex_consignee: formData.ex_consignee,
                 load_type: parseInt(formData.load),
                 plate_no: formData.plate_no,
@@ -349,8 +348,13 @@ export default function ProcessGateInModal({
                                     <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} />
                                 </div>
                                 <div>
-                                    <Label>Checker <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.checker} disabled className="bg-gray-100 cursor-not-allowed" />
+                                    <Label>Checker</Label>
+                                    <Input 
+                                        value={checkerName} 
+                                        disabled 
+                                        className="bg-gray-100 cursor-not-allowed"
+                                        placeholder="Auto-populated from system"
+                                    />
                                 </div>
                                 <div>
                                     <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
