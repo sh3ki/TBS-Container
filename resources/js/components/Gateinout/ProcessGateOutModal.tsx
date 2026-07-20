@@ -137,39 +137,59 @@ export default function ProcessGateOutModal({
 
     // Initialize with pre-gate data and fetch container details if exists
     useEffect(() => {
-        if (record && open) {
-            const cleanedPlateNo = record.plate_no || '';
-            const cleanedHauler = record.hauler || '';
-            
+        if (open) {
             // Always reset search fields first
             setSearchTerm('');
+            setShowDropdown(false);
             setCheckerName('');
             setIsContainerSelected(false);
-            
-            // Always set plate no and hauler
-            setFormData(prev => ({
-                ...prev,
-                plate_no: cleanedPlateNo,
-                hauler: cleanedHauler,
-                container_no: '',
-                client_id: 0,
-                client_name: '',
-                size_type: 0,
-                size_type_display: '',
-                iso_code: '',
-                approval_remarks: '',
-                gate_in_remarks: '',
-                status: defaultStatusId,
-                load: defaultLoadId,
-            }));
 
-            // Only fetch and populate if container_no already exists in record
-            if (record.container_no && record.container_no.trim() !== '') {
-                setSearchTerm(record.container_no);
-                fetchContainerDetailsOnInit(record.container_no);
+            if (record) {
+                const cleanedPlateNo = record.plate_no || '';
+                const cleanedHauler = record.hauler || '';
+                
+                // Always set plate no and hauler
+                setFormData(prev => ({
+                    ...prev,
+                    plate_no: cleanedPlateNo,
+                    hauler: cleanedHauler,
+                    container_no: '',
+                    client_id: 0,
+                    client_name: '',
+                    size_type: 0,
+                    size_type_display: '',
+                    iso_code: '',
+                    approval_remarks: '',
+                    gate_in_remarks: '',
+                    status: defaultStatusId,
+                    load: defaultLoadId,
+                }));
+
+                // Only fetch and populate if container_no already exists in record
+                if (record.container_no && record.container_no.trim() !== '') {
+                    setSearchTerm(record.container_no);
+                    fetchContainerDetailsOnInit(record.container_no);
+                }
+            } else {
+                // No record provided - reset all fields
+                setFormData(prev => ({
+                    ...prev,
+                    plate_no: '',
+                    hauler: '',
+                    container_no: '',
+                    client_id: 0,
+                    client_name: '',
+                    size_type: 0,
+                    size_type_display: '',
+                    iso_code: '',
+                    approval_remarks: '',
+                    gate_in_remarks: '',
+                    status: defaultStatusId,
+                    load: defaultLoadId,
+                }));
             }
         }
-    }, [record, open, defaultStatusId, defaultLoadId]);
+    }, [open, record, defaultStatusId, defaultLoadId]);
 
     // Fetch container details when container already exists in pre_inventory
     const fetchContainerDetailsOnInit = async (containerNo: string) => {
