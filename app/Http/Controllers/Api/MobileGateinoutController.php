@@ -575,7 +575,7 @@ class MobileGateinoutController extends Controller
                         CAST(COALESCE(i.size_type, 0) AS UNSIGNED) as sizetype_id,
                         i.iso_code,
                         i.class,
-                        i.cnt_status,
+                        i.container_status,
                         i.approval_notes,
                         i.remarks,
                         i.shipper
