@@ -85,12 +85,14 @@ export default function ProcessGateOutModal({
         hauler_driver: '',
         license_no: '',
         checker: '',
+        checker_name: '', // Full name of checker - read only
         location: '',
         load: '', // Will be set to 'Empty' l_id once options load
         chasis: '',
         contact_no: '',
         booking: '',
         seal_no: '',
+        approval_remarks: '', // Readonly remarks from inventory approval_notes
         gate_in_remarks: '', // Readonly remarks from inventory
         remarks: '', // Editable remarks for user input
         save_and_book: 'NO',
@@ -133,7 +135,7 @@ export default function ProcessGateOutModal({
         }
     }, [open, searchTerm]);
 
-    // Initialize with pre-gate data
+    // Initialize with pre-gate data and fetch container details if exists
     useEffect(() => {
         if (record && open) {
             setFormData(prev => ({
@@ -141,8 +143,64 @@ export default function ProcessGateOutModal({
                 plate_no: record.plate_no || '',
                 hauler: record.hauler || '',
             }));
+
+            // If container_no already exists in record, fetch its details
+            if (record.container_no && record.container_no.trim() !== '') {
+                fetchContainerDetailsOnInit(record.container_no);
+            }
         }
     }, [record, open]);
+
+    // Fetch container details when container already exists in pre_inventory
+    const fetchContainerDetailsOnInit = async (containerNo: string) => {
+        try {
+            const response = await axios.get('/api/mobile/gateinout/container-details', {
+                params: {
+                    container_no: containerNo,
+                    gate_status: 'OUT',
+                }
+            });
+
+            if (response.data.success) {
+                const data = response.data.data;
+                setFormData(prev => ({
+                    ...prev,
+                    container_no: data.container_no,
+                    client_id: data.client_id,
+                    client_name: data.client_name,
+                    size_type: data.size_type,
+                    size_type_display: `${data.size_type?.size || ''}${data.size_type?.type || ''}`,
+                    iso_code: data.iso_code || '',
+                    plate_no: record?.plate_no || data.plate_no || '',
+                    hauler: record?.hauler || data.hauler || '',
+                    approval_remarks: data.approval_notes || '',
+                    gate_in_remarks: data.remarks || '',
+                    status: defaultStatusId,
+                    load: defaultLoadId,
+                }));
+                setIsContainerSelected(true);
+                setSearchTerm(containerNo);
+            }
+        } catch (error) {
+            console.error('Failed to fetch container details:', error);
+        }
+    };
+
+    // Fetch checker full name
+    const fetchCheckerName = async (checkerId: number) => {
+        try {
+            const response = await axios.get(`/api/users/${checkerId}`);
+            if (response.data.success) {
+                setFormData(prev => ({
+                    ...prev,
+                    checker: checkerId.toString(),
+                    checker_name: response.data.data.full_name || 'Unknown',
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to fetch checker name:', error);
+        }
+    };
 
     const fetchAvailableContainers = async (search: string) => {
         try {
@@ -179,35 +237,79 @@ export default function ProcessGateOutModal({
             if (response.data.success) {
                 const data = response.data.data;
                 
-                // Only populate container-related fields, leave everything else empty
-                // This replicates old system logic where fields are enabled but empty
-                setFormData({
-                    container_no: data.container_no,
-                    client_id: data.client_id,
-                    client_name: data.client_name,
-                    size_type: data.size_type,
-                    size_type_display: data.size_type_display,
-                    iso_code: data.iso_code || '',
-                    plate_no: record?.plate_no || data.plate_no || '',
-                    hauler: record?.hauler || data.hauler || '',
-                    shipper: '', // Will be filled from booking selection
-                    // All editable fields empty - user must fill them (old system behavior)
-                    status: defaultStatusId, // Default to AVL status
-                    vessel: '',
-                    voyage: '',
-                    hauler_driver: '',
-                    license_no: '',
-                    checker: '',
-                    location: '',
-                    load: defaultLoadId, // Load defaults to 'Empty' l_id
-                    chasis: '',
-                    contact_no: '',
-                    booking: '',
-                    seal_no: '',
-                    gate_in_remarks: data.remarks || '', // Readonly from inventory
-                    remarks: '', // Empty for user to fill
-                    save_and_book: 'NO',
-                });
+                // Fetch additional details from inventory including approval_notes and remarks
+                try {
+                    const inventoryResponse = await axios.get('/api/mobile/gateinout/container-details', {
+                        params: {
+                            container_no: data.container_no,
+                            gate_status: 'OUT',
+                        }
+                    });
+
+                    if (inventoryResponse.data.success) {
+                        const inventoryData = inventoryResponse.data.data;
+                        setFormData({
+                            container_no: data.container_no,
+                            client_id: data.client_id,
+                            client_name: data.client_name,
+                            size_type: data.size_type,
+                            size_type_display: data.size_type_display,
+                            iso_code: data.iso_code || '',
+                            plate_no: record?.plate_no || data.plate_no || '',
+                            hauler: record?.hauler || data.hauler || '',
+                            shipper: '', // Will be filled from booking selection
+                            // All editable fields empty - user must fill them (old system behavior)
+                            status: defaultStatusId, // Default to AVL status
+                            vessel: '',
+                            voyage: '',
+                            hauler_driver: '',
+                            license_no: '',
+                            checker: '',
+                            checker_name: '', // Will display full name
+                            location: '',
+                            load: defaultLoadId, // Load defaults to 'Empty' l_id
+                            chasis: '',
+                            contact_no: '',
+                            booking: '',
+                            seal_no: '',
+                            approval_remarks: inventoryData.approval_notes || '', // From inventory
+                            gate_in_remarks: inventoryData.remarks || '', // From inventory
+                            remarks: '', // Empty for user to fill
+                            save_and_book: 'NO',
+                        });
+                    }
+                } catch (inventoryError) {
+                    console.error('Failed to fetch inventory details:', inventoryError);
+                    // Fall back to basic data if inventory fetch fails
+                    setFormData({
+                        container_no: data.container_no,
+                        client_id: data.client_id,
+                        client_name: data.client_name,
+                        size_type: data.size_type,
+                        size_type_display: data.size_type_display,
+                        iso_code: data.iso_code || '',
+                        plate_no: record?.plate_no || data.plate_no || '',
+                        hauler: record?.hauler || data.hauler || '',
+                        shipper: '',
+                        status: defaultStatusId,
+                        vessel: '',
+                        voyage: '',
+                        hauler_driver: '',
+                        license_no: '',
+                        checker: '',
+                        checker_name: '',
+                        location: '',
+                        load: defaultLoadId,
+                        chasis: '',
+                        contact_no: '',
+                        booking: '',
+                        seal_no: '',
+                        approval_remarks: '',
+                        gate_in_remarks: '',
+                        remarks: '',
+                        save_and_book: 'NO',
+                    });
+                }
                 
                 setShowDropdown(false);
                 setSearchTerm(container.container_no);
@@ -307,8 +409,8 @@ export default function ProcessGateOutModal({
             alert('Please enter License Number');
             return;
         }
-        if (!formData.checker || formData.checker.trim() === '') {
-            alert('Please enter Checker name');
+        if (!formData.checker_name || formData.checker_name.trim() === '') {
+            alert('Checker information not available');
             return;
         }
         if (!formData.location || formData.location.trim() === '') {
@@ -496,9 +598,9 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Checker *</Label>
                                 <Input
-                                    value={formData.checker}
-                                    onChange={(e) => handleInputChange('checker', e.target.value)}
-                                    disabled={!isContainerSelected}
+                                    value={formData.checker_name}
+                                    disabled
+                                    className="bg-gray-50"
                                 />
                             </div>
                         </div>
@@ -658,6 +760,15 @@ export default function ProcessGateOutModal({
                                     value={formData.seal_no}
                                     onChange={(e) => handleInputChange('seal_no', e.target.value)}
                                     disabled={!isContainerSelected}
+                                />
+                            </div>
+
+                            <div>
+                                <Label>Approval Remarks</Label>
+                                <Textarea
+                                    value={formData.approval_remarks}
+                                    disabled
+                                    className="min-h-[60px] bg-gray-50"
                                 />
                             </div>
 
