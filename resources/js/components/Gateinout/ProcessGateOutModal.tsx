@@ -223,8 +223,10 @@ export default function ProcessGateOutModal({
                     load: defaultLoadId,
                 }));
                 
-                // Fetch checker name if checker_id is available
-                if (data.checker_id) {
+                // Set checker name if available from API
+                if (data.checker_name) {
+                    setCheckerName(data.checker_name);
+                } else if (data.checker_id) {
                     try {
                         const checkerResponse = await axios.get(`/api/users/${data.checker_id}`);
                         if (checkerResponse.data.success) {
@@ -236,8 +238,6 @@ export default function ProcessGateOutModal({
                         console.error('Failed to fetch checker name:', checkerError);
                         setCheckerName('');
                     }
-                } else if (data.checker_name) {
-                    setCheckerName(data.checker_name);
                 } else {
                     setCheckerName('');
                 }
@@ -332,8 +332,10 @@ export default function ProcessGateOutModal({
                             save_and_book: 'NO',
                         });
                         
-                        // Fetch checker name if checker_id is available
-                        if (inventoryData.checker_id) {
+                        // Set checker name if available from API
+                        if (inventoryData.checker_name) {
+                            setCheckerName(inventoryData.checker_name);
+                        } else if (inventoryData.checker_id) {
                             try {
                                 const checkerResponse = await axios.get(`/api/users/${inventoryData.checker_id}`);
                                 if (checkerResponse.data.success) {
@@ -345,8 +347,6 @@ export default function ProcessGateOutModal({
                                 console.error('Failed to fetch checker name:', checkerError);
                                 setCheckerName('');
                             }
-                        } else if (inventoryData.checker_name) {
-                            setCheckerName(inventoryData.checker_name);
                         } else {
                             setCheckerName('');
                         }
