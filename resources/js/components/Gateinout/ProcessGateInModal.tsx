@@ -93,6 +93,13 @@ export default function ProcessGateInModal({
             const response = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
             if (response.data.success && response.data.data) {
                 const data = response.data.data;
+                
+                // Build checker full name from user data if available
+                let checkerFullName = '';
+                if (data.checker_user_id && data.checker_first_name && data.checker_last_name) {
+                    checkerFullName = `${data.checker_first_name} ${data.checker_last_name}`.trim();
+                }
+                
                 setFormData(prev => ({
                     ...prev,
                     sizetype: data.sizetype_id ? data.sizetype_id.toString() : '',
@@ -100,6 +107,7 @@ export default function ProcessGateInModal({
                     date_manufactured: data.date_mnfg ? formatDateForDisplay(data.date_mnfg) : '',
                     class: data.cnt_class || '',
                     status: data.cnt_status ? data.cnt_status.toString() : '',
+                    checker: checkerFullName,
                     remarks: data.remarks || '',
                 }));
             }
@@ -342,7 +350,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Checker <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.checker} onChange={(e) => setFormData({ ...formData, checker: e.target.value })} />
+                                    <Input value={formData.checker} disabled className="bg-gray-100 cursor-not-allowed" />
                                 </div>
                                 <div>
                                     <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
