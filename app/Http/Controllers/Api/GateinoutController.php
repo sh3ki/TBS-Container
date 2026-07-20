@@ -1549,9 +1549,13 @@ class GateinoutController extends Controller
                     p.cnt_class as cnt_class,
                     CAST(COALESCE(p.cnt_status, 0) AS UNSIGNED) as cnt_status,
                     p.date_mnfg,
-                    p.remarks
+                    p.remarks,
+                    p.checker_id as checker_user_id,
+                    u.first_name as checker_first_name,
+                    u.last_name as checker_last_name
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                LEFT JOIN users u ON u.user_id = p.checker_id
                 WHERE p.container_no = ? AND p.status = 0
                 LIMIT 1
             ", [$containerNo]);
