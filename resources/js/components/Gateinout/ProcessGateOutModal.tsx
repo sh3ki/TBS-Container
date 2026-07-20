@@ -144,10 +144,28 @@ export default function ProcessGateOutModal({
                 hauler: record.hauler || '',
             }));
 
-            // If container_no already exists in record, fetch its details and set searchTerm
+            // Only fetch and populate if container_no already exists in record
             if (record.container_no && record.container_no.trim() !== '') {
                 setSearchTerm(record.container_no);
                 fetchContainerDetailsOnInit(record.container_no);
+            } else {
+                // Reset all fields if no container_no
+                setSearchTerm('');
+                setCheckerName('');
+                setIsContainerSelected(false);
+                setFormData(prev => ({
+                    ...prev,
+                    container_no: '',
+                    client_id: 0,
+                    client_name: '',
+                    size_type: 0,
+                    size_type_display: '',
+                    iso_code: '',
+                    approval_remarks: '',
+                    gate_in_remarks: '',
+                    status: defaultStatusId,
+                    load: defaultLoadId,
+                }));
             }
         }
     }, [record, open]);
