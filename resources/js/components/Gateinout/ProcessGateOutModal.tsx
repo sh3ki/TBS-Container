@@ -493,6 +493,14 @@ export default function ProcessGateOutModal({
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div>
+                                <Label>Checker *</Label>
+                                <Input
+                                    value={formData.checker}
+                                    onChange={(e) => handleInputChange('checker', e.target.value)}
+                                    disabled={!isContainerSelected}
+                                />
+                            </div>
                         </div>
 
                         {/* COLUMN 2: Editable Fields 1 */}
@@ -535,15 +543,6 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Checker *</Label>
-                                <Input
-                                    value={formData.checker}
-                                    onChange={(e) => handleInputChange('checker', e.target.value)}
-                                    disabled={!isContainerSelected}
-                                />
-                            </div>
-
-                            <div>
                                 <Label>Location *</Label>
                                 <Input
                                     value={formData.location}
@@ -567,6 +566,14 @@ export default function ProcessGateOutModal({
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div>
+                                <Label>Chasis *</Label>
+                                <Input
+                                    value={formData.chasis}
+                                    onChange={(e) => handleInputChange('chasis', e.target.value)}
+                                    disabled={!isContainerSelected}
+                                />
+                            </div>
                             
                             <div>
                                 <Label>Save and Book *</Label>
@@ -585,14 +592,6 @@ export default function ProcessGateOutModal({
                         {/* COLUMN 3: Editable Fields 2 + New Inputs */}
                         <div className="space-y-4">
 
-                            <div>
-                                <Label>Chasis *</Label>
-                                <Input
-                                    value={formData.chasis}
-                                    onChange={(e) => handleInputChange('chasis', e.target.value)}
-                                    disabled={!isContainerSelected}
-                                />
-                            </div>
 
                             <div>
                                 <Label>Contact No. *</Label>
