@@ -180,14 +180,27 @@ export default function ProcessGateOutModal({
                     load: defaultLoadId,
                 }));
                 
-                // Set checker name if available
-                if (data.checker_name) {
+                // Fetch checker name if checker_id is available
+                if (data.checker_id) {
+                    try {
+                        const checkerResponse = await axios.get(`/api/users/${data.checker_id}`);
+                        if (checkerResponse.data.success) {
+                            setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
+                        } else {
+                            setCheckerName('');
+                        }
+                    } catch (checkerError) {
+                        console.error('Failed to fetch checker name:', checkerError);
+                        setCheckerName('');
+                    }
+                } else if (data.checker_name) {
                     setCheckerName(data.checker_name);
                 } else {
                     setCheckerName('');
                 }
                 
                 setIsContainerSelected(true);
+                setShowDropdown(false);
             }
         } catch (error) {
             console.error('Failed to fetch container details:', error);
@@ -272,8 +285,20 @@ export default function ProcessGateOutModal({
                             save_and_book: 'NO',
                         });
                         
-                        // Set checker name if available
-                        if (inventoryData.checker_name) {
+                        // Fetch checker name if checker_id is available
+                        if (inventoryData.checker_id) {
+                            try {
+                                const checkerResponse = await axios.get(`/api/users/${inventoryData.checker_id}`);
+                                if (checkerResponse.data.success) {
+                                    setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
+                                } else {
+                                    setCheckerName('');
+                                }
+                            } catch (checkerError) {
+                                console.error('Failed to fetch checker name:', checkerError);
+                                setCheckerName('');
+                            }
+                        } else if (inventoryData.checker_name) {
                             setCheckerName(inventoryData.checker_name);
                         } else {
                             setCheckerName('');
