@@ -183,13 +183,17 @@ export default function ProcessGateOutModal({
 
             if (response.data.success) {
                 const data = response.data.data;
+                // Look up size_type display from sizeTypeOptions using sizetype_id
+                const sizeTypeObj = sizeTypeOptions.find(st => st.s_id === data.sizetype_id);
+                const sizeTypeDisplay = sizeTypeObj ? `${sizeTypeObj.size}${sizeTypeObj.type}` : '';
+                
                 setFormData(prev => ({
                     ...prev,
                     container_no: data.container_no,
                     client_id: data.client_id,
                     client_name: data.client_name,
-                    size_type: data.size_type,
-                    size_type_display: `${data.size_type?.size || ''}${data.size_type?.type || ''}`,
+                    size_type: data.sizetype_id,
+                    size_type_display: sizeTypeDisplay,
                     iso_code: data.iso_code || '',
                     plate_no: record?.plate_no || data.plate_no || '',
                     hauler: record?.hauler || data.hauler || '',
@@ -275,12 +279,16 @@ export default function ProcessGateOutModal({
 
                     if (inventoryResponse.data.success) {
                         const inventoryData = inventoryResponse.data.data;
+                        // Look up size_type display from sizeTypeOptions using sizetype_id
+                        const sizeTypeObj = sizeTypeOptions.find(st => st.s_id === inventoryData.sizetype_id);
+                        const sizeTypeDisplay = sizeTypeObj ? `${sizeTypeObj.size}${sizeTypeObj.type}` : '';
+                        
                         setFormData({
                             container_no: data.container_no,
                             client_id: data.client_id,
                             client_name: data.client_name,
-                            size_type: data.size_type,
-                            size_type_display: data.size_type_display,
+                            size_type: inventoryData.sizetype_id,
+                            size_type_display: sizeTypeDisplay,
                             iso_code: data.iso_code || '',
                             plate_no: record?.plate_no || data.plate_no || '',
                             hauler: record?.hauler || data.hauler || '',
@@ -330,8 +338,8 @@ export default function ProcessGateOutModal({
                         container_no: data.container_no,
                         client_id: data.client_id,
                         client_name: data.client_name,
-                        size_type: data.size_type,
-                        size_type_display: data.size_type_display,
+                        size_type: data.sizetype_id,
+                        size_type_display: data.size_type_display || `${container.size_type}`,
                         iso_code: data.iso_code || '',
                         plate_no: record?.plate_no || data.plate_no || '',
                         hauler: record?.hauler || data.hauler || '',
