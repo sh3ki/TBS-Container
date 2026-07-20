@@ -329,6 +329,36 @@ class MobileGateinoutController extends Controller
     }
 
     /**
+     * Get Checkers (Users)
+     */
+    public function getCheckers(Request $request)
+    {
+        try {
+            $prefix = $this->prefix;
+
+            $checkers = DB::select("
+                SELECT user_id, username, first_name, last_name
+                FROM users
+                WHERE archived = 0
+                ORDER BY first_name ASC, last_name ASC
+            ");
+
+            return response()->json([
+                'success' => true,
+                'data' => $checkers
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mobile getCheckers error', [
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch checkers'
+            ], 500);
+        }
+    }
+
+    /**
      * Search Available Containers for Gate OUT
      * Searches containers IN yard and not yet processed (complete=0)
      * Matches ProcessGateOutModal logic - excludes held containers and archived clients
@@ -429,6 +459,7 @@ class MobileGateinoutController extends Controller
                 'iso_code' => $request->input('iso_code'),
                 'cnt_status' => $request->input('cnt_status'),
                 'cnt_class' => $request->input('cnt_class'),
+                'checker_id' => $request->input('checker_id'),
                 'remarks' => $request->input('remarks'),
             ];
 
