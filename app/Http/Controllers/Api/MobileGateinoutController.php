@@ -493,14 +493,12 @@ class MobileGateinoutController extends Controller
 
             // Prepare update data for pre_inventory with container details
             $updateData = [
-                'status' => 2,  // Mark as gate-out processed
-                'date_completed' => now(),
                 'container_no' => $containerNo,
                 'client_id' => $request->input('client_id'),
                 'size_type' => $request->input('size_type'),
                 'iso_code' => $request->input('iso_code'),
-                'cnt_status' => $request->input('container_status'),
                 'cnt_class' => $request->input('class'),
+                'cnt_status' => $request->input('container_status'),
                 'remarks' => $request->input('remarks'),
                 'checker_id' => $request->input('checker_id') ?? $userId,
             ];
@@ -509,14 +507,6 @@ class MobileGateinoutController extends Controller
             DB::table('pre_inventory')
                 ->where('p_id', $pId)
                 ->update($updateData);
-
-            // Log to gate_inout table
-            DB::table('gate_inout')->insert([
-                'container_no' => $containerNo,
-                'direction' => 'OUT',
-                'date_time' => now(),
-                'user_id' => $userId,
-            ]);
 
             // Log audit
             DB::table('audit_logs')->insert([
