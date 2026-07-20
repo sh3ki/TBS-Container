@@ -568,9 +568,12 @@ class MobileGateinoutController extends Controller
                         i.container_status,
                         i.approval_notes,
                         i.remarks,
-                        i.shipper
+                        i.shipper,
+                        i.checker_id,
+                        u.full_name as checker_name
                     FROM {$prefix}inventory i
                     LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                    LEFT JOIN {$prefix}users u ON u.user_id = CAST(i.checker_id AS UNSIGNED)
                     WHERE i.container_no = ? AND i.gate_status = 'IN' AND i.complete = 0
                     ORDER BY i.date_added DESC
                     LIMIT 1
