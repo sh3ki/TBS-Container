@@ -68,6 +68,7 @@ export default function ProcessGateOutModal({
     const [showDropdown, setShowDropdown] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [isContainerSelected, setIsContainerSelected] = useState(false);
+    const [checkerName, setCheckerName] = useState('');
     
     const [formData, setFormData] = useState({
         container_no: '',
@@ -85,7 +86,6 @@ export default function ProcessGateOutModal({
         hauler_driver: '',
         license_no: '',
         checker: '',
-        checker_name: '', // Full name of checker - read only
         location: '',
         load: '', // Will be set to 'Empty' l_id once options load
         chasis: '',
@@ -144,8 +144,9 @@ export default function ProcessGateOutModal({
                 hauler: record.hauler || '',
             }));
 
-            // If container_no already exists in record, fetch its details
+            // If container_no already exists in record, fetch its details and set searchTerm
             if (record.container_no && record.container_no.trim() !== '') {
+                setSearchTerm(record.container_no);
                 fetchContainerDetailsOnInit(record.container_no);
             }
         }
@@ -178,29 +179,23 @@ export default function ProcessGateOutModal({
                     status: defaultStatusId,
                     load: defaultLoadId,
                 }));
+                
+                // Set checker name if available
+                if (data.checker_name) {
+                    setCheckerName(data.checker_name);
+                } else {
+                    setCheckerName('');
+                }
+                
                 setIsContainerSelected(true);
-                setSearchTerm(containerNo);
             }
         } catch (error) {
             console.error('Failed to fetch container details:', error);
+            setCheckerName('');
         }
     };
 
-    // Fetch checker full name
-    const fetchCheckerName = async (checkerId: number) => {
-        try {
-            const response = await axios.get(`/api/users/${checkerId}`);
-            if (response.data.success) {
-                setFormData(prev => ({
-                    ...prev,
-                    checker: checkerId.toString(),
-                    checker_name: response.data.data.full_name || 'Unknown',
-                }));
-            }
-        } catch (error) {
-            console.error('Failed to fetch checker name:', error);
-        }
-    };
+
 
     const fetchAvailableContainers = async (search: string) => {
         try {
@@ -265,7 +260,6 @@ export default function ProcessGateOutModal({
                             hauler_driver: '',
                             license_no: '',
                             checker: '',
-                            checker_name: '', // Will display full name
                             location: '',
                             load: defaultLoadId, // Load defaults to 'Empty' l_id
                             chasis: '',
@@ -277,6 +271,13 @@ export default function ProcessGateOutModal({
                             remarks: '', // Empty for user to fill
                             save_and_book: 'NO',
                         });
+                        
+                        // Set checker name if available
+                        if (inventoryData.checker_name) {
+                            setCheckerName(inventoryData.checker_name);
+                        } else {
+                            setCheckerName('');
+                        }
                     }
                 } catch (inventoryError) {
                     console.error('Failed to fetch inventory details:', inventoryError);
@@ -297,7 +298,6 @@ export default function ProcessGateOutModal({
                         hauler_driver: '',
                         license_no: '',
                         checker: '',
-                        checker_name: '',
                         location: '',
                         load: defaultLoadId,
                         chasis: '',
@@ -309,6 +309,7 @@ export default function ProcessGateOutModal({
                         remarks: '',
                         save_and_book: 'NO',
                     });
+                    setCheckerName('');
                 }
                 
                 setShowDropdown(false);
@@ -409,7 +410,7 @@ export default function ProcessGateOutModal({
             alert('Please enter License Number');
             return;
         }
-        if (!formData.checker_name || formData.checker_name.trim() === '') {
+        if (!checkerName || checkerName.trim() === '') {
             alert('Checker information not available');
             return;
         }
@@ -596,11 +597,12 @@ export default function ProcessGateOutModal({
                                 </Select>
                             </div>
                             <div>
-                                <Label>Checker *</Label>
+                                <Label>Checker</Label>
                                 <Input
-                                    value={formData.checker_name}
+                                    value={checkerName}
                                     disabled
-                                    className="bg-gray-50"
+                                    className="bg-gray-100 cursor-not-allowed"
+                                    placeholder="Auto-populated from system"
                                 />
                             </div>
                         </div>
