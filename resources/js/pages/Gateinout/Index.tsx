@@ -63,13 +63,14 @@ interface EditPreOutFormData {
 export default function Index() {
   const { toasts, removeToast, success, error } = useModernToast();
   const [preInventoryList, setPreInventoryList] = useState<PreInventoryRecord[]>([]);
-  const [filteredRecords, setFilteredRecords] = useState<PreInventoryRecord[]>([]);
+  const [filteredInRecords, setFilteredInRecords] = useState<PreInventoryRecord[]>([]);
+  const [filteredOutRecords, setFilteredOutRecords] = useState<PreInventoryRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [gateStatusFilter, setGateStatusFilter] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageIn, setCurrentPageIn] = useState(1);
+  const [currentPageOut, setCurrentPageOut] = useState(1);
   const pageSize = 15;
 
   const [showAddPreInModal, setShowAddPreInModal] = useState(false);
@@ -129,7 +130,7 @@ export default function Index() {
   useEffect(() => {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preInventoryList, searchTerm, statusFilter, gateStatusFilter]);
+  }, [preInventoryList, searchTerm, statusFilter]);
 
   useEffect(() => {
     fetchDropdownOptions();
@@ -219,12 +220,14 @@ export default function Index() {
       filtered = filtered.filter((record) => record.status.toLowerCase() === statusFilter);
     }
 
-    if (gateStatusFilter !== 'all') {
-      filtered = filtered.filter((record) => record.gate_status === gateStatusFilter);
-    }
+    // Separate into IN and OUT records
+    const inRecords = filtered.filter((record) => record.gate_status === 'IN');
+    const outRecords = filtered.filter((record) => record.gate_status === 'OUT');
 
-    setFilteredRecords(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
+    setFilteredInRecords(inRecords);
+    setFilteredOutRecords(outRecords);
+    setCurrentPageIn(1); // Reset to first page when filters change
+    setCurrentPageOut(1);
   };
 
   const submitAddPreIn = async (e: React.FormEvent) => {
@@ -473,12 +476,18 @@ export default function Index() {
     }
   };
 
-  // Pagination
-  const paginatedRecords = filteredRecords.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+  // Pagination for both tables
+  const paginatedInRecords = filteredInRecords.slice(
+    (currentPageIn - 1) * pageSize,
+    currentPageIn * pageSize
   );
-  const totalPages = Math.ceil(filteredRecords.length / pageSize);
+  const totalPagesIn = Math.ceil(filteredInRecords.length / pageSize);
+
+  const paginatedOutRecords = filteredOutRecords.slice(
+    (currentPageOut - 1) * pageSize,
+    currentPageOut * pageSize
+  );
+  const totalPagesOut = Math.ceil(filteredOutRecords.length / pageSize);
 
   return (
     <AuthenticatedLayout>
@@ -529,7 +538,7 @@ export default function Index() {
             subtitle="Find records quickly"
             icon={<Search className="w-5 h-5" />}
           >
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <Label className="text-sm font-semibold mb-2 text-gray-900">
                   Search Records
@@ -563,27 +572,12 @@ export default function Index() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-sm font-semibold mb-2 text-gray-900">
-                  Gate Status Filter
-                </Label>
-                <Select value={gateStatusFilter} onValueChange={setGateStatusFilter}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="IN">IN</SelectItem>
-                    <SelectItem value="OUT">OUT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-200">
               <p className="text-sm text-gray-600">
-                <span className="font-semibold text-gray-900">{filteredRecords.length}</span>{' '}
+                <span className="font-semibold text-gray-900">{filteredInRecords.length + filteredOutRecords.length}</span>{' '}
                 records found
-                {searchTerm || statusFilter !== 'all' || gateStatusFilter !== 'all' ? (
+                {searchTerm || statusFilter !== 'all' ? (
                   <span> (filtered from {preInventoryList.length} total)</span>
                 ) : null}
               </p>
@@ -591,8 +585,15 @@ export default function Index() {
           </ModernCard>
         </div>
 
-        {/* MODERN TABLE - EXACTLY LIKE CLIENTS PAGE */}
+        {/* IN RECORDS TABLE */}
         <div className="w-full">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
+              Gate IN Records
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">{filteredInRecords.length} IN record(s)</p>
+          </div>
           <ModernTable
             columns={[
               {
@@ -629,17 +630,6 @@ export default function Index() {
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
                     {record.hauler || '-'}
-                  </div>
-                ),
-              },
-              {
-                key: 'gate_status',
-                label: 'Gate Status',
-                render: (record: PreInventoryRecord) => (
-                  <div className="min-w-[60px]">
-                    <ModernBadge variant={record.gate_status === 'IN' ? 'success' : 'error'}>
-                      {record.gate_status}
-                    </ModernBadge>
                   </div>
                 ),
               },
@@ -725,15 +715,158 @@ export default function Index() {
                 ),
               },
             ]}
-            data={paginatedRecords}
+            data={paginatedInRecords}
             loading={loading}
-            emptyMessage="No records found. Click 'Add Pre In' or 'Add Pre Out' to get started."
+            emptyMessage="No IN records found."
             pagination={{
-              currentPage,
-              totalPages,
+              currentPage: currentPageIn,
+              totalPages: totalPagesIn,
               perPage: pageSize,
-              total: filteredRecords.length,
-              onPageChange: setCurrentPage,
+              total: filteredInRecords.length,
+              onPageChange: setCurrentPageIn,
+            }}
+          />
+        </div>
+
+        {/* OUT RECORDS TABLE */}
+        <div className="w-full mt-8">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
+              Gate OUT Records
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">{filteredOutRecords.length} OUT record(s)</p>
+          </div>
+          <ModernTable
+            columns={[
+              {
+                key: 'container_no',
+                label: 'Container No',
+                render: (record: PreInventoryRecord) => (
+                  <div className="font-mono font-semibold text-gray-900 min-w-[70px]" title={record.container_no}>
+                    {record.container_no}
+                  </div>
+                ),
+              },
+              {
+                key: 'client',
+                label: 'Client Name',
+                render: (record: PreInventoryRecord) => (
+                  <div className="min-w-[120px] max-w-[120px]">
+                    <div className="font-medium text-gray-900 " title={record.client_name}>{record.client_name}</div>
+                    <div className="text-xs text-gray-500 ">{record.client_code}</div>
+                  </div>
+                ),
+              },
+              {
+                key: 'plate_no',
+                label: 'Plate No',
+                render: (record: PreInventoryRecord) => (
+                  <div className="text-sm text-gray-600 min-w-[70px] " title={record.plate_no || '-'}>
+                    {record.plate_no || '-'}
+                  </div>
+                ),
+              },
+              {
+                key: 'hauler',
+                label: 'Hauler',
+                render: (record: PreInventoryRecord) => (
+                  <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
+                    {record.hauler || '-'}
+                  </div>
+                ),
+              },
+              {
+                key: 'status',
+                label: 'Status',
+                render: (record: PreInventoryRecord) => (
+                  <div className="min-w-[70px] ">
+                    <ModernBadge
+                      variant={
+                        record.status.toLowerCase() === 'pending' ? 'warning' : 'default'
+                      }
+                    >
+                      {record.status.toUpperCase()}
+                    </ModernBadge>
+                  </div>
+                ),
+              },
+              {
+                key: 'runtime',
+                label: 'Run Time',
+                render: (record: PreInventoryRecord) => (
+                  <div
+                    className="font-semibold min-w-[70px]"
+                    style={{ color: getRuntimeColor(record.runtime_color) }}
+                  >
+                    {record.runtime} min
+                  </div>
+                ),
+              },
+              {
+                key: 'date_added',
+                label: 'Date Created',
+                render: (record: PreInventoryRecord) => (
+                  <div className="text-sm text-gray-600 min-w-[80px] max-w-[110px]">
+                    {formatDateTime(record.date_added)}
+                  </div>
+                ),
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                render: (record: PreInventoryRecord) => (
+                  <div className="flex items-center justify-end gap-2 min-w-[120px]">
+                    {/* PROCESS BUTTON - AS REQUESTED IN IMAGE */}
+                    {record.status.toLowerCase() === 'pending' && (
+                      <ModernButton
+                        variant="add"
+                        size="sm"
+                        onClick={() => handleProcessClick(record)}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      </ModernButton>
+                    )}
+                    {canEdit(record) && (
+                      <ModernButton
+                        variant="edit"
+                        size="sm"
+                        onClick={() => {
+                          if (record.gate_status === 'IN') {
+                            handleEditPreIn(record);
+                          } else {
+                            handleEditPreOut(record);
+                          }
+                        }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </ModernButton>
+                    )}
+                    {canDelete(record) && (
+                      <ModernButton
+                        variant="delete"
+                        size="sm"
+                        onClick={() => {
+                          setRecordToDelete(record);
+                          setConfirmDeleteRecord(true);
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </ModernButton>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+            data={paginatedOutRecords}
+            loading={loading}
+            emptyMessage="No OUT records found."
+            pagination={{
+              currentPage: currentPageOut,
+              totalPages: totalPagesOut,
+              perPage: pageSize,
+              total: filteredOutRecords.length,
+              onPageChange: setCurrentPageOut,
             }}
           />
         </div>
