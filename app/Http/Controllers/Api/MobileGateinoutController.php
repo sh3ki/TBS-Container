@@ -502,6 +502,7 @@ class MobileGateinoutController extends Controller
                 'cnt_status' => $request->input('container_status'),
                 'cnt_class' => $request->input('class'),
                 'remarks' => $request->input('remarks'),
+                'checker_id' => $request->input('checker_id') ?? $userId,
             ];
 
             // Update pre_inventory with container details
@@ -543,14 +544,16 @@ class MobileGateinoutController extends Controller
     }
 
     /**
-     * Get Container Details by Container Number from PRE-INVENTORY
-     * Fetches container information from pre_inventory for GATE IN/OUT processing
+     * Get Container Details by Container Number
+     * For Gate IN: Fetches from PRE-INVENTORY 
+     * For Gate OUT: Fetches from INVENTORY to get approval_notes and remarks
      */
     public function getContainerDetails(Request $request)
     {
         try {
             $containerNo = strtoupper(trim($request->input('container_no', '')));
             $username = $request->input('username', 'mobile-user');
+            $gateStatus = $request->input('gate_status', 'IN');
 
             if (empty($containerNo)) {
                 return response()->json([
@@ -561,32 +564,63 @@ class MobileGateinoutController extends Controller
 
             $prefix = $this->prefix;
 
-            $result = DB::selectOne("
-                SELECT
-                    p.p_id,
-                    p.container_no,
-                    p.client_id,
-                    c.client_name,
-                    CAST(COALESCE(p.size_type, 0) AS UNSIGNED) as sizetype_id,
-                    p.iso_code,
-                    p.cnt_class as class,
-                    p.cnt_status,
-                    p.date_mnfg,
-                    p.remarks,
-                    p.checker_id,
-                    u.full_name as checker_name
-                FROM {$prefix}pre_inventory p
-                LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
-                LEFT JOIN {$prefix}users u ON u.user_id = CAST(p.checker_id AS UNSIGNED)
-                WHERE p.container_no = ? AND p.status = 0
-                LIMIT 1
-            ", [$containerNo]);
+            // For Gate OUT - fetch from inventory table to get approval_notes and remarks
+            if ($gateStatus === 'OUT') {
+                $result = DB::selectOne("
+                    SELECT
+                        i.i_id,
+                        i.container_no,
+                        i.client_id,
+                        c.client_name,
+                        CAST(COALESCE(i.size_type, 0) AS UNSIGNED) as sizetype_id,
+                        i.iso_code,
+                        i.class,
+                        i.cnt_status,
+                        i.approval_notes,
+                        i.remarks,
+                        i.shipper
+                    FROM {$prefix}inventory i
+                    LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                    WHERE i.container_no = ? AND i.gate_status = 'IN' AND i.complete = 0
+                    ORDER BY i.date_added DESC
+                    LIMIT 1
+                ", [$containerNo]);
 
-            if (!$result) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Container not found in pre-inventory or already processed.'
-                ], 404);
+                if (!$result) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Container not found in inventory or already processed.'
+                    ], 404);
+                }
+            } else {
+                // For Gate IN - fetch from pre_inventory table
+                $result = DB::selectOne("
+                    SELECT
+                        p.p_id,
+                        p.container_no,
+                        p.client_id,
+                        c.client_name,
+                        CAST(COALESCE(p.size_type, 0) AS UNSIGNED) as sizetype_id,
+                        p.iso_code,
+                        p.cnt_class as class,
+                        p.cnt_status,
+                        p.date_mnfg,
+                        p.remarks,
+                        p.checker_id,
+                        u.full_name as checker_name
+                    FROM {$prefix}pre_inventory p
+                    LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                    LEFT JOIN {$prefix}users u ON u.user_id = CAST(p.checker_id AS UNSIGNED)
+                    WHERE p.container_no = ? AND p.status = 0
+                    LIMIT 1
+                ", [$containerNo]);
+
+                if (!$result) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Container not found in pre-inventory or already processed.'
+                    ], 404);
+                }
             }
 
             return response()->json([
