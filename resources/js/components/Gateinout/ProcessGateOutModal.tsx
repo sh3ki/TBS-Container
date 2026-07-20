@@ -138,37 +138,38 @@ export default function ProcessGateOutModal({
     // Initialize with pre-gate data and fetch container details if exists
     useEffect(() => {
         if (record && open) {
+            const cleanedPlateNo = record.plate_no || '';
+            const cleanedHauler = record.hauler || '';
+            
+            // Always reset search fields first
+            setSearchTerm('');
+            setCheckerName('');
+            setIsContainerSelected(false);
+            
+            // Always set plate no and hauler
             setFormData(prev => ({
                 ...prev,
-                plate_no: record.plate_no || '',
-                hauler: record.hauler || '',
+                plate_no: cleanedPlateNo,
+                hauler: cleanedHauler,
+                container_no: '',
+                client_id: 0,
+                client_name: '',
+                size_type: 0,
+                size_type_display: '',
+                iso_code: '',
+                approval_remarks: '',
+                gate_in_remarks: '',
+                status: defaultStatusId,
+                load: defaultLoadId,
             }));
 
             // Only fetch and populate if container_no already exists in record
             if (record.container_no && record.container_no.trim() !== '') {
                 setSearchTerm(record.container_no);
                 fetchContainerDetailsOnInit(record.container_no);
-            } else {
-                // Reset all fields if no container_no
-                setSearchTerm('');
-                setCheckerName('');
-                setIsContainerSelected(false);
-                setFormData(prev => ({
-                    ...prev,
-                    container_no: '',
-                    client_id: 0,
-                    client_name: '',
-                    size_type: 0,
-                    size_type_display: '',
-                    iso_code: '',
-                    approval_remarks: '',
-                    gate_in_remarks: '',
-                    status: defaultStatusId,
-                    load: defaultLoadId,
-                }));
             }
         }
-    }, [record, open]);
+    }, [record, open, defaultStatusId, defaultLoadId]);
 
     // Fetch container details when container already exists in pre_inventory
     const fetchContainerDetailsOnInit = async (containerNo: string) => {
