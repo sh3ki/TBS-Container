@@ -568,6 +568,7 @@ class MobileGateinoutController extends Controller
                         i.container_status,
                         i.approval_notes,
                         i.remarks,
+                        p.remarks as pre_inventory_remarks,
                         i.shipper,
                         p.checker_id,
                         u.full_name as checker_name
