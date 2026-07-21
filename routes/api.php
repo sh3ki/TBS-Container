@@ -49,6 +49,7 @@ Route::prefix('mobile')->group(function () {
         Route::post('/check-container-out', [MobileGateinoutController::class, 'checkContainerOut']);
         Route::post('/process-in', [MobileGateinoutController::class, 'processGateIn']);
         Route::post('/process-out', [MobileGateinoutController::class, 'processGateOut']);
+        Route::post('/upload-pictures', [MobileGateinoutController::class, 'uploadContainerPictures']);
     });
 });
 
