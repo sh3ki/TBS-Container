@@ -399,6 +399,7 @@ class MobileGateinoutController extends Controller
 
     /**
      * Process Gate IN - Complete the gate in transaction
+     * Detects changes and logs as EDIT if data already exists, otherwise logs as GATE_IN
      */
     public function processGateIn(Request $request)
     {
@@ -419,6 +420,12 @@ class MobileGateinoutController extends Controller
             // Get user ID
             $user = DB::table('users')->where('username', $username)->first();
             $userId = $user ? $user->user_id : null;
+
+            // Fetch existing record to check if it's an update or new submission
+            $existingRecord = DB::selectOne("
+                SELECT p_id, date_completed, container_no, client_id, size_type, iso_code, cnt_status, cnt_class, remarks, date_mnfg
+                FROM {$prefix}pre_inventory WHERE p_id = ?
+            ", [$pId]);
 
             // Prepare update data for pre_inventory
             $updateData = [
@@ -443,33 +450,59 @@ class MobileGateinoutController extends Controller
                 ->where('p_id', $pId)
                 ->update($updateData);
 
-            // Fetch all display names for detailed audit logging
+            // Fetch lookup data for display names
             $clientId = $request->input('client_id');
             $sizeTypeId = $request->input('size_type');
             $statusId = $request->input('cnt_status');
-            $classValue = $request->input('cnt_class'); // Already a string (A, B, or C)
+            $classValue = $request->input('cnt_class');
             
             $client = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$clientId]);
             $sizeType = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$sizeTypeId]);
             $status = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$statusId]);
             $checkerName = $user ? $user->full_name : 'Unknown';
 
-            // Build detailed audit log description with all displayed fields
-            // Note: cnt_class is received as string (A, B, or C) from mobile app
-            $auditDescription = '[MOBILE] GATE IN processed - ' .
-                'Container: ' . $containerNo . ' | ' .
-                'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
-                'Checker: ' . $checkerName . ' | ' .
-                'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
-                'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
-                'Manufactured Date: ' . ($request->input('date_mnfg') ?? 'N/A') . ' | ' .
-                'Class: ' . ($classValue ?? 'N/A') . ' | ' .
-                'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
-                'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+            // Determine if this is an edit (already has date_completed) or new submission
+            $isEdit = $existingRecord && $existingRecord->date_completed !== null;
 
-            // Log audit with detailed information
+            if ($isEdit) {
+                // Build EDIT audit log with before/after changes
+                $changes = $this->getGateInChanges($existingRecord, $request->all(), $prefix);
+                
+                if (!empty($changes)) {
+                    $auditDescription = '[MOBILE] Edited Pre-In record for Container "' . $containerNo . '": ' . implode(' | ', $changes);
+                    $auditAction = 'EDIT';
+                } else {
+                    // No changes detected, still log as GATE_IN
+                    $auditDescription = '[MOBILE] GATE IN processed - ' .
+                        'Container: ' . $containerNo . ' | ' .
+                        'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
+                        'Checker: ' . $checkerName . ' | ' .
+                        'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
+                        'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
+                        'Manufactured Date: ' . ($request->input('date_mnfg') ?? 'N/A') . ' | ' .
+                        'Class: ' . ($classValue ?? 'N/A') . ' | ' .
+                        'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
+                        'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+                    $auditAction = 'GATE_IN';
+                }
+            } else {
+                // New submission
+                $auditDescription = '[MOBILE] GATE IN processed - ' .
+                    'Container: ' . $containerNo . ' | ' .
+                    'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
+                    'Checker: ' . $checkerName . ' | ' .
+                    'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
+                    'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
+                    'Manufactured Date: ' . ($request->input('date_mnfg') ?? 'N/A') . ' | ' .
+                    'Class: ' . ($classValue ?? 'N/A') . ' | ' .
+                    'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
+                    'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+                $auditAction = 'GATE_IN';
+            }
+
+            // Log audit
             DB::table('audit_logs')->insert([
-                'action' => 'GATE_IN',
+                'action' => $auditAction,
                 'description' => $auditDescription,
                 'user_id' => $userId,
                 'date_added' => now(),
@@ -493,7 +526,82 @@ class MobileGateinoutController extends Controller
     }
 
     /**
+     * Compare Gate IN changes and return formatted audit description
+     */
+    private function getGateInChanges($oldRecord, $newData, $prefix)
+    {
+        $changes = [];
+
+        // Container No
+        $oldCno = $oldRecord->container_no ?? '';
+        $newCno = $newData['container_no'] ?? '';
+        if ($oldCno !== $newCno) {
+            $changes[] = 'Container: "' . $oldCno . '" -> "' . $newCno . '"';
+        }
+
+        // Client
+        $oldClientId = $oldRecord->client_id ?? 0;
+        $newClientId = $newData['client_id'] ?? 0;
+        if ($oldClientId != $newClientId) {
+            $oldClient = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$oldClientId]);
+            $newClient = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$newClientId]);
+            $changes[] = 'Client: "' . ($oldClient->client_name ?? 'N/A') . '" -> "' . ($newClient->client_name ?? 'N/A') . '"';
+        }
+
+        // Size/Type
+        $oldSizeId = $oldRecord->size_type ?? 0;
+        $newSizeId = $newData['size_type'] ?? 0;
+        if ($oldSizeId != $newSizeId) {
+            $oldSize = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$oldSizeId]);
+            $newSize = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$newSizeId]);
+            $oldSizeStr = ($oldSize->size ?? '') . ($oldSize->type ?? '');
+            $newSizeStr = ($newSize->size ?? '') . ($newSize->type ?? '');
+            $changes[] = 'Size/Type: "' . $oldSizeStr . '" -> "' . $newSizeStr . '"';
+        }
+
+        // ISO Code
+        $oldIso = ($oldRecord->iso_code ?? '') ? trim($oldRecord->iso_code) : '';
+        $newIso = ($newData['iso_code'] ?? '') ? trim($newData['iso_code']) : '';
+        if ($oldIso !== $newIso) {
+            $changes[] = 'ISO Code: "' . $oldIso . '" -> "' . $newIso . '"';
+        }
+
+        // Manufactured Date
+        $oldDate = $oldRecord->date_mnfg ?? '';
+        $newDate = $newData['date_mnfg'] ?? '';
+        if ($oldDate !== $newDate) {
+            $changes[] = 'Manufactured Date: "' . $oldDate . '" -> "' . $newDate . '"';
+        }
+
+        // Class
+        $oldClass = $oldRecord->cnt_class ?? '';
+        $newClass = $newData['cnt_class'] ?? '';
+        if ($oldClass !== $newClass) {
+            $changes[] = 'Class: "' . $oldClass . '" -> "' . $newClass . '"';
+        }
+
+        // Container Status
+        $oldStatusId = $oldRecord->cnt_status ?? 0;
+        $newStatusId = $newData['cnt_status'] ?? 0;
+        if ($oldStatusId != $newStatusId) {
+            $oldStatus = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$oldStatusId]);
+            $newStatus = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$newStatusId]);
+            $changes[] = 'Container Status: "' . ($oldStatus->status ?? 'N/A') . '" -> "' . ($newStatus->status ?? 'N/A') . '"';
+        }
+
+        // Remarks
+        $oldRemarks = $oldRecord->remarks ?? '';
+        $newRemarks = $newData['remarks'] ?? '';
+        if ($oldRemarks !== $newRemarks) {
+            $changes[] = 'Remarks: "' . $oldRemarks . '" -> "' . $newRemarks . '"';
+        }
+
+        return $changes;
+    }
+
+    /**
      * Process Gate OUT - Complete the gate out transaction
+     * Detects changes and logs as EDIT if data already exists, otherwise logs as GATE_OUT
      */
     public function processGateOut(Request $request)
     {
@@ -515,9 +623,10 @@ class MobileGateinoutController extends Controller
             $user = DB::table('users')->where('username', $username)->first();
             $userId = $user ? $user->user_id : null;
 
-            // Fetch pre_inventory record to get plate_no and hauler for audit logging
-            $preInventory = DB::selectOne("
-                SELECT plate_no, hauler FROM {$prefix}pre_inventory WHERE p_id = ?
+            // Fetch existing record to check if it's an update or new submission
+            $existingRecord = DB::selectOne("
+                SELECT p_id, date_completed, plate_no, hauler, container_no, client_id, size_type, iso_code, cnt_status, cnt_class, remarks
+                FROM {$prefix}pre_inventory WHERE p_id = ?
             ", [$pId]);
 
             // Prepare update data for pre_inventory with container details
@@ -537,36 +646,56 @@ class MobileGateinoutController extends Controller
                 ->where('p_id', $pId)
                 ->update($updateData);
 
-            // Fetch all display names for detailed audit logging
-            $clientId = $request->input('client_id');
-            $sizeTypeId = $request->input('size_type');
-            $statusId = $request->input('container_status');
-            $classValue = $request->input('class'); // Already a string (A, B, or C)
-            
-            $client = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$clientId]);
-            $sizeType = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$sizeTypeId]);
-            $status = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$statusId]);
+            // Get plate_no and hauler from pre_inventory record for display
+            $plateNo = $existingRecord->plate_no ?? 'N/A';
+            $hauler = $existingRecord->hauler ?? 'N/A';
 
-            // Get plate_no and hauler from pre_inventory record
-            $plateNo = $preInventory->plate_no ?? 'N/A';
-            $hauler = $preInventory->hauler ?? 'N/A';
+            // Determine if this is an edit (already has date_completed) or new submission
+            $isEdit = $existingRecord && $existingRecord->date_completed !== null;
 
-            // Build detailed audit log description with all displayed fields (exact order from process screen)
-            // Note: class is received as string (A, B, or C) from mobile app
-            $auditDescription = '[MOBILE] GATE OUT processed - ' .
-                'Plate No: ' . $plateNo . ' | ' .
-                'Hauler: ' . $hauler . ' | ' .
-                'Container No: ' . $containerNo . ' | ' .
-                'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
-                'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
-                'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
-                'Class: ' . ($classValue ?? 'N/A') . ' | ' .
-                'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
-                'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+            if ($isEdit) {
+                // Build EDIT audit log with before/after changes
+                $changes = $this->getGateOutChanges($existingRecord, $request->all(), $prefix);
+                
+                if (!empty($changes)) {
+                    $auditDescription = '[MOBILE] Edited Pre-Out record for Plate No "' . $plateNo . '": ' . implode(' | ', $changes);
+                    $auditAction = 'EDIT';
+                } else {
+                    // No changes detected, still log as GATE_OUT
+                    $auditDescription = '[MOBILE] GATE OUT processed - ' .
+                        'Plate No: ' . $plateNo . ' | ' .
+                        'Hauler: ' . $hauler . ' | ' .
+                        'Container No: ' . $containerNo;
+                    $auditAction = 'GATE_OUT';
+                }
+            } else {
+                // New submission
+                // Fetch lookup data for display names
+                $clientId = $request->input('client_id');
+                $sizeTypeId = $request->input('size_type');
+                $statusId = $request->input('container_status');
+                $classValue = $request->input('class');
+                
+                $client = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$clientId]);
+                $sizeType = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$sizeTypeId]);
+                $status = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$statusId]);
 
-            // Log audit with detailed information
+                $auditDescription = '[MOBILE] GATE OUT processed - ' .
+                    'Plate No: ' . $plateNo . ' | ' .
+                    'Hauler: ' . $hauler . ' | ' .
+                    'Container No: ' . $containerNo . ' | ' .
+                    'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
+                    'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
+                    'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
+                    'Class: ' . ($classValue ?? 'N/A') . ' | ' .
+                    'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
+                    'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+                $auditAction = 'GATE_OUT';
+            }
+
+            // Log audit
             DB::table('audit_logs')->insert([
-                'action' => 'GATE_OUT',
+                'action' => $auditAction,
                 'description' => $auditDescription,
                 'user_id' => $userId,
                 'date_added' => now(),
@@ -587,6 +716,87 @@ class MobileGateinoutController extends Controller
                 'message' => 'Error processing gate OUT: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Compare Gate OUT changes and return formatted audit description
+     */
+    private function getGateOutChanges($oldRecord, $newData, $prefix)
+    {
+        $changes = [];
+
+        // Plate No
+        $oldPlate = $oldRecord->plate_no ?? '';
+        $newPlate = $newData['plate_no'] ?? '';
+        if ($oldPlate !== $newPlate) {
+            $changes[] = 'Plate No: "' . $oldPlate . '" -> "' . $newPlate . '"';
+        }
+
+        // Hauler
+        $oldHauler = $oldRecord->hauler ?? '';
+        $newHauler = $newData['hauler'] ?? '';
+        if ($oldHauler !== $newHauler) {
+            $changes[] = 'Hauler: "' . $oldHauler . '" -> "' . $newHauler . '"';
+        }
+
+        // Container No
+        $oldCno = $oldRecord->container_no ?? '';
+        $newCno = $newData['container_no'] ?? '';
+        if ($oldCno !== $newCno) {
+            $changes[] = 'Container: "' . $oldCno . '" -> "' . $newCno . '"';
+        }
+
+        // Client
+        $oldClientId = $oldRecord->client_id ?? 0;
+        $newClientId = $newData['client_id'] ?? 0;
+        if ($oldClientId != $newClientId) {
+            $oldClient = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$oldClientId]);
+            $newClient = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$newClientId]);
+            $changes[] = 'Client: "' . ($oldClient->client_name ?? 'N/A') . '" -> "' . ($newClient->client_name ?? 'N/A') . '"';
+        }
+
+        // Size/Type
+        $oldSizeId = $oldRecord->size_type ?? 0;
+        $newSizeId = $newData['size_type'] ?? 0;
+        if ($oldSizeId != $newSizeId) {
+            $oldSize = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$oldSizeId]);
+            $newSize = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$newSizeId]);
+            $oldSizeStr = ($oldSize->size ?? '') . ($oldSize->type ?? '');
+            $newSizeStr = ($newSize->size ?? '') . ($newSize->type ?? '');
+            $changes[] = 'Size/Type: "' . $oldSizeStr . '" -> "' . $newSizeStr . '"';
+        }
+
+        // ISO Code
+        $oldIso = ($oldRecord->iso_code ?? '') ? trim($oldRecord->iso_code) : '';
+        $newIso = ($newData['iso_code'] ?? '') ? trim($newData['iso_code']) : '';
+        if ($oldIso !== $newIso) {
+            $changes[] = 'ISO Code: "' . $oldIso . '" -> "' . $newIso . '"';
+        }
+
+        // Class
+        $oldClass = $oldRecord->cnt_class ?? '';
+        $newClass = $newData['class'] ?? '';
+        if ($oldClass !== $newClass) {
+            $changes[] = 'Class: "' . $oldClass . '" -> "' . $newClass . '"';
+        }
+
+        // Container Status
+        $oldStatusId = $oldRecord->cnt_status ?? 0;
+        $newStatusId = $newData['container_status'] ?? 0;
+        if ($oldStatusId != $newStatusId) {
+            $oldStatus = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$oldStatusId]);
+            $newStatus = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$newStatusId]);
+            $changes[] = 'Container Status: "' . ($oldStatus->status ?? 'N/A') . '" -> "' . ($newStatus->status ?? 'N/A') . '"';
+        }
+
+        // Remarks
+        $oldRemarks = $oldRecord->remarks ?? '';
+        $newRemarks = $newData['remarks'] ?? '';
+        if ($oldRemarks !== $newRemarks) {
+            $changes[] = 'Remarks: "' . $oldRemarks . '" -> "' . $newRemarks . '"';
+        }
+
+        return $changes;
     }
 
     /**
