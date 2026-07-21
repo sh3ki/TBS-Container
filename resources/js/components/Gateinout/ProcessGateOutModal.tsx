@@ -194,7 +194,7 @@ export default function ProcessGateOutModal({
     // Fetch container details when container already exists in pre_inventory
     const fetchContainerDetailsOnInit = async (containerNo: string) => {
         try {
-            const response = await axios.get('/api/gateinout/container-details', {
+            const response = await axios.get('/api/mobile/gateinout/container-details', {
                 params: {
                     container_no: containerNo,
                     gate_status: 'OUT',
@@ -291,7 +291,7 @@ export default function ProcessGateOutModal({
                 
                 // Fetch additional details from inventory including approval_notes and remarks
                 try {
-                    const inventoryResponse = await axios.get('/api/gateinout/container-details', {
+                    const inventoryResponse = await axios.get('/api/mobile/gateinout/container-details', {
                         params: {
                             container_no: data.container_no,
                             gate_status: 'OUT',
