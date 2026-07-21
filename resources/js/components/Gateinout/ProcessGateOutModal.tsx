@@ -194,7 +194,7 @@ export default function ProcessGateOutModal({
     // Fetch container details when container already exists in pre_inventory
     const fetchContainerDetailsOnInit = async (containerNo: string) => {
         try {
-            const response = await axios.get('/api/mobile/gateinout/container-details', {
+            const response = await axios.get('/api/gateinout/container-details', {
                 params: {
                     container_no: containerNo,
                     gate_status: 'OUT',
@@ -219,6 +219,7 @@ export default function ProcessGateOutModal({
                     hauler: record?.hauler || data.hauler || '',
                     approval_remarks: data.approval_notes || '',
                     gate_in_remarks: data.remarks || '',
+                    remarks: data.pre_inventory_remarks || '',
                     status: defaultStatusId,
                     load: defaultLoadId,
                 }));
@@ -290,7 +291,7 @@ export default function ProcessGateOutModal({
                 
                 // Fetch additional details from inventory including approval_notes and remarks
                 try {
-                    const inventoryResponse = await axios.get('/api/mobile/gateinout/container-details', {
+                    const inventoryResponse = await axios.get('/api/gateinout/container-details', {
                         params: {
                             container_no: data.container_no,
                             gate_status: 'OUT',
@@ -328,7 +329,7 @@ export default function ProcessGateOutModal({
                             seal_no: '',
                             approval_remarks: inventoryData.approval_notes || '', // From inventory
                             gate_in_remarks: inventoryData.remarks || '', // From inventory
-                            remarks: '', // Empty for user to fill
+                            remarks: inventoryData.pre_inventory_remarks || '', // From pre_inventory
                             save_and_book: 'NO',
                         });
                         
