@@ -99,12 +99,23 @@ class MobileAuthController extends Controller
     public function logout(Request $request)
     {
         $username = $request->input('username', 'unknown');
+        $userId = $request->input('user_id');
 
         try {
+            // Fetch user full name for better audit trail
+            $userFullName = 'Unknown';
+            if ($userId) {
+                $user = DB::table('users')->where('user_id', $userId)->first();
+                if ($user) {
+                    $userFullName = $user->full_name ?? 'Unknown';
+                }
+            }
+
+            // Create comprehensive audit log entry
             DB::table('audit_logs')->insert([
                 'action' => 'LOGOUT',
-                'description' => '[MOBILE] User logged out: Username: "' . $username . '"',
-                'user_id' => $request->input('user_id'),
+                'description' => '[MOBILE] User logged out: Username: "' . $username . '" | User: "' . $userFullName . '"',
+                'user_id' => $userId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
