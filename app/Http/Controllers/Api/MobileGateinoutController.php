@@ -899,4 +899,110 @@ class MobileGateinoutController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Upload container pictures from mobile
+     * Path: /var/www/tbscontainermnl/container_pics/{date (mm-dd-yyyy)}/{'in' or 'out'}/{container_no.(imagenumber)}.jpg
+     */
+    public function uploadContainerPictures(Request $request)
+    {
+        try {
+            $containerNo = strtoupper(trim($request->input('container_no', '')));
+            $gateStatus = strtolower(trim($request->input('gate_status', 'in')));
+            
+            if (empty($containerNo)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container number is required'
+                ], 400);
+            }
+
+            if (!$request->hasFile('pictures')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No pictures provided'
+                ], 400);
+            }
+
+            // Get current date in mm-dd-yyyy format
+            $dateFolder = date('m-d-Y');
+            $statusFolder = ($gateStatus === 'out') ? 'out' : 'in';
+            
+            // Base directory path
+            $baseDir = '/var/www/tbscontainermnl/container_pics';
+            $targetDir = $baseDir . '/' . $dateFolder . '/' . $statusFolder;
+            
+            // Create directory if it doesn't exist
+            if (!is_dir($targetDir)) {
+                if (!mkdir($targetDir, 0755, true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to create directory structure'
+                    ], 500);
+                }
+            }
+
+            $pictures = $request->file('pictures');
+            if (!is_array($pictures)) {
+                $pictures = [$pictures];
+            }
+
+            $uploadedFiles = [];
+            $imageNumber = 1;
+
+            foreach ($pictures as $picture) {
+                if ($picture && $picture->isValid()) {
+                    // File name format: {containerNo}({imageNumber}).jpg
+                    $fileName = $containerNo . '(' . $imageNumber . ').jpg';
+                    $filePath = $targetDir . '/' . $fileName;
+                    
+                    // Move the uploaded file to the target directory
+                    $picture->move($targetDir, $fileName);
+                    
+                    $uploadedFiles[] = [
+                        'name' => $fileName,
+                        'path' => 'container_pics/' . $dateFolder . '/' . $statusFolder . '/' . $fileName,
+                        'image_number' => $imageNumber
+                    ];
+                    
+                    $imageNumber++;
+                }
+            }
+
+            if (empty($uploadedFiles)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No valid pictures were uploaded'
+                ], 400);
+            }
+
+            Log::info('Mobile container pictures uploaded', [
+                'container_no' => $containerNo,
+                'gate_status' => $gateStatus,
+                'count' => count($uploadedFiles),
+                'files' => $uploadedFiles
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => count($uploadedFiles) . ' picture(s) uploaded successfully',
+                'data' => [
+                    'container_no' => $containerNo,
+                    'gate_status' => $gateStatus,
+                    'uploaded_count' => count($uploadedFiles),
+                    'files' => $uploadedFiles
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Mobile upload container pictures error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error uploading pictures: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
