@@ -443,10 +443,34 @@ class MobileGateinoutController extends Controller
                 ->where('p_id', $pId)
                 ->update($updateData);
 
-            // Log audit
+            // Fetch all display names for detailed audit logging
+            $clientId = $request->input('client_id');
+            $sizeTypeId = $request->input('size_type');
+            $statusId = $request->input('cnt_status');
+            $classValue = $request->input('cnt_class'); // Already a string (A, B, or C)
+            
+            $client = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$clientId]);
+            $sizeType = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$sizeTypeId]);
+            $status = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$statusId]);
+            $checkerName = $user ? $user->full_name : 'Unknown';
+
+            // Build detailed audit log description with all displayed fields
+            // Note: cnt_class is received as string (A, B, or C) from mobile app
+            $auditDescription = '[MOBILE] GATE IN processed - ' .
+                'Container: ' . $containerNo . ' | ' .
+                'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
+                'Checker: ' . $checkerName . ' | ' .
+                'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
+                'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
+                'Manufactured Date: ' . ($request->input('date_mnfg') ?? 'N/A') . ' | ' .
+                'Class: ' . ($classValue ?? 'N/A') . ' | ' .
+                'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
+                'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+
+            // Log audit with detailed information
             DB::table('audit_logs')->insert([
                 'action' => 'GATE_IN',
-                'description' => '[MOBILE] Gate IN processed: Container: ' . $containerNo . ' | Status: ' . $request->input('cnt_status') . ' | Class: ' . $request->input('cnt_class'),
+                'description' => $auditDescription,
                 'user_id' => $userId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
@@ -491,6 +515,11 @@ class MobileGateinoutController extends Controller
             $user = DB::table('users')->where('username', $username)->first();
             $userId = $user ? $user->user_id : null;
 
+            // Fetch pre_inventory record to get plate_no and hauler for audit logging
+            $preInventory = DB::selectOne("
+                SELECT plate_no, hauler FROM {$prefix}pre_inventory WHERE p_id = ?
+            ", [$pId]);
+
             // Prepare update data for pre_inventory with container details
             $updateData = [
                 'container_no' => $containerNo,
@@ -508,10 +537,37 @@ class MobileGateinoutController extends Controller
                 ->where('p_id', $pId)
                 ->update($updateData);
 
-            // Log audit
+            // Fetch all display names for detailed audit logging
+            $clientId = $request->input('client_id');
+            $sizeTypeId = $request->input('size_type');
+            $statusId = $request->input('container_status');
+            $classValue = $request->input('class'); // Already a string (A, B, or C)
+            
+            $client = DB::selectOne("SELECT client_name FROM {$prefix}clients WHERE c_id = ?", [$clientId]);
+            $sizeType = DB::selectOne("SELECT size, type FROM {$prefix}container_size_type WHERE s_id = ?", [$sizeTypeId]);
+            $status = DB::selectOne("SELECT status FROM {$prefix}container_status WHERE s_id = ?", [$statusId]);
+
+            // Get plate_no and hauler from pre_inventory record
+            $plateNo = $preInventory->plate_no ?? 'N/A';
+            $hauler = $preInventory->hauler ?? 'N/A';
+
+            // Build detailed audit log description with all displayed fields (exact order from process screen)
+            // Note: class is received as string (A, B, or C) from mobile app
+            $auditDescription = '[MOBILE] GATE OUT processed - ' .
+                'Plate No: ' . $plateNo . ' | ' .
+                'Hauler: ' . $hauler . ' | ' .
+                'Container No: ' . $containerNo . ' | ' .
+                'Client: ' . ($client->client_name ?? 'N/A') . ' | ' .
+                'Size/Type: ' . (($sizeType->size ?? '') . ($sizeType->type ?? '')) . ' | ' .
+                'ISO Code: ' . ($request->input('iso_code') ?? 'N/A') . ' | ' .
+                'Class: ' . ($classValue ?? 'N/A') . ' | ' .
+                'Container Status: ' . ($status->status ?? 'N/A') . ' | ' .
+                'Remarks: ' . ($request->input('remarks') ?? 'N/A');
+
+            // Log audit with detailed information
             DB::table('audit_logs')->insert([
                 'action' => 'GATE_OUT',
-                'description' => '[MOBILE] Gate OUT processed: Container: ' . $containerNo . ' | Status: ' . $request->input('container_status') . ' | Class: ' . $request->input('class'),
+                'description' => $auditDescription,
                 'user_id' => $userId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
