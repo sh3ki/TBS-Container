@@ -105,9 +105,15 @@ export default function Authenticated({ children }: PropsWithChildren) {
     // Group permissions by category
     const groupedPermissions = categories.map(category => ({
         ...category,
-        permissions: (auth.permissions || []).filter(p => 
-            category.items.some(item => p.page.toLowerCase().includes(item))
-        )
+        permissions: (auth.permissions || [])
+            .filter(p => 
+                category.items.some(item => p.page.toLowerCase().includes(item))
+            )
+            .sort((a, b) => {
+                const indexA = category.items.findIndex(item => a.page.toLowerCase().includes(item));
+                const indexB = category.items.findIndex(item => b.page.toLowerCase().includes(item));
+                return indexA - indexB;
+            })
     })).filter(cat => cat.permissions.length > 0);
 
     const handleLogoutClick = () => {
