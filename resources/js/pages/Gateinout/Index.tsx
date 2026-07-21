@@ -463,6 +463,15 @@ export default function Index() {
     });
   };
 
+  const formatRuntime = (minutes: number) => {
+    const days = Math.floor(minutes / (24 * 60));
+    const remainingMinutes = minutes % (24 * 60);
+    const hours = Math.floor(remainingMinutes / 60);
+    const mins = remainingMinutes % 60;
+    
+    return `${days}d ${hours}h ${mins}m`;
+  };
+
   const getRuntimeColor = (color: string) => {
     switch (color) {
       case 'green':
@@ -667,7 +676,7 @@ export default function Index() {
                     className="font-semibold min-w-[70px]"
                     style={{ color: getRuntimeColor(record.runtime_color) }}
                   >
-                    {record.runtime} min
+                    {formatRuntime(record.runtime)}
                   </div>
                 ),
               },
@@ -821,7 +830,7 @@ export default function Index() {
                     className="font-semibold min-w-[70px]"
                     style={{ color: getRuntimeColor(record.runtime_color) }}
                   >
-                    {record.runtime} min
+                    {formatRuntime(record.runtime)}
                   </div>
                 ),
               },
