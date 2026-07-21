@@ -94,7 +94,7 @@ class MobileAuthController extends Controller
     }
 
     /**
-     * Mobile logout (optional, for logging purposes).
+     * Mobile logout (with comprehensive audit logging).
      */
     public function logout(Request $request)
     {
@@ -102,27 +102,49 @@ class MobileAuthController extends Controller
         $userId = $request->input('user_id');
 
         try {
-            // Fetch user full name for better audit trail
+            // Fetch user details for better audit trail
             $userFullName = 'Unknown';
+            $auditUserId = $userId; // Use the provided user_id for audit log
+            
+            // Try to find user by user_id first, fallback to username
             if ($userId) {
                 $user = DB::table('users')->where('user_id', $userId)->first();
                 if ($user) {
                     $userFullName = $user->full_name ?? 'Unknown';
                 }
             }
+            
+            // If not found by user_id, try by username
+            if ($userFullName === 'Unknown' && !empty($username) && $username !== 'unknown') {
+                $user = DB::table('users')->where('username', strtolower($username))->first();
+                if ($user) {
+                    $userFullName = $user->full_name ?? 'Unknown';
+                    $auditUserId = $user->user_id; // Use the looked-up user_id if needed
+                }
+            }
+
+            // Log the logout attempt
+            Log::info('Mobile logout', [
+                'username' => $username,
+                'user_id' => $auditUserId,
+                'user_full_name' => $userFullName,
+                'ip_address' => $request->ip(),
+            ]);
 
             // Create comprehensive audit log entry
             DB::table('audit_logs')->insert([
                 'action' => 'LOGOUT',
                 'description' => '[MOBILE] User logged out: Username: "' . $username . '" | User: "' . $userFullName . '"',
-                'user_id' => $userId,
+                'user_id' => $auditUserId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to log mobile logout', [
                 'username' => $username,
+                'user_id' => $userId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
 
