@@ -124,6 +124,69 @@ supervisorctl restart tbs-email-automation
 php artisan up
 ```
 
+## Queue workers and image processing (required for batched uploads)
+
+Add these steps so uploaded images are processed asynchronously and saved as optimized 640x480 files.
+
+- **Queue driver:** Set `QUEUE_CONNECTION` in your `.env` (e.g. `database`, `redis`, or `beanstalkd`).
+- **Create jobs table (database driver):**
+
+```bash
+php artisan queue:table
+php artisan migrate --force
+```
+
+- **Temp uploads directory:** Ensure a writable temp folder exists for incoming files:
+
+```bash
+mkdir -p /var/www/tbscontainermnl/storage/app/temp_uploads
+chown -R www-data:www-data /var/www/tbscontainermnl/storage/app/temp_uploads
+chmod -R 775 /var/www/tbscontainermnl/storage/app/temp_uploads
+```
+
+- **Supervisor config (example):** create `/etc/supervisor/conf.d/tbs-worker.conf` with:
+
+```ini
+[program:tbs-worker]
+command=php /var/www/tbscontainermnl/artisan queue:work redis --sleep=3 --tries=3 --timeout=0
+process_name=%(program_name)s_%(process_num)02d
+numprocs=4
+autostart=true
+autorestart=true
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/tbscontainermnl/storage/logs/worker.log
+stopwaitsecs=3600
+```
+
+Adjust `numprocs` for concurrency based on available CPU cores (4 is a reasonable start).
+
+- **Reload Supervisor after adding or changing configs:**
+
+```bash
+supervisorctl reread
+supervisorctl update
+supervisorctl restart tbs-worker:*
+```
+
+- **Install Imagick (recommended):** Imagick gives best speed and quality for server-side resizing.
+
+Debian/Ubuntu example:
+```bash
+apt update && apt install -y php-imagick
+systemctl restart php8.3-fpm
+```
+
+- **Permissions:** Ensure PHP can write to final storage and base dir for images:
+
+```bash
+mkdir -p /var/www/tbscontainermnl/container_pics
+chown -R www-data:www-data /var/www/tbscontainermnl/container_pics
+chmod -R 775 /var/www/tbscontainermnl/container_pics
+```
+
+With workers running, the upload endpoint will accept files quickly, queue processing jobs, and workers will perform fast, batched resizing/optimization.
+
 ---
 
 ## Post-Update Verification
