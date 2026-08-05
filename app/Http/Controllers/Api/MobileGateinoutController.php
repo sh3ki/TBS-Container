@@ -917,6 +917,9 @@ class MobileGateinoutController extends Controller
                 ], 400);
             }
 
+            // Allow long processing time for batch image processing
+            @set_time_limit(0);
+
             if (!$request->hasFile('pictures')) {
                 return response()->json([
                     'success' => false,
@@ -924,13 +927,37 @@ class MobileGateinoutController extends Controller
                 ], 400);
             }
 
-            // Get current date in mm-dd-yyyy format
-            $dateFolder = date('m-d-Y');
+            // Determine date folder and status folder. Allow client to pass them.
+            $dateInput = trim($request->input('date', ''));
+            $dateFolder = $dateInput !== '' ? $dateInput : date('m-d-Y');
             $statusFolder = ($gateStatus === 'out') ? 'out' : 'in';
-            
+
             // Base directory path
             $baseDir = '/var/www/tbscontainermnl/container_pics';
-            $targetDir = $baseDir . '/' . $dateFolder . '/' . $statusFolder;
+
+            // If client provides an upload_path, sanitize and use it. Otherwise build default path including container number.
+            $uploadPathRaw = trim($request->input('upload_path', ''));
+            if ($uploadPathRaw !== '') {
+                // Basic sanitization: disallow traversal and null bytes
+                if (strpos($uploadPathRaw, '..') !== false || strpos($uploadPathRaw, "\0") !== false) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid upload_path provided'
+                    ], 400);
+                }
+
+                $uploadPathSanitized = trim($uploadPathRaw, '/');
+                // If upload_path starts with container_pics/, strip that prefix because $baseDir already points there
+                if (strpos($uploadPathSanitized, 'container_pics/') === 0) {
+                    $relative = substr($uploadPathSanitized, strlen('container_pics/'));
+                } else {
+                    $relative = $uploadPathSanitized;
+                }
+
+                $targetDir = $baseDir . '/' . $relative;
+            } else {
+                $targetDir = $baseDir . '/' . $dateFolder . '/' . $statusFolder . '/' . $containerNo;
+            }
             
             // Create directory if it doesn't exist
             if (!is_dir($targetDir)) {
@@ -952,19 +979,75 @@ class MobileGateinoutController extends Controller
 
             foreach ($pictures as $picture) {
                 if ($picture && $picture->isValid()) {
-                    // File name format: {containerNo}({imageNumber}).jpg
-                    $fileName = $containerNo . '(' . $imageNumber . ').jpg';
-                    $filePath = $targetDir . '/' . $fileName;
-                    
-                    // Move the uploaded file to the target directory
-                    $picture->move($targetDir, $fileName);
-                    
+                    // Prefer the client-provided filename if it matches the expected pattern: {containerNo}(<number>).jpg
+                    $origName = $picture->getClientOriginalName();
+                    $fileName = null;
+
+                    if ($origName) {
+                        $origName = trim($origName);
+                        // Only accept simple filenames without path components
+                        if (strpos($origName, '/') === false && strpos($origName, "\\") === false) {
+                            // Match pattern: CONTAINER(1).jpg (case-insensitive, jpg/jpeg allowed)
+                            if (preg_match('/^' . preg_quote($containerNo, '/') . '\\((\\d+)\\)\\.(jpe?g)$/i', $origName, $m)) {
+                                $fileName = $containerNo . '(' . intval($m[1]) . ').jpg';
+                            }
+                        }
+                    }
+
+                    // Fallback to a sequential filename if original is missing or invalid
+                    if ($fileName === null) {
+                        $fileName = $containerNo . '(' . $imageNumber . ').jpg';
+                    }
+
+                    // Ensure target directory exists (again) before moving
+                    if (!is_dir($targetDir)) {
+                        if (!mkdir($targetDir, 0755, true)) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Failed to create directory structure'
+                            ], 500);
+                        }
+                    }
+
+                    // Avoid overwriting existing files: if exists, append a suffix
+                    $finalName = $fileName;
+                    $counter = 1;
+                    while (file_exists($targetDir . '/' . $finalName)) {
+                        $finalName = pathinfo($fileName, PATHINFO_FILENAME) . '_dup' . $counter . '.' . pathinfo($fileName, PATHINFO_EXTENSION);
+                        $counter++;
+                    }
+
+                    // Move uploaded file to a temporary location and dispatch a queue job to process it.
+                    // This avoids long-running requests and allows parallel workers to optimize images.
+                    $tmpDir = storage_path('app/temp_uploads');
+                    if (!is_dir($tmpDir)) {
+                        @mkdir($tmpDir, 0755, true);
+                    }
+
+                    $tmpName = uniqid('upl_', true) . '_' . $finalName;
+                    $tmpPath = $tmpDir . '/' . $tmpName;
+
+                    // Move to temp location
+                    $picture->move($tmpDir, $tmpName);
+
+                    // Prepare final path (ensure target dir exists)
+                    if (!is_dir($targetDir)) {
+                        @mkdir($targetDir, 0755, true);
+                    }
+                    $finalPath = $targetDir . '/' . $finalName;
+
+                    // Dispatch Laravel job to process and save optimized 640x480 (preserve aspect ratio without cropping)
+                    \App\Jobs\ProcessUploadedImage::dispatch($tmpPath, $finalPath, 640, 480, 72);
+
+                    // Return the expected path immediately (file will appear after job runs)
+                    $relativePath = str_replace($baseDir . '/', '', $targetDir);
                     $uploadedFiles[] = [
-                        'name' => $fileName,
-                        'path' => 'container_pics/' . $dateFolder . '/' . $statusFolder . '/' . $fileName,
-                        'image_number' => $imageNumber
+                        'name' => $finalName,
+                        'path' => 'container_pics/' . ltrim($relativePath, '/') . '/' . $finalName,
+                        'image_number' => $imageNumber,
+                        'queued' => true
                     ];
-                    
+
                     $imageNumber++;
                 }
             }
