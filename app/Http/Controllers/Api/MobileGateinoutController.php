@@ -932,8 +932,8 @@ class MobileGateinoutController extends Controller
             $dateFolder = $dateInput !== '' ? $dateInput : date('m-d-Y');
             $statusFolder = ($gateStatus === 'out') ? 'out' : 'in';
 
-            // Base directory path
-            $baseDir = '/var/www/tbscontainermnl/container_pics';
+            // Base directory path (serveable from web via public/container_pics)
+            $baseDir = '/var/www/tbscontainermnl/public/container_pics';
 
             // If client provides an upload_path, sanitize and use it. Otherwise build default path including container number.
             $uploadPathRaw = trim($request->input('upload_path', ''));
@@ -1133,7 +1133,8 @@ class MobileGateinoutController extends Controller
             $dateFolder = $dateInput !== '' ? $dateInput : date('m-d-Y');
             $statusFolder = ($gateStatus === 'out') ? 'out' : 'in';
 
-            $baseDir = '/var/www/tbscontainermnl/container_pics';
+            // Use public/container_pics so returned paths are accessible at /container_pics/... URL
+            $baseDir = '/var/www/tbscontainermnl/public/container_pics';
 
             if ($uploadPathRaw !== '') {
                 if (strpos($uploadPathRaw, '..') !== false || strpos($uploadPathRaw, "\0") !== false) {
