@@ -1088,6 +1088,27 @@ class MobileGateinoutController extends Controller
                 'files' => $uploadedFiles
             ]);
 
+            // Also write an audit log entry for mobile image uploads
+            try {
+                $username = trim($request->input('username', 'mobile-user'));
+                $user = DB::table('users')->where('username', $username)->first();
+                $userId = $user ? $user->user_id : 0;
+                $auditAction = ($gateStatus === 'out') ? 'GATE_OUT' : 'GATE_IN';
+                $auditDescription = '[MOBILE] ' . strtoupper($auditAction) . ' upload images - uploaded ' . count($uploadedFiles) . ' image(s)';
+
+                DB::table('audit_logs')->insert([
+                    'action' => $auditAction,
+                    'description' => $auditDescription,
+                    'user_id' => $userId,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to write audit log for mobile image upload', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => count($uploadedFiles) . ' picture(s) uploaded successfully',
