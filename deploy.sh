@@ -75,9 +75,9 @@ mkdir -p "$APP_DIR/storage/app/temp_uploads"
 chown -R www-data:www-data "$APP_DIR/storage/app/temp_uploads"
 chmod -R 775 "$APP_DIR/storage/app/temp_uploads"
 
-mkdir -p "/var/www/tbscontainermnl/container_pics"
-chown -R www-data:www-data "/var/www/tbscontainermnl/container_pics"
-chmod -R 775 "/var/www/tbscontainermnl/container_pics"
+mkdir -p "/var/www/tbscontainermnl/public/container_pics"
+chown -R www-data:www-data "/var/www/tbscontainermnl/public/container_pics"
+chmod -R 775 "/var/www/tbscontainermnl/public/container_pics"
 
 # Restart services
 echo "🔄 Restarting services..."
