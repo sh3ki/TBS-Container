@@ -975,7 +975,23 @@ class MobileGateinoutController extends Controller
             }
 
             $uploadedFiles = [];
-            $imageNumber = 1;
+
+            // Determine current highest image index in the target directory so
+            // new uploads continue incrementally and avoid creating _dup files.
+            $lastFoundIndex = 0;
+            if (is_dir($targetDir)) {
+                $files = scandir($targetDir);
+                foreach ($files as $f) {
+                    if (!$f || in_array($f, ['.', '..'])) continue;
+                    if (preg_match('/^' . preg_quote($containerNo, '/') . '\\((\\d+)\\)\\.(jpe?g)$/i', $f, $mm)) {
+                        $idx = intval($mm[1]);
+                        if ($idx > $lastFoundIndex) $lastFoundIndex = $idx;
+                    }
+                }
+            }
+
+            // Start numbering from the last found + 1
+            $imageNumber = $lastFoundIndex + 1;
 
             foreach ($pictures as $picture) {
                 if ($picture && $picture->isValid()) {
@@ -989,7 +1005,13 @@ class MobileGateinoutController extends Controller
                         if (strpos($origName, '/') === false && strpos($origName, "\\") === false) {
                             // Match pattern: CONTAINER(1).jpg (case-insensitive, jpg/jpeg allowed)
                             if (preg_match('/^' . preg_quote($containerNo, '/') . '\\((\\d+)\\)\\.(jpe?g)$/i', $origName, $m)) {
-                                $fileName = $containerNo . '(' . intval($m[1]) . ').jpg';
+                                $candidateIdx = intval($m[1]);
+                                // Only accept client-provided index if it's greater than current last index
+                                if ($candidateIdx > $lastFoundIndex) {
+                                    $fileName = $containerNo . '(' . $candidateIdx . ').jpg';
+                                    // also advance imageNumber to candidate+1 to avoid collisions with following files
+                                    $imageNumber = $candidateIdx + 1;
+                                }
                             }
                         }
                     }
