@@ -22,11 +22,11 @@ class ProcessUploadedImage implements ShouldQueue
      * Create a new job instance.
      * @param string $tmpPath absolute path to uploaded temp file
      * @param string $finalPath absolute path where processed image should be saved
-     * @param int $width desired width (640)
-     * @param int $height desired height (480)
+     * @param int $width desired width (480)
+     * @param int $height desired height (640)
      * @param int $quality jpeg quality
      */
-    public function __construct($tmpPath, $finalPath, $width = 640, $height = 480, $quality = 72)
+    public function __construct($tmpPath, $finalPath, $width = 480, $height = 640, $quality = 72)
     {
         $this->tmpPath = $tmpPath;
         $this->finalPath = $finalPath;
