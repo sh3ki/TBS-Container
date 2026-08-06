@@ -1036,8 +1036,8 @@ class MobileGateinoutController extends Controller
                     }
                     $finalPath = $targetDir . '/' . $finalName;
 
-                    // Dispatch Laravel job to process and save optimized 640x480 (preserve aspect ratio without cropping)
-                    \App\Jobs\ProcessUploadedImage::dispatch($tmpPath, $finalPath, 640, 480, 72);
+                    // Dispatch Laravel job to process and save optimized 480x640 (portrait, preserve aspect ratio without cropping)
+                    \App\Jobs\ProcessUploadedImage::dispatch($tmpPath, $finalPath, 480, 640, 72);
 
                     // Return the expected path immediately (file will appear after job runs)
                     $relativePath = str_replace($baseDir . '/', '', $targetDir);
@@ -1085,6 +1085,105 @@ class MobileGateinoutController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error uploading pictures: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * List container pictures for a given container/date/status
+     * Returns an array of files with name and path (relative to public root, e.g. container_pics/..../file.jpg)
+     */
+    public function getContainerPictures(Request $request)
+    {
+        try {
+            $containerNo = strtoupper(trim($request->input('container_no', '')));
+            $gateStatus = strtolower(trim($request->input('gate_status', 'in')));
+            $dateInput = trim($request->input('date', ''));
+            $uploadPathRaw = trim($request->input('upload_path', ''));
+
+            if (empty($containerNo)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container number is required.'
+                ], 400);
+            }
+
+            $dateFolder = $dateInput !== '' ? $dateInput : date('m-d-Y');
+            $statusFolder = ($gateStatus === 'out') ? 'out' : 'in';
+
+            $baseDir = '/var/www/tbscontainermnl/container_pics';
+
+            if ($uploadPathRaw !== '') {
+                if (strpos($uploadPathRaw, '..') !== false || strpos($uploadPathRaw, "\0") !== false) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid upload_path provided'
+                    ], 400);
+                }
+
+                $uploadPathSanitized = trim($uploadPathRaw, '/');
+                if (strpos($uploadPathSanitized, 'container_pics/') === 0) {
+                    $relative = substr($uploadPathSanitized, strlen('container_pics/'));
+                } else {
+                    $relative = $uploadPathSanitized;
+                }
+
+                $targetDir = $baseDir . '/' . $relative;
+            } else {
+                $targetDir = $baseDir . '/' . $dateFolder . '/' . $statusFolder . '/' . $containerNo;
+            }
+
+            if (!is_dir($targetDir)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+
+            $files = scandir($targetDir);
+            $result = [];
+
+            foreach ($files as $f) {
+                if ($f === '.' || $f === '..') continue;
+                $full = $targetDir . '/' . $f;
+                if (!is_file($full)) continue;
+                // basic filter for images
+                $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+                if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) continue;
+
+                // attempt to extract image number from filename like CONTAINER(3).jpg
+                $imageNumber = 0;
+                if (preg_match('/\((\d+)\)\.(jpe?g|png|gif)$/i', $f, $m)) {
+                    $imageNumber = intval($m[1]);
+                }
+
+                // build relative path for client
+                $relativePath = str_replace($baseDir . '/', '', $targetDir);
+                $result[] = [
+                    'name' => $f,
+                    'path' => 'container_pics/' . ltrim($relativePath, '/') . '/' . $f,
+                    'image_number' => $imageNumber
+                ];
+            }
+
+            // sort by image_number asc then name
+            usort($result, function ($a, $b) {
+                if ($a['image_number'] === $b['image_number']) return strcmp($a['name'], $b['name']);
+                return $a['image_number'] <=> $b['image_number'];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mobile getContainerPictures error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error listing container pictures: ' . $e->getMessage()
             ], 500);
         }
     }
