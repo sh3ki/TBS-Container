@@ -79,6 +79,11 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Bancontainers/Index');
     })->name('bancon.index');
 
+    // Container Images
+    Route::get('/containerimages', function () {
+        return Inertia::render('ContainerImages/Index');
+    })->name('containerimages.index');
+
     // Users
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
