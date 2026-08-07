@@ -2,9 +2,9 @@ import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernStatCard, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
-import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, FileImage, ArrowLeft, Search, Shield, Eye } from 'lucide-react';
+import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Eye, Images } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 interface ExplorerItem extends Record<string, unknown> {
@@ -68,13 +68,7 @@ export default function Index() {
     return currentPath.split('/').filter(Boolean);
   }, [currentPath]);
 
-  const stats = useMemo(() => {
-    const folders = items.filter((item) => item.type === 'directory').length;
-    const files = items.filter((item) => item.type === 'file').length;
-    const images = items.filter((item) => item.type === 'file' && item.is_image).length;
-
-    return { folders, files, images };
-  }, [items]);
+  
 
   const fetchPageAccess = async () => {
     try {
@@ -253,10 +247,8 @@ export default function Index() {
         <div className="flex items-center gap-3">
           {item.type === 'directory' ? (
             <FolderOpen className="h-4 w-4" style={{ color: colors.status.warning }} />
-          ) : item.is_image ? (
-            <FileImage className="h-4 w-4" style={{ color: colors.brand.primary }} />
           ) : (
-            <ImageIcon className="h-4 w-4" style={{ color: colors.text.secondary }} />
+            <ImageIcon className="h-4 w-4" style={{ color: colors.brand.primary }} />
           )}
           <button
             type="button"
@@ -277,10 +269,7 @@ export default function Index() {
       label: 'Type',
       width: '150px',
       render: (item: ExplorerItem) => (
-        <ModernBadge
-          variant={item.type === 'directory' ? 'warning' : item.is_image ? 'info' : 'default'}
-          size="sm"
-        >
+        <ModernBadge variant={item.type === 'directory' ? 'warning' : item.is_image ? 'info' : 'default'}>
           {item.type === 'directory' ? 'Folder' : item.is_image ? 'Image' : 'File'}
         </ModernBadge>
       ),
@@ -340,27 +329,18 @@ export default function Index() {
       <Head title="Container Images" />
 
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: colors.text.primary }}>
-              Container Images
-            </h1>
-            <p className="text-sm mt-1" style={{ color: colors.text.secondary }}>
-              Explore and manage server files from /var/www/tbscontainermnl/container_pics
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl" style={{ backgroundColor: colors.brand.primary }}>
+              <Images className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Container Images</h1>
+              <p className="text-sm mt-1 text-gray-600">Explore and manage server files from /var/www/tbscontainermnl/container_pics</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <ModernBadge variant={pageAccess.can_view ? 'success' : 'error'}>
-              {pageAccess.can_view ? 'Can View' : 'No View Access'}
-            </ModernBadge>
-            <ModernBadge variant={pageAccess.module_edit ? 'info' : 'default'}>
-              {pageAccess.module_edit ? 'Can Edit' : 'No Edit'}
-            </ModernBadge>
-            <ModernBadge variant={pageAccess.module_delete ? 'error' : 'default'}>
-              {pageAccess.module_delete ? 'Can Delete' : 'No Delete'}
-            </ModernBadge>
-          </div>
+          <div />
         </div>
 
         {!pageAccess.can_view ? (
@@ -375,28 +355,7 @@ export default function Index() {
           </ModernCard>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <ModernStatCard
-                title="Folders"
-                value={stats.folders}
-                icon={<FolderOpen className="h-7 w-7" />}
-                iconBgColor={colors.status.warning}
-              />
-              <ModernStatCard
-                title="Files"
-                value={stats.files}
-                icon={<ImageIcon className="h-7 w-7" />}
-                iconBgColor={colors.brand.primary}
-              />
-              <ModernStatCard
-                title="Images"
-                value={stats.images}
-                icon={<FileImage className="h-7 w-7" />}
-                iconBgColor={colors.status.success}
-              />
-            </div>
-
-            <ModernCard
+              <ModernCard
               title="Explorer"
               subtitle="Folder navigation and file management"
               icon={<FolderOpen className="h-5 w-5" />}
