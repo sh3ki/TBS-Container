@@ -12,7 +12,8 @@ class ContainerImagesController extends Controller
 {
     private string $prefix;
 
-    private const BASE_DIRECTORY = '/var/www/tbscontainermnl/container_pics';
+    // Use the public/container_pics path so files are web-accessible like other modules
+    private const BASE_DIRECTORY = '/var/www/tbscontainermnl/public/container_pics';
 
     public function __construct()
     {
@@ -32,18 +33,20 @@ class ContainerImagesController extends Controller
         $relativePath = $this->normalizeRelativePath($request->query('path', ''));
         $fullPath = $this->toFullPath($relativePath);
 
-        if (!File::exists($fullPath)) {
+        // If folder does not exist, return empty list (avoid 404 in UI). This is safer
+        // for environments where the server folder is not present yet.
+        if (!File::exists($fullPath) || !File::isDirectory($fullPath)) {
             return response()->json([
-                'success' => false,
-                'message' => 'Folder not found.'
-            ], 404);
-        }
-
-        if (!File::isDirectory($fullPath)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Requested path is not a folder.'
-            ], 400);
+                'success' => true,
+                'data' => [
+                    'current_path' => $relativePath,
+                    'items' => [],
+                    'module_edit' => $access['module_edit'],
+                    'module_delete' => $access['module_delete'],
+                    'can_view' => $access['can_view'],
+                ],
+                'message' => 'Folder not found',
+            ]);
         }
 
         $directories = collect(File::directories($fullPath))
