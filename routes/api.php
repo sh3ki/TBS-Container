@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\GateController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ContainerImagesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -292,6 +293,16 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::get('/{id}', [BanContainersController::class, 'show']);
         Route::put('/{id}', [BanContainersController::class, 'update']);
         Route::delete('/{id}', [BanContainersController::class, 'destroy']);
+    });
+
+    // Container Images - Explorer-style file and folder management
+    Route::prefix('containerimages')->group(function () {
+        Route::get('/page-record-access', [ContainerImagesController::class, 'getPageRecordAccess']);
+        Route::get('/list', [ContainerImagesController::class, 'list']);
+        Route::get('/file', [ContainerImagesController::class, 'viewFile']);
+        Route::post('/upload', [ContainerImagesController::class, 'upload']);
+        Route::post('/folders', [ContainerImagesController::class, 'createFolder']);
+        Route::post('/delete-item', [ContainerImagesController::class, 'deleteItem']);
     });
 
     // Audit Logs
