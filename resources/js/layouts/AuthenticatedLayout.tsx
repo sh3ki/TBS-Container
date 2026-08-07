@@ -20,6 +20,7 @@ import {
     Mail,
     Menu,
     X,
+    Images,
 } from 'lucide-react';
 import { ModernConfirmDialog } from '@/components/modern/ModernConfirmDialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -54,6 +55,7 @@ const iconMap: Record<string, React.ReactNode> = {
     sizetype: <Layers className="h-5 w-5" />,
     bancon: <Ban className="h-5 w-5" />,
     bancontainers: <Ban className="h-5 w-5" />,
+    containerimages: <Images className="h-5 w-5" />,
 };
 
 export default function Authenticated({ children }: PropsWithChildren) {
@@ -86,7 +88,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
     const categories = [
         {
             name: 'Container Operations',
-            items: ['gateinout', 'inventory', 'booking']
+            items: ['gateinout', 'inventory', 'booking', 'containerimages']
         },
         {
             name: 'Finance & Analytics',
@@ -330,40 +332,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                         );
                                     })}
                                     
-                                    {/* Email Automation - Only in Administration category */}
-                                    {category.name === 'Administration' && (
-                                        <li>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Link
-                                                        href="/dashboard/email-automation"
-                                                        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
-                                                            isEmailAutomationActive
-                                                                ? 'shadow-lg'
-                                                                : 'hover:bg-white/10 hover:text-white'
-                                                        }`}
-                                                        style={{
-                                                            ...(isEmailAutomationActive && { backgroundColor: colors.sidebar.active }),
-                                                            color: isEmailAutomationActive ? colors.sidebar.text : 'rgba(255, 255, 255, 0.8)',
-                                                        }}
-                                                    >
-                                                        <Mail className={`h-5 w-5 flex-shrink-0 ${isEmailAutomationActive ? 'scale-110' : 'group-hover:animate-[wiggle_0.6s_ease-in-out]'} transition-transform`} />
-                                                        <div className={`flex-1 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
-                                                            <div className="text-sm font-semibold">Email Automation</div>
-                                                        </div>
-                                                        {!sidebarCollapsed && isEmailAutomationActive && (
-                                                            <div className="w-1 h-6 rounded-full bg-white"></div>
-                                                        )}
-                                                    </Link>
-                                                </TooltipTrigger>
-                                                {sidebarCollapsed && (
-                                                    <TooltipContent side="right" className="hidden lg:block bg-gray-700 text-white border-gray-700">
-                                                        Email Automation
-                                                    </TooltipContent>
-                                                )}
-                                            </Tooltip>
-                                        </li>
-                                    )}
+                                    {/* Email Automation removed per request */}
                                 </div>
                             ))}
 
