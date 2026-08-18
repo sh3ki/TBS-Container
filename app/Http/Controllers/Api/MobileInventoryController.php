@@ -64,7 +64,12 @@ class MobileInventoryController extends Controller
                     i.class,
                     COALESCE(cs.status, '') as container_status,
                     COALESCE(i.approval_notes, '') as approval_notes,
-                    COALESCE(i.remarks, '') as remarks
+                    COALESCE(i.remarks, '') as remarks,
+                    (
+                        SELECT pi.remarks FROM {$prefix}pre_inventory pi
+                        WHERE pi.container_no = i.container_no AND pi.gate_status = 'IN'
+                        ORDER BY pi.date_added DESC LIMIT 1
+                    ) as gate_in_remarks
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
