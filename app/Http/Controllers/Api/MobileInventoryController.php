@@ -30,9 +30,11 @@ class MobileInventoryController extends Controller
             $search = $request->input('search', '');
             $gateStatus = $request->input('gate_status', 'CURRENTLY');
 
-            // If empty search, return current inventory up to 200 records
-            $prefix = $this->prefix;
 
+            // Use configured DB prefix (align with main controllers)
+            $prefix = DB::getTablePrefix() ?: $this->prefix;
+
+            // Base filter: exclude archived clients
             $where = "c.archived = 0";
 
             if ($gateStatus === 'CURRENTLY') {
@@ -49,19 +51,20 @@ class MobileInventoryController extends Controller
                 $params[] = '%' . $search . '%';
             }
 
+            // Select columns that exist in the main InventoryController::search to avoid unknown column errors
             $sql = "
                 SELECT
+                    CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) as eir_no,
                     i.i_id,
                     MD5(i.i_id) as hashed_id,
                     i.container_no,
                     COALESCE(c.client_name, c.client_code, '-') as client_name,
                     CONCAT(IFNULL(st.size, ''), IFNULL(st.type, '')) as size_type,
                     i.iso_code,
-                    COALESCE(i.class, '') as class,
+                    i.class,
                     COALESCE(cs.status, '') as container_status,
                     COALESCE(i.approval_notes, '') as approval_notes,
-                    COALESCE(i.remarks, '') as remarks,
-                    COALESCE(i.eir_remarks, '') as eir_remarks
+                    COALESCE(i.remarks, '') as remarks
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
