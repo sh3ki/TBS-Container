@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileGateinoutController;
+use App\Http\Controllers\Api\MobileInventoryController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientsController;
 use App\Http\Controllers\Api\InventoryController;
@@ -52,6 +53,10 @@ Route::prefix('mobile')->group(function () {
         Route::post('/process-out', [MobileGateinoutController::class, 'processGateOut']);
         Route::post('/upload-pictures', [MobileGateinoutController::class, 'uploadContainerPictures']);
         Route::get('/container-pictures', [MobileGateinoutController::class, 'getContainerPictures']);
+    });
+    // Mobile Inventory Routes
+    Route::prefix('inventory')->group(function () {
+        Route::get('/search', [MobileInventoryController::class, 'search']);
     });
 });
 
