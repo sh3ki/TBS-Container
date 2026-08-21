@@ -73,7 +73,7 @@ export default function ProcessGateOutModal({
     const [isContainerSelected, setIsContainerSelected] = useState(false);
     const [checkerName, setCheckerName] = useState('');
     
-    const [formData, setFormData] = useState({
+    const initialFormData = {
         container_no: '',
         client_id: 0,
         client_name: '',
@@ -99,7 +99,8 @@ export default function ProcessGateOutModal({
         gate_in_remarks: '', // Readonly remarks from inventory
         remarks: '', // Editable remarks for user input
         save_and_book: 'NO',
-    });
+    } as const;
+    const [formData, setFormData] = useState(() => ({ ...initialFormData }));
     // showError will be provided by parent page to ensure toast uses page-level container
 
     const [bookingOptions, setBookingOptions] = useState<Array<{ book_no: string }>>([]);
@@ -146,7 +147,8 @@ export default function ProcessGateOutModal({
     // Initialize with pre-gate data and fetch container details if exists
     useEffect(() => {
         if (open) {
-            // Always reset search fields first
+            // reset form each time modal opens
+            setFormData({ ...initialFormData });
             setSearchTerm('');
             setShowDropdown(false);
             setCheckerName(currentUserFullName || '');
@@ -155,48 +157,22 @@ export default function ProcessGateOutModal({
             if (record) {
                 const cleanedPlateNo = record.plate_no || '';
                 const cleanedHauler = record.hauler || '';
-                
-                // Always set plate no and hauler
-                setFormData(prev => ({
-                    ...prev,
-                    plate_no: cleanedPlateNo,
-                    hauler: cleanedHauler,
-                    container_no: '',
-                    client_id: 0,
-                    client_name: '',
-                    size_type: 0,
-                    size_type_display: '',
-                    iso_code: '',
-                    approval_remarks: '',
-                    gate_in_remarks: '',
-                    status: defaultStatusId,
-                    load: defaultLoadId,
-                }));
+                setFormData(prev => ({ ...initialFormData, plate_no: cleanedPlateNo, hauler: cleanedHauler, status: defaultStatusId, load: defaultLoadId }));
 
-                // Only fetch and populate if container_no already exists in record
                 if (record.container_no && record.container_no.trim() !== '') {
                     setSearchTerm(record.container_no);
                     fetchContainerDetailsOnInit(record.container_no);
                 }
-            } else {
-                // No record provided - reset all fields
-                setFormData(prev => ({
-                    ...prev,
-                    plate_no: '',
-                    hauler: '',
-                    container_no: '',
-                    client_id: 0,
-                    client_name: '',
-                    size_type: 0,
-                    size_type_display: '',
-                    iso_code: '',
-                    approval_remarks: '',
-                    gate_in_remarks: '',
-                    status: defaultStatusId,
-                    load: defaultLoadId,
-                }));
             }
+        } else {
+            // clear on close
+            setFormData({ ...initialFormData });
+            setCheckerName(currentUserFullName || '');
+            setSearchTerm('');
+            setShowDropdown(false);
+            setIsContainerSelected(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, record, defaultStatusId, defaultLoadId]);
 
     // Fetch container details when container already exists in pre_inventory
