@@ -69,7 +69,18 @@ class MobileInventoryController extends Controller
                         SELECT pi.remarks FROM {$prefix}pre_inventory pi
                         WHERE pi.container_no = i.container_no AND pi.gate_status = 'IN'
                         ORDER BY pi.date_added DESC LIMIT 1
-                    ) as gate_in_remarks
+                    ) as gate_in_remarks,
+                    (
+                        SELECT hc.notes FROM {$prefix}hold_containers hc
+                        WHERE hc.container_no = i.container_no
+                        ORDER BY hc.h_id DESC LIMIT 1
+                    ) as hold_notes,
+                    (
+                        SELECT hc.date_added FROM {$prefix}hold_containers hc
+                        WHERE hc.container_no = i.container_no
+                        ORDER BY hc.h_id DESC LIMIT 1
+                    ) as hold_date,
+                    CASE WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers hc WHERE hc.container_no = i.container_no) THEN 1 ELSE 0 END as is_hold
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
