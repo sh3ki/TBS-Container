@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
@@ -68,7 +68,9 @@ export default function Index() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [tempSelectedClient, setTempSelectedClient] = useState<string>('all');
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [currentPageIn, setCurrentPageIn] = useState(1);
   const [currentPageOut, setCurrentPageOut] = useState(1);
   const pageSize = 15;
@@ -89,7 +91,6 @@ export default function Index() {
     container_no: '',
     client_id: '',
   });
-
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
     hauler: '',
@@ -110,73 +111,67 @@ export default function Index() {
     hauler: '',
   });
 
-  const [pageAccess, setPageAccess] = useState({
+  const [selectedProcessRecord, setSelectedProcessRecord] = useState<PreInventoryRecord | null>(null);
+
+  const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
+  const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
+
+  const [pageAccess, setPageAccess] = useState<{ can_view: boolean; module_edit: boolean; module_delete: boolean }>({
+    can_view: false,
     module_edit: false,
     module_delete: false,
   });
 
-  // Dropdown options for Process modals
-  const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
-  const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
-  const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
-  const [selectedProcessRecord, setSelectedProcessRecord] = useState<PreInventoryRecord | null>(null);
-
-  useEffect(() => {
-    fetchData();
-    fetchDropdownOptions();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preInventoryList, searchTerm, statusFilter]);
-
-  useEffect(() => {
-    fetchDropdownOptions();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const startTime = performance.now();
+  const fetchPageAccess = async () => {
     try {
-      // Fetch all data in parallel for better performance - OPTIMIZED LIKE CLIENTS PAGE
-      const [recordsRes, clientsRes, accessRes] = await Promise.all([
-        axios.post('/api/gateinout/list', { search: '' }),
-        axios.get('/api/gateinout/clients'),
-        axios.get('/api/gateinout/page-record-access'),
-      ]);
-
-      if (recordsRes.data.success) {
-        setPreInventoryList(recordsRes.data.prelist || []);
-        
-        // Log performance metrics
-        if (recordsRes.data.performance) {
-          console.log('🚀 Gate In/Out Performance:', {
-            'API Query Time': `${recordsRes.data.performance.query_time_ms}ms`,
-            'API Total Time': `${recordsRes.data.performance.total_time_ms}ms`,
-            'Records Fetched': recordsRes.data.performance.records_count,
-            'Total Frontend Time': `${Math.round(performance.now() - startTime)}ms`
-          });
-        }
-      }
-
-      if (clientsRes.data.success) {
-        setClients(clientsRes.data.data || []);
-      }
-
-      if (accessRes.data.success) {
+      const resp = await axios.get('/api/gateinout/page-record-access');
+      if (resp.data.success) {
         setPageAccess({
-          module_edit: accessRes.data.module_edit || false,
-          module_delete: accessRes.data.module_delete || false,
+          can_view: Boolean(resp.data.can_view),
+          module_edit: Boolean(resp.data.module_edit),
+          module_delete: Boolean(resp.data.module_delete),
         });
       }
     } catch {
-      error('Failed to load data');
+      console.warn('Failed to load page access for gateinout');
+    }
+  };
+
+  useEffect(() => {
+    applyFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preInventoryList, searchTerm, selectedClient]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [listRes, clientsRes] = await Promise.all([
+        axios.post('/api/gateinout/list', {}),
+        axios.get('/api/gateinout/clients'),
+      ]);
+
+      if (listRes.data.success) {
+        const records = listRes.data.data || listRes.data.prelist || [];
+        setPreInventoryList(records || []);
+      }
+      if (clientsRes.data.success) {
+        setClients(clientsRes.data.data || clientsRes.data.clients || []);
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      error(e?.response?.data?.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchPageAccess();
+    fetchData();
+    fetchDropdownOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchDropdownOptions = async () => {
     try {
@@ -216,8 +211,10 @@ export default function Index() {
       );
     }
 
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((record) => record.status.toLowerCase() === statusFilter);
+    // status filter removed — only filtering by search term and client
+
+    if (selectedClient && selectedClient !== 'all') {
+      filtered = filtered.filter((record) => String(record.client_id ?? '') === selectedClient);
     }
 
     // Separate into IN and OUT records
@@ -547,8 +544,8 @@ export default function Index() {
             subtitle="Find records quickly"
             icon={<Search className="w-5 h-5" />}
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-3">
                 <Label className="text-sm font-semibold mb-2 text-gray-900">
                   Search Records
                 </Label>
@@ -566,27 +563,33 @@ export default function Index() {
                   />
                 </div>
               </div>
-              <div>
+              <div className="md:col-span-1">
                 <Label className="text-sm font-semibold mb-2 text-gray-900">
-                  Status Filter
+                  Filter Options
                 </Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="processed">Processed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempSelectedClient(selectedClient);
+                    setShowFiltersModal(true);
+                  }}
+                  className="flex items-center gap-2 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                >
+                  <Filter className="w-4 h-4 text-gray-600" />
+                  <span>Filters</span>
+                  {selectedClient !== 'all' && (
+                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                      1
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-200">
               <p className="text-sm text-gray-600">
                 <span className="font-semibold text-gray-900">{filteredInRecords.length + filteredOutRecords.length}</span>{' '}
                 records found
-                {searchTerm || statusFilter !== 'all' ? (
+                {searchTerm || selectedClient !== 'all' ? (
                   <span> (filtered from {preInventoryList.length} total)</span>
                 ) : null}
               </p>
@@ -904,6 +907,60 @@ export default function Index() {
       </div>
 
       {/* Add Pre In Modal */}
+      {/* Filters Modal */}
+      <Dialog open={showFiltersModal} onOpenChange={setShowFiltersModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+              Filters
+            </DialogTitle>
+            <DialogDescription>Filter records by client and status</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-4 py-4">
+            <div>
+              <Label className="text-gray-900">Client</Label>
+              <div className="mt-2">
+                <Select value={tempSelectedClient} onValueChange={(val) => setTempSelectedClient(val)}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client.c_id} value={client.c_id.toString()}>
+                        {client.client_code} - {client.client_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Status filter removed */}
+          </div>
+          <DialogFooter className="gap-2">
+            <ModernButton
+              type="button"
+              variant="toggle"
+              onClick={() => {
+                setTempSelectedClient('all');
+              }}
+            >
+              Reset
+            </ModernButton>
+            <ModernButton
+              type="button"
+              variant="add"
+              onClick={() => {
+                setSelectedClient(tempSelectedClient);
+                setShowFiltersModal(false);
+              }}
+            >
+              Apply Filters
+            </ModernButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={showAddPreInModal} onOpenChange={setShowAddPreInModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1150,6 +1207,7 @@ export default function Index() {
           success('Gate IN processed successfully');
           fetchData();
         }}
+        showError={error}
       />
 
       {/* Process Gate OUT Modal */}
@@ -1164,6 +1222,7 @@ export default function Index() {
           success('Gate OUT processed successfully');
           fetchData();
         }}
+        showError={error}
       />
 
       {/* Confirmation Modals */}
