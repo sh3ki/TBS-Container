@@ -40,7 +40,7 @@ export default function Index() {
     const [dateTo, setDateTo] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15;
+    const [itemsPerPage, setItemsPerPage] = useState<number>(15);
 
     const actions = [
         'CREATE',
@@ -409,7 +409,9 @@ export default function Index() {
                         totalPages,
                         total: filteredLogs.length,
                         perPage: itemsPerPage,
-                        onPageChange: setCurrentPage
+                        onPageChange: setCurrentPage,
+                        onPerPageChange: (per: number) => { setItemsPerPage(per); setCurrentPage(1); },
+                        rowsOptions: [15, 20, 50, 100],
                     }}
                 />
             </div>
