@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { usePage } from '@inertiajs/react';
 import {
     Dialog,
     DialogContent,
@@ -37,6 +38,7 @@ interface ProcessGateOutModalProps {
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
     loadOptions: Array<{ l_id: number; type: string }>;
     onSuccess: () => void;
+    showError?: (message: string, title?: string) => void;
 }
 
 interface ContainerOption {
@@ -62,6 +64,7 @@ export default function ProcessGateOutModal({
     sizeTypeOptions,
     loadOptions,
     onSuccess,
+    showError,
 }: ProcessGateOutModalProps) {
     const [showConfirm, setShowConfirm] = useState(false);
     const [containerOptions, setContainerOptions] = useState<ContainerOption[]>([]);
@@ -97,6 +100,7 @@ export default function ProcessGateOutModal({
         remarks: '', // Editable remarks for user input
         save_and_book: 'NO',
     });
+    // showError will be provided by parent page to ensure toast uses page-level container
 
     const [bookingOptions, setBookingOptions] = useState<Array<{ book_no: string }>>([]);
     const [showBookingDropdown, setShowBookingDropdown] = useState(false);
@@ -128,6 +132,10 @@ export default function ProcessGateOutModal({
         }
     }, [loadOptions]);
 
+    const page = usePage();
+    const auth = (page.props as Record<string, any>).auth as { user?: { full_name?: string } };
+    const currentUserFullName = auth?.user?.full_name || '';
+
     // Fetch available containers on mount and when search term changes
     useEffect(() => {
         if (open && searchTerm.length >= 1) {
@@ -141,7 +149,7 @@ export default function ProcessGateOutModal({
             // Always reset search fields first
             setSearchTerm('');
             setShowDropdown(false);
-            setCheckerName('');
+            setCheckerName(currentUserFullName || '');
             setIsContainerSelected(false);
 
             if (record) {
@@ -233,14 +241,14 @@ export default function ProcessGateOutModal({
                         if (checkerResponse.data.success) {
                             setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
                         } else {
-                            setCheckerName('');
+                            setCheckerName(currentUserFullName || '');
                         }
                     } catch (checkerError) {
                         console.error('Failed to fetch checker name:', checkerError);
                         setCheckerName('');
                     }
                 } else {
-                    setCheckerName('');
+                    setCheckerName(currentUserFullName || '');
                 }
                 
                 setIsContainerSelected(true);
@@ -248,7 +256,7 @@ export default function ProcessGateOutModal({
             }
         } catch (error) {
             console.error('Failed to fetch container details:', error);
-            setCheckerName('');
+            setCheckerName(currentUserFullName || '');
         }
     };
 
@@ -342,14 +350,14 @@ export default function ProcessGateOutModal({
                                 if (checkerResponse.data.success) {
                                     setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
                                 } else {
-                                    setCheckerName('');
+                                    setCheckerName(currentUserFullName || '');
                                 }
                             } catch (checkerError) {
                                 console.error('Failed to fetch checker name:', checkerError);
-                                setCheckerName('');
+                                setCheckerName(currentUserFullName || '');
                             }
                         } else {
-                            setCheckerName('');
+                            setCheckerName(currentUserFullName || '');
                         }
                     }
                 } catch (inventoryError) {
@@ -382,7 +390,7 @@ export default function ProcessGateOutModal({
                         remarks: '',
                         save_and_book: 'NO',
                     });
-                    setCheckerName('');
+                    setCheckerName(currentUserFullName || '');
                 }
                 
                 setShowDropdown(false);
@@ -392,9 +400,9 @@ export default function ProcessGateOutModal({
         } catch (error: unknown) {
             const err = error as { response?: { data?: { message?: string; hold_notes?: string } } };
             if (err.response?.data?.message) {
-                alert(err.response.data.message);
+                (showError ? showError(err.response.data.message) : alert(err.response.data.message));
                 if (err.response.data.hold_notes) {
-                    alert(`HOLD NOTES: ${err.response.data.hold_notes}`);
+                    (showError ? showError(`HOLD NOTES: ${err.response.data.hold_notes}`) : alert(`HOLD NOTES: ${err.response.data.hold_notes}`));
                 }
             }
         }
@@ -424,7 +432,7 @@ export default function ProcessGateOutModal({
             }
         } catch (error) {
             console.error('Failed to fetch bookings:', error);
-            alert('Error fetching bookings: ' + (error as any).response?.data?.message || 'Unknown error');
+            (showError ? showError('Error fetching bookings: ' + (error as any).response?.data?.message || 'Unknown error') : alert('Error fetching bookings: ' + (error as any).response?.data?.message || 'Unknown error'));
         }
     };
 
@@ -446,85 +454,89 @@ export default function ProcessGateOutModal({
                 setShowBookingDropdown(false);
                 setBookingSearchTerm(bookingNo);
             } else {
-                alert(response.data.message || 'Booking not found or client mismatch');
+                (showError ? showError(response.data.message || 'Booking not found or client mismatch') : alert(response.data.message || 'Booking not found or client mismatch'));
             }
         } catch (error: any) {
-            alert(error.response?.data?.message || 'Failed to get shipper');
+            (showError ? showError(error.response?.data?.message || 'Failed to get shipper') : alert(error.response?.data?.message || 'Failed to get shipper'));
         }
     };
 
     const handleConfirm = async () => {
         // Validation
         if (!formData.container_no || formData.container_no.trim() === '') {
-            alert('Please enter Container Number');
+            (showError ? showError('Please enter Container Number') : alert('Please enter Container Number'));
             return;
         }
         if (formData.container_no.length !== 11) {
-            alert('Container Number must be exactly 11 characters');
+            (showError ? showError('Container Number must be exactly 11 characters') : alert('Container Number must be exactly 11 characters'));
             return;
         }
         if (!formData.status || formData.status === '') {
-            alert('Please select Status');
+            (showError ? showError('Please select Status') : alert('Please select Status'));
             return;
         }
         if (!formData.vessel || formData.vessel.trim() === '') {
-            alert('Please enter Vessel');
+            (showError ? showError('Please enter Vessel') : alert('Please enter Vessel'));
             return;
         }
         if (!formData.voyage || formData.voyage.trim() === '') {
-            alert('Please enter Voyage');
+            (showError ? showError('Please enter Voyage') : alert('Please enter Voyage'));
             return;
         }
         if (!formData.hauler_driver || formData.hauler_driver.trim() === '') {
-            alert('Please enter Hauler Driver');
+            (showError ? showError('Please enter Hauler Driver') : alert('Please enter Hauler Driver'));
             return;
         }
         if (!formData.license_no || formData.license_no.trim() === '') {
-            alert('Please enter License Number');
+            (showError ? showError('Please enter License Number') : alert('Please enter License Number'));
             return;
         }
         if (!checkerName || checkerName.trim() === '') {
-            alert('Checker information not available');
+            (showError ? showError('Checker information not available') : alert('Checker information not available'));
             return;
         }
         if (!formData.location || formData.location.trim() === '') {
-            alert('Please enter Location');
+            (showError ? showError('Please enter Location') : alert('Please enter Location'));
             return;
         }
         if (!formData.load || formData.load === '') {
-            alert('Please select Load type');
+            (showError ? showError('Please select Load type') : alert('Please select Load type'));
             return;
         }
         if (!formData.chasis || formData.chasis.trim() === '') {
-            alert('Please enter Chasis');
+            (showError ? showError('Please enter Chasis') : alert('Please enter Chasis'));
             return;
         }
         if (!formData.contact_no || formData.contact_no.trim() === '') {
-            alert('Please enter Contact No.');
+            (showError ? showError('Please enter Contact No.') : alert('Please enter Contact No.'));
             return;
         }
         if (!formData.booking || formData.booking.trim() === '') {
-            alert('Please enter Booking number');
+            (showError ? showError('Please enter Booking number') : alert('Please enter Booking number'));
             return;
         }
         if (!formData.shipper || formData.shipper.trim() === '') {
-            alert('Please select a booking first');
+            (showError ? showError('Please select a booking first') : alert('Please select a booking first'));
             return;
         }
         if (!formData.seal_no || formData.seal_no.trim() === '') {
-            alert('Please enter Seal No.');
+            (showError ? showError('Please enter Seal No.') : alert('Please enter Seal No.'));
             return;
         }
         if (!formData.remarks || formData.remarks.trim() === '') {
-            alert('Please enter Remarks');
+            (showError ? showError('Please enter Remarks') : alert('Please enter Remarks'));
             return;
         }
         if (!formData.save_and_book || formData.save_and_book === '') {
-            alert('Please select Save and Book option');
+            (showError ? showError('Please select Save and Book option') : alert('Please select Save and Book option'));
             return;
         }
 
         try {
+            // Determine checker: prefer checkerName (from inventory/mobile), fallback to current user's full name
+            const checkerToSave = checkerName && checkerName.trim() ? checkerName : currentUserFullName;
+            if (!checkerName || !checkerName.trim()) setCheckerName(checkerToSave);
+
             const response = await axios.post('/api/gateinout/process-out', {
                 p_id: record?.p_id,
                 container_no: formData.container_no,
@@ -538,7 +550,7 @@ export default function ProcessGateOutModal({
                 hauler: formData.hauler,
                 hauler_driver: formData.hauler_driver,
                 license_no: formData.license_no,
-                checker: formData.checker,
+                checker: checkerToSave,
                 location: formData.location,
                 load_type: parseInt(formData.load),
                 chasis: formData.chasis,
@@ -570,7 +582,7 @@ export default function ProcessGateOutModal({
                 onClose();
             }
         } catch (error: any) {
-            alert(error.response?.data?.message || 'Failed to process Gate OUT');
+            (showError ? showError(error.response?.data?.message || 'Failed to process Gate OUT') : alert(error.response?.data?.message || 'Failed to process Gate OUT'));
         }
     };
 
