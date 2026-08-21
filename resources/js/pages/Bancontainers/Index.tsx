@@ -42,7 +42,7 @@ export default function Index() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(15);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
@@ -278,10 +278,10 @@ export default function Index() {
 
   // Pagination
   const paginatedBans = filteredBans.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
-  const totalPages = Math.ceil(filteredBans.length / pageSize);
+  const totalPages = Math.ceil(filteredBans.length / (itemsPerPage || 1));
 
   return (
     <AuthenticatedLayout>
@@ -394,16 +394,16 @@ export default function Index() {
                 label: 'Actions',
                 render: (ban: BanContainer) => (
                   <div className="flex items-center justify-end gap-2">
-                    <ModernButton variant="primary" size="sm" onClick={() => handleViewBan(ban)}>
+                    <ModernButton variant="primary" size="sm" onClick={() => handleViewBan(ban)} title="View Details">
                       <Eye className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="edit" size="sm" onClick={() => handleEditBan(ban)}>
+                    <ModernButton variant="edit" size="sm" onClick={() => handleEditBan(ban)} title="Edit Ban">
                       <Pencil className="w-3.5 h-3.5" />
                     </ModernButton>
                     <ModernButton variant="delete" size="sm" onClick={() => {
                       setBanToDelete(ban);
                       setConfirmDeleteBan(true);
-                    }}>
+                    }} title="Remove Ban">
                       <Trash2 className="w-3.5 h-3.5" />
                     </ModernButton>
                   </div>
@@ -416,10 +416,13 @@ export default function Index() {
             pagination={{
               currentPage,
               totalPages,
-              perPage: pageSize,
+              perPage: itemsPerPage,
               total: filteredBans.length,
               onPageChange: setCurrentPage,
+              onPerPageChange: (per: number) => { setItemsPerPage(per); setCurrentPage(1); },
+              rowsOptions: [15, 20, 50, 100],
             }}
+            onRowClick={handleViewBan}
           />
         </div>
       </div>
