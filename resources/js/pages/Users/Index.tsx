@@ -48,7 +48,7 @@ export default function Index({ auth }: Record<string, unknown>) {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(15);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -384,8 +384,8 @@ export default function Index({ auth }: Record<string, unknown>) {
   };
 
   const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   return (
@@ -524,22 +524,22 @@ export default function Index({ auth }: Record<string, unknown>) {
                 label: 'Actions',
                 render: (user: UserData) => (
                   <div className="flex items-center justify-end gap-2">
-                    <ModernButton variant="primary" size="sm" onClick={() => handleViewUser(user)}>
+                    <ModernButton variant="primary" size="sm" onClick={() => handleViewUser(user)} title="View Details">
                       <Eye className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="edit" size="sm" onClick={() => handleEditUser(user)}>
+                    <ModernButton variant="edit" size="sm" onClick={() => handleEditUser(user)} title="Edit User">
                       <Pencil className="w-3.5 h-3.5" />
                     </ModernButton>
                     <ModernButton variant="toggle" size="sm" onClick={() => {
                       setUserToToggle(user);
                       setConfirmToggleStatus(true);
-                    }}>
+                    }} title="Toggle Status">
                       <Power className="w-3.5 h-3.5" />
                     </ModernButton>
                     <ModernButton variant="delete" size="sm" onClick={() => {
                       setUserToDelete(user);
                       setConfirmDeleteUser(true);
-                    }}>
+                    }} title="Delete User">
                       <Trash2 className="w-3.5 h-3.5" />
                     </ModernButton>
                   </div>
@@ -551,11 +551,14 @@ export default function Index({ auth }: Record<string, unknown>) {
             emptyMessage="No users found. Click 'Add New User' to get started."
             pagination={{
               currentPage,
-              totalPages: Math.ceil(total / pageSize),
+              totalPages: Math.ceil(total / (itemsPerPage || 1)),
               total,
-              perPage: pageSize,
+              perPage: itemsPerPage,
               onPageChange: setCurrentPage,
+              onPerPageChange: (per: number) => { setItemsPerPage(per); setCurrentPage(1); },
+              rowsOptions: [15, 20, 50, 100],
             }}
+            onRowClick={handleViewUser}
           />
         </div>
       </div>
