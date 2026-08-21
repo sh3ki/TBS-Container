@@ -157,11 +157,13 @@ export default function ProcessGateOutModal({
             if (record) {
                 const cleanedPlateNo = record.plate_no || '';
                 const cleanedHauler = record.hauler || '';
-                setFormData(prev => ({ ...initialFormData, plate_no: cleanedPlateNo, hauler: cleanedHauler, status: defaultStatusId, load: defaultLoadId }));
+                setFormData(prev => ({ ...initialFormData, plate_no: cleanedPlateNo, hauler: cleanedHauler, status: '', load: defaultLoadId }));
 
+                // If record already has a container_no (selected by mobile/pre-inventory),
+                // strictly load data from pre-inventory DB and use its cnt_status.
                 if (record.container_no && record.container_no.trim() !== '') {
                     setSearchTerm(record.container_no);
-                    fetchContainerDetailsOnInit(record.container_no);
+                    fetchPreInventoryAndPopulate(record.container_no);
                 }
             }
         } else {
@@ -204,7 +206,8 @@ export default function ProcessGateOutModal({
                     approval_remarks: data.approval_notes || '',
                     gate_in_remarks: data.remarks || '',
                     remarks: data.pre_inventory_remarks || '',
-                    status: defaultStatusId,
+                    // Prefer mobile API cnt_status; if missing, try pre-inventory fallback below
+                    status: data.cnt_status ? String(data.cnt_status) : defaultStatusId,
                     load: defaultLoadId,
                 }));
                 
@@ -227,13 +230,165 @@ export default function ProcessGateOutModal({
                     setCheckerName(currentUserFullName || '');
                 }
                 
+                // If mobile API did not include cnt_status, attempt pre-inventory fallback
+                if (!data.cnt_status) {
+                    const pre = await fetchPreInventoryFallback(containerNo);
+                    if (pre && pre.cnt_status) {
+                        setFormData(prev => ({ ...prev, status: String(pre.cnt_status) }));
+                    } else {
+                        // If pre-inventory also lacks cnt_status, fetch from inventory table
+                        const invStatus = await fetchInventoryStatus(containerNo);
+                        if (invStatus) setFormData(prev => ({ ...prev, status: String(invStatus) }));
+                        else setFormData(prev => ({ ...prev, status: '' }));
+                    }
+                }
+
                 setIsContainerSelected(true);
                 setShowDropdown(false);
             }
         } catch (error) {
             console.error('Failed to fetch container details:', error);
+            // On error fetching mobile API, try pre-inventory fallback to populate status/checker
+            const pre = await fetchPreInventoryFallback(containerNo);
+            if (pre) {
+                const sizeTypeObj = sizeTypeOptions.find(st => st.s_id === pre.sizetype_id);
+                const sizeTypeDisplay = sizeTypeObj ? `${sizeTypeObj.size}${sizeTypeObj.type}` : '';
+                setFormData(prev => ({
+                    ...prev,
+                    container_no: pre.container_no || containerNo,
+                    client_id: pre.client_id || 0,
+                    client_name: pre.client_name || '',
+                    size_type: pre.sizetype_id || 0,
+                    size_type_display: sizeTypeDisplay,
+                    iso_code: pre.iso_code || '',
+                    plate_no: record?.plate_no || pre.plate_no || '',
+                    hauler: record?.hauler || pre.hauler || '',
+                    approval_remarks: pre.approval_notes || '',
+                    gate_in_remarks: pre.remarks || '',
+                    remarks: pre.pre_inventory_remarks || '',
+                    status: pre.cnt_status ? String(pre.cnt_status) : defaultStatusId,
+                    load: defaultLoadId,
+                }));
+
+                if (pre.checker_name) {
+                    setCheckerName(pre.checker_name);
+                } else if (pre.checker_id) {
+                    try {
+                        const checkerResponse = await axios.get(`/api/users/${pre.checker_id}`);
+                        if (checkerResponse.data.success) {
+                            setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
+                        } else {
+                            setCheckerName(currentUserFullName || '');
+                        }
+                    } catch (checkerError) {
+                        console.error('Failed to fetch checker name:', checkerError);
+                        setCheckerName(currentUserFullName || '');
+                    }
+                } else {
+                    setCheckerName(currentUserFullName || '');
+                }
+                setIsContainerSelected(true);
+            } else {
+                setCheckerName(currentUserFullName || '');
+            }
+        }
+    };
+
+    // Strictly fetch pre-inventory (DB) and populate form; do NOT fallback to AVL.
+    const fetchPreInventoryAndPopulate = async (containerNo: string) => {
+        try {
+            const res = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
+            if (res.data.success && res.data.data) {
+                const pre = res.data.data;
+                const sizeTypeObj = sizeTypeOptions.find(st => st.s_id === pre.sizetype_id);
+                const sizeTypeDisplay = sizeTypeObj ? `${sizeTypeObj.size}${sizeTypeObj.type}` : '';
+
+                // If pre-inventory exists but lacks cnt_status, try inventory table for status
+                let resolvedStatus = pre.cnt_status ? String(pre.cnt_status) : '';
+                if (!resolvedStatus) {
+                    const invStatus = await fetchInventoryStatus(containerNo);
+                    if (invStatus) resolvedStatus = String(invStatus);
+                }
+
+                setFormData(prev => ({
+                    ...prev,
+                    container_no: pre.container_no || containerNo,
+                    client_id: pre.client_id || 0,
+                    client_name: pre.client_name || '',
+                    size_type: pre.sizetype_id || 0,
+                    size_type_display: sizeTypeDisplay,
+                    iso_code: pre.iso_code || '',
+                    plate_no: record?.plate_no || pre.plate_no || '',
+                    hauler: record?.hauler || pre.hauler || '',
+                    approval_remarks: pre.approval_notes || '',
+                    gate_in_remarks: pre.remarks || '',
+                    remarks: pre.pre_inventory_remarks || '',
+                    // Use resolved status (pre-inventory cnt_status or inventory.table container_status)
+                    status: resolvedStatus,
+                    load: defaultLoadId,
+                }));
+
+                if (pre.checker_name) {
+                    setCheckerName(pre.checker_name);
+                } else if (pre.checker_id) {
+                    try {
+                        const checkerResponse = await axios.get(`/api/users/${pre.checker_id}`);
+                        if (checkerResponse.data.success) {
+                            setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
+                        } else {
+                            setCheckerName(currentUserFullName || '');
+                        }
+                    } catch (checkerError) {
+                        console.error('Failed to fetch checker name:', checkerError);
+                        setCheckerName(currentUserFullName || '');
+                    }
+                } else {
+                    setCheckerName(currentUserFullName || '');
+                }
+
+                setIsContainerSelected(true);
+                setShowDropdown(false);
+            } else {
+                // No pre-inventory record found; keep status empty and do not fallback to AVL
+                setFormData(prev => ({ ...prev, status: '' }));
+                setCheckerName(currentUserFullName || '');
+            }
+        } catch (err) {
+            console.error('Failed to fetch pre-inventory for init:', err);
+            setFormData(prev => ({ ...prev, status: '' }));
             setCheckerName(currentUserFullName || '');
         }
+    };
+
+    // Helper: fetch pre-inventory details (from DB) as fallback when mobile API has no data
+    const fetchPreInventoryFallback = async (containerNo: string) => {
+        try {
+            const preRes = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
+            if (preRes.data.success && preRes.data.data) {
+                return preRes.data.data;
+            }
+        } catch (err) {
+            console.error('Failed to fetch pre-inventory fallback:', err);
+        }
+        return null;
+    };
+
+    // Helper: fetch inventory record (from inventory table) to get container_status id
+    const fetchInventoryStatus = async (containerNo: string) => {
+        // Use POST /api/inventory/search by container number to get authoritative container_status
+        try {
+            const payload = { container_no: containerNo, gate_status: 'CURRENTLY' };
+            const searchRes = await axios.post('/api/inventory/search', payload);
+            if (searchRes.data.success && Array.isArray(searchRes.data.data) && searchRes.data.data.length > 0) {
+                const rec = searchRes.data.data[0];
+                if (rec.container_status_id) return rec.container_status_id;
+                if (rec.container_status) return rec.container_status;
+            }
+        } catch (err) {
+            console.error('Failed to fetch inventory status via search:', err);
+        }
+
+        return null;
     };
 
 
@@ -273,7 +428,9 @@ export default function ProcessGateOutModal({
             if (response.data.success) {
                 const data = response.data.data;
                 
-                // Fetch additional details from inventory including approval_notes and remarks
+                // Prefer pre_inventory.cnt_status (if exists) as authoritative for status
+                // Still fetch inventory/mobile details for approval remarks, gate_in_remarks, checker name, etc.
+                let inventoryData: any = null;
                 try {
                     const inventoryResponse = await axios.get('/api/mobile/gateinout/container-details', {
                         params: {
@@ -281,92 +438,89 @@ export default function ProcessGateOutModal({
                             gate_status: 'OUT',
                         }
                     });
-
                     if (inventoryResponse.data.success) {
-                        const inventoryData = inventoryResponse.data.data;
-                        // Look up size_type display from sizeTypeOptions using sizetype_id
-                        const sizeTypeObj = sizeTypeOptions.find(st => st.s_id === inventoryData.sizetype_id);
-                        const sizeTypeDisplay = sizeTypeObj ? `${sizeTypeObj.size}${sizeTypeObj.type}` : '';
-                        
-                        setFormData({
-                            container_no: data.container_no,
-                            client_id: data.client_id,
-                            client_name: data.client_name,
-                            size_type: inventoryData.sizetype_id,
-                            size_type_display: sizeTypeDisplay,
-                            iso_code: data.iso_code || '',
-                            plate_no: record?.plate_no || data.plate_no || '',
-                            hauler: record?.hauler || data.hauler || '',
-                            shipper: '', // Will be filled from booking selection
-                            // All editable fields empty - user must fill them (old system behavior)
-                            status: defaultStatusId, // Default to AVL status
-                            vessel: '',
-                            voyage: '',
-                            hauler_driver: '',
-                            license_no: '',
-                            checker: '',
-                            location: '',
-                            load: defaultLoadId, // Load defaults to 'Empty' l_id
-                            chasis: '',
-                            contact_no: '',
-                            booking: '',
-                            seal_no: '',
-                            approval_remarks: inventoryData.approval_notes || '', // From inventory
-                            gate_in_remarks: inventoryData.remarks || '', // From inventory
-                            remarks: inventoryData.pre_inventory_remarks || '', // From pre_inventory
-                            save_and_book: 'NO',
-                        });
-                        
-                        // Set checker name if available from API
-                        if (inventoryData.checker_name) {
-                            setCheckerName(inventoryData.checker_name);
-                        } else if (inventoryData.checker_id) {
-                            try {
-                                const checkerResponse = await axios.get(`/api/users/${inventoryData.checker_id}`);
-                                if (checkerResponse.data.success) {
-                                    setCheckerName(checkerResponse.data.data.full_name || 'Unknown');
-                                } else {
-                                    setCheckerName(currentUserFullName || '');
-                                }
-                            } catch (checkerError) {
-                                console.error('Failed to fetch checker name:', checkerError);
-                                setCheckerName(currentUserFullName || '');
-                            }
-                        } else {
-                            setCheckerName(currentUserFullName || '');
-                        }
+                        inventoryData = inventoryResponse.data.data;
                     }
                 } catch (inventoryError) {
-                    console.error('Failed to fetch inventory details:', inventoryError);
-                    // Fall back to basic data if inventory fetch fails
-                    setFormData({
-                        container_no: data.container_no,
-                        client_id: data.client_id,
-                        client_name: data.client_name,
-                        size_type: data.sizetype_id,
-                        size_type_display: data.size_type_display || `${container.size_type}`,
-                        iso_code: data.iso_code || '',
-                        plate_no: record?.plate_no || data.plate_no || '',
-                        hauler: record?.hauler || data.hauler || '',
-                        shipper: '',
-                        status: defaultStatusId,
-                        vessel: '',
-                        voyage: '',
-                        hauler_driver: '',
-                        license_no: '',
-                        checker: '',
-                        location: '',
-                        load: defaultLoadId,
-                        chasis: '',
-                        contact_no: '',
-                        booking: '',
-                        seal_no: '',
-                        approval_remarks: '',
-                        gate_in_remarks: '',
-                        remarks: '',
-                        save_and_book: 'NO',
-                    });
+                    console.error('Failed to fetch inventory details (mobile):', inventoryError);
+                }
+
+                // Lookup pre_inventory first
+                const pre = await fetchPreInventoryFallback(data.container_no);
+
+                // Determine status: prefer pre.cnt_status; if missing, use inventoryData.cnt_status; if still missing, use inventory search
+                let resolvedStatus = '';
+                if (pre && pre.cnt_status) {
+                    resolvedStatus = String(pre.cnt_status);
+                } else if (inventoryData && inventoryData.cnt_status) {
+                    resolvedStatus = String(inventoryData.cnt_status);
+                } else {
+                    const invStatus = await fetchInventoryStatus(data.container_no);
+                    if (invStatus) resolvedStatus = String(invStatus);
+                }
+
+                // Prepare size type display
+                const sizeTypeId = (inventoryData && inventoryData.sizetype_id) || (pre && pre.sizetype_id) || 0;
+                const sizeTypeObj = sizeTypeOptions.find(st => st.s_id === sizeTypeId);
+                const sizeTypeDisplay = sizeTypeObj ? `${sizeTypeObj.size}${sizeTypeObj.type}` : '';
+
+                setFormData({
+                    container_no: data.container_no,
+                    client_id: data.client_id,
+                    client_name: data.client_name,
+                    size_type: sizeTypeId,
+                    size_type_display: sizeTypeDisplay,
+                    iso_code: data.iso_code || '',
+                    plate_no: record?.plate_no || data.plate_no || '',
+                    hauler: record?.hauler || data.hauler || '',
+                    shipper: '', // Will be filled from booking selection
+                    // All editable fields empty - user must fill them (old system behavior)
+                    status: resolvedStatus,
+                    vessel: '',
+                    voyage: '',
+                    hauler_driver: '',
+                    license_no: '',
+                    checker: '',
+                    location: '',
+                    load: defaultLoadId, // Load defaults to 'Empty' l_id
+                    chasis: '',
+                    contact_no: '',
+                    booking: '',
+                    seal_no: '',
+                    approval_remarks: (inventoryData && inventoryData.approval_notes) || (pre && pre.approval_notes) || '',
+                    gate_in_remarks: (inventoryData && inventoryData.remarks) || (pre && pre.remarks) || '',
+                    remarks: (inventoryData && inventoryData.pre_inventory_remarks) || (pre && pre.pre_inventory_remarks) || '',
+                    save_and_book: 'NO',
+                });
+
+                // Set checker name preference: pre_inventory -> inventoryData -> current user
+                if (pre && pre.checker_name) {
+                    setCheckerName(pre.checker_name);
+                } else if (pre && pre.checker_id) {
+                    try {
+                        const checkerResponse = await axios.get(`/api/users/${pre.checker_id}`);
+                        if (checkerResponse.data.success) setCheckerName(checkerResponse.data.data.full_name || currentUserFullName || '');
+                        else setCheckerName(currentUserFullName || '');
+                    } catch (_) {
+                        setCheckerName(currentUserFullName || '');
+                    }
+                } else if (inventoryData && inventoryData.checker_name) {
+                    setCheckerName(inventoryData.checker_name);
+                } else if (inventoryData && inventoryData.checker_id) {
+                    try {
+                        const checkerResponse = await axios.get(`/api/users/${inventoryData.checker_id}`);
+                        if (checkerResponse.data.success) setCheckerName(checkerResponse.data.data.full_name || currentUserFullName || '');
+                        else setCheckerName(currentUserFullName || '');
+                    } catch (_) {
+                        setCheckerName(currentUserFullName || '');
+                    }
+                } else {
                     setCheckerName(currentUserFullName || '');
+                }
+                // If status still not resolved, inform user
+                if (!resolvedStatus || resolvedStatus === '') {
+                    (showError ? showError('Container status not found in pre-inventory or inventory') : alert('Container status not found in pre-inventory or inventory'));
+                    return;
                 }
                 
                 setShowDropdown(false);
