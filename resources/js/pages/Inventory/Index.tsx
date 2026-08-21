@@ -59,6 +59,8 @@ interface InventoryRecord {
     chasis?: string;
     contact_no?: string;
     bill_of_lading?: string;
+    hold_notes?: string;
+    hold_date?: string;
     [key: string]: unknown;
 }
 
@@ -297,6 +299,43 @@ const Index: React.FC = () => {
         }
     };
 
+    // Format duration between gate-in datetime and now as "Xd Yh Zm"
+    const formatDurationFrom = (dateString?: string, timeString?: string, fallback?: number) => {
+        try {
+            if (!dateString) return fallback !== undefined ? `${fallback} days` : '-';
+
+            let inDate: Date | null = null;
+
+            // Try ISO-style combine if time available
+            if (timeString && timeString.includes(':')) {
+                // Prefer ISO combined
+                const iso = `${dateString}T${timeString}`;
+                inDate = new Date(iso);
+                if (isNaN(inDate.getTime())) {
+                    // fallback to parsing separate
+                    inDate = new Date(`${dateString} ${timeString}`);
+                }
+            } else {
+                inDate = new Date(dateString);
+            }
+
+            if (!inDate || isNaN(inDate.getTime())) return fallback !== undefined ? `${fallback} days` : '-';
+
+            const now = new Date();
+            let diffMs = now.getTime() - inDate.getTime();
+            if (diffMs < 0) diffMs = 0;
+
+            const minutesTotal = Math.floor(diffMs / 60000);
+            const days = Math.floor(minutesTotal / (60 * 24));
+            const hours = Math.floor((minutesTotal - days * 24 * 60) / 60);
+            const minutes = minutesTotal - days * 24 * 60 - hours * 60;
+
+            return `${days}d ${hours}h ${minutes}m`;
+        } catch {
+            return fallback !== undefined ? `${fallback} days` : '-';
+        }
+    };
+
     const handleOpenApprovalModal = (record: InventoryRecord) => {
         setSelectedRecord(record);
         setApprovalNotes('');
@@ -492,6 +531,8 @@ const Index: React.FC = () => {
                     chasis: data.chasis,
                     contact_no: data.contact_no,
                     bill_of_lading: data.bill_of_lading,
+                    hold_notes: data.hold_details && data.hold_details.notes ? data.hold_details.notes : undefined,
+                    hold_date: data.hold_details && data.hold_details.date_added ? data.hold_details.date_added : undefined,
                 };
                 setViewRecord(mappedRecord);
                 setShowViewModal(true);
@@ -1180,7 +1221,7 @@ const Index: React.FC = () => {
                                     render: (row: InventoryRecord) => (
                                         <button
                                             type="button"
-                                            onClick={() => openLegacyPrintInOut(row)}
+                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintInOut(row); }}
                                             className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
                                             title="Print IN/OUT legacy template"
                                         >
@@ -1324,7 +1365,7 @@ const Index: React.FC = () => {
                                                 <ModernButton
                                                     variant="add"
                                                     size="sm"
-                                                    onClick={() => handleOpenApprovalModal(row)}
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenApprovalModal(row); }}
                                                     title="Approve Container"
                                                 >
                                                     <CheckCircle className="w-4 h-4" />
@@ -1342,7 +1383,7 @@ const Index: React.FC = () => {
                                             <ModernButton 
                                                 variant="primary" 
                                                 size="sm" 
-                                                onClick={() => handleViewRecord(row)}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleViewRecord(row); }}
                                                 title="View Details"
                                             >
                                                 <Eye className="w-3.5 h-3.5" />
@@ -1352,7 +1393,7 @@ const Index: React.FC = () => {
                                             <ModernButton 
                                                 variant="edit" 
                                                 size="sm" 
-                                                onClick={() => handleOpenEditModal(row)}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenEditModal(row); }}
                                                 title="Edit Container"
                                             >
                                                 <Pencil className="w-3.5 h-3.5" />
@@ -1362,7 +1403,7 @@ const Index: React.FC = () => {
                                             <ModernButton
                                                 variant="secondary"
                                                 size="sm"
-                                                onClick={() => openLegacyPrintSingle(row)}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
                                                 title="Print"
                                             >
                                                 <Printer className="w-3.5 h-3.5" />
@@ -1373,7 +1414,7 @@ const Index: React.FC = () => {
                                                 <ModernButton
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={() => handleOpenUnholdConfirm(row)}
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenUnholdConfirm(row); }}
                                                     title="Remove from Hold"
                                                     disabled={updatingStatus}
                                                 >
@@ -1383,7 +1424,7 @@ const Index: React.FC = () => {
                                                 <ModernButton
                                                     variant="toggle"
                                                     size="sm"
-                                                    onClick={() => handleOpenHoldModal(row)}
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenHoldModal(row); }}
                                                     title="Place on Hold"
                                                     disabled={updatingStatus}
                                                 >
@@ -1395,7 +1436,7 @@ const Index: React.FC = () => {
                                             <ModernButton
                                                 variant={row.container_status_id === 8 ? "add" : "edit"}
                                                 size="sm"
-                                                onClick={() => handleOpenRepoToggleConfirm(row)}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
                                                 title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
                                                 disabled={updatingStatus}
                                             >
@@ -1406,7 +1447,8 @@ const Index: React.FC = () => {
                                             <ModernButton 
                                                 variant="delete" 
                                                 size="sm" 
-                                                onClick={() => {
+                                                onClick={(e: React.MouseEvent) => {
+                                                    e.stopPropagation();
                                                     setRecordToDelete(row);
                                                     setShowDeleteConfirm(true);
                                                 }}
@@ -1418,6 +1460,7 @@ const Index: React.FC = () => {
                                     )
                                 },
                             ]}
+                            onRowClick={handleViewRecord}
                             data={
                                 itemsPerPage >= filteredReportData.length
                                     ? filteredReportData
@@ -1667,7 +1710,7 @@ const Index: React.FC = () => {
                                     </div>
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Days in Yard</Label>
-                                        <p className="mt-1 text-gray-900">{viewRecord.days} days</p>
+                                        <p className="mt-1 text-gray-900">{formatDurationFrom(viewRecord.date as string, viewRecord.time as string, viewRecord.days)}</p>
                                     </div>
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Gate Status</Label>
@@ -1685,6 +1728,15 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Approval Notes</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.app_notes || 'N/A'}</p>
                                     </div>
+                                    {viewRecord.is_hold && viewRecord.hold_notes ? (
+                                        <div>
+                                            <Label className="text-xs uppercase text-gray-600">Hold Notes</Label>
+                                            <p className="mt-1 text-gray-900">{viewRecord.hold_notes}</p>
+                                            {viewRecord.hold_date && (
+                                                <p className="text-xs text-gray-500 mt-1">Placed on: {formatDate(viewRecord.hold_date as string)}</p>
+                                            )}
+                                        </div>
+                                    ) : null}
                                 </div>
                             </div>
                         </div>
