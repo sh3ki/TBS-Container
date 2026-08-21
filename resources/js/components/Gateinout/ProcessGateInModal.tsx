@@ -53,7 +53,7 @@ export default function ProcessGateInModal({
 }: ProcessGateInModalProps) {
     const [showConfirm, setShowConfirm] = useState(false);
     const [checkerName, setCheckerName] = useState('');
-    const [formData, setFormData] = useState({
+    const initialFormData = {
         date_manufactured: '',
         status: '',
         sizetype: '',
@@ -73,24 +73,31 @@ export default function ProcessGateInModal({
         contact_no: '',
         bill_of_lading: '',
         remarks: '',
-    });
+    } as const;
+    const [formData, setFormData] = useState(() => ({ ...initialFormData }));
     // use `showError` from parent page to ensure toast is rendered by page-level ToastContainer
 
     useEffect(() => {
-        if (record && open) {
-            // Clean plate_no and hauler: if contains "-", set as empty
-            const cleanPlateNo = record.plate_no && record.plate_no.includes('-') ? '' : (record.plate_no || '');
-            const cleanHauler = record.hauler && record.hauler.includes('-') ? '' : (record.hauler || '');
-            
-            // Fetch existing data from pre_inventory
-            fetchContainerDetails(record.container_no);
-            
-            setFormData(prev => ({
-                ...prev,
-                plate_no: cleanPlateNo,
-                hauler: cleanHauler,
-            }));
+        if (open) {
+            // reset to initial state each time modal opens
+            setFormData({ ...initialFormData });
+            setCheckerName(currentUserFullName || '');
+
+            if (record) {
+                // Clean plate_no and hauler: if contains "-", set as empty
+                const cleanPlateNo = record.plate_no && record.plate_no.includes('-') ? '' : (record.plate_no || '');
+                const cleanHauler = record.hauler && record.hauler.includes('-') ? '' : (record.hauler || '');
+
+                // Pre-fill plate_no and hauler, then fetch details
+                setFormData(prev => ({ ...initialFormData, plate_no: cleanPlateNo, hauler: cleanHauler }));
+                fetchContainerDetails(record.container_no);
+            }
+        } else {
+            // clear form when modal closes
+            setFormData({ ...initialFormData });
+            setCheckerName(currentUserFullName || '');
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [record, open]);
 
     const fetchContainerDetails = async (containerNo: string) => {
