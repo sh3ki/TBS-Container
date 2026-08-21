@@ -73,7 +73,7 @@ const Index: React.FC = () => {
     const [reportData, setReportData] = useState<InventoryRecord[]>([]);
     const [totalCount, setTotalCount] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15;
+    const [itemsPerPage, setItemsPerPage] = useState<number>(15);
 
     // Summary report data
     const [summaryData, setSummaryData] = useState<{
@@ -1418,14 +1418,24 @@ const Index: React.FC = () => {
                                     )
                                 },
                             ]}
-                            data={filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                            data={
+                                itemsPerPage >= filteredReportData.length
+                                    ? filteredReportData
+                                    : filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                            }
                             pagination={{
                                 currentPage: currentPage,
-                                totalPages: Math.ceil(filteredReportData.length / itemsPerPage),
+                                totalPages: Math.max(1, Math.ceil(filteredReportData.length / (itemsPerPage || filteredReportData.length))),
                                 total: filteredReportData.length,
-                                perPage: itemsPerPage,
-                                onPageChange: setCurrentPage,
+                                perPage: itemsPerPage >= filteredReportData.length ? filteredReportData.length : itemsPerPage,
+                                onPageChange: (p: number) => setCurrentPage(p),
+                                onPerPageChange: (per: number) => {
+                                    setItemsPerPage(per);
+                                    setCurrentPage(1);
+                                },
+                                rowsOptions: [15, 20, 50, 100],
                             }}
+                            paginationPosition="top"
                         />
                     ) : (
                         <div className="text-center py-12">
