@@ -73,7 +73,8 @@ export default function Index() {
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [currentPageIn, setCurrentPageIn] = useState(1);
   const [currentPageOut, setCurrentPageOut] = useState(1);
-  const pageSize = 15;
+  const [itemsPerPageIn, setItemsPerPageIn] = useState<number>(15);
+  const [itemsPerPageOut, setItemsPerPageOut] = useState<number>(15);
 
   const [showAddPreInModal, setShowAddPreInModal] = useState(false);
   const [showAddPreOutModal, setShowAddPreOutModal] = useState(false);
@@ -484,16 +485,16 @@ export default function Index() {
 
   // Pagination for both tables
   const paginatedInRecords = filteredInRecords.slice(
-    (currentPageIn - 1) * pageSize,
-    currentPageIn * pageSize
+    (currentPageIn - 1) * itemsPerPageIn,
+    currentPageIn * itemsPerPageIn
   );
-  const totalPagesIn = Math.ceil(filteredInRecords.length / pageSize);
+  const totalPagesIn = Math.ceil(filteredInRecords.length / (itemsPerPageIn || 1));
 
   const paginatedOutRecords = filteredOutRecords.slice(
-    (currentPageOut - 1) * pageSize,
-    currentPageOut * pageSize
+    (currentPageOut - 1) * itemsPerPageOut,
+    currentPageOut * itemsPerPageOut
   );
-  const totalPagesOut = Math.ceil(filteredOutRecords.length / pageSize);
+  const totalPagesOut = Math.ceil(filteredOutRecords.length / (itemsPerPageOut || 1));
 
   return (
     <AuthenticatedLayout>
@@ -703,6 +704,7 @@ export default function Index() {
                         variant="add"
                         size="sm"
                         onClick={() => handleProcessClick(record)}
+                        title="Process"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
                       </ModernButton>
@@ -718,6 +720,7 @@ export default function Index() {
                             handleEditPreOut(record);
                           }
                         }}
+                        title="Edit"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </ModernButton>
@@ -730,6 +733,7 @@ export default function Index() {
                           setRecordToDelete(record);
                           setConfirmDeleteRecord(true);
                         }}
+                        title="Delete"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </ModernButton>
@@ -744,9 +748,11 @@ export default function Index() {
             pagination={{
               currentPage: currentPageIn,
               totalPages: totalPagesIn,
-              perPage: pageSize,
+              perPage: itemsPerPageIn,
               total: filteredInRecords.length,
               onPageChange: setCurrentPageIn,
+              onPerPageChange: (per: number) => { setItemsPerPageIn(per); setCurrentPageIn(1); },
+              rowsOptions: [15, 20, 50, 100],
             }}
           />
         </div>
@@ -898,9 +904,11 @@ export default function Index() {
             pagination={{
               currentPage: currentPageOut,
               totalPages: totalPagesOut,
-              perPage: pageSize,
+              perPage: itemsPerPageOut,
               total: filteredOutRecords.length,
               onPageChange: setCurrentPageOut,
+              onPerPageChange: (per: number) => { setItemsPerPageOut(per); setCurrentPageOut(1); },
+              rowsOptions: [15, 20, 50, 100],
             }}
           />
         </div>
