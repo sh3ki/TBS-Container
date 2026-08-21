@@ -61,7 +61,7 @@ export default function Index() {
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [expirationFilter, setExpirationFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const [itemsPerPage, setItemsPerPage] = useState<number>(15);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -380,10 +380,10 @@ export default function Index() {
 
   // Pagination
   const paginatedBookings = filteredBookings.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
-  const totalPages = Math.ceil(filteredBookings.length / pageSize);
+  const totalPages = Math.ceil(filteredBookings.length / (itemsPerPage || 1));
 
   return (
     <AuthenticatedLayout>
@@ -594,30 +594,33 @@ export default function Index() {
                 label: 'Actions',
                 render: (booking: Booking) => (
                     <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
-                      <ModernButton 
-                        variant="primary" 
-                        size="sm" 
-                        onClick={() => handleViewContainers(booking)}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </ModernButton>
-                      <ModernButton 
-                        variant="edit" 
-                        size="sm" 
-                        onClick={() => handleEditBooking(booking)}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </ModernButton>
-                      <ModernButton 
-                        variant="delete" 
-                        size="sm" 
-                        onClick={() => {
-                          setBookingToDelete(booking);
-                          setConfirmDeleteBooking(true);
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </ModernButton>
+                          <ModernButton 
+                            variant="primary" 
+                            size="sm" 
+                            onClick={() => handleViewContainers(booking)}
+                            title="View Details"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </ModernButton>
+                          <ModernButton 
+                            variant="edit" 
+                            size="sm" 
+                            onClick={() => handleEditBooking(booking)}
+                            title="Edit Booking"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </ModernButton>
+                          <ModernButton 
+                            variant="delete" 
+                            size="sm" 
+                            onClick={() => {
+                              setBookingToDelete(booking);
+                              setConfirmDeleteBooking(true);
+                            }}
+                            title="Delete Booking"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </ModernButton>
                     </div>
                 ),
               },
@@ -628,10 +631,13 @@ export default function Index() {
             pagination={{
               currentPage,
               totalPages,
-              perPage: pageSize,
+              perPage: itemsPerPage,
               total: filteredBookings.length,
               onPageChange: setCurrentPage,
+              onPerPageChange: (per: number) => { setItemsPerPage(per); setCurrentPage(1); },
+              rowsOptions: [15, 20, 50, 100],
             }}
+            onRowClick={handleViewContainers}
           />
         </div>
       </div>
