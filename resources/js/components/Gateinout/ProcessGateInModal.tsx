@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { usePage } from '@inertiajs/react';
 import {
     Dialog,
     DialogContent,
@@ -37,6 +38,7 @@ interface ProcessGateInModalProps {
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
     loadOptions: Array<{ l_id: number; type: string }>;
     onSuccess: () => void;
+    showError?: (message: string, title?: string) => void;
 }
 
 export default function ProcessGateInModal({
@@ -47,6 +49,7 @@ export default function ProcessGateInModal({
     sizeTypeOptions,
     loadOptions,
     onSuccess,
+    showError,
 }: ProcessGateInModalProps) {
     const [showConfirm, setShowConfirm] = useState(false);
     const [checkerName, setCheckerName] = useState('');
@@ -71,6 +74,7 @@ export default function ProcessGateInModal({
         bill_of_lading: '',
         remarks: '',
     });
+    // use `showError` from parent page to ensure toast is rendered by page-level ToastContainer
 
     useEffect(() => {
         if (record && open) {
@@ -108,14 +112,18 @@ export default function ProcessGateInModal({
                 if (data.checker_name) {
                     setCheckerName(data.checker_name);
                 } else {
-                    setCheckerName('');
+                    setCheckerName(currentUserFullName || '');
                 }
             }
         } catch (error) {
             console.error('Error fetching container details:', error);
-            setCheckerName('');
+            setCheckerName(currentUserFullName || '');
         }
     };
+
+    const page = usePage();
+    const auth = (page.props as Record<string, any>).auth as { user?: { full_name?: string } };
+    const currentUserFullName = auth?.user?.full_name || '';
 
     const formatDateForDisplay = (dateStr: string): string => {
         if (!dateStr) return '';
@@ -144,25 +152,25 @@ export default function ProcessGateInModal({
         
         // Validate container number length
         if (record.container_no.length !== 11) {
-            alert('Container number must be exactly 11 characters');
+            (showError ? showError('Container number must be exactly 11 characters') : alert('Container number must be exactly 11 characters'));
             return;
         }
         
         // Validate all dropdowns are selected
         if (!formData.status) {
-            alert('Please select a Status');
+            (showError ? showError('Please select a Status') : alert('Please select a Status'));
             return;
         }
         if (!formData.sizetype) {
-            alert('Please select Size/Type');
+            (showError ? showError('Please select Size/Type') : alert('Please select Size/Type'));
             return;
         }
         if (!formData.load) {
-            alert('Please select Load type');
+            (showError ? showError('Please select Load type') : alert('Please select Load type'));
             return;
         }
         if (!formData.class) {
-            alert('Please select Class');
+            (showError ? showError('Please select Class') : alert('Please select Class'));
             return;
         }
         
@@ -186,7 +194,7 @@ export default function ProcessGateInModal({
         
         for (const { field, label } of requiredFields) {
             if (!formData[field as keyof typeof formData] || formData[field as keyof typeof formData].toString().trim() === '') {
-                alert(`Please fill in ${label}`);
+                (showError ? showError(`Please fill in ${label}`) : alert(`Please fill in ${label}`));
                 return;
             }
         }
@@ -206,6 +214,11 @@ export default function ProcessGateInModal({
                 dateForDB = `${year}-${month}-01`;
             }
             
+            // Determine checker: prefer existing checkerName from mobile; fallback to current user's full name
+            const checkerToSave = checkerName && checkerName.trim() ? checkerName : currentUserFullName;
+            // Update displayed checker name so UI reflects fallback
+            if (!checkerName || !checkerName.trim()) setCheckerName(checkerToSave);
+
             const response = await axios.post('/api/gateinout/process-in', {
                 p_id: record.p_id,
                 container_no: record.container_no,
@@ -228,6 +241,7 @@ export default function ProcessGateInModal({
                 contact_no: formData.contact_no,
                 bol: formData.bill_of_lading,
                 remarks: formData.remarks,
+                checker: checkerToSave,
             });
 
             if (response.data.success) {
@@ -242,7 +256,7 @@ export default function ProcessGateInModal({
             }
         } catch (error: unknown) {
             const axiosError = error as { response?: { data?: { message?: string } } };
-            alert(axiosError.response?.data?.message || 'Failed to process Gate IN');
+            (showError ? showError(axiosError.response?.data?.message || 'Failed to process Gate IN') : alert(axiosError.response?.data?.message || 'Failed to process Gate IN'));
             setShowConfirm(false);
         }
     };
