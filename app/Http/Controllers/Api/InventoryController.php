@@ -761,10 +761,16 @@ class InventoryController extends Controller
                 [$inventory->container_no, $request->notes]
             );
 
+            // Update container status to HLD (4)
+            DB::update(
+                "UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?",
+                [4, $inventory->i_id]
+            );
+
             // Log audit - EDIT action for placing on hold
             DB::table('audit_logs')->insert([
                 'action' => 'EDIT',
-                'description' => '[INVENTORY] Placed container "' . $inventory->container_no . '" on hold with notes: ' . $request->notes,
+                'description' => '[INVENTORY] Placed container "' . $inventory->container_no . '" on hold (status -> HLD) with notes: ' . $request->notes,
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
@@ -814,10 +820,16 @@ class InventoryController extends Controller
                 [$inventory->container_no]
             );
 
+            // Update container status to AVL (1)
+            DB::update(
+                "UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?",
+                [1, $inventory->i_id]
+            );
+
             // Log audit - EDIT action for removing from hold
             DB::table('audit_logs')->insert([
                 'action' => 'EDIT',
-                'description' => '[INVENTORY] Removed container "' . $inventory->container_no . '" from hold',
+                'description' => '[INVENTORY] Removed container "' . $inventory->container_no . '" from hold (status -> AVL)',
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
