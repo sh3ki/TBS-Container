@@ -17,6 +17,8 @@ interface Pagination {
   total: number;
   perPage: number;
   onPageChange: (page: number) => void;
+  onPerPageChange?: (perPage: number) => void;
+  rowsOptions?: number[];
 }
 
 interface ModernTableProps<T = unknown> {
@@ -30,6 +32,7 @@ interface ModernTableProps<T = unknown> {
   sortColumn?: string;
   sortDirection?: 'asc' | 'desc';
   pagination?: Pagination;
+  paginationPosition?: 'top' | 'bottom' | 'both';
 }
 
 export const ModernTable = <T extends Record<string, unknown>>({
@@ -43,6 +46,7 @@ export const ModernTable = <T extends Record<string, unknown>>({
   sortColumn,
   sortDirection,
   pagination,
+  paginationPosition = 'bottom',
 }: ModernTableProps<T>) => {
   if (loading) {
     return (
@@ -165,14 +169,38 @@ export const ModernTable = <T extends Record<string, unknown>>({
       </div>
       
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: colors.table.border }}>
-          <div className="text-sm" style={{ color: colors.text.secondary }}>
-            Showing {((pagination.currentPage - 1) * pagination.perPage) + 1} to {Math.min(pagination.currentPage * pagination.perPage, pagination.total)} of {pagination.total} results
+      {pagination && (
+        <div className={`${paginationPosition === 'top' ? 'mb-4' : 'mt-4'} flex items-center justify-between px-4 py-3 border-t`} style={{ borderColor: colors.table.border }}>
+          <div className="flex items-center gap-3">
+            {pagination.rowsOptions && pagination.rowsOptions.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Rows:</label>
+                <select
+                  value={String(pagination.perPage)}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (pagination.onPerPageChange) pagination.onPerPageChange(val);
+                  }}
+                  className="h-9 px-3 rounded-md border bg-white text-sm"
+                  style={{ borderColor: colors.table.border, color: colors.text.secondary }}
+                >
+                  {pagination.rowsOptions!.map((opt) => (
+                    <option key={String(opt)} value={String(opt)}>
+                      {String(opt)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="text-sm" style={{ color: colors.text.secondary }}>
+              Showing {pagination.total === 0 ? 0 : ((pagination.currentPage - 1) * pagination.perPage) + 1} to {Math.min(pagination.currentPage * pagination.perPage, pagination.total)} of {pagination.total} results
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <button
-              onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+              onClick={() => pagination.onPageChange(Math.max(1, pagination.currentPage - 1))}
               disabled={pagination.currentPage === 1}
               className="px-3 py-1.5 rounded-lg border flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-gray-50"
               style={{ borderColor: colors.table.border, color: colors.text.secondary }}
@@ -184,7 +212,7 @@ export const ModernTable = <T extends Record<string, unknown>>({
               Page {pagination.currentPage} of {pagination.totalPages}
             </span>
             <button
-              onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+              onClick={() => pagination.onPageChange(Math.min(pagination.totalPages, pagination.currentPage + 1))}
               disabled={pagination.currentPage === pagination.totalPages}
               className="px-3 py-1.5 rounded-lg border flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-gray-50"
               style={{ borderColor: colors.table.border, color: colors.text.secondary }}
