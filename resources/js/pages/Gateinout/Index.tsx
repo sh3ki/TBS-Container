@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
@@ -65,6 +65,11 @@ export default function Index() {
   const [preInventoryList, setPreInventoryList] = useState<PreInventoryRecord[]>([]);
   const [filteredInRecords, setFilteredInRecords] = useState<PreInventoryRecord[]>([]);
   const [filteredOutRecords, setFilteredOutRecords] = useState<PreInventoryRecord[]>([]);
+  // Table-only data used to refresh rows without touching header titles/counts
+  const [inTableData, setInTableData] = useState<PreInventoryRecord[]>([]);
+  const [outTableData, setOutTableData] = useState<PreInventoryRecord[]>([]);
+  const [inLoading, setInLoading] = useState(false);
+  const [outLoading, setOutLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -222,10 +227,81 @@ export default function Index() {
     const inRecords = filtered.filter((record) => record.gate_status === 'IN');
     const outRecords = filtered.filter((record) => record.gate_status === 'OUT');
 
+    // Update the filtered sets (used for counts and global state)
     setFilteredInRecords(inRecords);
     setFilteredOutRecords(outRecords);
+    // Also populate the table rows (these are what the tables render). Keeping them
+    // separate lets us refresh only rows without updating header counts/titles.
+    setInTableData(inRecords);
+    setOutTableData(outRecords);
     setCurrentPageIn(1); // Reset to first page when filters change
     setCurrentPageOut(1);
+  };
+
+  // Refresh only IN rows (does not touch header counts/titles)
+  const fetchInRows = async () => {
+    try {
+      setInLoading(true);
+      const listRes = await axios.post('/api/gateinout/list', {});
+      if (listRes.data.success) {
+        const records = listRes.data.data || listRes.data.prelist || [];
+        let filtered = Array.isArray(records) ? records : [];
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          filtered = filtered.filter(
+            (record: PreInventoryRecord) =>
+              record.container_no.toLowerCase().includes(search) ||
+              record.client_name.toLowerCase().includes(search) ||
+              record.client_code.toLowerCase().includes(search) ||
+              record.plate_no.toLowerCase().includes(search) ||
+              record.hauler.toLowerCase().includes(search)
+          );
+        }
+        if (selectedClient && selectedClient !== 'all') {
+          filtered = filtered.filter((record: PreInventoryRecord) => String(record.client_id ?? '') === selectedClient);
+        }
+        const inRecords = filtered.filter((record: PreInventoryRecord) => record.gate_status === 'IN');
+        setInTableData(inRecords);
+        setCurrentPageIn(1);
+      }
+    } catch (err) {
+      console.error('Failed to refresh IN rows:', err);
+    } finally {
+      setInLoading(false);
+    }
+  };
+
+  // Refresh only OUT rows (does not touch header counts/titles)
+  const fetchOutRows = async () => {
+    try {
+      setOutLoading(true);
+      const listRes = await axios.post('/api/gateinout/list', {});
+      if (listRes.data.success) {
+        const records = listRes.data.data || listRes.data.prelist || [];
+        let filtered = Array.isArray(records) ? records : [];
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          filtered = filtered.filter(
+            (record: PreInventoryRecord) =>
+              record.container_no.toLowerCase().includes(search) ||
+              record.client_name.toLowerCase().includes(search) ||
+              record.client_code.toLowerCase().includes(search) ||
+              record.plate_no.toLowerCase().includes(search) ||
+              record.hauler.toLowerCase().includes(search)
+          );
+        }
+        if (selectedClient && selectedClient !== 'all') {
+          filtered = filtered.filter((record: PreInventoryRecord) => String(record.client_id ?? '') === selectedClient);
+        }
+        const outRecords = filtered.filter((record: PreInventoryRecord) => record.gate_status === 'OUT');
+        setOutTableData(outRecords);
+        setCurrentPageOut(1);
+      }
+    } catch (err) {
+      console.error('Failed to refresh OUT rows:', err);
+    } finally {
+      setOutLoading(false);
+    }
   };
 
   const submitAddPreIn = async (e: React.FormEvent) => {
@@ -483,14 +559,14 @@ export default function Index() {
     }
   };
 
-  // Pagination for both tables
-  const paginatedInRecords = filteredInRecords.slice(
+  // Pagination for both tables (use table-specific data so headers/counts remain unchanged)
+  const paginatedInRecords = inTableData.slice(
     (currentPageIn - 1) * itemsPerPageIn,
     currentPageIn * itemsPerPageIn
   );
   const totalPagesIn = Math.ceil(filteredInRecords.length / (itemsPerPageIn || 1));
 
-  const paginatedOutRecords = filteredOutRecords.slice(
+  const paginatedOutRecords = outTableData.slice(
     (currentPageOut - 1) * itemsPerPageOut,
     currentPageOut * itemsPerPageOut
   );
@@ -601,11 +677,27 @@ export default function Index() {
         {/* IN RECORDS TABLE */}
         <div className="w-full">
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
-              Gate IN Records
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">{filteredInRecords.length} IN record(s)</p>
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
+                  Gate IN Records
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">{filteredInRecords.length} IN record(s)</p>
+              </div>
+              <div className="ml-4">
+                <ModernButton
+                  type="button"
+                  variant="toggle"
+                  size="sm"
+                  onClick={() => fetchInRows()}
+                  disabled={inLoading}
+                  title="Refresh IN records"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </ModernButton>
+              </div>
+            </div>
           </div>
           <ModernTable
             columns={[
@@ -760,11 +852,27 @@ export default function Index() {
         {/* OUT RECORDS TABLE */}
         <div className="w-full mt-8">
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
-              Gate OUT Records
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">{filteredOutRecords.length} OUT record(s)</p>
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
+                  Gate OUT Records
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">{filteredOutRecords.length} OUT record(s)</p>
+              </div>
+              <div className="ml-4">
+                <ModernButton
+                  type="button"
+                  variant="toggle"
+                  size="sm"
+                  onClick={() => fetchOutRows()}
+                  disabled={outLoading}
+                  title="Refresh OUT records"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </ModernButton>
+              </div>
+            </div>
           </div>
           <ModernTable
             columns={[
