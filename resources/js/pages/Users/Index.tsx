@@ -527,19 +527,13 @@ export default function Index({ auth }: Record<string, unknown>) {
                     <ModernButton variant="primary" size="sm" onClick={() => handleViewUser(user)} title="View Details">
                       <Eye className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="edit" size="sm" onClick={() => handleEditUser(user)} title="Edit User">
+                    <ModernButton variant="edit" size="sm" onClick={(e) => { e.stopPropagation(); handleEditUser(user); }} title="Edit User">
                       <Pencil className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="toggle" size="sm" onClick={() => {
-                      setUserToToggle(user);
-                      setConfirmToggleStatus(true);
-                    }} title="Toggle Status">
+                    <ModernButton variant="toggle" size="sm" onClick={(e) => { e.stopPropagation(); setUserToToggle(user); setConfirmToggleStatus(true); }} title="Toggle Status">
                       <Power className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="delete" size="sm" onClick={() => {
-                      setUserToDelete(user);
-                      setConfirmDeleteUser(true);
-                    }} title="Delete User">
+                    <ModernButton variant="delete" size="sm" onClick={(e) => { e.stopPropagation(); setUserToDelete(user); setConfirmDeleteUser(true); }} title="Delete User">
                       <Trash2 className="w-3.5 h-3.5" />
                     </ModernButton>
                   </div>
