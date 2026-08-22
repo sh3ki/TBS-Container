@@ -80,8 +80,31 @@ export default function Index() {
     return currentPath.split('/').filter(Boolean);
   }, [currentPath]);
 
-  const imageItems = useMemo(() => filteredItems.filter((i) => i.is_image), [filteredItems]);
+  const thumbContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Use all items in the current folder (not search-filtered) for the image carousel
+  const imageItems = useMemo(() => items.filter((i) => i.is_image), [items]);
   const currentImage = imageItems[viewerIndex] ?? null;
+
+  // Keep viewerIndex in range when images change
+  useEffect(() => {
+    if (viewerIndex >= imageItems.length) {
+      setViewerIndex(imageItems.length > 0 ? 0 : 0);
+    }
+  }, [imageItems, viewerIndex]);
+
+  // Center the selected thumbnail in the carousel
+  useEffect(() => {
+    if (!thumbContainerRef.current) return;
+    if (!imageItems || imageItems.length === 0) return;
+    const container = thumbContainerRef.current;
+    const el = container.querySelector(`[data-index="${viewerIndex}"]`) as HTMLElement | null;
+    if (!el) return;
+    const elLeft = el.offsetLeft;
+    const elWidth = el.offsetWidth;
+    const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
+    container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
+  }, [viewerIndex, imageItems, imageViewerOpen]);
 
   
 
@@ -136,7 +159,7 @@ export default function Index() {
     }
 
     if (item.is_image) {
-      const images = filteredItems.filter((i) => i.is_image);
+      const images = items.filter((i) => i.is_image);
       const idx = images.findIndex((i) => i.relative_path === item.relative_path);
       setViewerIndex(idx >= 0 ? idx : 0);
       setImageViewerOpen(true);
@@ -794,7 +817,7 @@ export default function Index() {
                     className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
                     aria-label="Previous"
                   >
-                    <ChevronLeft className="w-5 h-5" />
+                    <ChevronLeft className="w-5 h-5 text-black" />
                   </button>
 
                   <button
@@ -806,17 +829,18 @@ export default function Index() {
                     className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
                     aria-label="Next"
                   >
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-5 h-5 text-black" />
                   </button>
                 </>
               )}
             </div>
 
             <div className="w-full">
-              <div className="flex items-center justify-center gap-2 overflow-x-auto py-2 px-4">
+              <div ref={thumbContainerRef} className="flex items-center justify-center gap-2 overflow-x-auto py-2 px-4">
                 {imageItems.map((imgItem, idx) => (
                   <button
                     key={imgItem.relative_path}
+                    data-index={idx}
                     onClick={() => setViewerIndex(idx)}
                     className={`flex-none p-1 rounded ${idx === viewerIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
                   >
