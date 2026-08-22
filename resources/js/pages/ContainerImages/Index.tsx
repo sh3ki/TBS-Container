@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
-import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images, List, Grid, MoreHorizontal } from 'lucide-react';
+import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images, List, Grid, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -51,6 +51,9 @@ export default function Index() {
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
+
+  const imageItems = useMemo(() => filteredItems.filter((i) => i.is_image), [filteredItems]);
+  const currentImage = imageItems[viewerIndex] ?? null;
 
   useEffect(() => {
     fetchPageAccess();
@@ -751,46 +754,74 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="max-w-5xl w-full">
+        <DialogContent className="max-w-5xl w-full relative">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-full flex items-center justify-between">
-              <ModernButton variant="secondary" size="sm" onClick={() => {
-                const images = filteredItems.filter((i) => i.is_image);
-                setViewerIndex((prev) => (prev - 1 + images.length) % images.length);
-              }}>
-                Prev
-              </ModernButton>
-
-              <ModernButton variant="secondary" size="sm" onClick={() => {
-                const images = filteredItems.filter((i) => i.is_image);
-                setViewerIndex((prev) => (prev + 1) % images.length);
-              }}>
-                Next
-              </ModernButton>
-            </div>
-
-            <div className="flex-1 flex items-center justify-center">
-              {filteredItems.filter((i) => i.is_image).length > 0 && (
+            <div
+              className="w-full flex-1 flex items-center justify-center relative"
+              onClick={(e) => {
+                // Click left/right 30%/70% to go prev/next
+                const images = imageItems;
+                if (images.length === 0) return;
+                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                const x = (e as React.MouseEvent).clientX - rect.left;
+                const w = rect.width;
+                if (x < w * 0.3) {
+                  setViewerIndex((prev) => (prev - 1 + images.length) % images.length);
+                } else if (x > w * 0.7) {
+                  setViewerIndex((prev) => (prev + 1) % images.length);
+                }
+              }}
+            >
+              {currentImage && (
                 <img
-                  src={`/api/containerimages/file?path=${encodeURIComponent(filteredItems.filter((i) => i.is_image)[viewerIndex]?.relative_path || '')}`}
-                  alt={filteredItems.filter((i) => i.is_image)[viewerIndex]?.name || ''}
+                  src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
+                  alt={currentImage.name}
                   className="max-h-[70vh] max-w-[90%] object-contain"
                 />
+              )}
+
+              {/* Left/Right overlay icons centered vertically */}
+              {imageItems.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      setViewerIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
+                    }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                    aria-label="Previous"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      setViewerIndex((prev) => (prev + 1) % imageItems.length);
+                    }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                    aria-label="Next"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
               )}
             </div>
 
             <div className="w-full">
-              <div className="flex items-center justify-center gap-2 overflow-x-auto py-2">
-                {filteredItems.filter((i) => i.is_image).map((imgItem, idx) => (
+              <div className="flex items-center justify-center gap-2 overflow-x-auto py-2 px-4">
+                {imageItems.map((imgItem, idx) => (
                   <button
                     key={imgItem.relative_path}
                     onClick={() => setViewerIndex(idx)}
-                    className={`p-1 rounded ${idx === viewerIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                    className={`flex-none p-1 rounded ${idx === viewerIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
                   >
                     <img
                       src={`/api/containerimages/file?path=${encodeURIComponent(imgItem.relative_path)}`}
                       alt={imgItem.name}
-                      className="w-16 h-16 object-cover"
+                      className="w-24 h-24 object-cover"
                     />
                   </button>
                 ))}
