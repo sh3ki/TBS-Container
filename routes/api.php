@@ -307,6 +307,8 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::get('/file', [ContainerImagesController::class, 'viewFile']);
         Route::post('/upload', [ContainerImagesController::class, 'upload']);
         Route::post('/folders', [ContainerImagesController::class, 'createFolder']);
+        Route::get('/download', [ContainerImagesController::class, 'download']);
+        Route::post('/rename', [ContainerImagesController::class, 'rename']);
         Route::post('/delete-item', [ContainerImagesController::class, 'deleteItem']);
     });
 
