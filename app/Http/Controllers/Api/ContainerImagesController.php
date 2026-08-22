@@ -323,17 +323,23 @@ class ContainerImagesController extends Controller
         }
 
         // If directory, create temporary zip and return it
+        if (!class_exists('\ZipArchive')) {
+            return response()->json(['success' => false, 'message' => 'ZipArchive is not available on the server. Please enable the php-zip extension.'], 500);
+        }
+
         $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'containerimages_' . md5($fullPath . time()) . '.zip';
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
             return response()->json(['success' => false, 'message' => 'Failed to create archive.'], 500);
         }
 
-        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($fullPath));
+        $directoryIterator = new \RecursiveDirectoryIterator($fullPath, \FilesystemIterator::SKIP_DOTS);
+        $files = new \RecursiveIteratorIterator($directoryIterator);
+
         foreach ($files as $file) {
             if (!$file->isFile()) continue;
             $filePath = $file->getRealPath();
-            $relative = ltrim(str_replace($fullPath, '', $filePath), DIRECTORY_SEPARATOR);
+            $relative = ltrim(substr($filePath, strlen($fullPath)), DIRECTORY_SEPARATOR);
             $zip->addFile($filePath, $relative);
         }
 
