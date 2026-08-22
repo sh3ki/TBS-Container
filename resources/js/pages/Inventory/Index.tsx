@@ -278,8 +278,10 @@ const Index: React.FC = () => {
         .filter(record => {
             if (!searchTerm) return true;
             const search = searchTerm.toLowerCase();
-            return record.container_no.toLowerCase().includes(search) || 
-                   record.eir_no.toLowerCase().includes(search);
+            const container = (record.container_no || '').toString().toLowerCase();
+            const eir = (record.eir_no || '').toString().toLowerCase();
+            const client = (record.client || record.client_name || record.client_code || '').toString().toLowerCase();
+            return container.includes(search) || eir.includes(search) || client.includes(search);
         })
         .sort((a, b) => {
             const ta = parseDateTime(a.date as string, a.time as string);
@@ -1211,7 +1213,7 @@ const Index: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                             <Input
                                 type="text"
-                                placeholder="Search by container number or EIR number..."
+                                placeholder="Search by container number, EIR, or client..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10 h-11"
