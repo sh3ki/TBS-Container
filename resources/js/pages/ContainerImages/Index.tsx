@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
-import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images } from 'lucide-react';
+import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images, List, Grid, MoreHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -50,6 +50,7 @@ export default function Index() {
   const [viewMode, setViewMode] = useState<'list' | 'large'>('list');
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPageAccess();
@@ -557,23 +558,22 @@ export default function Index() {
                         className="pl-9 w-64"
                       />
                     </div>
-                    <div className="ml-3 flex items-center">
+                    <div className="ml-3 flex items-center space-x-2">
                       <ModernButton
                         variant={viewMode === 'list' ? 'primary' : 'secondary'}
                         size="sm"
+                        icon={<List className="h-4 w-4" />}
                         onClick={() => setViewMode('list')}
-                      >
-                        List
-                      </ModernButton>
+                        title="List"
+                      />
 
                       <ModernButton
                         variant={viewMode === 'large' ? 'primary' : 'secondary'}
                         size="sm"
-                        className="ml-2"
+                        icon={<Grid className="h-4 w-4" />}
                         onClick={() => setViewMode('large')}
-                      >
-                        View Extra Large Icons
-                      </ModernButton>
+                        title="View Extra Large Icons"
+                      />
                     </div>
                   </div>
                 </div>
@@ -591,7 +591,7 @@ export default function Index() {
                     {filteredItems.map((item) => (
                       <div
                         key={item.relative_path}
-                        className="flex flex-col items-center cursor-pointer p-2 hover:bg-gray-50 rounded"
+                        className="relative flex flex-col items-center cursor-pointer p-2 hover:bg-gray-50 rounded"
                         onClick={(e) => {
                           e.stopPropagation();
                           openItem(item);
@@ -599,21 +599,71 @@ export default function Index() {
                       >
                         <div className="w-36 h-36 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
                           {item.is_image ? (
-                            // show thumbnail via file URL
-                            // eslint-disable-next-line jsx-a11y/img-redundant-alt
                             <img
                               src={`/api/containerimages/file?path=${encodeURIComponent(item.relative_path)}`}
                               alt={item.name}
                               className="object-cover w-full h-full"
                             />
                           ) : item.type === 'directory' ? (
-                            <FolderOpen className="w-12 h-12 text-gray-500" />
+                            <FolderOpen className="w-12 h-12" style={{ color: colors.status.warning }} />
                           ) : (
                             <ImageIcon className="w-12 h-12 text-gray-500" />
                           )}
                         </div>
 
                         <div className="mt-2 text-sm text-center truncate w-36" style={{ color: colors.text.primary }}>{item.name}</div>
+
+                        <button
+                          type="button"
+                          className="absolute right-2 bottom-2 p-1 rounded bg-white shadow-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenFor(menuOpenFor === item.relative_path ? null : item.relative_path);
+                          }}
+                        >
+                          <MoreHorizontal className="w-4 h-4 text-gray-600" />
+                        </button>
+
+                        {menuOpenFor === item.relative_path && (
+                          <div className="absolute right-2 bottom-10 bg-white border rounded shadow-md z-50">
+                            <button
+                              className="block px-3 py-2 text-left w-40 hover:bg-gray-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuOpenFor(null);
+                                handleDownload(item);
+                              }}
+                            >
+                              Download
+                            </button>
+
+                            {pageAccess.module_edit && (
+                              <button
+                                className="block px-3 py-2 text-left w-40 hover:bg-gray-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMenuOpenFor(null);
+                                  openRenameModal(item);
+                                }}
+                              >
+                                Rename
+                              </button>
+                            )}
+
+                            {pageAccess.module_delete && (
+                              <button
+                                className="block px-3 py-2 text-left w-40 hover:bg-gray-100 text-red-600"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMenuOpenFor(null);
+                                  askDeleteItem(item);
+                                }}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
