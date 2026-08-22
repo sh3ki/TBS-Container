@@ -605,7 +605,7 @@ export default function Index() {
                           <ModernButton 
                             variant="edit" 
                             size="sm" 
-                            onClick={() => handleEditBooking(booking)}
+                            onClick={(e) => { e.stopPropagation(); handleEditBooking(booking); }}
                             title="Edit Booking"
                           >
                             <Pencil className="w-3.5 h-3.5" />
@@ -613,10 +613,7 @@ export default function Index() {
                           <ModernButton 
                             variant="delete" 
                             size="sm" 
-                            onClick={() => {
-                              setBookingToDelete(booking);
-                              setConfirmDeleteBooking(true);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); setBookingToDelete(booking); setConfirmDeleteBooking(true); }}
                             title="Delete Booking"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
