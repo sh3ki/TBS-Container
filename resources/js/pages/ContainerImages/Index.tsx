@@ -6,6 +6,7 @@ import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernTable
 import { colors } from '@/lib/colors';
 import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Eye, Images } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface ExplorerItem extends Record<string, unknown> {
   name: string;
@@ -38,6 +39,7 @@ export default function Index() {
     module_delete: false,
   });
   const [folderName, setFolderName] = useState('');
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ExplorerItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -185,6 +187,7 @@ export default function Index() {
       if (response.data.success) {
         success('Folder created successfully');
         setFolderName('');
+        setShowCreateFolderModal(false);
         fetchItems(currentPath);
       }
     } catch (err: unknown) {
@@ -336,7 +339,7 @@ export default function Index() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Container Images</h1>
-              <p className="text-sm mt-1 text-gray-600">Explore and manage server files from /var/www/tbscontainermnl/container_pics</p>
+              <p className="text-sm mt-1 text-gray-600">Explore and manage container images in the server</p>
             </div>
           </div>
 
@@ -386,8 +389,7 @@ export default function Index() {
                         variant="primary"
                         size="sm"
                         icon={<FolderPlus className="h-4 w-4" />}
-                        onClick={handleCreateFolder}
-                        loading={creatingFolder}
+                        onClick={() => setShowCreateFolderModal(true)}
                       >
                         Create Folder
                       </ModernButton>
@@ -452,14 +454,7 @@ export default function Index() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {pageAccess.module_edit && (
-                      <Input
-                        value={folderName}
-                        onChange={(e) => setFolderName(e.target.value)}
-                        placeholder="New folder name"
-                        className="w-52"
-                      />
-                    )}
+                    {/* Folder name input moved into modal */}
 
                     <div className="relative">
                       <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.secondary }} />
@@ -485,6 +480,35 @@ export default function Index() {
           </>
         )}
       </div>
+
+      <Dialog open={showCreateFolderModal} onOpenChange={setShowCreateFolderModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Folder</DialogTitle>
+            <DialogDescription>Enter a name for the new folder.</DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2">
+            <Input
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              placeholder="Folder name"
+            />
+          </div>
+
+          <DialogFooter>
+            <div className="flex items-center gap-2">
+              <ModernButton variant="secondary" onClick={() => setShowCreateFolderModal(false)}>
+                Cancel
+              </ModernButton>
+
+              <ModernButton variant="primary" onClick={handleCreateFolder} loading={creatingFolder}>
+                Create
+              </ModernButton>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ModernConfirmDialog
         open={confirmDelete}
