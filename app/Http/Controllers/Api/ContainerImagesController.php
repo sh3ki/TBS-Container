@@ -294,6 +294,108 @@ class ContainerImagesController extends Controller
         return response()->file($fullPath);
     }
 
+    public function download(Request $request)
+    {
+        $access = $this->getPageRecordAccessData();
+        if (!$access['can_view']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access to this page.'
+            ], 403);
+        }
+
+        $relativePath = $this->normalizeRelativePath($request->query('path', ''));
+        if ($relativePath === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Path is required.'
+            ], 422);
+        }
+
+        $fullPath = $this->toFullPath($relativePath);
+
+        if (!File::exists($fullPath)) {
+            return response()->json(['success' => false, 'message' => 'Item not found.'], 404);
+        }
+
+        if (File::isFile($fullPath)) {
+            return response()->download($fullPath, basename($fullPath));
+        }
+
+        // If directory, create temporary zip and return it
+        $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'containerimages_' . md5($fullPath . time()) . '.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            return response()->json(['success' => false, 'message' => 'Failed to create archive.'], 500);
+        }
+
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($fullPath));
+        foreach ($files as $file) {
+            if (!$file->isFile()) continue;
+            $filePath = $file->getRealPath();
+            $relative = ltrim(str_replace($fullPath, '', $filePath), DIRECTORY_SEPARATOR);
+            $zip->addFile($filePath, $relative);
+        }
+
+        $zip->close();
+
+        return response()->download($zipPath, basename($relativePath) . '.zip')->deleteFileAfterSend(true);
+    }
+
+    public function rename(Request $request)
+    {
+        $access = $this->getPageRecordAccessData();
+        if (!$access['module_edit']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to rename items.'
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'path' => ['required', 'string'],
+            'new_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        $relativePath = $this->normalizeRelativePath($validated['path']);
+        if ($relativePath === '') {
+            return response()->json(['success' => false, 'message' => 'Cannot rename root.'], 422);
+        }
+
+        $fullPath = $this->toFullPath($relativePath);
+        if (!File::exists($fullPath)) {
+            return response()->json(['success' => false, 'message' => 'Item not found.'], 404);
+        }
+
+        $parent = dirname($fullPath);
+        $isFile = File::isFile($fullPath);
+
+        if ($isFile) {
+            $ext = pathinfo($fullPath, PATHINFO_EXTENSION);
+            $base = $this->sanitizeFileName(pathinfo($validated['new_name'], PATHINFO_FILENAME));
+            $targetName = $base . ($ext ? '.' . $ext : '');
+        } else {
+            $targetName = $this->sanitizeFolderName($validated['new_name']);
+        }
+
+        if ($targetName === '') {
+            return response()->json(['success' => false, 'message' => 'Invalid new name.'], 422);
+        }
+
+        $targetPath = $parent . DIRECTORY_SEPARATOR . $targetName;
+        if (File::exists($targetPath)) {
+            return response()->json(['success' => false, 'message' => 'An item with that name already exists.'], 409);
+        }
+
+        try {
+            File::move($fullPath, $targetPath);
+            $this->logAudit('EDIT', '[CONTAINER IMAGES] Renamed "' . $relativePath . '" to "' . ltrim(str_replace(rtrim(self::BASE_DIRECTORY, '/') . '/', '', $targetPath), '/') . '"');
+            return response()->json(['success' => true, 'message' => 'Renamed successfully.']);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => 'Rename failed.'], 500);
+        }
+    }
+
     public function getPageRecordAccess()
     {
         $access = $this->getPageRecordAccessData();
