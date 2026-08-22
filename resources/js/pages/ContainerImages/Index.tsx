@@ -755,10 +755,10 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="max-w-5xl w-full relative">
-          <div className="flex flex-col items-center gap-4">
+        <DialogContent className="max-w-5xl w-full flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 p-4 w-full max-h-[85vh] overflow-hidden">
             <div
-              className="w-full flex-1 flex items-center justify-center relative"
+              className="w-full min-h-[50vh] flex items-center justify-center relative overflow-hidden"
               onClick={(e) => {
                 // Click left/right 30%/70% to go prev/next
                 const images = imageItems;
@@ -777,7 +777,8 @@ export default function Index() {
                 <img
                   src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
                   alt={currentImage.name}
-                  className="max-h-[70vh] max-w-[90%] object-contain"
+                  className="max-h-[70vh] max-w-[90%] object-contain mx-auto"
+                  style={{ display: 'block' }}
                 />
               )}
 
