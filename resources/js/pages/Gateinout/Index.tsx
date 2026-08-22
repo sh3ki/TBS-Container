@@ -800,7 +800,7 @@ export default function Index() {
                       <ModernButton
                         variant="add"
                         size="sm"
-                        onClick={() => handleProcessClick(record)}
+                        onClick={(e) => { e.stopPropagation(); handleProcessClick(record); }}
                         title="Process"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
@@ -810,7 +810,8 @@ export default function Index() {
                       <ModernButton
                         variant="edit"
                         size="sm"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (record.gate_status === 'IN') {
                             handleEditPreIn(record);
                           } else {
@@ -826,7 +827,8 @@ export default function Index() {
                       <ModernButton
                         variant="delete"
                         size="sm"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setRecordToDelete(record);
                           setConfirmDeleteRecord(true);
                         }}
@@ -978,7 +980,7 @@ export default function Index() {
                       <ModernButton
                         variant="add"
                         size="sm"
-                        onClick={() => handleProcessClick(record)}
+                        onClick={(e) => { e.stopPropagation(); handleProcessClick(record); }}
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
                       </ModernButton>
@@ -987,7 +989,8 @@ export default function Index() {
                       <ModernButton
                         variant="edit"
                         size="sm"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (record.gate_status === 'IN') {
                             handleEditPreIn(record);
                           } else {
@@ -1002,7 +1005,8 @@ export default function Index() {
                       <ModernButton
                         variant="delete"
                         size="sm"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setRecordToDelete(record);
                           setConfirmDeleteRecord(true);
                         }}
