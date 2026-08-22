@@ -47,6 +47,9 @@ export default function Index() {
   const [renameTarget, setRenameTarget] = useState<ExplorerItem | null>(null);
   const [renameName, setRenameName] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'large'>('list');
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   useEffect(() => {
     fetchPageAccess();
@@ -124,6 +127,14 @@ export default function Index() {
   const openItem = (item: ExplorerItem) => {
     if (item.type === 'directory') {
       navigateTo(item.relative_path);
+      return;
+    }
+
+    if (item.is_image) {
+      const images = filteredItems.filter((i) => i.is_image);
+      const idx = images.findIndex((i) => i.relative_path === item.relative_path);
+      setViewerIndex(idx >= 0 ? idx : 0);
+      setImageViewerOpen(true);
       return;
     }
 
@@ -546,16 +557,67 @@ export default function Index() {
                         className="pl-9 w-64"
                       />
                     </div>
+                    <div className="ml-3 flex items-center">
+                      <ModernButton
+                        variant={viewMode === 'list' ? 'primary' : 'secondary'}
+                        size="sm"
+                        onClick={() => setViewMode('list')}
+                      >
+                        List
+                      </ModernButton>
+
+                      <ModernButton
+                        variant={viewMode === 'large' ? 'primary' : 'secondary'}
+                        size="sm"
+                        className="ml-2"
+                        onClick={() => setViewMode('large')}
+                      >
+                        View Extra Large Icons
+                      </ModernButton>
+                    </div>
                   </div>
                 </div>
 
-                <ModernTable
-                  columns={columns}
-                  data={filteredItems}
-                  loading={loading}
-                  emptyMessage="No files or folders found"
-                  onRowClick={openItem}
-                />
+                {viewMode === 'list' ? (
+                  <ModernTable
+                    columns={columns}
+                    data={filteredItems}
+                    loading={loading}
+                    emptyMessage="No files or folders found"
+                    onRowClick={openItem}
+                  />
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {filteredItems.map((item) => (
+                      <div
+                        key={item.relative_path}
+                        className="flex flex-col items-center cursor-pointer p-2 hover:bg-gray-50 rounded"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openItem(item);
+                        }}
+                      >
+                        <div className="w-36 h-36 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
+                          {item.is_image ? (
+                            // show thumbnail via file URL
+                            // eslint-disable-next-line jsx-a11y/img-redundant-alt
+                            <img
+                              src={`/api/containerimages/file?path=${encodeURIComponent(item.relative_path)}`}
+                              alt={item.name}
+                              className="object-cover w-full h-full"
+                            />
+                          ) : item.type === 'directory' ? (
+                            <FolderOpen className="w-12 h-12 text-gray-500" />
+                          ) : (
+                            <ImageIcon className="w-12 h-12 text-gray-500" />
+                          )}
+                        </div>
+
+                        <div className="mt-2 text-sm text-center truncate w-36" style={{ color: colors.text.primary }}>{item.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </ModernCard>
           </>
@@ -617,6 +679,56 @@ export default function Index() {
               </ModernButton>
             </div>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
+        <DialogContent className="max-w-5xl w-full">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-full flex items-center justify-between">
+              <ModernButton variant="secondary" size="sm" onClick={() => {
+                const images = filteredItems.filter((i) => i.is_image);
+                setViewerIndex((prev) => (prev - 1 + images.length) % images.length);
+              }}>
+                Prev
+              </ModernButton>
+
+              <ModernButton variant="secondary" size="sm" onClick={() => {
+                const images = filteredItems.filter((i) => i.is_image);
+                setViewerIndex((prev) => (prev + 1) % images.length);
+              }}>
+                Next
+              </ModernButton>
+            </div>
+
+            <div className="flex-1 flex items-center justify-center">
+              {filteredItems.filter((i) => i.is_image).length > 0 && (
+                <img
+                  src={`/api/containerimages/file?path=${encodeURIComponent(filteredItems.filter((i) => i.is_image)[viewerIndex]?.relative_path || '')}`}
+                  alt={filteredItems.filter((i) => i.is_image)[viewerIndex]?.name || ''}
+                  className="max-h-[70vh] max-w-[90%] object-contain"
+                />
+              )}
+            </div>
+
+            <div className="w-full">
+              <div className="flex items-center justify-center gap-2 overflow-x-auto py-2">
+                {filteredItems.filter((i) => i.is_image).map((imgItem, idx) => (
+                  <button
+                    key={imgItem.relative_path}
+                    onClick={() => setViewerIndex(idx)}
+                    className={`p-1 rounded ${idx === viewerIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                  >
+                    <img
+                      src={`/api/containerimages/file?path=${encodeURIComponent(imgItem.relative_path)}`}
+                      alt={imgItem.name}
+                      className="w-16 h-16 object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
