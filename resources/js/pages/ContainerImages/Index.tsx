@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
-import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Eye, Images } from 'lucide-react';
+import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -42,6 +42,11 @@ export default function Index() {
   const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ExplorerItem | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [downloadingPaths, setDownloadingPaths] = useState<string[]>([]);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<ExplorerItem | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     fetchPageAccess();
@@ -198,6 +203,67 @@ export default function Index() {
     }
   };
 
+  const handleDownload = async (item: ExplorerItem) => {
+    setDownloadingPaths((prev) => [...prev, item.relative_path]);
+    try {
+      const response = await axios.get('/api/containerimages/download', {
+        params: { path: item.relative_path },
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      success('Download started');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      error(e.response?.data?.message || 'Download failed');
+    } finally {
+      setDownloadingPaths((prev) => prev.filter((p) => p !== item.relative_path));
+    }
+  };
+
+  const openRenameModal = (item: ExplorerItem) => {
+    setRenameTarget(item);
+    setRenameName(item.name);
+    setShowRenameModal(true);
+  };
+
+  const handleRename = async () => {
+    if (!renameTarget) return;
+    if (!renameName.trim()) {
+      error('Please enter a name');
+      return;
+    }
+
+    setRenaming(true);
+    try {
+      const response = await axios.post('/api/containerimages/rename', {
+        path: renameTarget.relative_path,
+        new_name: renameName,
+      });
+
+      if (response.data.success) {
+        success('Renamed successfully');
+        setShowRenameModal(false);
+        setRenameTarget(null);
+        setRenameName('');
+        fetchItems(currentPath);
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      error(e.response?.data?.message || 'Rename failed');
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const askDeleteItem = (item: ExplorerItem) => {
     setItemToDelete(item);
     setConfirmDelete(true);
@@ -298,14 +364,29 @@ export default function Index() {
           <ModernButton
             variant="secondary"
             size="sm"
-            icon={<Eye className="h-4 w-4" />}
+            icon={<Download className="h-4 w-4" />}
             onClick={(e) => {
               e.stopPropagation();
-              openItem(item);
+              handleDownload(item);
             }}
+            loading={downloadingPaths.includes(item.relative_path)}
           >
-            Open
+            Download
           </ModernButton>
+
+          {pageAccess.module_edit && (
+            <ModernButton
+              variant="secondary"
+              size="sm"
+              icon={<Edit className="h-4 w-4" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                openRenameModal(item);
+              }}
+            >
+              Rename
+            </ModernButton>
+          )}
 
           {pageAccess.module_delete && (
             <ModernButton
@@ -504,6 +585,35 @@ export default function Index() {
 
               <ModernButton variant="primary" onClick={handleCreateFolder} loading={creatingFolder}>
                 Create
+              </ModernButton>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRenameModal} onOpenChange={setShowRenameModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Item</DialogTitle>
+            <DialogDescription>Enter a new name for the item.</DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2">
+            <Input
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              placeholder="New name"
+            />
+          </div>
+
+          <DialogFooter>
+            <div className="flex items-center gap-2">
+              <ModernButton variant="secondary" onClick={() => setShowRenameModal(false)}>
+                Cancel
+              </ModernButton>
+
+              <ModernButton variant="primary" onClick={handleRename} loading={renaming}>
+                Rename
               </ModernButton>
             </div>
           </DialogFooter>
