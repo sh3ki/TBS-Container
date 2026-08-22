@@ -52,8 +52,6 @@ export default function Index() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
 
-  const imageItems = useMemo(() => filteredItems.filter((i) => i.is_image), [filteredItems]);
-  const currentImage = imageItems[viewerIndex] ?? null;
 
   useEffect(() => {
     fetchPageAccess();
@@ -81,6 +79,9 @@ export default function Index() {
 
     return currentPath.split('/').filter(Boolean);
   }, [currentPath]);
+
+  const imageItems = useMemo(() => filteredItems.filter((i) => i.is_image), [filteredItems]);
+  const currentImage = imageItems[viewerIndex] ?? null;
 
   
 
