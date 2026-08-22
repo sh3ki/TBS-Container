@@ -397,13 +397,10 @@ export default function Index() {
                     <ModernButton variant="primary" size="sm" onClick={() => handleViewBan(ban)} title="View Details">
                       <Eye className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="edit" size="sm" onClick={() => handleEditBan(ban)} title="Edit Ban">
+                    <ModernButton variant="edit" size="sm" onClick={(e) => { e.stopPropagation(); handleEditBan(ban); }} title="Edit Ban">
                       <Pencil className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="delete" size="sm" onClick={() => {
-                      setBanToDelete(ban);
-                      setConfirmDeleteBan(true);
-                    }} title="Remove Ban">
+                    <ModernButton variant="delete" size="sm" onClick={(e) => { e.stopPropagation(); setBanToDelete(ban); setConfirmDeleteBan(true); }} title="Remove Ban">
                       <Trash2 className="w-3.5 h-3.5" />
                     </ModernButton>
                   </div>
