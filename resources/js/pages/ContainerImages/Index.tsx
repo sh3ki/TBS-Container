@@ -216,6 +216,18 @@ export default function Index() {
   };
 
   const handleDownload = async (item: ExplorerItem) => {
+    // For directories, let the browser handle the download (avoids saving JSON errors as text)
+    if (item.type === 'directory') {
+      const href = `/api/containerimages/download?path=${encodeURIComponent(item.relative_path)}`;
+      const a = document.createElement('a');
+      a.href = href;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return;
+    }
+
     setDownloadingPaths((prev) => [...prev, item.relative_path]);
     try {
       const response = await axios.get('/api/containerimages/download', {
@@ -587,7 +599,15 @@ export default function Index() {
                     onRowClick={openItem}
                   />
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {filteredItems.length === 0 ? (
+                    <div className="w-full py-12 flex flex-col items-center justify-center">
+                      <div className="w-36 h-36 flex items-center justify-center bg-gray-100 rounded">
+                        <FolderOpen className="w-12 h-12" style={{ color: colors.status.warning }} />
+                      </div>
+                      <div className="mt-4 text-sm" style={{ color: colors.text.primary }}>No files or folders found</div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {filteredItems.map((item) => (
                       <div
                         key={item.relative_path}
@@ -628,6 +648,7 @@ export default function Index() {
                           <div className="absolute right-2 bottom-10 bg-white border rounded shadow-md z-50">
                             <button
                               className="block px-3 py-2 text-left w-40 hover:bg-gray-100"
+                              style={{ color: colors.text.primary, backgroundColor: 'white' }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setMenuOpenFor(null);
@@ -640,6 +661,7 @@ export default function Index() {
                             {pageAccess.module_edit && (
                               <button
                                 className="block px-3 py-2 text-left w-40 hover:bg-gray-100"
+                                style={{ color: colors.text.primary, backgroundColor: 'white' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setMenuOpenFor(null);
@@ -652,7 +674,8 @@ export default function Index() {
 
                             {pageAccess.module_delete && (
                               <button
-                                className="block px-3 py-2 text-left w-40 hover:bg-gray-100 text-red-600"
+                                className="block px-3 py-2 text-left w-40 hover:bg-gray-100"
+                                style={{ color: '#b91c1c', backgroundColor: 'white' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setMenuOpenFor(null);
@@ -667,6 +690,7 @@ export default function Index() {
                       </div>
                     ))}
                   </div>
+                  )}
                 )}
               </div>
             </ModernCard>
