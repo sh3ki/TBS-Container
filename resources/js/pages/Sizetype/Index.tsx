@@ -388,19 +388,13 @@ export default function Index() {
                     <ModernButton variant="primary" size="sm" onClick={() => handleViewSizeType(sizeType)} title="View Details">
                       <Eye className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="edit" size="sm" onClick={() => handleEditSizeType(sizeType)} title="Edit Size & Type">
+                    <ModernButton variant="edit" size="sm" onClick={(e) => { e.stopPropagation(); handleEditSizeType(sizeType); }} title="Edit Size & Type">
                       <Edit className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="toggle" size="sm" onClick={() => {
-                      setsizeTypeToToggle(sizeType);
-                      setConfirmToggleStatus(true);
-                    }} title="Toggle Status">
+                    <ModernButton variant="toggle" size="sm" onClick={(e) => { e.stopPropagation(); setsizeTypeToToggle(sizeType); setConfirmToggleStatus(true); }} title="Toggle Status">
                       <Power className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="delete" size="sm" onClick={() => {
-                      setSizeTypeToDelete(sizeType);
-                      setConfirmDeleteSizeType(true);
-                    }} title="Delete Size & Type">
+                    <ModernButton variant="delete" size="sm" onClick={(e) => { e.stopPropagation(); setSizeTypeToDelete(sizeType); setConfirmDeleteSizeType(true); }} title="Delete Size & Type">
                       <Trash2 className="w-3.5 h-3.5" />
                     </ModernButton>
                   </div>
