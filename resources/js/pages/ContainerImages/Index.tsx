@@ -100,10 +100,17 @@ export default function Index() {
     const container = thumbContainerRef.current;
     const el = container.querySelector(`[data-index="${viewerIndex}"]`) as HTMLElement | null;
     if (!el) return;
-    const elLeft = el.offsetLeft;
-    const elWidth = el.offsetWidth;
-    const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
-    container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
+    // Delay centering slightly to ensure layout has settled, then center the thumbnail
+    setTimeout(() => {
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      } catch (e) {
+        const elLeft = el.offsetLeft;
+        const elWidth = el.offsetWidth;
+        const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
+        container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
+      }
+    }, 50);
   }, [viewerIndex, imageItems, imageViewerOpen]);
 
   
@@ -797,12 +804,17 @@ export default function Index() {
               }}
             >
               {currentImage && (
-                <img
-                  src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
-                  alt={currentImage.name}
-                  className="max-h-[70vh] max-w-[90%] object-contain mx-auto"
-                  style={{ display: 'block' }}
-                />
+                <div className="flex flex-col items-center">
+                  <div className="mb-2 text-center font-medium" style={{ color: colors.text.primary }}>
+                    {currentImage.name}
+                  </div>
+                  <img
+                    src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
+                    alt={currentImage.name}
+                    className="max-h-[70vh] max-w-[90%] object-contain mx-auto"
+                    style={{ display: 'block' }}
+                  />
+                </div>
               )}
 
               {/* Left/Right overlay icons centered vertically */}
@@ -836,7 +848,7 @@ export default function Index() {
             </div>
 
             <div className="w-full">
-              <div ref={thumbContainerRef} className="flex items-center justify-center gap-2 overflow-x-auto py-2 px-4">
+              <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-2 px-4">
                 {imageItems.map((imgItem, idx) => (
                   <button
                     key={imgItem.relative_path}
