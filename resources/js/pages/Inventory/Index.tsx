@@ -257,12 +257,40 @@ const Index: React.FC = () => {
     };
 
     // Apply search filter to reportData
-    const filteredReportData = reportData.filter(record => {
-        if (!searchTerm) return true;
-        const search = searchTerm.toLowerCase();
-        return record.container_no.toLowerCase().includes(search) || 
-               record.eir_no.toLowerCase().includes(search);
-    });
+    const parseDateTime = (dateString?: string, timeString?: string) => {
+        if (!dateString) return NaN;
+        let dt: Date | null = null;
+
+        if (timeString && timeString.includes(':')) {
+            const iso = `${dateString}T${timeString}`;
+            dt = new Date(iso);
+            if (isNaN(dt.getTime())) {
+                dt = new Date(`${dateString} ${timeString}`);
+            }
+        } else {
+            dt = new Date(dateString);
+        }
+
+        return dt && !isNaN(dt.getTime()) ? dt.getTime() : NaN;
+    };
+
+    const filteredReportData = reportData
+        .filter(record => {
+            if (!searchTerm) return true;
+            const search = searchTerm.toLowerCase();
+            return record.container_no.toLowerCase().includes(search) || 
+                   record.eir_no.toLowerCase().includes(search);
+        })
+        .sort((a, b) => {
+            const ta = parseDateTime(a.date as string, a.time as string);
+            const tb = parseDateTime(b.date as string, b.time as string);
+
+            if (isNaN(ta) && isNaN(tb)) return 0;
+            if (isNaN(ta)) return 1; // put invalid/old at the end
+            if (isNaN(tb)) return -1;
+
+            return tb - ta; // newest first
+        });
 
     // Format date to "Jan 01, 2025"
     const formatDate = (dateString: string) => {
@@ -1277,18 +1305,14 @@ const Index: React.FC = () => {
                                         </div>
                                     )
                                 },
-                                { 
-                                    key: 'date', 
-                                    label: 'Date',
+                                {
+                                    key: 'date_time',
+                                    label: 'DATE/TIME',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(row.date)}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'time', 
-                                    label: 'Time',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[95px]">{formatTime(row.time)}</div>
+                                        <div className="text-sm text-gray-600 min-w-[120px]">
+                                            <div className="font-medium">{formatDate(row.date)}</div>
+                                            <div className="text-xs text-gray-500 mt-1">{formatTime(row.time)}</div>
+                                        </div>
                                     )
                                 },
                                 { 
