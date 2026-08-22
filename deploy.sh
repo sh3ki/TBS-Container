@@ -79,6 +79,10 @@ mkdir -p "/var/www/tbscontainermnl/public/container_pics"
 chown -R www-data:www-data "/var/www/tbscontainermnl/public/container_pics"
 chmod -R 775 "/var/www/tbscontainermnl/public/container_pics"
 
+# Also ensure top-level container_pics exists and is writable (used by /containerimages)
+chown -R www-data:www-data "$APP_DIR/container_pics"
+chmod -R 775 "$APP_DIR/container_pics"
+
 # Restart services
 echo "🔄 Restarting services..."
 systemctl reload nginx
