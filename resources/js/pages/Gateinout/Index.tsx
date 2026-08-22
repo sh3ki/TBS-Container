@@ -542,8 +542,13 @@ export default function Index() {
     const remainingMinutes = minutes % (24 * 60);
     const hours = Math.floor(remainingMinutes / 60);
     const mins = remainingMinutes % 60;
-    
-    return `${days}d ${hours}h ${mins}m`;
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    // Always show minutes if it's non-zero, or if nothing else is shown (to display 0m)
+    if (mins > 0 || parts.length === 0) parts.push(`${mins}m`);
+
+    return parts.join(' ');
   };
 
   const getRuntimeColor = (color: string) => {
@@ -834,6 +839,9 @@ export default function Index() {
                 ),
               },
             ]}
+            onRowClick={(record: PreInventoryRecord) => {
+              if (record.status.toLowerCase() === 'pending') handleProcessClick(record);
+            }}
             data={paginatedInRecords}
             loading={loading}
             emptyMessage="No IN records found."
@@ -1006,6 +1014,9 @@ export default function Index() {
                 ),
               },
             ]}
+            onRowClick={(record: PreInventoryRecord) => {
+              if (record.status.toLowerCase() === 'pending') handleProcessClick(record);
+            }}
             data={paginatedOutRecords}
             loading={loading}
             emptyMessage="No OUT records found."
