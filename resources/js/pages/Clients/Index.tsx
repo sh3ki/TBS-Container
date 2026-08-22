@@ -413,19 +413,13 @@ export default function Index() {
                     <ModernButton variant="primary" size="sm" onClick={() => handleViewClient(client)} title="View Details">
                       <Eye className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="edit" size="sm" onClick={() => handleEditClient(client)} title="Edit Client">
+                    <ModernButton variant="edit" size="sm" onClick={(e) => { e.stopPropagation(); handleEditClient(client); }} title="Edit Client">
                       <Pencil className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="toggle" size="sm" onClick={() => {
-                      setClientToToggle(client);
-                      setConfirmToggleStatus(true);
-                    }} title="Toggle Status">
+                    <ModernButton variant="toggle" size="sm" onClick={(e) => { e.stopPropagation(); setClientToToggle(client); setConfirmToggleStatus(true); }} title="Toggle Status">
                       <Power className="w-3.5 h-3.5" />
                     </ModernButton>
-                    <ModernButton variant="delete" size="sm" onClick={() => {
-                      setClientToDelete(client);
-                      setConfirmDeleteClient(true);
-                    }} title="Delete Client">
+                    <ModernButton variant="delete" size="sm" onClick={(e) => { e.stopPropagation(); setClientToDelete(client); setConfirmDeleteClient(true); }} title="Delete Client">
                       <Trash2 className="w-3.5 h-3.5" />
                     </ModernButton>
                   </div>
