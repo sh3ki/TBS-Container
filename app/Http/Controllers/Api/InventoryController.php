@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
 use Carbon\Carbon;
 
 class InventoryController extends Controller
@@ -479,6 +480,37 @@ class InventoryController extends Controller
                 ", [$inventory->container_no]);
             }
 
+            // Attempt to include container images (if any) by scanning the container_pics folder.
+            $images = [];
+            try {
+                $baseDir = '/var/www/tbscontainermnl/public/container_pics';
+                if (!empty($inventory->date_added)) {
+                    $folderDate = Carbon::parse($inventory->date_added)->format('m-d-Y');
+                } else {
+                    $folderDate = null;
+                }
+
+                if ($folderDate) {
+                    $inOrOut = (strtolower($inventory->gate_status) === 'out') ? 'out' : 'in';
+                    $relativePath = trim($folderDate . '/' . $inOrOut . '/' . $inventory->container_no . '/', '/');
+                    $fullPath = rtrim($baseDir, '/') . '/' . $relativePath;
+
+                    if (File::exists($fullPath) && File::isDirectory($fullPath)) {
+                        $files = File::files($fullPath);
+                        foreach ($files as $f) {
+                            $name = $f->getFilename();
+                            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                            if (in_array($ext, ['jpg','jpeg','png','gif','webp','bmp'], true)) {
+                                $rel = ltrim($relativePath . '/' . $name, '/');
+                                $images[] = '/api/containerimages/file?path=' . urlencode($rel);
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // ignore image discovery failures
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -528,6 +560,8 @@ class InventoryController extends Controller
                     'approval_date' => $inventory->approval_date,
                     'contact_no' => $inventory->contact_no,
                     'bill_of_lading' => $inventory->bill_of_lading,
+                    // Images: look for files under public/container_pics/{MM-DD-YYYY}/{in|out}/{container_no}/
+                    'images' => $images,
                 ],
             ]);
 
