@@ -393,7 +393,7 @@ const Index: React.FC = () => {
         return null;
     };
 
-    // Fetch container images from /containerimages/{MM-DD-YYYY}/{in|out}/{container_no}/
+    // Fetch container images using the containerimages API used by the explorer
     const fetchContainerImages = async (dateString?: string, gateStatus?: string, containerNo?: string) => {
         setContainerImages([]);
         if (!dateString || !containerNo) return;
@@ -402,19 +402,21 @@ const Index: React.FC = () => {
         if (!folderDate) return;
 
         const inOrOut = (gateStatus || 'in').toString().toLowerCase().startsWith('out') ? 'out' : 'in';
-        const baseUrl = `/containerimages/${folderDate}/${inOrOut}/${containerNo}/`;
+        const relativePath = `${folderDate}/${inOrOut}/${containerNo}/`;
 
         try {
-            const res = await axios.get(baseUrl, { responseType: 'text' });
-            if (res.status === 200 && res.data) {
-                const html = res.data as string;
-                const regex = /href\s*=\s*"([^"]+\.(?:jpg|jpeg|png|webp|gif))"/gi;
-                const matches = Array.from(html.matchAll(regex)).map(m => m[1]);
-                const unique = Array.from(new Set(matches)).map(p => (p.startsWith('http') ? p : baseUrl + p.replace(/^\.\//, '')));
-                if (unique.length > 0) setContainerImages(unique);
+            const res = await axios.get('/api/containerimages/list', { params: { path: relativePath } });
+            if (res.data && res.data.success && res.data.data && Array.isArray(res.data.data.items)) {
+                const imgs = res.data.data.items
+                    .filter((it: any) => it.is_image)
+                    .map((it: any) => `/api/containerimages/file?path=${encodeURIComponent(it.relative_path)}`);
+
+                if (imgs.length > 0) setContainerImages(imgs);
             }
         } catch (err) {
-            // no images or inaccessible - ignore silently
+            // ignore and leave images empty
+            console.debug('fetchContainerImages error', err);
+            setContainerImages([]);
         }
     };
 
