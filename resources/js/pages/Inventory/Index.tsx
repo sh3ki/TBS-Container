@@ -619,8 +619,12 @@ const Index: React.FC = () => {
                     hold_date: data.hold_details && data.hold_details.date_added ? data.hold_details.date_added : undefined,
                 };
                 setViewRecord(mappedRecord);
-                // try to fetch any available images for this record
-                await fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
+                // If API already provided images, use them. Otherwise fall back to containerimages list API.
+                if (response.data.data.images && Array.isArray(response.data.data.images) && response.data.data.images.length > 0) {
+                    setContainerImages(response.data.data.images);
+                } else {
+                    await fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
+                }
                 setShowViewModal(true);
             } else {
                 error(response.data.message || 'Failed to load container details');
