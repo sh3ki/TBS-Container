@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, Search, Printer } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Printer } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -100,6 +100,10 @@ const Index: React.FC = () => {
     // View modal state
     const [showViewModal, setShowViewModal] = useState(false);
     const [viewRecord, setViewRecord] = useState<InventoryRecord | null>(null);
+    // Images for view modal
+    const [containerImages, setContainerImages] = useState<string[]>([]);
+    const [showImageViewer, setShowImageViewer] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     // Confirmation dialog states
     const [showApproveConfirm, setShowApproveConfirm] = useState(false);
@@ -108,7 +112,6 @@ const Index: React.FC = () => {
     const [showRepoToggleConfirm, setShowRepoToggleConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditConfirm, setShowEditConfirm] = useState(false);
-    const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
     const [recordToDelete, setRecordToDelete] = useState<InventoryRecord | null>(null);
     const [recordForAction, setRecordForAction] = useState<InventoryRecord | null>(null);
@@ -366,6 +369,55 @@ const Index: React.FC = () => {
         }
     };
 
+    // Format folder date as MM-DD-YYYY (e.g. 08-05-2026)
+    const formatFolderDate = (dateString?: string) => {
+        if (!dateString) return null;
+        // try parsing as ISO yyyy-mm-dd
+        const d = new Date(dateString);
+        if (!isNaN(d.getTime())) {
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const yyyy = String(d.getFullYear());
+            return `${mm}-${dd}-${yyyy}`;
+        }
+
+        // fallback: try splitting
+        const parts = dateString.split('-');
+        if (parts.length >= 3) {
+            // assume yyyy-mm-dd
+            const yyyy = parts[0];
+            const mm = parts[1].padStart(2, '0');
+            const dd = parts[2].padStart(2, '0');
+            return `${mm}-${dd}-${yyyy}`;
+        }
+        return null;
+    };
+
+    // Fetch container images from /containerimages/{MM-DD-YYYY}/{in|out}/{container_no}/
+    const fetchContainerImages = async (dateString?: string, gateStatus?: string, containerNo?: string) => {
+        setContainerImages([]);
+        if (!dateString || !containerNo) return;
+
+        const folderDate = formatFolderDate(dateString);
+        if (!folderDate) return;
+
+        const inOrOut = (gateStatus || 'in').toString().toLowerCase().startsWith('out') ? 'out' : 'in';
+        const baseUrl = `/containerimages/${folderDate}/${inOrOut}/${containerNo}/`;
+
+        try {
+            const res = await axios.get(baseUrl, { responseType: 'text' });
+            if (res.status === 200 && res.data) {
+                const html = res.data as string;
+                const regex = /href\s*=\s*"([^"]+\.(?:jpg|jpeg|png|webp|gif))"/gi;
+                const matches = Array.from(html.matchAll(regex)).map(m => m[1]);
+                const unique = Array.from(new Set(matches)).map(p => (p.startsWith('http') ? p : baseUrl + p.replace(/^\.\//, '')));
+                if (unique.length > 0) setContainerImages(unique);
+            }
+        } catch (err) {
+            // no images or inaccessible - ignore silently
+        }
+    };
+
     const handleOpenApprovalModal = (record: InventoryRecord) => {
         setSelectedRecord(record);
         setApprovalNotes('');
@@ -565,6 +617,8 @@ const Index: React.FC = () => {
                     hold_date: data.hold_details && data.hold_details.date_added ? data.hold_details.date_added : undefined,
                 };
                 setViewRecord(mappedRecord);
+                // try to fetch any available images for this record
+                await fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
                 setShowViewModal(true);
             } else {
                 error(response.data.message || 'Failed to load container details');
@@ -714,9 +768,7 @@ const Index: React.FC = () => {
         }
     };
 
-    const handleOpenGenerateConfirm = () => {
-        setShowGenerateConfirm(true);
-    };
+    
 
     const openLegacyPrintSingle = (row: InventoryRecord) => {
         const idForPrint = row.hashed_id || row.i_id;
@@ -731,7 +783,6 @@ const Index: React.FC = () => {
     };
 
     const handleSearch = async () => {
-        setShowGenerateConfirm(false);
         setLoading(true);
         setCurrentPage(1);
 
@@ -843,7 +894,7 @@ const Index: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <ModernButton 
                             variant="primary" 
-                            onClick={handleOpenGenerateConfirm} 
+                            onClick={handleSearch} 
                             disabled={loading}
                             className="px-6 py-3"
                         >
@@ -1562,6 +1613,36 @@ const Index: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
+            {/* Image Viewer Modal */}
+            <Dialog open={showImageViewer} onOpenChange={setShowImageViewer}>
+                <DialogContent className="max-w-4xl">
+                    <div className="relative flex items-center justify-center bg-black">
+                        <button
+                            className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white p-2 bg-black/40 rounded"
+                            onClick={() => setCurrentImageIndex((i) => (i - 1 + containerImages.length) % containerImages.length)}
+                        >
+                            <ChevronLeft className="w-6 h-6" />
+                        </button>
+
+                        <img
+                            src={containerImages[currentImageIndex]}
+                            alt={`image-${currentImageIndex}`}
+                            className="max-h-[70vh] object-contain"
+                        />
+
+                        <button
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white p-2 bg-black/40 rounded"
+                            onClick={() => setCurrentImageIndex((i) => (i + 1) % containerImages.length)}
+                        >
+                            <ChevronRight className="w-6 h-6" />
+                        </button>
+                    </div>
+                    <DialogFooter>
+                        <ModernButton variant="toggle" onClick={() => setShowImageViewer(false)}>Close</ModernButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Approval Modal */}
             <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
                 <DialogContent className="max-w-md bg-white">
@@ -1763,6 +1844,22 @@ const Index: React.FC = () => {
                                             )}
                                         </div>
                                     ) : null}
+                                    {containerImages.length > 0 && (
+                                        <div>
+                                            <Label className="text-xs uppercase text-gray-600">Images</Label>
+                                            <div className="flex gap-2 overflow-x-auto py-2">
+                                                {containerImages.map((src, idx) => (
+                                                    <img
+                                                        key={src}
+                                                        src={src}
+                                                        alt={`img-${idx}`}
+                                                        className="w-28 h-20 object-cover rounded cursor-pointer border"
+                                                        onClick={() => { setCurrentImageIndex(idx); setShowImageViewer(true); }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -2130,16 +2227,7 @@ const Index: React.FC = () => {
                 onConfirm={handleConfirmEdit}
             />
 
-            {/* Generate Confirmation Dialog */}
-            <ModernConfirmDialog
-                open={showGenerateConfirm}
-                onOpenChange={setShowGenerateConfirm}
-                type="warning"
-                title="Generate Report?"
-                description="Are you sure you want to generate the inventory report with the current filters?"
-                confirmText="Yes, Generate"
-                onConfirm={handleSearch}
-            />
+            
 
             {/* Export Confirmation Dialog */}
             <ModernConfirmDialog
