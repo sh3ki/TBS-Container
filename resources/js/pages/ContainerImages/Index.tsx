@@ -514,6 +514,7 @@ export default function Index() {
   ];
 
   const canGoBack = breadcrumbParts.length > 0;
+  const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
 
   return (
     <AuthenticatedLayout>
@@ -834,17 +835,18 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="!w-[98vw] !max-w-none h-[96vh] p-4 sm:p-6 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4 w-full h-full overflow-hidden">
+        <DialogContent className="!w-fit !max-w-[96vw] max-h-[94vh] p-4 sm:p-5 flex items-center justify-center overflow-hidden">
+          <div className="flex flex-col items-center gap-3 w-fit max-h-[90vh] overflow-hidden">
             {currentImage && (
               <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
                 {currentImage.name}
               </div>
             )}
 
-            <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+            <div className="flex items-center justify-center">
               <div
-                className="relative w-full max-w-[1700px] max-h-full aspect-[4/3] overflow-hidden rounded-md bg-black/5"
+                className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5"
+                style={{ width: viewerFrameWidth }}
                 onClick={(e) => {
                   // Click left/right 30%/70% to go prev/next
                   const images = imageItems;
@@ -901,8 +903,8 @@ export default function Index() {
               </div>
             </div>
 
-            <div className="w-full">
-              <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-2 sm:px-4">
+            <div style={{ width: viewerFrameWidth }}>
+              <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-1 sm:px-2">
                 {imageItems.map((imgItem, idx) => (
                   <button
                     key={imgItem.relative_path}
@@ -913,7 +915,7 @@ export default function Index() {
                     <img
                       src={`/api/containerimages/file?path=${encodeURIComponent(imgItem.relative_path)}`}
                       alt={imgItem.name}
-                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover"
+                      className="w-24 sm:w-28 aspect-[4/3] object-cover rounded"
                     />
                   </button>
                 ))}
