@@ -1256,10 +1256,7 @@ class InventoryController extends Controller
                             WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate})
                             ELSE NULL 
                         END as time,
-                        CASE 
-                            WHEN {$safeInDate} IS NOT NULL THEN DATEDIFF(NOW(), {$safeInDate})
-                            ELSE 0 
-                        END as days,
+                        0 as days,
                         cs.status,
                         i.class,
                         CASE 
@@ -1421,8 +1418,25 @@ class InventoryController extends Controller
             $countRow = DB::selectOne("SELECT COUNT(*) as total {$fromWhere}", $params);
             $total = (int) ($countRow->total ?? 0);
 
-            $dataQuery = $dataSelect . $fromWhere . " ORDER BY st.size ASC, {$safeInDate} DESC, i.i_id DESC LIMIT {$perPage} OFFSET {$offset}";
+            $dataQuery = $dataSelect . $fromWhere . " ORDER BY {$safeInDate} DESC, i.i_id DESC LIMIT {$perPage} OFFSET {$offset}";
             $results = DB::select($dataQuery, $params);
+
+            $now = Carbon::now(config('app.timezone', 'Asia/Manila'));
+            foreach ($results as $row) {
+                if (empty($row->date)) {
+                    $row->days = 0;
+                    continue;
+                }
+
+                $time = !empty($row->time) ? $row->time : '00:00:00';
+
+                try {
+                    $gateIn = Carbon::parse("{$row->date} {$time}", config('app.timezone', 'Asia/Manila'));
+                    $row->days = max(0, $gateIn->diffInDays($now, false));
+                } catch (\Throwable $e) {
+                    $row->days = 0;
+                }
+            }
 
             $summaryByClient = [];
             $sizeTypeList = [];
