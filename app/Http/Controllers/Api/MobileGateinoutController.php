@@ -1058,8 +1058,8 @@ class MobileGateinoutController extends Controller
                     }
                     $finalPath = $targetDir . '/' . $finalName;
 
-                    // Dispatch Laravel job to process and save optimized 480x640 (portrait, preserve aspect ratio without cropping)
-                    \App\Jobs\ProcessUploadedImage::dispatch($tmpPath, $finalPath, 480, 640, 72);
+                    // Dispatch Laravel job to process and save optimized 640x480 (landscape 4:3, preserve aspect ratio without cropping)
+                    \App\Jobs\ProcessUploadedImage::dispatch($tmpPath, $finalPath, 640, 480, 72);
 
                     // Return the expected path immediately (file will appear after job runs)
                     $relativePath = str_replace($baseDir . '/', '', $targetDir);
