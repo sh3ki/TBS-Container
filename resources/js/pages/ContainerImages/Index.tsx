@@ -72,6 +72,35 @@ export default function Index() {
     return items.filter((item) => item.name.toLowerCase().includes(keyword));
   }, [items, searchTerm]);
 
+  const displayItems = useMemo(() => {
+    const foldersWithIndex: Array<{ item: ExplorerItem; index: number }> = [];
+    const othersWithIndex: Array<{ item: ExplorerItem; index: number }> = [];
+
+    filteredItems.forEach((item, index) => {
+      if (item.type === 'directory') {
+        foldersWithIndex.push({ item, index });
+      } else {
+        othersWithIndex.push({ item, index });
+      }
+    });
+
+    const getModifiedTime = (value: string) => {
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const sortedFolders = foldersWithIndex.sort((a, b) => {
+      const timeDiff = getModifiedTime(b.item.modified_at) - getModifiedTime(a.item.modified_at);
+      if (timeDiff !== 0) {
+        return timeDiff;
+      }
+
+      return a.index - b.index;
+    });
+
+    return [...sortedFolders.map(({ item }) => item), ...othersWithIndex.map(({ item }) => item)];
+  }, [filteredItems]);
+
   const breadcrumbParts = useMemo(() => {
     if (!currentPath) {
       return [] as string[];
@@ -627,19 +656,19 @@ export default function Index() {
                 {viewMode === 'list' ? (
                   <ModernTable
                     columns={columns}
-                    data={filteredItems}
+                    data={displayItems}
                     loading={loading}
                     emptyMessage="No files or folders found"
                     onRowClick={openItem}
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {filteredItems.length === 0 ? (
+                    {displayItems.length === 0 ? (
                       <div className="col-span-full py-12 text-center" style={{ color: colors.text.secondary }}>
                         No files or folders found
                       </div>
                     ) : (
-                      filteredItems.map((item) => (
+                      displayItems.map((item) => (
                       <div
                         key={item.relative_path}
                         className="relative flex flex-col items-center cursor-pointer p-2 hover:bg-gray-50 rounded"
