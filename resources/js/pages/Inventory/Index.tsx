@@ -410,6 +410,42 @@ const Index: React.FC = () => {
         }
     };
 
+    // Compact duration for table display: "12d 10h 24m", "14h 23m", "12m"
+    const formatDurationCompactFrom = (dateString?: string, timeString?: string, fallback?: number) => {
+        try {
+            if (!dateString) return fallback !== undefined ? `${fallback}d` : '-';
+
+            let inDate: Date | null = null;
+
+            if (timeString && timeString.includes(':')) {
+                const iso = `${dateString}T${timeString}`;
+                inDate = new Date(iso);
+                if (isNaN(inDate.getTime())) {
+                    inDate = new Date(`${dateString} ${timeString}`);
+                }
+            } else {
+                inDate = new Date(dateString);
+            }
+
+            if (!inDate || isNaN(inDate.getTime())) return fallback !== undefined ? `${fallback}d` : '-';
+
+            const now = new Date();
+            let diffMs = now.getTime() - inDate.getTime();
+            if (diffMs < 0) diffMs = 0;
+
+            const minutesTotal = Math.floor(diffMs / 60000);
+            const days = Math.floor(minutesTotal / (60 * 24));
+            const hours = Math.floor((minutesTotal - days * 24 * 60) / 60);
+            const minutes = minutesTotal - days * 24 * 60 - hours * 60;
+
+            if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        } catch {
+            return fallback !== undefined ? `${fallback}d` : '-';
+        }
+    };
+
     // Format folder date as MM-DD-YYYY (e.g. 08-05-2026)
     const formatFolderDate = (dateString?: string) => {
         if (!dateString) return null;
@@ -1078,7 +1114,7 @@ const Index: React.FC = () => {
                                     key: 'days', 
                                     label: 'Days',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm font-medium text-gray-900 min-w-[50px]">{row.days}</div>
+                                        <div className="text-sm font-medium text-gray-900 min-w-[80px]">{formatDurationCompactFrom(row.date, row.time, row.days)}</div>
                                     )
                                 },
                                 { 
