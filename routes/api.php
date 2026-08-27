@@ -129,6 +129,10 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         // List & Search
         Route::post('/list', [InventoryController::class, 'getList']);
         Route::post('/search', [InventoryController::class, 'search']);
+
+        // Inventory image preview APIs (inventory page scoped permissions)
+        Route::get('/images', [InventoryController::class, 'listContainerImages']);
+        Route::get('/images/file', [InventoryController::class, 'viewContainerImageFile']);
         
         // Dropdown data
         Route::get('/clients', [InventoryController::class, 'getClients']);
