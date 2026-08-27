@@ -133,7 +133,7 @@ export default function Index() {
     setTimeout(() => {
       try {
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      } catch (e) {
+      } catch {
         const elLeft = el.offsetLeft;
         const elWidth = el.offsetWidth;
         const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
@@ -834,7 +834,7 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="w-[96vw] max-w-[1400px] h-[92vh] flex items-center justify-center">
+        <DialogContent className="!w-[98vw] !max-w-none h-[96vh] p-4 sm:p-6 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4 w-full h-full overflow-hidden">
             {currentImage && (
               <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
@@ -843,7 +843,7 @@ export default function Index() {
             )}
 
             <div
-              className="w-full max-w-[1280px] aspect-[4/3] flex-1 min-h-0 flex items-center justify-center relative overflow-hidden rounded-md bg-black/5"
+              className="w-full max-w-[1700px] aspect-[4/3] flex-1 min-h-0 flex items-center justify-center relative overflow-hidden rounded-md bg-black/5"
               onClick={(e) => {
                 // Click left/right 30%/70% to go prev/next
                 const images = imageItems;
@@ -900,7 +900,7 @@ export default function Index() {
             </div>
 
             <div className="w-full">
-              <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-2 px-4">
+              <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-2 sm:px-4">
                 {imageItems.map((imgItem, idx) => (
                   <button
                     key={imgItem.relative_path}
@@ -911,7 +911,7 @@ export default function Index() {
                     <img
                       src={`/api/containerimages/file?path=${encodeURIComponent(imgItem.relative_path)}`}
                       alt={imgItem.name}
-                      className="w-24 h-24 object-cover"
+                      className="w-20 h-20 sm:w-24 sm:h-24 object-cover"
                     />
                   </button>
                 ))}
