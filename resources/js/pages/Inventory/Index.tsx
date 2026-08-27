@@ -63,6 +63,12 @@ interface InventoryRecord {
     [key: string]: unknown;
 }
 
+interface ViewerImage {
+    src: string;
+    name: string;
+    relativePath?: string;
+}
+
 const Index: React.FC = () => {
     const { toasts, removeToast, success, error } = useModernToast();
     
@@ -100,9 +106,10 @@ const Index: React.FC = () => {
     const [showViewModal, setShowViewModal] = useState(false);
     const [viewRecord, setViewRecord] = useState<InventoryRecord | null>(null);
     // Images for view modal
-    const [containerImages, setContainerImages] = useState<string[]>([]);
+    const [containerImages, setContainerImages] = useState<ViewerImage[]>([]);
     const [showImageViewer, setShowImageViewer] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const thumbContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Confirmation dialog states
     const [showApproveConfirm, setShowApproveConfirm] = useState(false);
@@ -182,6 +189,53 @@ const Index: React.FC = () => {
         return () => window.clearTimeout(timeoutId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchTerm]);
+
+    const currentImage = containerImages[currentImageIndex] ?? null;
+    const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
+
+    useEffect(() => {
+        if (currentImageIndex >= containerImages.length) {
+            setCurrentImageIndex(containerImages.length > 0 ? 0 : 0);
+        }
+    }, [containerImages, currentImageIndex]);
+
+    useEffect(() => {
+        if (!thumbContainerRef.current) return;
+        if (!containerImages || containerImages.length === 0) return;
+        const container = thumbContainerRef.current;
+        const el = container.querySelector(`[data-index="${currentImageIndex}"]`) as HTMLElement | null;
+        if (!el) return;
+
+        setTimeout(() => {
+            try {
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } catch {
+                const elLeft = el.offsetLeft;
+                const elWidth = el.offsetWidth;
+                const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
+                container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
+            }
+        }, 50);
+    }, [currentImageIndex, containerImages, showImageViewer]);
+
+    useEffect(() => {
+        if (!showImageViewer || containerImages.length === 0) {
+            return;
+        }
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                setCurrentImageIndex((prev) => (prev - 1 + containerImages.length) % containerImages.length);
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                setCurrentImageIndex((prev) => (prev + 1) % containerImages.length);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [showImageViewer, containerImages.length]);
 
     const fetchDropdownOptions = async () => {
         try {
@@ -446,28 +500,64 @@ const Index: React.FC = () => {
         }
     };
 
-    // Format folder date as MM-DD-YYYY (e.g. 08-05-2026)
-    const formatFolderDate = (dateString?: string) => {
-        if (!dateString) return null;
-        // try parsing as ISO yyyy-mm-dd
-        const d = new Date(dateString);
-        if (!isNaN(d.getTime())) {
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const yyyy = String(d.getFullYear());
-            return `${mm}-${dd}-${yyyy}`;
+    const getImageNameFromUrl = (imageUrl: string) => {
+        try {
+            const url = new URL(imageUrl, window.location.origin);
+            const rawPath = url.searchParams.get('path') || imageUrl;
+            const decodedPath = decodeURIComponent(rawPath);
+            const segments = decodedPath.split('/').filter(Boolean);
+            return segments[segments.length - 1] || `Image ${containerImages.length + 1}`;
+        } catch {
+            const decoded = decodeURIComponent(imageUrl);
+            const segments = decoded.split('/').filter(Boolean);
+            return segments[segments.length - 1] || `Image ${containerImages.length + 1}`;
         }
+    };
 
-        // fallback: try splitting
-        const parts = dateString.split('-');
-        if (parts.length >= 3) {
-            // assume yyyy-mm-dd
-            const yyyy = parts[0];
-            const mm = parts[1].padStart(2, '0');
-            const dd = parts[2].padStart(2, '0');
-            return `${mm}-${dd}-${yyyy}`;
-        }
-        return null;
+    const normalizeViewerImages = (images: unknown[]): ViewerImage[] => {
+        return images
+            .map((image) => {
+                if (typeof image === 'string') {
+                    return {
+                        src: image,
+                        name: getImageNameFromUrl(image),
+                    };
+                }
+
+                if (image && typeof image === 'object') {
+                    const record = image as Record<string, unknown>;
+                    const srcValue =
+                        (typeof record.url === 'string' && record.url) ||
+                        (typeof record.src === 'string' && record.src) ||
+                        (typeof record.image_url === 'string' && record.image_url) ||
+                        (typeof record.path === 'string' && record.path) ||
+                        (typeof record.relative_path === 'string' && `/api/inventory/images/file?path=${encodeURIComponent(record.relative_path)}`) ||
+                        '';
+
+                    if (!srcValue) {
+                        return null;
+                    }
+
+                    const nameValue =
+                        (typeof record.name === 'string' && record.name) ||
+                        (typeof record.filename === 'string' && record.filename) ||
+                        (typeof record.original_name === 'string' && record.original_name) ||
+                        getImageNameFromUrl(srcValue);
+
+                    return {
+                        src: srcValue,
+                        name: nameValue,
+                        relativePath: typeof record.relative_path === 'string' ? record.relative_path : undefined,
+                    };
+                }
+
+                return null;
+            })
+            .filter((item): item is ViewerImage => item !== null)
+            .map((item, index) => ({
+                ...item,
+                name: item.name || `Image ${index + 1}`,
+            }));
     };
 
     // Fetch container images using the containerimages API used by the explorer
@@ -475,20 +565,20 @@ const Index: React.FC = () => {
         setContainerImages([]);
         if (!dateString || !containerNo) return;
 
-        const folderDate = formatFolderDate(dateString);
-        if (!folderDate) return;
-
-        const inOrOut = (gateStatus || 'in').toString().toLowerCase().startsWith('out') ? 'out' : 'in';
-        const relativePath = `${folderDate}/${inOrOut}/${containerNo}/`;
-
         try {
-            const res = await axios.get('/api/containerimages/list', { params: { path: relativePath } });
-            if (res.data && res.data.success && res.data.data && Array.isArray(res.data.data.items)) {
-                const imgs = res.data.data.items
-                    .filter((it: any) => it.is_image)
-                    .map((it: any) => `/api/containerimages/file?path=${encodeURIComponent(it.relative_path)}`);
+            const res = await axios.get('/api/inventory/images', {
+                params: {
+                    date: dateString,
+                    gate_status: gateStatus || 'IN',
+                    container_no: containerNo,
+                },
+            });
 
-                if (imgs.length > 0) setContainerImages(imgs);
+            if (res.data && res.data.success && Array.isArray(res.data.data)) {
+                const normalized = normalizeViewerImages(res.data.data);
+                if (normalized.length > 0) {
+                    setContainerImages(normalized);
+                }
             }
         } catch (err) {
             // ignore and leave images empty
@@ -661,6 +751,7 @@ const Index: React.FC = () => {
                     eir_no: data.i_id?.toString() || '',
                     container_no: data.container_no,
                     client: data.client_name || '',
+                    client_code: data.client_code || '',
                     client_id: data.client_id?.toString(),
                     size: data.container_size || '',
                     size_type_id: data.size_type_id,
@@ -698,10 +789,11 @@ const Index: React.FC = () => {
                 setViewRecord(mappedRecord);
                 // If API already provided images, use them. Otherwise fall back to containerimages list API.
                 if (response.data.data.images && Array.isArray(response.data.data.images) && response.data.data.images.length > 0) {
-                    setContainerImages(response.data.data.images);
+                    setContainerImages(normalizeViewerImages(response.data.data.images));
                 } else {
                     await fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
                 }
+                setCurrentImageIndex(0);
                 setShowViewModal(true);
             } else {
                 error(response.data.message || 'Failed to load container details');
@@ -732,6 +824,7 @@ const Index: React.FC = () => {
                     eir_no: data.i_id?.toString() || '',
                     container_no: data.container_no,
                     client: data.client_name || '',
+                    client_code: data.client_code || '',
                     client_id: data.client_id?.toString(),
                     size: data.container_size || '',
                     size_type_id: data.size_type_id,
@@ -1677,31 +1770,91 @@ const Index: React.FC = () => {
 
             {/* Image Viewer Modal */}
             <Dialog open={showImageViewer} onOpenChange={setShowImageViewer}>
-                <DialogContent className="max-w-4xl">
-                    <div className="relative flex items-center justify-center bg-black">
-                        <button
-                            className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white p-2 bg-black/40 rounded"
-                            onClick={() => setCurrentImageIndex((i) => (i - 1 + containerImages.length) % containerImages.length)}
-                        >
-                            <ChevronLeft className="w-6 h-6" />
-                        </button>
+                <DialogContent className="!w-fit !max-w-[96vw] max-h-[94vh] p-4 sm:p-5 flex items-center justify-center overflow-hidden">
+                    <div className="flex flex-col items-center gap-3 w-fit max-h-[90vh] overflow-hidden">
+                        {currentImage && (
+                            <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
+                                {currentImage.name}
+                            </div>
+                        )}
 
-                        <img
-                            src={containerImages[currentImageIndex]}
-                            alt={`image-${currentImageIndex}`}
-                            className="max-h-[70vh] object-contain"
-                        />
+                        <div className="flex items-center justify-center">
+                            <div
+                                className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5"
+                                style={{ width: viewerFrameWidth }}
+                                onClick={(e) => {
+                                    const images = containerImages;
+                                    if (images.length === 0) return;
+                                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                                    const x = (e as React.MouseEvent).clientX - rect.left;
+                                    const w = rect.width;
+                                    if (x < w * 0.3) {
+                                        setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+                                    } else if (x > w * 0.7) {
+                                        setCurrentImageIndex((prev) => (prev + 1) % images.length);
+                                    }
+                                }}
+                            >
+                                {currentImage && (
+                                    <div className="flex items-center justify-center w-full h-full">
+                                        <img
+                                            src={currentImage.src}
+                                            alt={currentImage.name}
+                                            className="w-full h-full object-contain mx-auto"
+                                            style={{ display: 'block' }}
+                                        />
+                                    </div>
+                                )}
 
-                        <button
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white p-2 bg-black/40 rounded"
-                            onClick={() => setCurrentImageIndex((i) => (i + 1) % containerImages.length)}
-                        >
-                            <ChevronRight className="w-6 h-6" />
-                        </button>
+                                {containerImages.length > 0 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={(ev) => {
+                                                ev.stopPropagation();
+                                                setCurrentImageIndex((prev) => (prev - 1 + containerImages.length) % containerImages.length);
+                                            }}
+                                            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                                            aria-label="Previous"
+                                        >
+                                            <ChevronLeft className="w-5 h-5 text-black" />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={(ev) => {
+                                                ev.stopPropagation();
+                                                setCurrentImageIndex((prev) => (prev + 1) % containerImages.length);
+                                            }}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                                            aria-label="Next"
+                                        >
+                                            <ChevronRight className="w-5 h-5 text-black" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ width: viewerFrameWidth }}>
+                            <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-1 sm:px-2">
+                                {containerImages.map((imageItem, idx) => (
+                                    <button
+                                        key={`${imageItem.src}-${idx}`}
+                                        data-index={idx}
+                                        onClick={() => setCurrentImageIndex(idx)}
+                                        className={`flex-none p-1 rounded ${idx === currentImageIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                                    >
+                                        <img
+                                            src={imageItem.src}
+                                            alt={imageItem.name}
+                                            className="w-24 sm:w-28 aspect-[4/3] object-cover rounded"
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                    <DialogFooter>
-                        <ModernButton variant="toggle" onClick={() => setShowImageViewer(false)}>Close</ModernButton>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -1910,11 +2063,11 @@ const Index: React.FC = () => {
                                         <div>
                                             <Label className="text-xs uppercase text-gray-600">Images</Label>
                                             <div className="flex gap-2 overflow-x-auto py-2">
-                                                {containerImages.map((src, idx) => (
+                                                {containerImages.map((imageItem, idx) => (
                                                     <img
-                                                        key={src}
-                                                        src={src}
-                                                        alt={`img-${idx}`}
+                                                        key={`${imageItem.src}-${idx}`}
+                                                        src={imageItem.src}
+                                                        alt={imageItem.name}
                                                         className="w-28 h-20 object-cover rounded cursor-pointer border"
                                                         onClick={() => { setCurrentImageIndex(idx); setShowImageViewer(true); }}
                                                     />
