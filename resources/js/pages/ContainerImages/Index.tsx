@@ -142,6 +142,26 @@ export default function Index() {
     }, 50);
   }, [viewerIndex, imageItems, imageViewerOpen]);
 
+  // Support keyboard navigation in image viewer (same behavior as chevrons)
+  useEffect(() => {
+    if (!imageViewerOpen || imageItems.length === 0) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setViewerIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setViewerIndex((prev) => (prev + 1) % imageItems.length);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [imageViewerOpen, imageItems.length]);
+
   
 
   const fetchPageAccess = async () => {
@@ -814,10 +834,10 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="max-w-5xl w-full flex items-center justify-center">
+        <DialogContent className="max-w-6xl w-full flex items-center justify-center">
           <div className="flex flex-col items-center gap-4 p-4 w-full max-h-[85vh] overflow-hidden">
             <div
-              className="w-full min-h-[50vh] flex items-center justify-center relative overflow-hidden"
+              className="w-full max-w-[1100px] aspect-[4/3] flex items-center justify-center relative overflow-hidden rounded-md bg-black/5"
               onClick={(e) => {
                 // Click left/right 30%/70% to go prev/next
                 const images = imageItems;
@@ -833,14 +853,14 @@ export default function Index() {
               }}
             >
               {currentImage && (
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center w-full h-full">
                   <div className="mb-2 text-center font-medium" style={{ color: colors.text.primary }}>
                     {currentImage.name}
                   </div>
                   <img
                     src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
                     alt={currentImage.name}
-                    className="max-h-[70vh] max-w-[90%] object-contain mx-auto"
+                    className="w-full h-full object-contain mx-auto"
                     style={{ display: 'block' }}
                   />
                 </div>
