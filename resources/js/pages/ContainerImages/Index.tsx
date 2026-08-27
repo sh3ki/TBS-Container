@@ -863,7 +863,7 @@ export default function Index() {
                   <img
                     src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
                     alt={currentImage.name}
-                    className="w-full h-full object-cover mx-auto"
+                    className="w-full h-full object-contain mx-auto"
                     style={{ display: 'block' }}
                   />
                 </div>
