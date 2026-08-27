@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ModernButton, ModernTable, ModernBadge, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernButton, ModernTable, ModernBadge, ModernCard, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Printer } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -124,15 +123,15 @@ const Index: React.FC = () => {
     const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
     const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
     const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
-    
-    // Filter collapse state
-    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
+
+    // Filter modal state
+    const [showFiltersModal, setShowFiltersModal] = useState(false);
     
     // Search state
     const [searchTerm, setSearchTerm] = useState('');
+    const isFirstSearchEffect = useRef(true);
 
-    // Filter states
-    const [filters, setFilters] = useState({
+    const defaultFilters = {
         client: 'all',
         iso_code: '',
         container_no: '',
@@ -157,14 +156,32 @@ const Index: React.FC = () => {
         bill_of_lading: '',
         status_out: 'all',
         gate_status: 'CURRENTLY',
-        auto_clear: false,
-    });
+    };
+
+    // Filter states
+    const [filters, setFilters] = useState(defaultFilters);
 
     useEffect(() => {
         loadDropdownData();
         loadAllInventory();
         fetchDropdownOptions();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (isFirstSearchEffect.current) {
+            isFirstSearchEffect.current = false;
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setCurrentPage(1);
+            void fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: false });
+        }, 450);
+
+        return () => window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm]);
 
     const fetchDropdownOptions = async () => {
         try {
@@ -217,23 +234,72 @@ const Index: React.FC = () => {
         }
     };
 
-    const loadAllInventory = async () => {
+    const fetchInventory = async ({
+        page = 1,
+        perPage = itemsPerPage,
+        search = searchTerm,
+        showToast = false,
+        includeSummary = false,
+    }: {
+        page?: number;
+        perPage?: number;
+        search?: string;
+        showToast?: boolean;
+        includeSummary?: boolean;
+    } = {}) => {
         setLoading(true);
         try {
-            const response = await axios.post('/api/inventory/search', {
-                gate_status: 'CURRENTLY'
-            });
+            const payload = {
+                ...buildFilterPayload(),
+                gate_status: (filters.gate_status || 'CURRENTLY') as string,
+                page,
+                per_page: perPage,
+                search: search?.trim() || '',
+                include_summary: includeSummary,
+            };
+
+            const response = await axios.post('/api/inventory/search', payload);
             
             if (response.data.success) {
                 setReportData(response.data.data || []);
-                setTotalCount(response.data.total || 0);
-                setSummaryData(response.data.summary || null);
+                setTotalCount(Number(response.data.total || 0));
+                if (includeSummary) {
+                    setSummaryData(response.data.summary || null);
+                } else {
+                    setSummaryData(null);
+                }
+                if (showToast) {
+                    success(`Found ${(response.data.total ?? response.data.data?.length ?? 0).toLocaleString()} records`);
+                }
+            } else {
+                error(response.data.message || 'Failed to load inventory data');
+                setReportData([]);
+                setSummaryData(null);
+                setTotalCount(0);
             }
-        } catch (err) {
-            console.error('Failed to load inventory:', err);
+        } catch (err: unknown) {
+            const errorCaught = err as { response?: { data?: { message?: string } } };
+            error(errorCaught.response?.data?.message || 'Failed to load inventory data');
+            setReportData([]);
+            setSummaryData(null);
+            setTotalCount(0);
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchSummaryData = async () => {
+        await fetchInventory({
+            page: 1,
+            perPage: 1,
+            search: searchTerm,
+            includeSummary: true,
+            showToast: false,
+        });
+    };
+
+    const loadAllInventory = async () => {
+        await fetchInventory({ page: 1, perPage: itemsPerPage, search: '', showToast: false });
     };
 
     const handleFilterChange = (field: string, value: string | boolean) => {
@@ -244,10 +310,6 @@ const Index: React.FC = () => {
         const payload: Record<string, unknown> = {};
 
         Object.entries(filters).forEach(([key, value]) => {
-            if (key === 'auto_clear') {
-                return;
-            }
-
             if (typeof value === 'string') {
                 const trimmed = value.trim();
                 if (trimmed && trimmed.toLowerCase() !== 'all') {
@@ -259,43 +321,7 @@ const Index: React.FC = () => {
         return payload;
     };
 
-    // Apply search filter to reportData
-    const parseDateTime = (dateString?: string, timeString?: string) => {
-        if (!dateString) return NaN;
-        let dt: Date | null = null;
-
-        if (timeString && timeString.includes(':')) {
-            const iso = `${dateString}T${timeString}`;
-            dt = new Date(iso);
-            if (isNaN(dt.getTime())) {
-                dt = new Date(`${dateString} ${timeString}`);
-            }
-        } else {
-            dt = new Date(dateString);
-        }
-
-        return dt && !isNaN(dt.getTime()) ? dt.getTime() : NaN;
-    };
-
-    const filteredReportData = reportData
-        .filter(record => {
-            if (!searchTerm) return true;
-            const search = searchTerm.toLowerCase();
-            const container = (record.container_no || '').toString().toLowerCase();
-            const eir = (record.eir_no || '').toString().toLowerCase();
-            const client = (record.client || record.client_name || record.client_code || '').toString().toLowerCase();
-            return container.includes(search) || eir.includes(search) || client.includes(search);
-        })
-        .sort((a, b) => {
-            const ta = parseDateTime(a.date as string, a.time as string);
-            const tb = parseDateTime(b.date as string, b.time as string);
-
-            if (isNaN(ta) && isNaN(tb)) return 0;
-            if (isNaN(ta)) return 1; // put invalid/old at the end
-            if (isNaN(tb)) return -1;
-
-            return tb - ta; // newest first
-        });
+    const filteredReportData = reportData;
 
     // Format date to "Jan 01, 2025"
     const formatDate = (dateString: string) => {
@@ -309,6 +335,21 @@ const Index: React.FC = () => {
             });
         } catch {
             return dateString;
+        }
+    };
+
+    // Format date to "Jan 2002" (month and year only)
+    const formatMonthYear = (dateString?: string) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString || '-';
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                year: 'numeric'
+            });
+        } catch {
+            return dateString || '-';
         }
     };
 
@@ -789,60 +830,19 @@ const Index: React.FC = () => {
     };
 
     const handleSearch = async () => {
-        setLoading(true);
         setCurrentPage(1);
+        await fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: true });
+    };
 
-        try {
-            const payload = buildFilterPayload();
-            const response = await axios.post('/api/inventory/search', payload);
-            
-            if (response.data.success) {
-                setReportData(response.data.data || []);
-                setSummaryData(response.data.summary || null);
-                success(`Found ${response.data.data?.length || 0} records`);
-                
-                if (filters.auto_clear) {
-                    setFilters({
-                        client: 'all',
-                        iso_code: '',
-                        container_no: '',
-                        date_out_from: '',
-                        date_in_from: '',
-                        date_out_to: '',
-                        date_in_to: '',
-                        hauler_out: '',
-                        checker: '',
-                        vessel_out: '',
-                        consignee: '',
-                        shipper: '',
-                        hauler_in: '',
-                        destination: '',
-                        vessel_in: '',
-                        booking_number: '',
-                        plate_no_in: '',
-                        seal_no: '',
-                        status_in: 'all',
-                        contact_no: '',
-                        size_type: 'all',
-                        bill_of_lading: '',
-                        status_out: 'all',
-                        gate_status: 'CURRENTLY',
-                        auto_clear: filters.auto_clear,
-                    });
-                }
-            } else {
-                error(response.data.message || 'Failed to load inventory data');
-                setReportData([]);
-                setSummaryData(null);
-            }
-        } catch (error_caught: unknown) {
-            const err = error_caught as { response?: { data?: { message?: string } } };
-            error(err.response?.data?.message || 'Failed to search inventory');
-            setReportData([]);
-            setSummaryData(null);
-        } finally {
-            setLoading(false);
-        }
+    const handleApplyFilters = async () => {
+        await handleSearch();
+        setShowFiltersModal(false);
+    };
+
+    const handleResetFilters = () => {
+        setFilters(defaultFilters);
+        setCurrentPage(1);
+        void fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: false });
     };
 
     const handleOpenExportConfirm = () => {
@@ -854,7 +854,10 @@ const Index: React.FC = () => {
         setLoading(true);
 
         try {
-            const payload = buildFilterPayload();
+            const payload = {
+                ...buildFilterPayload(),
+                search: searchTerm.trim(),
+            };
             const response = await axios.post('/api/inventory/export', payload, { responseType: 'blob' });
 
             const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
@@ -896,27 +899,17 @@ const Index: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Generate, Summary, and Export Buttons */}
+                    {/* Summary and Export Buttons */}
                     <div className="flex items-center gap-3">
                         <ModernButton 
-                            variant="primary" 
-                            onClick={handleSearch} 
-                            disabled={loading}
-                            className="px-6 py-3"
-                        >
-                            <FileText className="w-5 h-5" />
-                            {loading ? 'Generating...' : 'Generate'}
-                        </ModernButton>
-                        <ModernButton 
                             variant="edit" 
-                            onClick={() => {
+                            onClick={async () => {
                                 if (reportData.length === 0) {
                                     error('Please generate a report first to view the summary');
                                     return;
                                 }
                                 if (!summaryData) {
-                                    error('Summary data is not available. Please regenerate the report.');
-                                    return;
+                                    await fetchSummaryData();
                                 }
                                 setShowSummaryModal(true);
                             }} 
@@ -938,352 +931,59 @@ const Index: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filter Section */}
-                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    {/* Filter Header */}
-                    <div 
-                        className="cursor-pointer flex items-center justify-between px-6 py-5"
-                        onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
-                        style={{ backgroundColor: colors.brand.primary }}
+                {/* SEARCH & FILTER CARD */}
+                <div className="relative" style={{ zIndex: 0 }}>
+                    <ModernCard
+                        title="Search & Filter Inventory"
+                        subtitle="Find containers quickly"
+                        icon={<Search className="w-5 h-5" />}
                     >
-                        <div className="flex items-center gap-3">
-                            <Search className="w-5 h-5 text-white" />
-                            <div>
-                                <h2 className="text-xl font-bold text-white">Search & Filter Inventory</h2>
-                                <p className="text-sm text-white/90 mt-0.5">Find containers quickly</p>
-                            </div>
-                        </div>
-                        {isFiltersCollapsed ? (
-                            <ChevronDown className="w-5 h-5 text-white" />
-                        ) : (
-                            <ChevronUp className="w-5 h-5 text-white" />
-                        )}
-                    </div>
-                    
-                    {/* Filter Content */}
-                    {!isFiltersCollapsed && (
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Column 1 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Client</Label>
-                                <Select value={filters.client} onValueChange={(value) => handleFilterChange('client', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {clients.map((client) => (
-                                            <SelectItem key={client.id} value={client.id}>
-                                                {client.text}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="md:col-span-3">
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Search Containers</Label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                                    <Input
+                                        type="text"
+                                        placeholder="Search by container number, EIR, or client..."
+                                        value={searchTerm}
+                                        onChange={(e) => {
+                                            setSearchTerm(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="pl-10 h-11"
+                                    />
+                                </div>
                             </div>
 
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date In (From)</Label>
-                                <Input
-                                    type="date"
-                                    value={filters.date_in_from}
-                                    onChange={(e) => handleFilterChange('date_in_from', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date In (To)</Label>
-                                <Input
-                                    type="date"
-                                    value={filters.date_in_to}
-                                    onChange={(e) => handleFilterChange('date_in_to', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Hauler In</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.hauler_in}
-                                    onChange={(e) => handleFilterChange('hauler_in', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Vessel In</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.vessel_in}
-                                    onChange={(e) => handleFilterChange('vessel_in', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Seal No.</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.seal_no}
-                                    onChange={(e) => handleFilterChange('seal_no', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Bill of Lading</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.bill_of_lading}
-                                    onChange={(e) => handleFilterChange('bill_of_lading', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Status In</Label>
-                                <Select value={filters.status_in} onValueChange={(value) => handleFilterChange('status_in', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {statusesIn.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                                {status}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="md:col-span-1">
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Filter Options</Label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFiltersModal(true)}
+                                    className="flex items-center gap-2 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                                    disabled={loading}
+                                >
+                                    <Filter className="w-4 h-4 text-gray-600" />
+                                    <span>Filters</span>
+                                    {Object.entries(filters).some(([key, value]) => {
+                                        if (typeof value !== 'string') return false;
+                                        return value.trim() !== '' && value.trim().toLowerCase() !== 'all' && !(key === 'gate_status' && value === 'CURRENTLY');
+                                    }) && (
+                                        <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                                            Active
+                                        </span>
+                                    )}
+                                </button>
                             </div>
                         </div>
 
-                        {/* Column 2 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">ISO Code</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.iso_code}
-                                    onChange={(e) => handleFilterChange('iso_code', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date Out (From)</Label>
-                                <Input
-                                    type="date"
-                                    value={filters.date_out_from}
-                                    onChange={(e) => handleFilterChange('date_out_from', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Date Out (To)</Label>
-                                <Input
-                                    type="date"
-                                    value={filters.date_out_to}
-                                    onChange={(e) => handleFilterChange('date_out_to', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Hauler Out</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.hauler_out}
-                                    onChange={(e) => handleFilterChange('hauler_out', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Vessel Out</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.vessel_out}
-                                    onChange={(e) => handleFilterChange('vessel_out', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Destination</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.destination}
-                                    onChange={(e) => handleFilterChange('destination', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Booking Number</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.booking_number}
-                                    onChange={(e) => handleFilterChange('booking_number', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Status Out</Label>
-                                <Select value={filters.status_out} onValueChange={(value) => handleFilterChange('status_out', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {statusesOut.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                                {status}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-sm text-gray-600">
+                                <span className="font-semibold text-gray-900">{totalCount.toLocaleString()}</span> container{totalCount !== 1 ? 's' : ''} found
+                            </p>
                         </div>
-
-                        {/* Column 3 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Container No.</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.container_no}
-                                    onChange={(e) => handleFilterChange('container_no', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="Search container..."
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Checker</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.checker}
-                                    onChange={(e) => handleFilterChange('checker', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Consignee</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.consignee}
-                                    onChange={(e) => handleFilterChange('consignee', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Plate No. In</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.plate_no_in}
-                                    onChange={(e) => handleFilterChange('plate_no_in', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Shipper</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.shipper}
-                                    onChange={(e) => handleFilterChange('shipper', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Contact No.</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.contact_no}
-                                    onChange={(e) => handleFilterChange('contact_no', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Size/Type</Label>
-                                <Select value={filters.size_type} onValueChange={(value) => handleFilterChange('size_type', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {sizeTypes.map((st) => (
-                                            <SelectItem key={st.value} value={st.value}>
-                                                {st.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">In/Out</Label>
-                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={(value) => handleFilterChange('gate_status', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="Real Time Inventory" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="CURRENTLY">Real Time Inventory</SelectItem>
-                                        <SelectItem value="IN">In</SelectItem>
-                                        <SelectItem value="OUT">Out</SelectItem>
-                                        <SelectItem value="BOTH">Both</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex items-center space-x-2 mt-2">
-                                <Checkbox
-                                    id="auto-clear"
-                                    checked={filters.auto_clear}
-                                    onCheckedChange={(checked) => handleFilterChange('auto_clear', checked as boolean)}
-                                />
-                                <Label htmlFor="auto-clear" className="text-sm font-semibold cursor-pointer">
-                                    Auto Clear Fields
-                                </Label>
-                            </div>
-                        </div>
-                    </div>
-                        </div>
-                    )}
-                    
-                    {/* Search Bar */}
-                    <div className="px-6 py-4 bg-white">
-                        <Label className="text-sm font-semibold mb-2 text-gray-900">Search Containers</Label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                            <Input
-                                type="text"
-                                placeholder="Search by container number, EIR, or client..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 h-11"
-                            />
-                        </div>
-                    </div>
-                    
-                    {/* Container Count */}
-                    <div className="px-6 py-4 bg-white border-t border-gray-200">
-                        <p className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{filteredReportData.length.toLocaleString()}</span> container{filteredReportData.length !== 1 ? 's' : ''} found
-                        </p>
-                    </div>
+                    </ModernCard>
                 </div>
 
                 {/* Results Table */}
@@ -1418,7 +1118,7 @@ const Index: React.FC = () => {
                                     key: 'dmf', 
                                     label: 'Date mfd',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(row.dmf)}</div>
+                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatMonthYear(row.dmf as string)}</div>
                                     )
                                 },
                                 { 
@@ -1544,20 +1244,20 @@ const Index: React.FC = () => {
                                 },
                             ]}
                             onRowClick={handleViewRecord}
-                            data={
-                                itemsPerPage >= filteredReportData.length
-                                    ? filteredReportData
-                                    : filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                            }
+                            data={filteredReportData}
                             pagination={{
                                 currentPage: currentPage,
-                                totalPages: Math.max(1, Math.ceil(filteredReportData.length / (itemsPerPage || filteredReportData.length))),
-                                total: filteredReportData.length,
-                                perPage: itemsPerPage >= filteredReportData.length ? filteredReportData.length : itemsPerPage,
-                                onPageChange: (p: number) => setCurrentPage(p),
+                                totalPages: Math.max(1, Math.ceil(totalCount / (itemsPerPage || 1))),
+                                total: totalCount,
+                                perPage: itemsPerPage,
+                                onPageChange: (p: number) => {
+                                    setCurrentPage(p);
+                                    void fetchInventory({ page: p, perPage: itemsPerPage, search: searchTerm, showToast: false });
+                                },
                                 onPerPageChange: (per: number) => {
                                     setItemsPerPage(per);
                                     setCurrentPage(1);
+                                    void fetchInventory({ page: 1, perPage: per, search: searchTerm, showToast: false });
                                 },
                                 rowsOptions: [15, 20, 50, 100],
                             }}
@@ -1570,6 +1270,326 @@ const Index: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Filters Modal */}
+            <Dialog open={showFiltersModal} onOpenChange={setShowFiltersModal}>
+                <DialogContent className="!max-w-[90vw] !w-[90vw] !max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                            Filter Options
+                        </DialogTitle>
+                        <DialogDescription>
+                            Apply filters to refine inventory results
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
+                        {/* Column 1 */}
+                        <div className="space-y-3">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">In/Out</Label>
+                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={(value) => handleFilterChange('gate_status', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="Real Time Inventory" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="CURRENTLY">Real Time Inventory</SelectItem>
+                                        <SelectItem value="IN">In</SelectItem>
+                                        <SelectItem value="OUT">Out</SelectItem>
+                                        <SelectItem value="BOTH">Both</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Status In</Label>
+                                <Select value={filters.status_in} onValueChange={(value) => handleFilterChange('status_in', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {statusesIn.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                                {status}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Status Out</Label>
+                                <Select value={filters.status_out} onValueChange={(value) => handleFilterChange('status_out', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {statusesOut.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                                {status}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Size/Type</Label>
+                                <Select value={filters.size_type} onValueChange={(value) => handleFilterChange('size_type', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {sizeTypes.map((st) => (
+                                            <SelectItem key={st.value} value={st.value}>
+                                                {st.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">ISO Code</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.iso_code}
+                                    onChange={(e) => handleFilterChange('iso_code', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                            
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Checker</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.checker}
+                                    onChange={(e) => handleFilterChange('checker', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Seal No.</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.seal_no}
+                                    onChange={(e) => handleFilterChange('seal_no', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Bill of Lading</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.bill_of_lading}
+                                    onChange={(e) => handleFilterChange('bill_of_lading', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Column 2 */}
+                        <div className="space-y-3">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Container No.</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.container_no}
+                                    onChange={(e) => handleFilterChange('container_no', e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="Search container..."
+                                />
+                            </div>
+                            
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date In (From)</Label>
+                                <Input
+                                    type="date"
+                                    value={filters.date_in_from}
+                                    onChange={(e) => handleFilterChange('date_in_from', e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date In (To)</Label>
+                                <Input
+                                    type="date"
+                                    value={filters.date_in_to}
+                                    onChange={(e) => handleFilterChange('date_in_to', e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Hauler In</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.hauler_in}
+                                    onChange={(e) => handleFilterChange('hauler_in', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Vessel In</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.vessel_in}
+                                    onChange={(e) => handleFilterChange('vessel_in', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Booking Number</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.booking_number}
+                                    onChange={(e) => handleFilterChange('booking_number', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Destination</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.destination}
+                                    onChange={(e) => handleFilterChange('destination', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Shipper</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.shipper}
+                                    onChange={(e) => handleFilterChange('shipper', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Column 3 */}
+                        <div className="space-y-3">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Client</Label>
+                                <Select value={filters.client} onValueChange={(value) => handleFilterChange('client', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {clients.map((client) => (
+                                            <SelectItem key={client.id} value={client.id}>
+                                                {client.text}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date Out (From)</Label>
+                                <Input
+                                    type="date"
+                                    value={filters.date_out_from}
+                                    onChange={(e) => handleFilterChange('date_out_from', e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Date Out (To)</Label>
+                                <Input
+                                    type="date"
+                                    value={filters.date_out_to}
+                                    onChange={(e) => handleFilterChange('date_out_to', e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="yyyy-mm-dd"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Hauler Out</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.hauler_out}
+                                    onChange={(e) => handleFilterChange('hauler_out', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Vessel Out</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.vessel_out}
+                                    onChange={(e) => handleFilterChange('vessel_out', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Consignee</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.consignee}
+                                    onChange={(e) => handleFilterChange('consignee', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Plate No. In</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.plate_no_in}
+                                    onChange={(e) => handleFilterChange('plate_no_in', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Contact No.</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.contact_no}
+                                    onChange={(e) => handleFilterChange('contact_no', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <ModernButton
+                            variant="secondary"
+                            onClick={handleResetFilters}
+                            disabled={loading}
+                        >
+                            Reset
+                        </ModernButton>
+                        <ModernButton
+                            variant="primary"
+                            onClick={handleApplyFilters}
+                            disabled={loading}
+                        >
+                            <FileText className="w-4 h-4" />
+                            {loading ? 'Applying...' : 'Apply'}
+                        </ModernButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Hold Modal */}
             <Dialog open={showHoldModal} onOpenChange={setShowHoldModal}>
