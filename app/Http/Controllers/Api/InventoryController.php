@@ -1224,10 +1224,24 @@ class InventoryController extends Controller
             $filters = $request->all();
             $prefix = DB::getTablePrefix();
 
+            $page = max((int) $request->input('page', 1), 1);
+            $perPage = max((int) $request->input('per_page', 15), 1);
+            $perPage = min($perPage, 500);
+            $offset = ($page - 1) * $perPage;
+            $includeSummary = filter_var($request->input('include_summary', false), FILTER_VALIDATE_BOOLEAN);
+
             $safeInDate = $this->sanitizeDateExpression('i.date_added');
             $safeManufacturedDate = $this->sanitizeDateExpression('i.date_manufactured', '%Y-%m-%d');
-            
-            $query = "SELECT 
+
+            $fromWhere = "
+                FROM {$prefix}inventory i
+                LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
+                LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
+                LEFT JOIN {$prefix}hold_containers h ON h.container_no = i.container_no
+                WHERE c.archived = 0";
+
+            $dataSelect = "SELECT 
                         CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) as eir_no,
                         i.container_no,
                         c.client_name as client,
@@ -1257,15 +1271,7 @@ class InventoryController extends Controller
                         COALESCE(i.approval_notes, '') as app_notes,
                         i.i_id,
                         i.container_status as container_status_id,
-                        CASE 
-                            WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
-                            THEN 1 ELSE 0 
-                        END as is_hold
-                    FROM {$prefix}inventory i
-                    LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
-                    LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
-                    LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
-                    WHERE c.archived = 0";
+                        CASE WHEN h.container_no IS NOT NULL THEN 1 ELSE 0 END as is_hold";
             
             $params = [];
             
@@ -1273,168 +1279,197 @@ class InventoryController extends Controller
             $gateStatus = $filters['gate_status'] ?? 'CURRENTLY';
             if ($gateStatus === 'CURRENTLY') {
                 // Real Time Inventory - only IN, not complete, and no out_id (matches legacy system)
-                $query .= " AND i.gate_status = 'IN' AND i.complete = 0 AND (i.out_id IS NULL OR i.out_id = 0)";
+                $fromWhere .= " AND i.gate_status = 'IN' AND i.complete = 0 AND (i.out_id IS NULL OR i.out_id = 0)";
             } elseif ($gateStatus === 'IN') {
-                $query .= " AND i.gate_status = 'IN'";
+                $fromWhere .= " AND i.gate_status = 'IN'";
             } elseif ($gateStatus === 'OUT') {
-                $query .= " AND i.gate_status = 'OUT'";
+                $fromWhere .= " AND i.gate_status = 'OUT'";
             }
             // For 'BOTH', no additional gate status filter
+
+            // Free text search from search input
+            if (!empty($filters['search'])) {
+                $search = trim((string) $filters['search']);
+                if ($search !== '') {
+                    $params[':search_container'] = '%' . strtoupper($search) . '%';
+                    $params[':search_client_name'] = '%' . strtolower($search) . '%';
+                    $params[':search_client_code'] = '%' . strtolower($search) . '%';
+                    $params[':search_eir'] = '%' . preg_replace('/\s+/', '', $search) . '%';
+                    $fromWhere .= " AND (
+                        UPPER(i.container_no) LIKE :search_container
+                        OR LOWER(c.client_name) LIKE :search_client_name
+                        OR LOWER(c.client_code) LIKE :search_client_code
+                        OR CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) LIKE :search_eir
+                    )";
+                }
+            }
             
             // Client filter
             if (!empty($filters['client']) && $filters['client'] !== 'all') {
-                $query .= " AND i.client_id = :client_id";
+                $fromWhere .= " AND i.client_id = :client_id";
                 $params[':client_id'] = $filters['client'];
             }
             
             // Container number filter
             if (!empty($filters['container_no'])) {
-                $query .= " AND i.container_no LIKE :container_no";
+                $fromWhere .= " AND i.container_no LIKE :container_no";
                 $params[':container_no'] = '%' . strtoupper($filters['container_no']) . '%';
             }
             
             // ISO Code filter
             if (!empty($filters['iso_code'])) {
-                $query .= " AND LOWER(i.iso_code) LIKE :iso_code";
+                $fromWhere .= " AND LOWER(i.iso_code) LIKE :iso_code";
                 $params[':iso_code'] = '%' . strtolower($filters['iso_code']) . '%';
             }
             
             // Date filters
             if (!empty($filters['date_in_from']) && !empty($filters['date_in_to'])) {
-                $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
+                $fromWhere .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
                 $params[':date_in_from'] = $filters['date_in_from'];
                 $params[':date_in_to'] = $filters['date_in_to'];
             }
             
             if (!empty($filters['date_out_from']) && !empty($filters['date_out_to'])) {
-                $query .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
+                $fromWhere .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
                 $params[':date_out_from'] = $filters['date_out_from'];
                 $params[':date_out_to'] = $filters['date_out_to'];
             }
             
             // Text filters
             if (!empty($filters['checker'])) {
-                $query .= " AND LOWER(i.origin) LIKE :checker";
+                $fromWhere .= " AND LOWER(i.origin) LIKE :checker";
                 $params[':checker'] = '%' . strtolower($filters['checker']) . '%';
             }
             
             if (!empty($filters['consignee'])) {
-                $query .= " AND LOWER(i.ex_consignee) LIKE :consignee";
+                $fromWhere .= " AND LOWER(i.ex_consignee) LIKE :consignee";
                 $params[':consignee'] = '%' . strtolower($filters['consignee']) . '%';
             }
             
             if (!empty($filters['hauler_in'])) {
-                $query .= " AND LOWER(i.hauler) LIKE :hauler_in";
+                $fromWhere .= " AND LOWER(i.hauler) LIKE :hauler_in";
                 $params[':hauler_in'] = '%' . strtoupper($filters['hauler_in']) . '%';
             }
             
             if (!empty($filters['vessel_in'])) {
-                $query .= " AND LOWER(i.vessel) LIKE :vessel_in";
+                $fromWhere .= " AND LOWER(i.vessel) LIKE :vessel_in";
                 $params[':vessel_in'] = '%' . strtoupper($filters['vessel_in']) . '%';
             }
             
             if (!empty($filters['plate_no_in'])) {
-                $query .= " AND LOWER(i.plate_no) LIKE :plate_no_in";
+                $fromWhere .= " AND LOWER(i.plate_no) LIKE :plate_no_in";
                 $params[':plate_no_in'] = '%' . strtoupper($filters['plate_no_in']) . '%';
             }
             
             if (!empty($filters['hauler_out'])) {
-                $query .= " AND LOWER(i.hauler) LIKE :hauler_out";
+                $fromWhere .= " AND LOWER(i.hauler) LIKE :hauler_out";
                 $params[':hauler_out'] = '%' . strtoupper($filters['hauler_out']) . '%';
             }
             
             if (!empty($filters['vessel_out'])) {
-                $query .= " AND LOWER(i.vessel) LIKE :vessel_out";
+                $fromWhere .= " AND LOWER(i.vessel) LIKE :vessel_out";
                 $params[':vessel_out'] = '%' . strtoupper($filters['vessel_out']) . '%';
             }
             
             if (!empty($filters['shipper'])) {
-                $query .= " AND LOWER(i.shipper) LIKE :shipper";
+                $fromWhere .= " AND LOWER(i.shipper) LIKE :shipper";
                 $params[':shipper'] = '%' . strtoupper($filters['shipper']) . '%';
             }
             
             if (!empty($filters['destination'])) {
-                $query .= " AND LOWER(i.location) LIKE :destination";
+                $fromWhere .= " AND LOWER(i.location) LIKE :destination";
                 $params[':destination'] = '%' . strtoupper($filters['destination']) . '%';
             }
             
             if (!empty($filters['booking_number'])) {
-                $query .= " AND LOWER(i.booking) LIKE :booking_number";
+                $fromWhere .= " AND LOWER(i.booking) LIKE :booking_number";
                 $params[':booking_number'] = '%' . strtoupper($filters['booking_number']) . '%';
             }
             
             if (!empty($filters['seal_no'])) {
-                $query .= " AND LOWER(i.seal_no) LIKE :seal_no";
+                $fromWhere .= " AND LOWER(i.seal_no) LIKE :seal_no";
                 $params[':seal_no'] = '%' . strtoupper($filters['seal_no']) . '%';
             }
             
             if (!empty($filters['contact_no'])) {
-                $query .= " AND LOWER(i.contact_no) LIKE :contact_no";
+                $fromWhere .= " AND LOWER(i.contact_no) LIKE :contact_no";
                 $params[':contact_no'] = '%' . strtoupper($filters['contact_no']) . '%';
             }
             
             if (!empty($filters['bill_of_lading'])) {
-                $query .= " AND LOWER(i.bill_of_lading) LIKE :bill_of_lading";
+                $fromWhere .= " AND LOWER(i.bill_of_lading) LIKE :bill_of_lading";
                 $params[':bill_of_lading'] = '%' . strtoupper($filters['bill_of_lading']) . '%';
             }
             
             // Status filters
             if (!empty($filters['status_in']) && $filters['status_in'] !== 'all') {
-                $query .= " AND LOWER(cs.status) LIKE :status_in";
+                $fromWhere .= " AND LOWER(cs.status) LIKE :status_in";
                 $params[':status_in'] = '%' . strtolower($filters['status_in']) . '%';
             }
             
             if (!empty($filters['status_out']) && $filters['status_out'] !== 'all') {
-                $query .= " AND LOWER(cs.status) LIKE :status_out";
+                $fromWhere .= " AND LOWER(cs.status) LIKE :status_out";
                 $params[':status_out'] = '%' . strtolower($filters['status_out']) . '%';
             }
             
             // Size/Type filter (combined)
             if (!empty($filters['size_type']) && $filters['size_type'] !== 'all') {
-                $query .= " AND CONCAT(st.size, st.type) = :size_type";
+                $fromWhere .= " AND CONCAT(st.size, st.type) = :size_type";
                 $params[':size_type'] = $filters['size_type'];
             }
-            
-            $query .= " ORDER BY st.size ASC, {$safeInDate} DESC";
-            
-            $results = DB::select($query, $params);
-            
-            // Build summary report data
+
+            $countRow = DB::selectOne("SELECT COUNT(*) as total {$fromWhere}", $params);
+            $total = (int) ($countRow->total ?? 0);
+
+            $dataQuery = $dataSelect . $fromWhere . " ORDER BY st.size ASC, {$safeInDate} DESC, i.i_id DESC LIMIT {$perPage} OFFSET {$offset}";
+            $results = DB::select($dataQuery, $params);
+
             $summaryByClient = [];
             $sizeTypeList = [];
-            
-            foreach ($results as $item) {
-                $clientDisplay = $item->client_code ?: $item->client;
-                $sizeType = $item->size;
-                
-                if (!empty($sizeType) && !empty($clientDisplay)) {
-                    // Track unique size types
-                    if (!in_array($sizeType, $sizeTypeList)) {
-                        $sizeTypeList[] = $sizeType;
+
+            if ($includeSummary) {
+                // Build summary report data via SQL aggregation to avoid scanning all rows in PHP
+                $summaryQuery = "SELECT
+                        CASE
+                            WHEN c.client_code IS NOT NULL AND c.client_code <> '' THEN c.client_code
+                            ELSE c.client_name
+                        END as client_display,
+                        CONCAT(st.size, st.type) as size_type,
+                        COUNT(*) as total
+                    {$fromWhere}
+                    GROUP BY client_display, size_type
+                    ORDER BY size_type ASC, client_display ASC";
+                $summaryRows = DB::select($summaryQuery, $params);
+
+                foreach ($summaryRows as $item) {
+                    $clientDisplay = $item->client_display;
+                    $sizeType = $item->size_type;
+
+                    if (!empty($sizeType) && !empty($clientDisplay)) {
+                        if (!in_array($sizeType, $sizeTypeList)) {
+                            $sizeTypeList[] = $sizeType;
+                        }
+
+                        if (!isset($summaryByClient[$clientDisplay])) {
+                            $summaryByClient[$clientDisplay] = [];
+                        }
+
+                        $summaryByClient[$clientDisplay][$sizeType] = (int) $item->total;
                     }
-                    
-                    // Initialize client entry if not exists
-                    if (!isset($summaryByClient[$clientDisplay])) {
-                        $summaryByClient[$clientDisplay] = [];
-                    }
-                    
-                    // Initialize size type count if not exists
-                    if (!isset($summaryByClient[$clientDisplay][$sizeType])) {
-                        $summaryByClient[$clientDisplay][$sizeType] = 0;
-                    }
-                    
-                    // Increment count
-                    $summaryByClient[$clientDisplay][$sizeType]++;
                 }
             }
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $results,
-                'summary' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'total_pages' => $perPage > 0 ? (int) ceil($total / $perPage) : 1,
+                'summary' => $includeSummary ? [
                     'by_client' => $summaryByClient,
                     'size_types' => $sizeTypeList,
-                ],
+                ] : null,
             ]);
             
         } catch (\Exception $e) {
@@ -1450,14 +1485,6 @@ class InventoryController extends Controller
     public function export(Request $request)
     {
         try {
-            // Reuse the search logic
-            $searchResponse = $this->search($request);
-            $data = json_decode($searchResponse->getContent(), true);
-            
-            if (!$data['success']) {
-                return response()->json(['success' => false, 'message' => 'Failed to export'], 500);
-            }
-            
             $filename = 'inventory_export_' . now()->format('Y-m-d_H-i-s') . '.csv';
             $filePath = storage_path('app/public/exports/' . $filename);
             
@@ -1467,17 +1494,51 @@ class InventoryController extends Controller
             
             $file = fopen($filePath, 'w');
             fputcsv($file, ['EIR No.', 'Container No.', 'Client', 'Size', 'Gate', 'Date', 'Time', 'Days', 'Status', 'Class', 'DMF', 'Location', 'EIR Notes', 'App Notes']);
-            
-            foreach ($data['data'] as $row) {
-                fputcsv($file, (array) $row);
-            }
+
+            $filters = $request->all();
+            $page = 1;
+            $perPage = 500;
+            $exportedRows = 0;
+
+            do {
+                $payload = array_merge($filters, [
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'include_summary' => false,
+                ]);
+
+                $pageRequest = Request::create('/api/inventory/search', 'POST', $payload);
+                $pageRequest->setUserResolver($request->getUserResolver());
+
+                $searchResponse = $this->search($pageRequest);
+                $data = json_decode($searchResponse->getContent(), true);
+
+                if (!is_array($data) || !($data['success'] ?? false)) {
+                    fclose($file);
+                    @unlink($filePath);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to export inventory data',
+                    ], 500);
+                }
+
+                $rows = $data['data'] ?? [];
+                foreach ($rows as $row) {
+                    fputcsv($file, (array) $row);
+                    $exportedRows++;
+                }
+
+                $rowCount = count($rows);
+                $page++;
+            } while ($rowCount === $perPage);
             
             fclose($file);
             
             // Log audit - REPORTS action for exporting report
             DB::table('audit_logs')->insert([
                 'action' => 'REPORTS',
-                'description' => '[INVENTORY] Exported ' . count($data['data']) . ' inventory record(s) to CSV file: ' . $filename,
+                'description' => '[INVENTORY] Exported ' . $exportedRows . ' inventory record(s) to CSV file: ' . $filename,
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
