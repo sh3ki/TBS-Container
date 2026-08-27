@@ -12,6 +12,8 @@ use Carbon\Carbon;
 
 class InventoryController extends Controller
 {
+    private const INVENTORY_IMAGES_BASE_DIRECTORY = '/var/www/tbscontainermnl/public/container_pics';
+
     public function getList(Request $request)
     {
         try {
@@ -483,7 +485,6 @@ class InventoryController extends Controller
             // Attempt to include container images (if any) by scanning the container_pics folder.
             $images = [];
             try {
-                $baseDir = '/var/www/tbscontainermnl/public/container_pics';
                 if (!empty($inventory->date_added)) {
                     $folderDate = Carbon::parse($inventory->date_added)->format('m-d-Y');
                 } else {
@@ -492,8 +493,8 @@ class InventoryController extends Controller
 
                 if ($folderDate) {
                     $inOrOut = (strtolower($inventory->gate_status) === 'out') ? 'out' : 'in';
-                    $relativePath = trim($folderDate . '/' . $inOrOut . '/' . $inventory->container_no . '/', '/');
-                    $fullPath = rtrim($baseDir, '/') . '/' . $relativePath;
+                    $relativePath = trim($folderDate . '/' . $inOrOut . '/' . $inventory->container_no, '/');
+                    $fullPath = $this->toInventoryImageFullPath($relativePath);
 
                     if (File::exists($fullPath) && File::isDirectory($fullPath)) {
                         $files = File::files($fullPath);
@@ -502,7 +503,11 @@ class InventoryController extends Controller
                             $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
                             if (in_array($ext, ['jpg','jpeg','png','gif','webp','bmp'], true)) {
                                 $rel = ltrim($relativePath . '/' . $name, '/');
-                                $images[] = '/api/containerimages/file?path=' . urlencode($rel);
+                                $images[] = [
+                                    'name' => $name,
+                                    'relative_path' => $rel,
+                                    'url' => '/api/inventory/images/file?path=' . urlencode($rel),
+                                ];
                             }
                         }
                     }
@@ -560,7 +565,7 @@ class InventoryController extends Controller
                     'approval_date' => $inventory->approval_date,
                     'contact_no' => $inventory->contact_no,
                     'bill_of_lading' => $inventory->bill_of_lading,
-                    // Images: look for files under public/container_pics/{MM-DD-YYYY}/{in|out}/{container_no}/
+                    // Images for inventory preview modal
                     'images' => $images,
                 ],
             ]);
@@ -571,6 +576,121 @@ class InventoryController extends Controller
                 'message' => 'Failed to get container details: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Inventory-scoped image list for the container details modal.
+     * GET /api/inventory/images
+     */
+    public function listContainerImages(Request $request)
+    {
+        try {
+            $access = $this->getInventoryPageRecordAccessData();
+            if (!$access['can_view']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have access to inventory images.',
+                ], 403);
+            }
+
+            $date = trim((string) $request->query('date', ''));
+            $gateStatus = trim((string) $request->query('gate_status', 'IN'));
+            $containerNo = trim((string) $request->query('container_no', ''));
+
+            if ($date === '' || $containerNo === '') {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                ]);
+            }
+
+            $folderDate = Carbon::parse($date)->format('m-d-Y');
+            $inOrOut = strtolower($gateStatus) === 'out' ? 'out' : 'in';
+            $safeContainerNo = preg_replace('/[^A-Za-z0-9_-]/', '', $containerNo) ?? '';
+
+            if ($safeContainerNo === '') {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                ]);
+            }
+
+            $folderRelativePath = $this->normalizeImageRelativePath("{$folderDate}/{$inOrOut}/{$safeContainerNo}");
+            $folderFullPath = $this->toInventoryImageFullPath($folderRelativePath);
+
+            if (!File::exists($folderFullPath) || !File::isDirectory($folderFullPath)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                ]);
+            }
+
+            $items = collect(File::files($folderFullPath))
+                ->map(function ($file) use ($folderRelativePath) {
+                    $name = $file->getFilename();
+                    if (!$this->isImageFile($name)) {
+                        return null;
+                    }
+
+                    $relativePath = ltrim($folderRelativePath . '/' . $name, '/');
+
+                    return [
+                        'name' => $name,
+                        'relative_path' => $relativePath,
+                        'url' => '/api/inventory/images/file?path=' . urlencode($relativePath),
+                        'modified_at' => date('Y-m-d H:i:s', $file->getMTime()),
+                    ];
+                })
+                ->filter()
+                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->all();
+
+            return response()->json([
+                'success' => true,
+                'data' => $items,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Inventory image list failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to list inventory images.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Inventory-scoped image file serving for preview modal.
+     * GET /api/inventory/images/file?path=...
+     */
+    public function viewContainerImageFile(Request $request)
+    {
+        $access = $this->getInventoryPageRecordAccessData();
+        if (!$access['can_view']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have access to inventory images.',
+            ], 403);
+        }
+
+        $relativePath = $this->normalizeImageRelativePath((string) $request->query('path', ''));
+        if ($relativePath === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image path is required.',
+            ], 422);
+        }
+
+        $fullPath = $this->toInventoryImageFullPath($relativePath);
+
+        if (!File::exists($fullPath) || !File::isFile($fullPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image not found.',
+            ], 404);
+        }
+
+        return response()->file($fullPath);
     }
 
     /**
@@ -1822,6 +1942,92 @@ class InventoryController extends Controller
         $noZero = "NULLIF(NULLIF({$withoutFraction}, '0000-00-00'), '0000-00-00 00:00:00')";
 
         return "STR_TO_DATE({$noZero}, '{$format}')";
+    }
+
+    private function getInventoryPageRecordAccessData(): array
+    {
+        $user = Auth::user();
+        $privId = (int) ($user->priv_id ?? 0);
+
+        if ($privId === 1) {
+            return [
+                'can_view' => true,
+                'module_edit' => true,
+                'module_delete' => true,
+            ];
+        }
+
+        $prefix = DB::getTablePrefix();
+
+        $page = DB::selectOne("SELECT p_id FROM {$prefix}pages WHERE page = 'inventory' LIMIT 1");
+        if (!$page) {
+            return [
+                'can_view' => false,
+                'module_edit' => false,
+                'module_delete' => false,
+            ];
+        }
+
+        $access = DB::selectOne(
+            "SELECT acs_edit, acs_delete
+             FROM {$prefix}pages_access
+             WHERE privilege = :privilege AND page_id = :page_id
+             LIMIT 1",
+            [
+                'privilege' => $privId,
+                'page_id' => $page->p_id,
+            ]
+        );
+
+        if (!$access) {
+            return [
+                'can_view' => false,
+                'module_edit' => false,
+                'module_delete' => false,
+            ];
+        }
+
+        $moduleEdit = (bool) ($access->acs_edit ?? 0);
+        $moduleDelete = (bool) ($access->acs_delete ?? 0);
+
+        return [
+            'can_view' => $moduleEdit || $moduleDelete,
+            'module_edit' => $moduleEdit,
+            'module_delete' => $moduleDelete,
+        ];
+    }
+
+    private function normalizeImageRelativePath(string $path): string
+    {
+        $path = trim(str_replace('\\', '/', $path));
+        $path = trim($path, '/');
+
+        if ($path === '') {
+            return '';
+        }
+
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                continue;
+            }
+
+            $segments[] = $segment;
+        }
+
+        return implode('/', $segments);
+    }
+
+    private function toInventoryImageFullPath(string $relativePath): string
+    {
+        $base = rtrim(self::INVENTORY_IMAGES_BASE_DIRECTORY, '/');
+        return $relativePath === '' ? $base : $base . '/' . $relativePath;
+    }
+
+    private function isImageFile(string $fileName): bool
+    {
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'], true);
     }
 }
 
