@@ -834,10 +834,16 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="max-w-6xl w-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4 p-4 w-full max-h-[85vh] overflow-hidden">
+        <DialogContent className="w-[96vw] max-w-[1400px] h-[92vh] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 w-full h-full overflow-hidden">
+            {currentImage && (
+              <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
+                {currentImage.name}
+              </div>
+            )}
+
             <div
-              className="w-full max-w-[1100px] aspect-[4/3] flex items-center justify-center relative overflow-hidden rounded-md bg-black/5"
+              className="w-full max-w-[1280px] aspect-[4/3] flex-1 min-h-0 flex items-center justify-center relative overflow-hidden rounded-md bg-black/5"
               onClick={(e) => {
                 // Click left/right 30%/70% to go prev/next
                 const images = imageItems;
@@ -853,10 +859,7 @@ export default function Index() {
               }}
             >
               {currentImage && (
-                <div className="flex flex-col items-center w-full h-full">
-                  <div className="mb-2 text-center font-medium" style={{ color: colors.text.primary }}>
-                    {currentImage.name}
-                  </div>
+                <div className="flex items-center justify-center w-full h-full">
                   <img
                     src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
                     alt={currentImage.name}
