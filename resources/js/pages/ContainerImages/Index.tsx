@@ -842,61 +842,63 @@ export default function Index() {
               </div>
             )}
 
-            <div
-              className="w-full max-w-[1700px] aspect-[4/3] flex-1 min-h-0 flex items-center justify-center relative overflow-hidden rounded-md bg-black/5"
-              onClick={(e) => {
-                // Click left/right 30%/70% to go prev/next
-                const images = imageItems;
-                if (images.length === 0) return;
-                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                const x = (e as React.MouseEvent).clientX - rect.left;
-                const w = rect.width;
-                if (x < w * 0.3) {
-                  setViewerIndex((prev) => (prev - 1 + images.length) % images.length);
-                } else if (x > w * 0.7) {
-                  setViewerIndex((prev) => (prev + 1) % images.length);
-                }
-              }}
-            >
-              {currentImage && (
-                <div className="flex items-center justify-center w-full h-full">
-                  <img
-                    src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
-                    alt={currentImage.name}
-                    className="w-full h-full object-contain mx-auto"
-                    style={{ display: 'block' }}
-                  />
-                </div>
-              )}
+            <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+              <div
+                className="relative w-full max-w-[1700px] max-h-full aspect-[4/3] overflow-hidden rounded-md bg-black/5"
+                onClick={(e) => {
+                  // Click left/right 30%/70% to go prev/next
+                  const images = imageItems;
+                  if (images.length === 0) return;
+                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const x = (e as React.MouseEvent).clientX - rect.left;
+                  const w = rect.width;
+                  if (x < w * 0.3) {
+                    setViewerIndex((prev) => (prev - 1 + images.length) % images.length);
+                  } else if (x > w * 0.7) {
+                    setViewerIndex((prev) => (prev + 1) % images.length);
+                  }
+                }}
+              >
+                {currentImage && (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <img
+                      src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
+                      alt={currentImage.name}
+                      className="w-full h-full object-contain mx-auto"
+                      style={{ display: 'block' }}
+                    />
+                  </div>
+                )}
 
-              {/* Left/Right overlay icons centered vertically */}
-              {imageItems.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      setViewerIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
-                    }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
-                    aria-label="Previous"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-black" />
-                  </button>
+                {/* Left/Right overlay icons centered vertically */}
+                {imageItems.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        setViewerIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
+                      }}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                      aria-label="Previous"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-black" />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      setViewerIndex((prev) => (prev + 1) % imageItems.length);
-                    }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
-                    aria-label="Next"
-                  >
-                    <ChevronRight className="w-5 h-5 text-black" />
-                  </button>
-                </>
-              )}
+                    <button
+                      type="button"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        setViewerIndex((prev) => (prev + 1) % imageItems.length);
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                      aria-label="Next"
+                    >
+                      <ChevronRight className="w-5 h-5 text-black" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="w-full">
