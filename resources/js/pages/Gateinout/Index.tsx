@@ -78,8 +78,8 @@ export default function Index() {
   const [showFiltersModal, setShowFiltersModal] = useState(false);
   const [currentPageIn, setCurrentPageIn] = useState(1);
   const [currentPageOut, setCurrentPageOut] = useState(1);
-  const [itemsPerPageIn, setItemsPerPageIn] = useState<number>(15);
-  const [itemsPerPageOut, setItemsPerPageOut] = useState<number>(15);
+  const [itemsPerPageIn, setItemsPerPageIn] = useState<number>(999999);
+  const [itemsPerPageOut, setItemsPerPageOut] = useState<number>(999999);
 
   const [showAddPreInModal, setShowAddPreInModal] = useState(false);
   const [showAddPreOutModal, setShowAddPreOutModal] = useState(false);
@@ -87,6 +87,8 @@ export default function Index() {
   const [showEditPreOutModal, setShowEditPreOutModal] = useState(false);
   const [showProcessGateInModal, setShowProcessGateInModal] = useState(false);
   const [showProcessGateOutModal, setShowProcessGateOutModal] = useState(false);
+
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   const [confirmUpdatePreIn, setConfirmUpdatePreIn] = useState(false);
   const [confirmUpdatePreOut, setConfirmUpdatePreOut] = useState(false);
@@ -564,55 +566,88 @@ export default function Index() {
     }
   };
 
-  // Pagination for both tables (use table-specific data so headers/counts remain unchanged)
-  const paginatedInRecords = inTableData.slice(
-    (currentPageIn - 1) * itemsPerPageIn,
-    currentPageIn * itemsPerPageIn
-  );
-  const totalPagesIn = Math.ceil(filteredInRecords.length / (itemsPerPageIn || 1));
+  // Back to Top button visibility based on scroll position
+  useEffect(() => {
+    const onScroll = () => {
+      try {
+        setShowBackToTop(window.scrollY > 200);
+      } catch {
+        // ignore (server-side or other envs)
+      }
+    };
 
-  const paginatedOutRecords = outTableData.slice(
-    (currentPageOut - 1) * itemsPerPageOut,
-    currentPageOut * itemsPerPageOut
-  );
-  const totalPagesOut = Math.ceil(filteredOutRecords.length / (itemsPerPageOut || 1));
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('scroll', onScroll);
+      }
+    };
+  }, []);
+
+  // Show full table data (no pagination)
+  const paginatedInRecords = inTableData;
+  const totalPagesIn = 1;
+
+  const paginatedOutRecords = outTableData;
+  const totalPagesOut = 1;
 
   return (
     <AuthenticatedLayout>
       <Head title="Gate In & Out" />
+      <button
+        aria-label="Back to top"
+        title="Back to top"
+        onClick={() => {
+          try {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } catch {
+            // ignore
+          }
+        }}
+        style={{
+          position: 'fixed',
+          right: 20,
+          bottom: 24,
+          zIndex: 9999,
+          width: 44,
+          height: 44,
+          borderRadius: 8,
+          background: '#111827',
+          color: '#ffffff',
+          display: showBackToTop ? 'flex' : 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+          cursor: 'pointer',
+          border: 'none',
+          outline: 'none',
+          transition: 'opacity 200ms ease',
+        }}
+      >
+        ↑
+      </button>
+
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
       <div className="space-y-6">
         {/* HEADER - EXACTLY LIKE CLIENTS PAGE */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className="p-3 rounded-xl"
-              style={{ backgroundColor: colors.brand.primary }}
-            >
-              <GateIcon className="w-6 h-6 text-white" />
-            </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Gate In & Out</h1>
-              <p className="text-sm mt-1 text-gray-600">
-                Manage pre-gate records and process approvals
-              </p>
+              <p className="text-sm mt-1 text-gray-600">Manage pre-gate records and process approvals</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <ModernButton
-              variant="add"
-              size="lg"
-              onClick={() => setShowAddPreInModal(true)}
-            >
+            <ModernButton variant="add" size="lg" onClick={() => setShowAddPreInModal(true)}>
               <Plus className="w-4 h-4" />
               Add Pre In
             </ModernButton>
-            <ModernButton
-              variant="delete"
-              size="lg"
-              onClick={() => setShowAddPreOutModal(true)}
-            >
+            <ModernButton variant="delete" size="lg" onClick={() => setShowAddPreOutModal(true)}>
               <Plus className="w-4 h-4" />
               Add Pre Out
             </ModernButton>
@@ -651,11 +686,9 @@ export default function Index() {
                 </Label>
                 <button
                   type="button"
-                  onClick={() => {
-                    setTempSelectedClient(selectedClient);
-                    setShowFiltersModal(true);
-                  }}
+                  onClick={() => setShowFiltersModal(true)}
                   className="flex items-center gap-2 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                  disabled={loading}
                 >
                   <Filter className="w-4 h-4 text-gray-600" />
                   <span>Filters</span>
@@ -847,15 +880,7 @@ export default function Index() {
             data={paginatedInRecords}
             loading={loading}
             emptyMessage="No IN records found."
-            pagination={{
-              currentPage: currentPageIn,
-              totalPages: totalPagesIn,
-              perPage: itemsPerPageIn,
-              total: filteredInRecords.length,
-              onPageChange: setCurrentPageIn,
-              onPerPageChange: (per: number) => { setItemsPerPageIn(per); setCurrentPageIn(1); },
-              rowsOptions: [15, 20, 50, 100],
-            }}
+            pagination={false}
           />
         </div>
 
@@ -1024,15 +1049,7 @@ export default function Index() {
             data={paginatedOutRecords}
             loading={loading}
             emptyMessage="No OUT records found."
-            pagination={{
-              currentPage: currentPageOut,
-              totalPages: totalPagesOut,
-              perPage: itemsPerPageOut,
-              total: filteredOutRecords.length,
-              onPageChange: setCurrentPageOut,
-              onPerPageChange: (per: number) => { setItemsPerPageOut(per); setCurrentPageOut(1); },
-              rowsOptions: [15, 20, 50, 100],
-            }}
+            pagination={false}
           />
         </div>
       </div>
