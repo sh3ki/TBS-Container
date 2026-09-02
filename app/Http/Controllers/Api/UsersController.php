@@ -214,7 +214,7 @@ class UsersController extends Controller
             
             // Get privilege name for logging
             $privilege = DB::table('privileges')->where('p_code', $request->priv_id)->first();
-            $privilegeName = $privilege ? $privilege->p_desc : 'Unknown';
+            $privilegeName = $privilege ? ($privilege->description ?? $privilege->p_desc ?? $privilege->p_name ?? 'Unknown') : 'Unknown';
             
             // Log to audit - ADD action with all fields
             DB::table('audit_logs')->insert([
@@ -284,7 +284,7 @@ class UsersController extends Controller
             // Get old user data for comparison
             $oldUser = DB::table('users as u')
                 ->leftJoin('privileges as p', 'p.p_code', '=', 'u.priv_id')
-                ->select('u.username', 'u.full_name', 'u.email', 'u.priv_id', 'u.checker_id', 'p.p_desc as privilege_name')
+                ->select('u.username', 'u.full_name', 'u.email', 'u.priv_id', 'u.checker_id', 'p.description as privilege_name')
                 ->where('u.user_id', $userId)
                 ->first();
             
@@ -311,7 +311,7 @@ class UsersController extends Controller
             
             // Get new privilege name
             $newPrivilege = DB::table('privileges')->where('p_code', $request->priv_id)->first();
-            $newPrivilegeName = $newPrivilege ? $newPrivilege->p_desc : 'Unknown';
+            $newPrivilegeName = $newPrivilege ? ($newPrivilege->description ?? $newPrivilege->p_desc ?? $newPrivilege->p_name ?? 'Unknown') : 'Unknown';
             
             // Log to audit - EDIT action with old->new tracking
             $changes = [];
@@ -392,7 +392,7 @@ class UsersController extends Controller
             // Get user details before deletion
             $userDetails = DB::table('users as u')
                 ->leftJoin('privileges as p', 'p.p_code', '=', 'u.priv_id')
-                ->select('u.username', 'u.full_name', 'u.email', 'p.p_desc as privilege_name', 'u.checker_id')
+                ->select('u.username', 'u.full_name', 'u.email', 'p.description as privilege_name', 'u.checker_id')
                 ->where('u.user_id', $userId)
                 ->first();
             
