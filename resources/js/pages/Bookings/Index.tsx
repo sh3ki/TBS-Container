@@ -401,12 +401,9 @@ export default function Index() {
     return contList.split(',').filter(c => c.trim());
   };
 
-  // Pagination
-  const paginatedBookings = filteredBookings.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-  const totalPages = Math.ceil(filteredBookings.length / (itemsPerPage || 1));
+    // Show all bookings (no pagination)
+    const paginatedBookings = filteredBookings;
+    const totalPages = 1;
 
   return (
     <AuthenticatedLayout>
@@ -648,15 +645,7 @@ export default function Index() {
             data={paginatedBookings}
             loading={loading}
             emptyMessage="No bookings found. Click 'Book Containers' to get started."
-            pagination={{
-              currentPage,
-              totalPages,
-              perPage: itemsPerPage,
-              total: filteredBookings.length,
-              onPageChange: setCurrentPage,
-              onPerPageChange: (per: number) => { setItemsPerPage(per); setCurrentPage(1); },
-              rowsOptions: [15, 20, 50, 100],
-            }}
+            pagination={false}
             onRowClick={handleViewContainers}
           />
         </div>
@@ -1016,6 +1005,39 @@ export default function Index() {
         type="danger"
       />
       
+      <button
+        aria-label="Back to top"
+        title="Back to top"
+        onClick={() => {
+          try {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } catch {
+            // ignore
+          }
+        }}
+        style={{
+          position: 'fixed',
+          right: 20,
+          bottom: 24,
+          zIndex: 9999,
+          width: 44,
+          height: 44,
+          borderRadius: 8,
+          background: '#111827',
+          color: '#ffffff',
+          display: showBackToTop ? 'flex' : 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+          cursor: 'pointer',
+          border: 'none',
+          outline: 'none',
+          transition: 'opacity 200ms ease',
+        }}
+      >
+        ↑
+      </button>
+
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </AuthenticatedLayout>
   );
