@@ -14,8 +14,11 @@ class User extends Authenticatable
 
     /**
      * The table associated with the model.
+     *
+     * Leave as `users` so any connection table prefix (e.g. `fjp_`) is applied
+     * by the database connection configuration instead of hardcoding the prefix here.
      */
-    protected $table = 'fjp_users';
+    protected $table = 'users';
 
     /**
      * The primary key associated with the table.
