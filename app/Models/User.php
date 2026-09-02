@@ -15,7 +15,7 @@ class User extends Authenticatable
     /**
      * The table associated with the model.
      */
-    protected $table = 'users';
+    protected $table = 'fjp_users';
 
     /**
      * The primary key associated with the table.
