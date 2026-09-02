@@ -1204,12 +1204,29 @@ class GateinoutController extends Controller
 
             // Convert stdClass to array for view
             $data = (array) $record;
-            
+
+            // Ensure EIR number reflects the requested print status (IN/O) rather than
+            // the original inventory gate_status stored in the DB. The SQL computed
+            // `eirno` used the stored gate_status which is 'IN' for records created
+            // at gate-in. For printing Gate OUT we must suffix with 'O'. Override
+            // the value here based on the request query param.
+            $data['eirno'] = $record->i_id . ($status === 'OUT' ? 'O' : 'I');
+
             // Override gate_status_final with the parameter from the request
             $data['gate_status_final'] = $status;
             
             // Add currently logged-in user's full name for printing
             $data['logged_in_user_fullname'] = auth()->user()->full_name ?? auth()->user()->name ?? 'Unknown';
+
+            // Override printed date/time to be the CURRENT Manila date/time (not the original record date).
+            // This ensures printed Gate IN/OUT passes show the actual print timestamp in Philippine time.
+            try {
+                $dt = new \DateTime('now', new \DateTimeZone('Asia/Manila'));
+                $data['date'] = $dt->format('m/d/Y');
+                $data['time'] = $dt->format('H:i');
+            } catch (\Exception $e) {
+                // If timezone creation fails for any reason, fall back to record's date/time already set by SQL
+            }
 
             // Return HTML view for printing (auto-print via JavaScript) - using unified template
             return view('pdfs.gate-pass-unified', compact('data'));
