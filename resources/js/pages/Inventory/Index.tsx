@@ -80,7 +80,8 @@ const Index: React.FC = () => {
     const [reportData, setReportData] = useState<InventoryRecord[]>([]);
     const [totalCount, setTotalCount] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState<number>(15);
+    // Request a very large page size so the table shows all rows by default
+    const [itemsPerPage, setItemsPerPage] = useState<number>(999999);
 
     // Summary report data
     const [summaryData, setSummaryData] = useState<{
@@ -109,6 +110,8 @@ const Index: React.FC = () => {
     const [containerImages, setContainerImages] = useState<ViewerImage[]>([]);
     const [showImageViewer, setShowImageViewer] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    // Show/hide Back to Top button
+    const [showBackToTop, setShowBackToTop] = useState(false);
     const thumbContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Confirmation dialog states
@@ -236,6 +239,28 @@ const Index: React.FC = () => {
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [showImageViewer, containerImages.length]);
+
+    // Back to Top button visibility based on scroll position
+    useEffect(() => {
+        const onScroll = () => {
+            try {
+                setShowBackToTop(window.scrollY > 200);
+            } catch {
+                // ignore (server-side or other envs)
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('scroll', onScroll);
+            }
+        };
+    }, []);
 
     const fetchDropdownOptions = async () => {
         try {
@@ -1128,7 +1153,7 @@ const Index: React.FC = () => {
                                     key: 'eir_no', 
                                     label: 'EIR No.',
                                     render: (row: InventoryRecord) => (
-                                        <div className="font-semibold text-gray-900 min-w-[80px]">{row.eir_no}</div>
+                                        <div className="font-semibold text-gray-900 min-w-[40px]">{row.eir_no}</div>
                                     )
                                 },
                                 { 
@@ -1155,106 +1180,84 @@ const Index: React.FC = () => {
                                         </div>
                                     )
                                 },
-                                { 
-                                    key: 'size', 
-                                    label: 'Size',
+                                {
+                                    key: 'info',
+                                    label: 'Size / Status / Class',
                                     render: (row: InventoryRecord) => {
-                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        // size variant
+                                        let sizeVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
                                         const size = row.size;
-                                        
-                                        // Distinct colors for each size type (cycling through 4 colors)
-                                        if (size === '10DJH') variant = 'success';
-                                        else if (size === '20FR') variant = 'error';
-                                        else if (size === '20HR') variant = 'warning';
-                                        else if (size === '20OT') variant = 'info';
-                                        else if (size === '20RF') variant = 'success';
-                                        else if (size === '20RH') variant = 'error';
-                                        else if (size === '40DC') variant = 'warning';
-                                        else if (size === '40FR') variant = 'info';
-                                        else if (size === '40HC') variant = 'success';
-                                        else if (size === '40OT') variant = 'error';
-                                        else if (size === '40RH') variant = 'warning';
-                                        
+                                        if (size === '10DJH') sizeVariant = 'success';
+                                        else if (size === '20FR') sizeVariant = 'error';
+                                        else if (size === '20HR') sizeVariant = 'warning';
+                                        else if (size === '20OT') sizeVariant = 'info';
+                                        else if (size === '20RF') sizeVariant = 'success';
+                                        else if (size === '20RH') sizeVariant = 'error';
+                                        else if (size === '40DC') sizeVariant = 'warning';
+                                        else if (size === '40FR') sizeVariant = 'info';
+                                        else if (size === '40HC') sizeVariant = 'success';
+                                        else if (size === '40OT') sizeVariant = 'error';
+                                        else if (size === '40RH') sizeVariant = 'warning';
+
+                                        // status variant
+                                        let statusVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const status = row.status;
+                                        if (status === 'ASIS') statusVariant = 'warning';
+                                        else if (status === 'AVL') statusVariant = 'success';
+                                        else if (status === 'DMG') statusVariant = 'error';
+                                        else if (status === 'FSV') statusVariant = 'info';
+                                        else if (status === 'HLD') statusVariant = 'error';
+                                        else if (status === 'REPO') statusVariant = 'warning';
+                                        else if (status === 'RPR') statusVariant = 'success';
+                                        else if (status === 'WSH') statusVariant = 'info';
+
+                                        // class variant
+                                        let classVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const containerClass = row.class;
+                                        if (containerClass === 'A') classVariant = 'success';
+                                        else if (containerClass === 'B') classVariant = 'warning';
+                                        else if (containerClass === 'C') classVariant = 'error';
+
                                         return (
-                                            <div className="min-w-[70px]">
-                                                <ModernBadge variant={variant}>{row.size || '-'}</ModernBadge>
+                                            <div className="flex flex-col gap-1 min-w-[110px]">
+                                                <div>
+                                                    <ModernBadge variant={statusVariant}>{row.status || '-'}</ModernBadge>
+                                                </div>
+                                                <div>
+                                                    <ModernBadge variant={sizeVariant}>{row.size || '-'}</ModernBadge>
+                                                </div>
+                                                <div>
+                                                    <ModernBadge variant={classVariant}>{row.class || '-'}</ModernBadge>
+                                                </div>
                                             </div>
                                         );
                                     }
-                                },
-                                { 
-                                    key: 'gate', 
-                                    label: 'Gate',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="min-w-[60px]">
-                                            <ModernBadge variant={row.gate === 'IN' ? 'success' : 'warning'}>
-                                                {row.gate}
-                                            </ModernBadge>
-                                        </div>
-                                    )
                                 },
                                 {
-                                    key: 'date_time',
-                                    label: 'DATE/TIME',
+                                    key: 'date_days',
+                                    label: 'DATE/TIME / Days',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[120px]">
+                                        <div className="text-sm text-gray-600 min-w-[130px]">
                                             <div className="font-medium">{formatDate(row.date)}</div>
                                             <div className="text-xs text-gray-500 mt-1">{formatTime(row.time)}</div>
-                                        </div>
-                                    )
-                                },
-                                { 
-                                    key: 'days', 
-                                    label: 'Days',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm font-medium text-gray-900 min-w-[80px]">{formatDurationCompactFrom(row.date, row.time, row.days)}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'status', 
-                                    label: 'Status',
-                                    render: (row: InventoryRecord) => {
-                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
-                                        const status = row.status;
-                                        
-                                        // Distinct colors for each status (cycling through 4 colors)
-                                        if (status === 'ASIS') variant = 'warning';
-                                        else if (status === 'AVL') variant = 'success';
-                                        else if (status === 'DMG') variant = 'error';
-                                        else if (status === 'FSV') variant = 'info';
-                                        else if (status === 'HLD') variant = 'error';
-                                        else if (status === 'REPO') variant = 'warning';
-                                        else if (status === 'RPR') variant = 'success';
-                                        else if (status === 'WSH') variant = 'info';
-                                        
-                                        return (
-                                            <div className="min-w-[80px]">
-                                                <ModernBadge variant={variant}>
-                                                    {row.status || '-'}
-                                                </ModernBadge>
+                                            <div className="mt-1">
+                                                <span className="font-bold text-gray-900 text-sm">DAYS: {formatDurationCompactFrom(row.date, row.time, row.days)}</span>
                                             </div>
-                                        );
-                                    }
-                                },
-                                { 
-                                    key: 'class', 
-                                    label: 'Class',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.class}</div>
+                                        </div>
                                     )
                                 },
                                 { 
                                     key: 'dmf', 
                                     label: 'Date mfd',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatMonthYear(row.dmf as string)}</div>
+                                        <div className="text-sm text-gray-600 min-w-[80px]">{formatMonthYear(row.dmf as string)}</div>
                                     )
                                 },
                                 { 
                                     key: 'location', 
                                     label: 'Loc',
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.location}</div>
+                                        <div className="text-sm text-gray-600 min-w-[40px]">{row.location}</div>
                                     )
                                 },
                                 { 
@@ -1270,7 +1273,7 @@ const Index: React.FC = () => {
                                     key: 'app_notes', 
                                     label: 'App Notes',
                                     render: (row: InventoryRecord) => (
-                                        <div className="flex items-center gap-2 min-w-[120px]">
+                                        <div className="flex items-center gap-2 min-w-[150px]">
                                             {row.app_notes && row.app_notes.trim() ? (
                                                 <span className="text-sm text-gray-600">{row.app_notes}</span>
                                             ) : (
@@ -1290,107 +1293,86 @@ const Index: React.FC = () => {
                                     key: 'actions', 
                                     label: 'Actions',
                                     render: (row: InventoryRecord) => (
-                                        <div className="flex items-center justify-end gap-2">
-                                            {/* View Button */}
-                                            <ModernButton 
-                                                variant="primary" 
-                                                size="sm" 
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleViewRecord(row); }}
-                                                title="View Details"
-                                            >
-                                                <Eye className="w-3.5 h-3.5" />
-                                            </ModernButton>
+                                        <div className="min-w-[120px]">
+                                            <div className="grid grid-cols-3 gap-2 justify-items-end">
+                                                <ModernButton 
+                                                    variant="primary" 
+                                                    size="sm" 
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleViewRecord(row); }}
+                                                    title="View Details"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                </ModernButton>
 
-                                            {/* Edit Button */}
-                                            <ModernButton 
-                                                variant="edit" 
-                                                size="sm" 
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenEditModal(row); }}
-                                                title="Edit Container"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </ModernButton>
+                                                <ModernButton 
+                                                    variant="edit" 
+                                                    size="sm" 
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenEditModal(row); }}
+                                                    title="Edit Container"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </ModernButton>
 
-                                            {/* Print Button (Legacy single print template) */}
-                                            <ModernButton
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
-                                                title="Print"
-                                            >
-                                                <Printer className="w-3.5 h-3.5" />
-                                            </ModernButton>
-
-                                            {/* Hold/Unhold Button */}
-                                            {row.is_hold ? (
                                                 <ModernButton
                                                     variant="secondary"
                                                     size="sm"
-                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenUnholdConfirm(row); }}
-                                                    title="Remove from Hold"
-                                                    disabled={updatingStatus}
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
+                                                    title="Print"
                                                 >
-                                                    <Unlock className="w-3.5 h-3.5" />
+                                                    <Printer className="w-3.5 h-3.5" />
                                                 </ModernButton>
-                                            ) : (
-                                                <ModernButton
-                                                    variant="toggle"
-                                                    size="sm"
-                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenHoldModal(row); }}
-                                                    title="Place on Hold"
-                                                    disabled={updatingStatus}
-                                                >
-                                                    <Lock className="w-3.5 h-3.5" />
-                                                </ModernButton>
-                                            )}
-                                            
-                                            {/* Repo/Available Button with Truck Icon */}
-                                            <ModernButton
-                                                variant={row.container_status_id === 8 ? "add" : "edit"}
-                                                size="sm"
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
-                                                title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
-                                                disabled={updatingStatus}
-                                            >
-                                                <Truck className="w-3.5 h-3.5" />
-                                            </ModernButton>
 
-                                            {/* Delete Button */}
-                                            <ModernButton 
-                                                variant="delete" 
-                                                size="sm" 
-                                                onClick={(e: React.MouseEvent) => {
-                                                    e.stopPropagation();
-                                                    setRecordToDelete(row);
-                                                    setShowDeleteConfirm(true);
-                                                }}
-                                                title="Delete Container"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </ModernButton>
+                                                {row.is_hold ? (
+                                                    <ModernButton
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenUnholdConfirm(row); }}
+                                                        title="Remove from Hold"
+                                                        disabled={updatingStatus}
+                                                    >
+                                                        <Unlock className="w-3.5 h-3.5" />
+                                                    </ModernButton>
+                                                ) : (
+                                                    <ModernButton
+                                                        variant="toggle"
+                                                        size="sm"
+                                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenHoldModal(row); }}
+                                                        title="Place on Hold"
+                                                        disabled={updatingStatus}
+                                                    >
+                                                        <Lock className="w-3.5 h-3.5" />
+                                                    </ModernButton>
+                                                )}
+
+                                                <ModernButton
+                                                    variant={row.container_status_id === 8 ? "add" : "edit"}
+                                                    size="sm"
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
+                                                    title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
+                                                    disabled={updatingStatus}
+                                                >
+                                                    <Truck className="w-3.5 h-3.5" />
+                                                </ModernButton>
+
+                                                <ModernButton 
+                                                    variant="delete" 
+                                                    size="sm" 
+                                                    onClick={(e: React.MouseEvent) => {
+                                                        e.stopPropagation();
+                                                        setRecordToDelete(row);
+                                                        setShowDeleteConfirm(true);
+                                                    }}
+                                                    title="Delete Container"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </ModernButton>
+                                            </div>
                                         </div>
                                     )
                                 },
                             ]}
                             onRowClick={handleViewRecord}
                             data={filteredReportData}
-                            pagination={{
-                                currentPage: currentPage,
-                                totalPages: Math.max(1, Math.ceil(totalCount / (itemsPerPage || 1))),
-                                total: totalCount,
-                                perPage: itemsPerPage,
-                                onPageChange: (p: number) => {
-                                    setCurrentPage(p);
-                                    void fetchInventory({ page: p, perPage: itemsPerPage, search: searchTerm, showToast: false });
-                                },
-                                onPerPageChange: (per: number) => {
-                                    setItemsPerPage(per);
-                                    setCurrentPage(1);
-                                    void fetchInventory({ page: 1, perPage: per, search: searchTerm, showToast: false });
-                                },
-                                rowsOptions: [15, 20, 50, 100],
-                            }}
-                            paginationPosition="top"
                         />
                     ) : (
                         <div className="text-center py-12">
@@ -2586,6 +2568,39 @@ const Index: React.FC = () => {
                     </DialogFooter> */}
                 </DialogContent>
             </Dialog>
+
+            <button
+                aria-label="Back to top"
+                title="Back to top"
+                onClick={() => {
+                    try {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    } catch {
+                        // ignore
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    right: 20,
+                    bottom: 24,
+                    zIndex: 9999,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    background: '#111827',
+                    color: '#ffffff',
+                    display: showBackToTop ? 'flex' : 'none',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+                    cursor: 'pointer',
+                    border: 'none',
+                    outline: 'none',
+                    transition: 'opacity 200ms ease',
+                }}
+            >
+                ↑
+            </button>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
