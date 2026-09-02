@@ -31,6 +31,7 @@ class Privilege extends Model
         'p_code',
         'p_name',
         'p_desc',
+        'description',
         'access',
     ];
 
