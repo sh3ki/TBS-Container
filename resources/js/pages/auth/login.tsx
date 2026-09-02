@@ -244,6 +244,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         resetOnSuccess={['password']}
                         className="space-y-6"
                         onSubmit={handleSubmit}
+                        onSubmitCapture={handleSubmit}
                     >
                         {({ processing, errors }) => (
                             <>
@@ -341,6 +342,11 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                             tabIndex={4}
                                             disabled={processing}
                                             data-test="login-button"
+                                            onMouseDown={() => {
+                                                if (rememberChecked && username) {
+                                                    saveRememberedAccount(username, password);
+                                                }
+                                            }}
                                         >
                                             {processing && <Spinner className="w-5 h-5" />}
                                             {!processing && <Lock className="w-5 h-5" />}
