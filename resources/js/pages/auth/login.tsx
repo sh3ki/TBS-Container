@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Head, Form } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +27,66 @@ interface LoginProps {
 }
 
 export default function Login({ status, canResetPassword }: LoginProps) {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [rememberChecked, setRememberChecked] = useState(false);
+    const [rememberedAccounts, setRememberedAccounts] = useState<Array<{username: string; password: string;}>>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const usernameRef = useRef<HTMLInputElement | null>(null);
+
+    const STORAGE_KEY = 'tbs_remembered_accounts';
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            const list = raw ? JSON.parse(raw) : [];
+            if (Array.isArray(list)) {
+                // sort by updatedAt desc so most recent is first
+                const sorted = (list || []).slice().sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0));
+                setRememberedAccounts(sorted);
+                if (sorted.length >= 1) {
+                    // auto-fill with most recently remembered account
+                    setUsername(sorted[0].username || '');
+                    setPassword(sorted[0].password || '');
+                    setRememberChecked(true);
+                }
+            }
+        } catch (e) {
+            // ignore JSON errors
+        }
+    }, []);
+
+    function saveRememberedAccount(u: string, p: string) {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            const list = raw ? JSON.parse(raw) : [];
+            const filtered = (list || []).filter((it: any) => it.username !== u);
+            filtered.unshift({ username: u, password: p, updatedAt: Date.now() });
+            // limit to 5
+            const trimmed = filtered.slice(0, 5);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+            setRememberedAccounts(trimmed);
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    function handleSuggestionPick(u: string, p: string) {
+        setUsername(u);
+        setPassword(p);
+        setRememberChecked(true);
+        setShowSuggestions(false);
+        // focus password
+        const el = document.getElementById('password') as HTMLInputElement | null;
+        if (el) el.focus();
+    }
+
+    function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        // Save remembered account before the form submission completes so it's available on next load
+        if (rememberChecked && username) {
+            saveRememberedAccount(username, password);
+        }
+    }
     return (
         <div className="min-h-screen flex">
             <Head title="Log in" />
@@ -183,16 +243,18 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         method="post"
                         resetOnSuccess={['password']}
                         className="space-y-6"
+                        onSubmit={handleSubmit}
                     >
                         {({ processing, errors }) => (
                             <>
                                 <div className="space-y-5">
-                                    <div>
+                                    <div className="relative">
                                         <Label htmlFor="username" className="text-base font-semibold mb-2 block" style={{ color: colors.text.primary }}>
                                             Username
                                         </Label>
                                         <Input
                                             id="username"
+                                            ref={usernameRef}
                                             type="text"
                                             name="username"
                                             required
@@ -200,9 +262,30 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                             tabIndex={1}
                                             autoComplete="username"
                                             placeholder="Enter your username"
+                                            value={username}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setUsername(e.target.value); setShowSuggestions(true); }}
+                                            onFocus={() => setShowSuggestions(true)}
+                                            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                                             className="mt-1 h-13 text-base border-2 focus:border-opacity-100 transition-all duration-200 rounded-xl"
                                         />
                                         <InputError message={errors.username} />
+
+                                        {showSuggestions && rememberedAccounts.length > 0 && (
+                                            <div className="absolute z-20 left-0 right-0 mt-2 bg-white border rounded-md shadow-md max-h-48 overflow-auto">
+                                                {rememberedAccounts
+                                                    .filter(a => a.username.toLowerCase().includes(username.toLowerCase()))
+                                                    .map((a, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onMouseDown={() => handleSuggestionPick(a.username, a.password)}
+                                                            className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                                                        >
+                                                            <div className="font-medium">{a.username}</div>
+                                                        </button>
+                                                    ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div>
@@ -229,6 +312,8 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                             tabIndex={2}
                                             autoComplete="current-password"
                                             placeholder="Enter your password"
+                                            value={password}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                                             className="h-13 text-base border-2 focus:border-opacity-100 transition-all duration-200 rounded-xl"
                                         />
                                         <InputError message={errors.password} />
@@ -237,9 +322,11 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     <div className="flex items-center space-x-3 pt-1">
                                         <Checkbox
                                             id="remember"
-                                            name="remember"
+                                            name="remember_client"
                                             tabIndex={3}
                                             className="w-5 h-5"
+                                            checked={rememberChecked}
+                                            onCheckedChange={(val: boolean | "indeterminate") => setRememberChecked(Boolean(val))}
                                         />
                                         <Label htmlFor="remember" className="text-sm font-medium cursor-pointer" style={{ color: colors.text.secondary }}>
                                             Remember me
