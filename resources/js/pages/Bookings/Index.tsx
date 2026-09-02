@@ -61,7 +61,7 @@ export default function Index() {
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [expirationFilter, setExpirationFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(15);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(999999);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -114,6 +114,29 @@ export default function Index() {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings, searchTerm, clientFilter, expirationFilter]);
+
+  // Back to Top button visibility based on scroll position
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => {
+      try {
+        setShowBackToTop(window.scrollY > 200);
+      } catch {
+        // ignore
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('scroll', onScroll);
+      }
+    };
+  }, []);
 
   // Check for pending booking from Gate OUT "Save and Book = YES"
   useEffect(() => {
