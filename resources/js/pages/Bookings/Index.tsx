@@ -58,8 +58,10 @@ export default function Index() {
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [expirationFilter, setExpirationFilter] = useState<string>('');
+  const [expiredResults, setExpiredResults] = useState<Booking[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(999999);
   
@@ -113,7 +115,13 @@ export default function Index() {
   useEffect(() => {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings, searchTerm, clientFilter, expirationFilter]);
+  }, [bookings, debouncedSearchTerm, clientFilter, expirationFilter]);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   // Back to Top button visibility based on scroll position
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -175,39 +183,77 @@ export default function Index() {
   }, [clients]);
 
   const applyFilters = () => {
-    let filtered = [...bookings];
-    
-    // Search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(booking => 
+    // Helper: determine expired (expiration date strictly before today)
+    const isExpired = (b: Booking) => {
+      if (!b.expiration_date) return false;
+      const exp = new Date(b.expiration_date);
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      return exp.getTime() < today.getTime();
+    };
+
+    // Start with current bookings array
+    let working = [...bookings];
+
+    const search = (debouncedSearchTerm || '').toLowerCase();
+
+    // Apply client filter if set
+    if (clientFilter !== 'all') {
+      working = working.filter(booking => booking.client.c_id.toString() === clientFilter);
+    }
+
+    // Apply expiration date filter (exact date)
+    if (expirationFilter) {
+      working = working.filter(booking => {
+        const expirationDate = new Date(booking.expiration_date);
+        const year = expirationDate.getFullYear();
+        const month = String(expirationDate.getMonth() + 1).padStart(2, '0');
+        const day = String(expirationDate.getDate()).padStart(2, '0');
+        const bookingDateFormatted = `${year}-${month}-${day}`;
+        return bookingDateFormatted === expirationFilter;
+      });
+    }
+
+    // For main table: only include non-expired bookings
+    let currentFiltered = working.filter(b => !isExpired(b));
+
+    // Apply search to current bookings
+    if (search) {
+      currentFiltered = currentFiltered.filter(booking => 
         booking.book_no.toLowerCase().includes(search) ||
         booking.shipper.toLowerCase().includes(search) ||
         booking.client.client_name.toLowerCase().includes(search) ||
         booking.client.client_code.toLowerCase().includes(search)
       );
     }
-    
-    // Client filter
+
+    setFilteredBookings(currentFiltered);
+
+    // For expired results (only used when searching): apply same filters but for expired bookings
+    let expired = [...bookings];
     if (clientFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.client.c_id.toString() === clientFilter);
+      expired = expired.filter(booking => booking.client.c_id.toString() === clientFilter);
     }
-    
-    // Expiration date filter
     if (expirationFilter) {
-      filtered = filtered.filter(booking => {
-        // Normalize the expiration date from the booking to YYYY-MM-DD format
+      expired = expired.filter(booking => {
         const expirationDate = new Date(booking.expiration_date);
         const year = expirationDate.getFullYear();
         const month = String(expirationDate.getMonth() + 1).padStart(2, '0');
         const day = String(expirationDate.getDate()).padStart(2, '0');
         const bookingDateFormatted = `${year}-${month}-${day}`;
-        
         return bookingDateFormatted === expirationFilter;
       });
     }
-    
-    setFilteredBookings(filtered);
+    expired = expired.filter(b => isExpired(b));
+    if (search) {
+      expired = expired.filter(booking => 
+        booking.book_no.toLowerCase().includes(search) ||
+        booking.shipper.toLowerCase().includes(search) ||
+        booking.client.client_name.toLowerCase().includes(search) ||
+        booking.client.client_code.toLowerCase().includes(search)
+      );
+    }
+    setExpiredResults(expired);
   };
 
   const fetchBookings = async () => {
@@ -215,7 +261,8 @@ export default function Index() {
     try {
       const response = await axios.get('/api/bookings', {
         params: { 
-          per_page: 1000
+          per_page: 1000,
+          ...(debouncedSearchTerm ? { show_all: 1 } : {}),
         }
       });
       if (response.data.success) {
@@ -227,6 +274,12 @@ export default function Index() {
       setLoading(false);
     }
   };
+
+  // Re-fetch bookings when debounced search term changes so we can include expired matches
+  useEffect(() => {
+    fetchBookings();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm]);
 
   const fetchClients = async () => {
     try {
@@ -401,6 +454,167 @@ export default function Index() {
     return contList.split(',').filter(c => c.trim());
   };
 
+    // Define table columns once so we can reuse for expired results
+    const tableColumns = [
+      {
+        key: 'book_no',
+        label: 'Book No.',
+        render: (booking: Booking) => (
+          <div className="font-semibold text-gray-900 max-w-[70px]">{booking.book_no}</div>
+        ),
+      },
+      {
+        key: 'client',
+        label: 'Client Name',
+        render: (booking: Booking) => (
+          <div className="text-sm text-gray-900 min-w-[70px] max-w-[75px]">
+            <div className="font-medium">{booking.client.client_name}</div>
+            <div className="text-xs text-gray-500">{booking.client.client_code}</div>
+          </div>
+        ),
+      },
+      {
+        key: 'shipper',
+        label: 'Shipper',
+        render: (booking: Booking) => (
+          <div className="min-w-[70px] max-w-[90px]">
+            <span className="text-sm text-gray-900">{booking.shipper}</span>
+          </div>
+        ),
+      },
+      {
+        key: 'containers_info',
+        label: 'Containers',
+        render: (booking: Booking) => (
+          <div className="space-y-2 min-w-[65px]">
+            <div>
+              <div className="text-xs font-semibold text-gray-700 mb-0.5">Allocated:</div>
+              <div className="space-y-0.5">
+                <div className="text-sm text-gray-900">x20: {booking.twenty}</div>
+                <div className="text-sm text-gray-900">x40: {booking.fourty}</div>
+                <div className="text-sm text-gray-900">x45: {booking.fourty_five}</div>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-700 mb-0.5">Remaining:</div>
+              <div className="space-y-0.5">
+                <div className="text-sm text-gray-900">x20 rem: {booking.twenty_rem}</div>
+                <div className="text-sm text-gray-900">x40 rem: {booking.fourty_rem}</div>
+                <div className="text-sm text-gray-900">x45 rem: {booking.fourty_five_rem}</div>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'container_lists',
+        label: 'Container Lists',
+        render: (booking: Booking) => {
+          const containers = getContainerListArray(booking.cont_list);
+          const containersRem = getContainerListArray(booking.cont_list_rem);
+          return (
+            <div className="space-y-1.5 min-w-[65px]">
+              <div>
+                <div className="text-xs font-semibold text-gray-700 mb-0.5">List:</div>
+                <div className="text-xs font-mono text-gray-600">
+                  {containers.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {containers.map((c, i) => (
+                        <div key={i} className="truncate">{c}</div>
+                      ))}
+                    </div>
+                  ) : '-'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-700 mb-0.5">Rem:</div>
+                <div className="text-xs font-mono text-gray-600">
+                  {containersRem.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {containersRem.map((c, i) => (
+                        <div key={i} className="truncate">{c}</div>
+                      ))}
+                    </div>
+                  ) : '-'}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'expiration',
+        label: 'Expiration',
+        render: (booking: Booking) => (
+          <div className="min-w-[95px]">
+            <span className="text-sm text-gray-600">
+              {new Date(booking.expiration_date).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              })}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        render: (booking: Booking) => (
+          <div className="min-w-[55px]">
+            <ModernBadge variant={booking.status_text === 'Active' ? 'success' : 'error'}>
+              {booking.status_text}
+            </ModernBadge>
+          </div>
+        ),
+      },
+      {
+        key: 'date_added',
+        label: 'Date',
+        render: (booking: Booking) => (
+          <div className="text-sm text-gray-600 min-w-[65px]">
+            {new Date(booking.date_added).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })}
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        render: (booking: Booking) => (
+            <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
+                  <ModernButton 
+                    variant="primary" 
+                    size="sm" 
+                    onClick={() => handleViewContainers(booking)}
+                    title="View Details"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </ModernButton>
+                  <ModernButton 
+                    variant="edit" 
+                    size="sm" 
+                    onClick={(e) => { e.stopPropagation(); handleEditBooking(booking); }}
+                    title="Edit Booking"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </ModernButton>
+                  <ModernButton 
+                    variant="delete" 
+                    size="sm" 
+                    onClick={(e) => { e.stopPropagation(); setBookingToDelete(booking); setConfirmDeleteBooking(true); }}
+                    title="Delete Booking"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </ModernButton>
+            </div>
+        ),
+      },
+    ];
+
     // Show all bookings (no pagination)
     const paginatedBookings = filteredBookings;
     const totalPages = 1;
@@ -483,171 +697,34 @@ export default function Index() {
 
         <div className="w-full">
           <ModernTable
-            columns={[
-              {
-                key: 'book_no',
-                label: 'Book No.',
-                render: (booking: Booking) => (
-                  <div className="font-semibold text-gray-900 max-w-[70px]">{booking.book_no}</div>
-                ),
-              },
-              {
-                key: 'client',
-                label: 'Client Name',
-                render: (booking: Booking) => (
-                  <div className="text-sm text-gray-900 min-w-[70px] max-w-[75px]">
-                    <div className="font-medium">{booking.client.client_name}</div>
-                    <div className="text-xs text-gray-500">{booking.client.client_code}</div>
-                  </div>
-                ),
-              },
-              {
-                key: 'shipper',
-                label: 'Shipper',
-                render: (booking: Booking) => (
-                  <div className="min-w-[70px] max-w-[90px]">
-                    <span className="text-sm text-gray-900">{booking.shipper}</span>
-                  </div>
-                ),
-              },
-              {
-                key: 'containers_info',
-                label: 'Containers',
-                render: (booking: Booking) => (
-                  <div className="space-y-2 min-w-[65px]">
-                    <div>
-                      <div className="text-xs font-semibold text-gray-700 mb-0.5">Allocated:</div>
-                      <div className="space-y-0.5">
-                        <div className="text-sm text-gray-900">x20: {booking.twenty}</div>
-                        <div className="text-sm text-gray-900">x40: {booking.fourty}</div>
-                        <div className="text-sm text-gray-900">x45: {booking.fourty_five}</div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold text-gray-700 mb-0.5">Remaining:</div>
-                      <div className="space-y-0.5">
-                        <div className="text-sm text-gray-900">x20 rem: {booking.twenty_rem}</div>
-                        <div className="text-sm text-gray-900">x40 rem: {booking.fourty_rem}</div>
-                        <div className="text-sm text-gray-900">x45 rem: {booking.fourty_five_rem}</div>
-                      </div>
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                key: 'container_lists',
-                label: 'Container Lists',
-                render: (booking: Booking) => {
-                  const containers = getContainerListArray(booking.cont_list);
-                  const containersRem = getContainerListArray(booking.cont_list_rem);
-                  return (
-                    <div className="space-y-1.5 min-w-[65px]">
-                      <div>
-                        <div className="text-xs font-semibold text-gray-700 mb-0.5">List:</div>
-                        <div className="text-xs font-mono text-gray-600">
-                          {containers.length > 0 ? (
-                            <div className="space-y-0.5">
-                              {containers.map((c, i) => (
-                                <div key={i} className="truncate">{c}</div>
-                              ))}
-                            </div>
-                          ) : '-'}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-gray-700 mb-0.5">Rem:</div>
-                        <div className="text-xs font-mono text-gray-600">
-                          {containersRem.length > 0 ? (
-                            <div className="space-y-0.5">
-                              {containersRem.map((c, i) => (
-                                <div key={i} className="truncate">{c}</div>
-                              ))}
-                            </div>
-                          ) : '-'}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                },
-              },
-              {
-                key: 'expiration',
-                label: 'Expiration',
-                render: (booking: Booking) => (
-                  <div className="min-w-[95px]">
-                    <span className="text-sm text-gray-600">
-                      {new Date(booking.expiration_date).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: 'status',
-                label: 'Status',
-                render: (booking: Booking) => (
-                  <div className="min-w-[55px]">
-                    <ModernBadge variant={booking.status_text === 'Active' ? 'success' : 'error'}>
-                      {booking.status_text}
-                    </ModernBadge>
-                  </div>
-                ),
-              },
-              {
-                key: 'date_added',
-                label: 'Date',
-                render: (booking: Booking) => (
-                  <div className="text-sm text-gray-600 min-w-[65px]">
-                    {new Date(booking.date_added).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
-                ),
-              },
-              {
-                key: 'actions',
-                label: 'Actions',
-                render: (booking: Booking) => (
-                    <div className="flex items-center justify-end gap-1.5 min-w-[100px]">
-                          <ModernButton 
-                            variant="primary" 
-                            size="sm" 
-                            onClick={() => handleViewContainers(booking)}
-                            title="View Details"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </ModernButton>
-                          <ModernButton 
-                            variant="edit" 
-                            size="sm" 
-                            onClick={(e) => { e.stopPropagation(); handleEditBooking(booking); }}
-                            title="Edit Booking"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </ModernButton>
-                          <ModernButton 
-                            variant="delete" 
-                            size="sm" 
-                            onClick={(e) => { e.stopPropagation(); setBookingToDelete(booking); setConfirmDeleteBooking(true); }}
-                            title="Delete Booking"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </ModernButton>
-                    </div>
-                ),
-              },
-            ]}
+            columns={tableColumns}
             data={paginatedBookings}
             loading={loading}
             emptyMessage="No bookings found. Click 'Book Containers' to get started."
             pagination={false}
             onRowClick={handleViewContainers}
           />
+          {expiredResults && expiredResults.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-start gap-3">
+                <span className="w-3 h-3 rounded-full bg-blue-500 mt-1" />
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Expired Matches</h3>
+                  <p className="text-sm text-gray-600">{expiredResults.length} expired bookings matched</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <ModernTable
+                  columns={tableColumns}
+                  data={expiredResults}
+                  loading={false}
+                  emptyMessage="No expired bookings match your search."
+                  pagination={false}
+                  onRowClick={handleViewContainers}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
