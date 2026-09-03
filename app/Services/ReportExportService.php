@@ -941,7 +941,7 @@ class ReportExportService
      * @param string $clientCode
      * @return string Path to the exported file
      */
-    public function exportDmrMultiSheet(array $data, string $date, string $clientCode): string
+    public function exportDmrMultiSheet(array $data, string $date, string $clientName): string
     {
         try {
             // Create fresh spreadsheet
@@ -960,7 +960,7 @@ class ReportExportService
             
             Log::info('DMR Export Started', [
                 'date' => $date,
-                'clientCode' => $clientCode,
+                'clientName' => $clientName,
                 'incoming' => $incomingCount,
                 'outgoing' => $outgoingCount,
                 'inventory' => $inventoryCount,
@@ -1087,7 +1087,7 @@ class ReportExportService
         $currentRow++;
 
         // Subtitle
-        $sheetInventory->setCellValue('A' . $currentRow, 'INVENTORY REPORT AS OF ' . $date . ' FOR ' . strtoupper($clientCode));
+        $sheetInventory->setCellValue('A' . $currentRow, 'INVENTORY REPORT AS OF ' . $date . ' FOR ' . strtoupper($clientName));
         $sheetInventory->getStyle('A' . $currentRow)->applyFromArray($titleStyle);
         $currentRow += 2;
 
@@ -1192,7 +1192,8 @@ class ReportExportService
         }
 
         // Save file with new filename format
-        $filename = $clientCode . ' DMR ' . $date . '.xlsx';
+        $safeClientName = preg_replace('/[\\\\\/:*?"<>|]/', '-', $clientName);
+        $filename = $safeClientName . ' DMR ' . $date . '.xlsx';
         $filepath = storage_path('app/public/exports/' . $filename);
 
         if (!file_exists(dirname($filepath))) {
@@ -1212,7 +1213,7 @@ class ReportExportService
             Log::error('DMR Export Service Error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'date' => $date,
-                'clientCode' => $clientCode,
+                'clientName' => $clientName,
             ]);
             throw $e;
         }
