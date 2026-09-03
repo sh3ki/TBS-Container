@@ -9,6 +9,7 @@ use App\Models\Client;
 use App\Services\ReportExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReportsController extends Controller
 {
@@ -1156,13 +1157,14 @@ class ReportsController extends Controller
      */
     public function exportDmrReport(Request $request)
     {
-        $request->validate([
-            'date' => 'required|date',
-            'client_id' => 'required|string',
-        ]);
+        try {
+            $request->validate([
+                'date' => 'required|date_format:Y-m-d',
+                'client_id' => 'nullable|string',
+            ]);
 
-        $date = $request->date;
-        $clientId = $request->client_id;
+            $date = $request->date;
+            $clientId = $request->client_id;
         $dateStart = $date . ' 00:00:00';
         $dateEnd = $date . ' 23:59:59';
 
@@ -1343,8 +1345,19 @@ class ReportsController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        $filename = $clientCode . ' DMR ' . $date . '.xlsx';
-        return response()->download($filePath, $filename)->deleteFileAfterSend(true);
+            $filename = $clientCode . ' DMR ' . $date . '.xlsx';
+            return response()->download($filePath, $filename)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            Log::error('DMR Export Error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'date' => $request->date ?? 'unknown',
+                'client_id' => $request->client_id ?? 'unknown',
+            ]);
+            
+            return response()->json([
+                'message' => 'Export failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
