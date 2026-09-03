@@ -931,4 +931,257 @@ class ReportExportService
 
         return $filepath;
     }
+
+    /**
+     * Export DMR Report with 4 worksheets: INCOMING, OUTGOING, INVENTORY, AGING
+     * 
+     * @param array $data Array with keys: incoming, outgoing, inventory, aging (each is a Collection)
+     * @param string $date
+     * @param string $clientCode
+     * @return string Path to the exported file
+     */
+    public function exportDmrMultiSheet(array $data, string $date, string $clientCode): string
+    {
+        // Create fresh spreadsheet
+        $this->spreadsheet = new Spreadsheet();
+        $this->spreadsheet->removeSheetByIndex(0); // Remove default sheet
+        
+        // Styles
+        $titleStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true, 'color' => ['rgb' => '000000']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+        ];
+
+        $headerStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '366092']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+
+        $cellStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'color' => ['rgb' => '000000']],
+            'alignment' => ['wrap' => true, 'horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+
+        // ===== SHEET 1: INCOMING =====
+        $sheetIncoming = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'INCOMING');
+        $this->spreadsheet->addSheet($sheetIncoming);
+        $currentRow = 1;
+
+        // Title
+        $sheetIncoming->setCellValue('A' . $currentRow, 'INCOMING CONTAINERS - ' . $date);
+        $sheetIncoming->getStyle('A' . $currentRow)->applyFromArray($titleStyle);
+        $currentRow += 2;
+
+        // Headers
+        $incomingHeaders = ['EIR', 'Date', 'Time', 'Container No', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Class', 'Date Manu', 'Ex-Consignee', 'Hauler', 'Plate No', 'Load'];
+        $col = 'A';
+        foreach ($incomingHeaders as $header) {
+            $sheetIncoming->setCellValue($col . $currentRow, $header);
+            $sheetIncoming->getStyle($col . $currentRow)->applyFromArray($headerStyle);
+            $col++;
+        }
+        $currentRow++;
+
+        // Data rows
+        foreach ($data['incoming'] ?? [] as $row) {
+            $col = 'A';
+            $sheetIncoming->setCellValue($col . $currentRow, $row->eir_no ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->date ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->time ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->container_no ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->size_type ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->status ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->vessel ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->voyage ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->class ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->date_manufactured ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->ex_consignee ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->hauler ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->plate_no ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->load ?? ''); $col++;
+            
+            $currentRow++;
+        }
+
+        foreach (range('A', 'N') as $col) {
+            $sheetIncoming->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // ===== SHEET 2: OUTGOING =====
+        $sheetOutgoing = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'OUTGOING');
+        $this->spreadsheet->addSheet($sheetOutgoing);
+        $currentRow = 1;
+
+        // Title
+        $sheetOutgoing->setCellValue('A' . $currentRow, 'OUTGOING CONTAINERS - ' . $date);
+        $sheetOutgoing->getStyle('A' . $currentRow)->applyFromArray($titleStyle);
+        $currentRow += 2;
+
+        // Headers
+        $outgoingHeaders = ['EIR', 'Date', 'Time', 'Container No', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Destination', 'Plate No', 'Load', 'Chasis'];
+        $col = 'A';
+        foreach ($outgoingHeaders as $header) {
+            $sheetOutgoing->setCellValue($col . $currentRow, $header);
+            $sheetOutgoing->getStyle($col . $currentRow)->applyFromArray($headerStyle);
+            $col++;
+        }
+        $currentRow++;
+
+        // Data rows
+        foreach ($data['outgoing'] ?? [] as $row) {
+            $col = 'A';
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->eir_no ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->date ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->time ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->container_no ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->size_type ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->status ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->vessel ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->voyage ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->shipper ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->hauler ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->booking ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->destination ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->plate_no ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->load ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->chasis ?? ''); $col++;
+            
+            $currentRow++;
+        }
+
+        foreach (range('A', 'O') as $col) {
+            $sheetOutgoing->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // ===== SHEET 3: INVENTORY (Aging Report) =====
+        $sheetInventory = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'INVENTORY');
+        $this->spreadsheet->addSheet($sheetInventory);
+        $currentRow = 1;
+
+        // Title
+        $sheetInventory->setCellValue('A' . $currentRow, 'TBS CONTAINER YARD OPC, INC');
+        $sheetInventory->getStyle('A' . $currentRow)->applyFromArray($titleStyle);
+        $currentRow++;
+
+        // Subtitle
+        $sheetInventory->setCellValue('A' . $currentRow, 'INVENTORY REPORT AS OF ' . $date . ' FOR ' . strtoupper($clientCode));
+        $sheetInventory->getStyle('A' . $currentRow)->applyFromArray($titleStyle);
+        $currentRow += 2;
+
+        // Headers
+        $inventoryHeaders = ['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'AGE', 'STATUS', 'CLASS', 'DMF'];
+        $col = 'A';
+        foreach ($inventoryHeaders as $header) {
+            $sheetInventory->setCellValue($col . $currentRow, $header);
+            $sheetInventory->getStyle($col . $currentRow)->applyFromArray($headerStyle);
+            $col++;
+        }
+        $currentRow++;
+
+        // Group data by size_type
+        $groupedBySizeType = collect($data['inventory'] ?? [])->groupBy('size_type');
+        $rowNumber = 1;
+        $totalUnits = 0;
+
+        foreach ($groupedBySizeType as $sizeType => $sizeTypeData) {
+            $sizeTypeCount = 0;
+            
+            foreach ($sizeTypeData as $row) {
+                $col = 'A';
+                
+                $sheetInventory->setCellValue($col . $currentRow, $rowNumber); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->container_no ?? ''); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->size_type ?? ''); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->date_in ?? ''); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->age ?? ''); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->status ?? ''); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->class ?? ''); $col++;
+                $sheetInventory->setCellValue($col . $currentRow, $row->dmf ?? ''); $col++;
+                
+                $currentRow++;
+                $rowNumber++;
+                $sizeTypeCount++;
+            }
+
+            // Subtotal row
+            $sheetInventory->setCellValue('C' . $currentRow, $sizeTypeCount);
+            $sheetInventory->getStyle('C' . $currentRow)->applyFromArray($headerStyle);
+            $sheetInventory->setCellValue('D' . $currentRow, 'UNITS');
+            $sheetInventory->getStyle('D' . $currentRow)->applyFromArray($headerStyle);
+            $currentRow += 2;
+
+            $totalUnits += $sizeTypeCount;
+        }
+
+        // Add spacing and total
+        $currentRow += 2;
+        $sheetInventory->setCellValue('B' . $currentRow, 'TOTAL NO. OF UNITS');
+        $sheetInventory->getStyle('B' . $currentRow)->applyFromArray($headerStyle);
+        $sheetInventory->setCellValue('D' . $currentRow, $totalUnits);
+        $sheetInventory->getStyle('D' . $currentRow)->applyFromArray($headerStyle);
+
+        foreach (range('A', 'H') as $col) {
+            $sheetInventory->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // ===== SHEET 4: AGING =====
+        $sheetAging = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'AGING');
+        $this->spreadsheet->addSheet($sheetAging);
+        $currentRow = 1;
+
+        // Title
+        $sheetAging->setCellValue('A' . $currentRow, 'AGING REPORT - ' . $date);
+        $sheetAging->getStyle('A' . $currentRow)->applyFromArray($titleStyle);
+        $currentRow += 2;
+
+        // Headers
+        $agingHeaders = ['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'AGE (DAYS)', 'STATUS', 'CLASS', 'DMF'];
+        $col = 'A';
+        foreach ($agingHeaders as $header) {
+            $sheetAging->setCellValue($col . $currentRow, $header);
+            $sheetAging->getStyle($col . $currentRow)->applyFromArray($headerStyle);
+            $col++;
+        }
+        $currentRow++;
+
+        // Data rows sorted by age (descending)
+        $agingDataSorted = collect($data['aging'] ?? [])->sortByDesc('age');
+        $rowNumber = 1;
+
+        foreach ($agingDataSorted as $row) {
+            $col = 'A';
+            
+            $sheetAging->setCellValue($col . $currentRow, $rowNumber); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->container_no ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->size_type ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->date_in ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->age ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->status ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->class ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->dmf ?? ''); $col++;
+            
+            $currentRow++;
+            $rowNumber++;
+        }
+
+        foreach (range('A', 'H') as $col) {
+            $sheetAging->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Save file with new filename format
+        $filename = $clientCode . ' DMR ' . $date . '.xlsx';
+        $filepath = storage_path('app/public/exports/' . $filename);
+
+        if (!file_exists(dirname($filepath))) {
+            mkdir(dirname($filepath), 0755, true);
+        }
+
+        $writer = new Xlsx($this->spreadsheet);
+        $writer->save($filepath);
+
+        return $filepath;
+    }
 }
