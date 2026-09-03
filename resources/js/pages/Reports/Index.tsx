@@ -44,6 +44,7 @@ const Index: React.FC = () => {
     const itemsPerPage = 15;
     const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showBackToTop, setShowBackToTop] = useState(false);
 
     const [incomingFields, setIncomingFields] = useState<FieldCheckboxes>({
         eir_no: true,
@@ -85,6 +86,28 @@ const Index: React.FC = () => {
 
     useEffect(() => {
         loadClients();
+    }, []);
+
+    // Back to Top button visibility based on scroll position
+    useEffect(() => {
+        const onScroll = () => {
+            try {
+                setShowBackToTop(window.scrollY > 200);
+            } catch {
+                // ignore (server-side or other envs)
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('scroll', onScroll);
+            }
+        };
     }, []);
 
     const loadClients = async () => {
@@ -512,11 +535,6 @@ const Index: React.FC = () => {
 
     const renderIncomingTab = () => {
         const allClientGroups = groupDataByClient(filteredReportData);
-        const clientGroupsPerPage = 1; // Show 1 client group per "page"
-        const clientGroups = allClientGroups.slice(
-            (currentPage - 1) * clientGroupsPerPage,
-            currentPage * clientGroupsPerPage
-        );
 
         return (
             <div className="space-y-6">
@@ -656,9 +674,9 @@ const Index: React.FC = () => {
                 </div>
 
                 {/* Display grouped data */}
-                {clientGroups.length > 0 ? (
+                {allClientGroups.length > 0 ? (
                     <div className="space-y-8">
-                        {clientGroups.map((group, idx) => (
+                        {allClientGroups.map((group, idx) => (
                             <div key={idx} className="space-y-4">
                                 {/* Client Header */}
                                 <div className="px-6 py-3 rounded-lg" style={{ backgroundColor: colors.brand.primary }}>
@@ -693,44 +711,12 @@ const Index: React.FC = () => {
                         ))}
                     </div>
                 ) : null}
-
-                {/* Pagination by client groups */}
-                {allClientGroups.length > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: colors.table.border }}>
-                        <div className="text-sm" style={{ color: colors.text.secondary }}>
-                            Showing client group <span className="font-bold" style={{ color: colors.text.primary }}>{currentPage}</span> of <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                disabled={currentPage === 1}
-                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
-                            >
-                                Previous
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(Math.min(allClientGroups.length, currentPage + 1))}
-                                disabled={currentPage === allClientGroups.length}
-                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     };
 
     const renderOutgoingTab = () => {
         const allClientGroups = groupDataByClient(filteredReportData);
-        const clientGroupsPerPage = 1;
-        const clientGroups = allClientGroups.slice(
-            (currentPage - 1) * clientGroupsPerPage,
-            currentPage * clientGroupsPerPage
-        );
 
         return (
             <div className="space-y-6">
@@ -870,9 +856,9 @@ const Index: React.FC = () => {
                 </div>
 
                 {/* Display grouped data */}
-                {clientGroups.length > 0 ? (
+                {allClientGroups.length > 0 ? (
                     <div className="space-y-8">
-                        {clientGroups.map((group, idx) => (
+                        {allClientGroups.map((group, idx) => (
                             <div key={idx} className="space-y-4">
                                 {/* Client Header */}
                                 <div className="px-6 py-3 rounded-lg" style={{ backgroundColor: colors.brand.primary }}>
@@ -907,33 +893,6 @@ const Index: React.FC = () => {
                         ))}
                     </div>
                 ) : null}
-
-                {/* Pagination by client groups */}
-                {allClientGroups.length > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: colors.table.border }}>
-                        <div className="text-sm" style={{ color: colors.text.secondary }}>
-                            Showing client group <span className="font-bold" style={{ color: colors.text.primary }}>{currentPage}</span> of <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                disabled={currentPage === 1}
-                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
-                            >
-                                Previous
-                            </button>
-                            <button
-                                onClick={() => setCurrentPage(Math.min(allClientGroups.length, currentPage + 1))}
-                                disabled={currentPage === allClientGroups.length}
-                                className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ backgroundColor: colors.brand.primary, color: 'white' }}
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
         );
     };
@@ -1415,6 +1374,36 @@ const Index: React.FC = () => {
                     {activeTab === 'dcr' && renderDCRTab()}
                 </div>
             </div>
+
+            {/* Back to Top Button */}
+            <button
+                onClick={() => {
+                    if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    right: 20,
+                    bottom: 24,
+                    zIndex: 9999,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    background: '#111827',
+                    color: '#ffffff',
+                    display: showBackToTop ? 'flex' : 'none',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+                    cursor: 'pointer',
+                    border: 'none',
+                    outline: 'none',
+                    transition: 'opacity 200ms ease',
+                }}
+            >
+                ↑
+            </button>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
