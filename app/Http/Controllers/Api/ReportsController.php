@@ -1176,6 +1176,11 @@ class ReportsController extends Controller
             $client = $client->first();
             $clientCode = $client ? ($client->client_code ?: $client->client_name) : 'ALL';
 
+            $tablePrefix = DB::getTablePrefix();
+            $invTable = $tablePrefix . 'inventory';
+            $clientTable = $tablePrefix . 'clients';
+            $sizeTypeTable = $tablePrefix . 'container_size_type';
+
             // 1. INCOMING - Containers gated IN on this date
             $incomingData = DB::table('inventory')
                 ->leftJoin('clients', 'inventory.client_id', '=', 'clients.c_id')
@@ -1188,11 +1193,11 @@ class ReportsController extends Controller
                     return $q->where('inventory.client_id', $clientId);
                 })
                 ->select(
-                    DB::raw('CONCAT(i_id, "I") as eir_no'),
-                    DB::raw('DATE(date_added) as date'),
-                    DB::raw('TIME(date_added) as time'),
+                    DB::raw("CONCAT({$invTable}.i_id, 'I') as eir_no"),
+                    DB::raw("DATE({$invTable}.date_added) as date"),
+                    DB::raw("TIME({$invTable}.date_added) as time"),
                     'inventory.container_no',
-                    DB::raw('CONCAT(size, type) as size_type'),
+                    DB::raw("CONCAT({$sizeTypeTable}.size, {$sizeTypeTable}.type) as size_type"),
                     'container_status.status',
                     'inventory.vessel',
                     'inventory.voyage',
@@ -1201,8 +1206,8 @@ class ReportsController extends Controller
                     'inventory.ex_consignee',
                     'inventory.hauler',
                     'inventory.plate_no',
-                    DB::raw('COALESCE(origin, "") as load_value'),
-                    DB::raw('CASE WHEN client_code IS NOT NULL AND client_code <> "" THEN client_code ELSE client_name END as client')
+                    DB::raw("COALESCE({$invTable}.origin, '') as load_value"),
+                    DB::raw("CASE WHEN {$clientTable}.client_code IS NOT NULL AND {$clientTable}.client_code <> '' THEN {$clientTable}.client_code ELSE {$clientTable}.client_name END as client")
                 )
                 ->orderBy('container_size_type.size', 'asc')
                 ->orderBy('container_size_type.type', 'asc')
@@ -1222,11 +1227,11 @@ class ReportsController extends Controller
                     return $q->where('inventory.client_id', $clientId);
                 })
                 ->select(
-                    DB::raw('CONCAT(i_id, "O") as eir_no'),
-                    DB::raw('DATE(approval_date) as date'),
-                    DB::raw('TIME(approval_date) as time'),
+                    DB::raw("CONCAT({$invTable}.i_id, 'O') as eir_no"),
+                    DB::raw("DATE({$invTable}.approval_date) as date"),
+                    DB::raw("TIME({$invTable}.approval_date) as time"),
                     'inventory.container_no',
-                    DB::raw('CONCAT(size, type) as size_type'),
+                    DB::raw("CONCAT({$sizeTypeTable}.size, {$sizeTypeTable}.type) as size_type"),
                     'container_status.status',
                     'inventory.vessel',
                     'inventory.voyage',
@@ -1236,7 +1241,7 @@ class ReportsController extends Controller
                     'inventory.location',
                     'inventory.plate_no',
                     'inventory.chasis',
-                    DB::raw('CASE WHEN client_code IS NOT NULL AND client_code <> "" THEN client_code ELSE client_name END as client')
+                    DB::raw("CASE WHEN {$clientTable}.client_code IS NOT NULL AND {$clientTable}.client_code <> '' THEN {$clientTable}.client_code ELSE {$clientTable}.client_name END as client")
                 )
                 ->orderBy('container_size_type.size', 'asc')
                 ->orderBy('container_size_type.type', 'asc')
