@@ -1153,21 +1153,24 @@ const Index: React.FC = () => {
                                     key: 'eir_no', 
                                     label: 'EIR No.',
                                     render: (row: InventoryRecord) => (
-                                        <div className="font-semibold text-gray-900 min-w-[40px]">{row.eir_no}</div>
+                                        <div 
+                                            className="font-semibold text-gray-900 min-w-[40px]"
+                                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                        >
+                                            {row.eir_no}
+                                        </div>
                                     )
                                 },
                                 { 
                                     key: 'container_no', 
                                     label: 'Cont. No.',
                                     render: (row: InventoryRecord) => (
-                                        <button
-                                            type="button"
-                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintInOut(row); }}
-                                            className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
-                                            title="Print IN/OUT legacy template"
+                                        <div 
+                                            className="font-medium text-gray-900 min-w-[110px]"
+                                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
                                         >
                                             {row.container_no}
-                                        </button>
+                                        </div>
                                     )
                                 },
                                 { 
