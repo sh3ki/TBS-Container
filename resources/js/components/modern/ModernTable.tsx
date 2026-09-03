@@ -8,6 +8,7 @@ interface Column<T = unknown> {
   align?: 'left' | 'center' | 'right';
   width?: string;
   sortable?: boolean;
+  disableRowClick?: boolean;
   render?: (item: T) => React.ReactNode;
 }
 
@@ -142,7 +143,12 @@ export const ModernTable = <T extends Record<string, unknown>>({
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = index % 2 === 0 ? colors.table.row : colors.table.rowAlt;
                   }}
-                  onClick={() => onRowClick?.(item)}
+                  onClick={(e) => {
+                    const targetNode = e.target as Node | null;
+                    const targetElement = targetNode instanceof Element ? targetNode : targetNode?.parentElement ?? null;
+                    if (targetElement?.closest('[data-row-click="ignore"]')) return;
+                    onRowClick?.(item);
+                  }}
                 >
                   {renderRow ? (
                     renderRow(item, index)
@@ -151,6 +157,7 @@ export const ModernTable = <T extends Record<string, unknown>>({
                       <td
                         key={column.key}
                         className="px-6 py-4 text-sm"
+                        data-row-click={column.disableRowClick ? 'ignore' : undefined}
                         style={{
                           color: colors.text.primary,
                           textAlign: column.align || 'left',
