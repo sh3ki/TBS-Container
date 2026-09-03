@@ -31,7 +31,7 @@ class ReportExportService
      * @param string $dateTo
      * @return string Path to the exported file
      */
-    public function exportIncomingReportByClient(Collection $data, string $dateFrom, string $dateTo): string
+    public function exportIncomingReportByClient(Collection $data, string $dateFrom, string $dateTo, ?array $selectedFields = null): string
     {
         // Create fresh spreadsheet for this export
         $this->spreadsheet = new Spreadsheet();
@@ -64,7 +64,33 @@ class ReportExportService
         ];
 
         // Headers to display (all available fields)
-        $headers = ['EIR', 'Date', 'Time', 'Container No', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Class', 'Date Manu', 'Ex-Consignee', 'Hauler', 'Plate No', 'Load', 'Origin', 'Chasis'];
+        $allHeaders = [
+            'eir_no' => 'EIR',
+            'date' => 'Date',
+            'time' => 'Time',
+            'container_no' => 'Container No',
+            'size_type' => 'Size/Type',
+            'status' => 'Status',
+            'vessel' => 'Vessel',
+            'voyage' => 'Voyage',
+            'class' => 'Class',
+            'date_manufactured' => 'Date Manu',
+            'ex_consignee' => 'Ex-Consignee',
+            'hauler' => 'Hauler',
+            'plate_no' => 'Plate No',
+            'load' => 'Load',
+            'origin' => 'Origin',
+            'chasis' => 'Chasis',
+        ];
+
+        $headers = [];
+        if (is_array($selectedFields) && count($selectedFields) > 0) {
+            foreach ($selectedFields as $sf) {
+                if (isset($allHeaders[$sf])) $headers[] = $allHeaders[$sf];
+            }
+        } else {
+            $headers = array_values($allHeaders);
+        }
 
         // Process each client
         foreach ($groupedByClient as $clientName => $clientData) {
@@ -90,68 +116,33 @@ class ReportExportService
             // Data rows for this client
             foreach ($clientData as $row) {
                 $col = 'A';
-                $sheet->setCellValue($col . $this->currentRow, $row->eir_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
+                // Write only selected fields (or all if none selected)
+                $col = 'A';
+                $rowMap = [
+                    'eir_no' => $row->eir_no ?? '',
+                    'date' => $row->date ?? '',
+                    'time' => $row->time ?? '',
+                    'container_no' => $row->container_no ?? '',
+                    'size_type' => $row->size_type ?? '',
+                    'status' => $row->status ?? '',
+                    'vessel' => $row->vessel ?? '',
+                    'voyage' => $row->voyage ?? '',
+                    'class' => $row->class ?? '',
+                    'date_manufactured' => $row->date_manufactured ?? '',
+                    'ex_consignee' => $row->ex_consignee ?? '',
+                    'hauler' => $row->hauler ?? '',
+                    'plate_no' => $row->plate_no ?? '',
+                    'load' => $row->load ?? '',
+                    'origin' => $row->origin ?? '',
+                    'chasis' => $row->chasis ?? '',
+                ];
 
-                $sheet->setCellValue($col . $this->currentRow, $row->date ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->time ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->container_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->size_type ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->status ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->vessel ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->voyage ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->class ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->date_manufactured ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->ex_consignee ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->hauler ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->plate_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->load ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->origin ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->chasis ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                $fieldsToWrite = is_array($selectedFields) && count($selectedFields) > 0 ? $selectedFields : array_keys($allHeaders);
+                foreach ($fieldsToWrite as $f) {
+                    $sheet->setCellValue($col . $this->currentRow, $rowMap[$f] ?? '');
+                    $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                    $col++;
+                }
 
                 $this->currentRow++;
             }
@@ -188,7 +179,7 @@ class ReportExportService
      * @param string $dateTo
      * @return string Path to the exported file
      */
-    public function exportOutgoingReportByClient(Collection $data, string $dateFrom, string $dateTo): string
+    public function exportOutgoingReportByClient(Collection $data, string $dateFrom, string $dateTo, ?array $selectedFields = null): string
     {
         // Create fresh spreadsheet for this export
         $this->spreadsheet = new Spreadsheet();
@@ -220,8 +211,33 @@ class ReportExportService
             'borders' => ['outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '333333']]],
         ];
 
-        // Headers to display
-        $headers = ['EIR', 'Date', 'Time', 'Container No', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Destination', 'Plate No', 'Load', 'Chasis', 'Seal No'];
+        $allHeaders = [
+            'eir_no' => 'EIR',
+            'date' => 'Date',
+            'time' => 'Time',
+            'container_no' => 'Container No',
+            'size_type' => 'Size/Type',
+            'status' => 'Status',
+            'vessel' => 'Vessel',
+            'voyage' => 'Voyage',
+            'shipper' => 'Shipper',
+            'hauler' => 'Hauler',
+            'booking' => 'Booking',
+            'destination' => 'Destination',
+            'plate_no' => 'Plate No',
+            'load' => 'Load',
+            'chasis' => 'Chasis',
+            'seal_no' => 'Seal No',
+        ];
+
+        $headers = [];
+        if (is_array($selectedFields) && count($selectedFields) > 0) {
+            foreach ($selectedFields as $sf) {
+                if (isset($allHeaders[$sf])) $headers[] = $allHeaders[$sf];
+            }
+        } else {
+            $headers = array_values($allHeaders);
+        }
 
         // Process each client
         foreach ($groupedByClient as $clientName => $clientData) {
@@ -246,69 +262,33 @@ class ReportExportService
 
             // Data rows for this client
             foreach ($clientData as $row) {
+                // Build row map and write only selected fields
+                $rowMap = [
+                    'eir_no' => $row->eir_no ?? '',
+                    'date' => $row->date ?? '',
+                    'time' => $row->time ?? '',
+                    'container_no' => $row->container_no ?? '',
+                    'size_type' => $row->size_type ?? '',
+                    'status' => $row->status ?? '',
+                    'vessel' => $row->vessel ?? '',
+                    'voyage' => $row->voyage ?? '',
+                    'shipper' => $row->shipper ?? '',
+                    'hauler' => $row->hauler ?? '',
+                    'booking' => $row->booking ?? '',
+                    'destination' => $row->destination ?? '',
+                    'plate_no' => $row->plate_no ?? '',
+                    'load' => $row->load ?? '',
+                    'chasis' => $row->chasis ?? '',
+                    'seal_no' => $row->seal_no ?? '',
+                ];
+
+                $fieldsToWrite = is_array($selectedFields) && count($selectedFields) > 0 ? $selectedFields : array_keys($allHeaders);
                 $col = 'A';
-                $sheet->setCellValue($col . $this->currentRow, $row->eir_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->date ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->time ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->container_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->size_type ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->status ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->vessel ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->voyage ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->shipper ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->hauler ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->booking ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->destination ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->plate_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->load ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->chasis ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
-                $col++;
-
-                $sheet->setCellValue($col . $this->currentRow, $row->seal_no ?? '');
-                $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                foreach ($fieldsToWrite as $f) {
+                    $sheet->setCellValue($col . $this->currentRow, $rowMap[$f] ?? '');
+                    $sheet->getStyle($col . $this->currentRow)->applyFromArray($cellStyle);
+                    $col++;
+                }
 
                 $this->currentRow++;
             }
