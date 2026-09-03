@@ -12,8 +12,6 @@ use Carbon\Carbon;
 
 class InventoryController extends Controller
 {
-    private const INVENTORY_IMAGES_BASE_DIRECTORY = '/var/www/tbscontainermnl/public/container_pics';
-
     public function getList(Request $request)
     {
         try {
@@ -485,6 +483,7 @@ class InventoryController extends Controller
             // Attempt to include container images (if any) by scanning the container_pics folder.
             $images = [];
             try {
+                $baseDir = '/var/www/tbscontainermnl/public/container_pics';
                 if (!empty($inventory->date_added)) {
                     $folderDate = Carbon::parse($inventory->date_added)->format('m-d-Y');
                 } else {
@@ -493,8 +492,8 @@ class InventoryController extends Controller
 
                 if ($folderDate) {
                     $inOrOut = (strtolower($inventory->gate_status) === 'out') ? 'out' : 'in';
-                    $relativePath = trim($folderDate . '/' . $inOrOut . '/' . $inventory->container_no, '/');
-                    $fullPath = $this->toInventoryImageFullPath($relativePath);
+                    $relativePath = trim($folderDate . '/' . $inOrOut . '/' . $inventory->container_no . '/', '/');
+                    $fullPath = rtrim($baseDir, '/') . '/' . $relativePath;
 
                     if (File::exists($fullPath) && File::isDirectory($fullPath)) {
                         $files = File::files($fullPath);
@@ -503,11 +502,7 @@ class InventoryController extends Controller
                             $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
                             if (in_array($ext, ['jpg','jpeg','png','gif','webp','bmp'], true)) {
                                 $rel = ltrim($relativePath . '/' . $name, '/');
-                                $images[] = [
-                                    'name' => $name,
-                                    'relative_path' => $rel,
-                                    'url' => '/api/inventory/images/file?path=' . urlencode($rel),
-                                ];
+                                $images[] = '/api/containerimages/file?path=' . urlencode($rel);
                             }
                         }
                     }
@@ -565,7 +560,7 @@ class InventoryController extends Controller
                     'approval_date' => $inventory->approval_date,
                     'contact_no' => $inventory->contact_no,
                     'bill_of_lading' => $inventory->bill_of_lading,
-                    // Images for inventory preview modal
+                    // Images: look for files under public/container_pics/{MM-DD-YYYY}/{in|out}/{container_no}/
                     'images' => $images,
                 ],
             ]);
@@ -576,121 +571,6 @@ class InventoryController extends Controller
                 'message' => 'Failed to get container details: ' . $e->getMessage(),
             ], 500);
         }
-    }
-
-    /**
-     * Inventory-scoped image list for the container details modal.
-     * GET /api/inventory/images
-     */
-    public function listContainerImages(Request $request)
-    {
-        try {
-            $access = $this->getInventoryPageRecordAccessData();
-            if (!$access['can_view']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have access to inventory images.',
-                ], 403);
-            }
-
-            $date = trim((string) $request->query('date', ''));
-            $gateStatus = trim((string) $request->query('gate_status', 'IN'));
-            $containerNo = trim((string) $request->query('container_no', ''));
-
-            if ($date === '' || $containerNo === '') {
-                return response()->json([
-                    'success' => true,
-                    'data' => [],
-                ]);
-            }
-
-            $folderDate = Carbon::parse($date)->format('m-d-Y');
-            $inOrOut = strtolower($gateStatus) === 'out' ? 'out' : 'in';
-            $safeContainerNo = preg_replace('/[^A-Za-z0-9_-]/', '', $containerNo) ?? '';
-
-            if ($safeContainerNo === '') {
-                return response()->json([
-                    'success' => true,
-                    'data' => [],
-                ]);
-            }
-
-            $folderRelativePath = $this->normalizeImageRelativePath("{$folderDate}/{$inOrOut}/{$safeContainerNo}");
-            $folderFullPath = $this->toInventoryImageFullPath($folderRelativePath);
-
-            if (!File::exists($folderFullPath) || !File::isDirectory($folderFullPath)) {
-                return response()->json([
-                    'success' => true,
-                    'data' => [],
-                ]);
-            }
-
-            $items = collect(File::files($folderFullPath))
-                ->map(function ($file) use ($folderRelativePath) {
-                    $name = $file->getFilename();
-                    if (!$this->isImageFile($name)) {
-                        return null;
-                    }
-
-                    $relativePath = ltrim($folderRelativePath . '/' . $name, '/');
-
-                    return [
-                        'name' => $name,
-                        'relative_path' => $relativePath,
-                        'url' => '/api/inventory/images/file?path=' . urlencode($relativePath),
-                        'modified_at' => date('Y-m-d H:i:s', $file->getMTime()),
-                    ];
-                })
-                ->filter()
-                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
-                ->values()
-                ->all();
-
-            return response()->json([
-                'success' => true,
-                'data' => $items,
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('Inventory image list failed', ['error' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to list inventory images.',
-            ], 500);
-        }
-    }
-
-    /**
-     * Inventory-scoped image file serving for preview modal.
-     * GET /api/inventory/images/file?path=...
-     */
-    public function viewContainerImageFile(Request $request)
-    {
-        $access = $this->getInventoryPageRecordAccessData();
-        if (!$access['can_view']) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You do not have access to inventory images.',
-            ], 403);
-        }
-
-        $relativePath = $this->normalizeImageRelativePath((string) $request->query('path', ''));
-        if ($relativePath === '') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Image path is required.',
-            ], 422);
-        }
-
-        $fullPath = $this->toInventoryImageFullPath($relativePath);
-
-        if (!File::exists($fullPath) || !File::isFile($fullPath)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Image not found.',
-            ], 404);
-        }
-
-        return response()->file($fullPath);
     }
 
     /**
@@ -1344,24 +1224,10 @@ class InventoryController extends Controller
             $filters = $request->all();
             $prefix = DB::getTablePrefix();
 
-            $page = max((int) $request->input('page', 1), 1);
-            $perPage = max((int) $request->input('per_page', 15), 1);
-            $perPage = min($perPage, 500);
-            $offset = ($page - 1) * $perPage;
-            $includeSummary = filter_var($request->input('include_summary', false), FILTER_VALIDATE_BOOLEAN);
-
             $safeInDate = $this->sanitizeDateExpression('i.date_added');
             $safeManufacturedDate = $this->sanitizeDateExpression('i.date_manufactured', '%Y-%m-%d');
-
-            $fromWhere = "
-                FROM {$prefix}inventory i
-                LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
-                LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
-                LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
-                LEFT JOIN {$prefix}hold_containers h ON h.container_no = i.container_no
-                WHERE c.archived = 0";
-
-            $dataSelect = "SELECT 
+            
+            $query = "SELECT 
                         CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) as eir_no,
                         i.container_no,
                         c.client_name as client,
@@ -1376,7 +1242,10 @@ class InventoryController extends Controller
                             WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate})
                             ELSE NULL 
                         END as time,
-                        0 as days,
+                        CASE 
+                            WHEN {$safeInDate} IS NOT NULL THEN DATEDIFF(NOW(), {$safeInDate})
+                            ELSE 0 
+                        END as days,
                         cs.status,
                         i.class,
                         CASE 
@@ -1388,7 +1257,15 @@ class InventoryController extends Controller
                         COALESCE(i.approval_notes, '') as app_notes,
                         i.i_id,
                         i.container_status as container_status_id,
-                        CASE WHEN h.container_no IS NOT NULL THEN 1 ELSE 0 END as is_hold";
+                        CASE 
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
+                            THEN 1 ELSE 0 
+                        END as is_hold
+                    FROM {$prefix}inventory i
+                    LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
+                    LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
+                    LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
+                    WHERE c.archived = 0";
             
             $params = [];
             
@@ -1396,214 +1273,168 @@ class InventoryController extends Controller
             $gateStatus = $filters['gate_status'] ?? 'CURRENTLY';
             if ($gateStatus === 'CURRENTLY') {
                 // Real Time Inventory - only IN, not complete, and no out_id (matches legacy system)
-                $fromWhere .= " AND i.gate_status = 'IN' AND i.complete = 0 AND (i.out_id IS NULL OR i.out_id = 0)";
+                $query .= " AND i.gate_status = 'IN' AND i.complete = 0 AND (i.out_id IS NULL OR i.out_id = 0)";
             } elseif ($gateStatus === 'IN') {
-                $fromWhere .= " AND i.gate_status = 'IN'";
+                $query .= " AND i.gate_status = 'IN'";
             } elseif ($gateStatus === 'OUT') {
-                $fromWhere .= " AND i.gate_status = 'OUT'";
+                $query .= " AND i.gate_status = 'OUT'";
             }
             // For 'BOTH', no additional gate status filter
-
-            // Free text search from search input
-            if (!empty($filters['search'])) {
-                $search = trim((string) $filters['search']);
-                if ($search !== '') {
-                    $params[':search_container'] = '%' . strtoupper($search) . '%';
-                    $params[':search_client_name'] = '%' . strtolower($search) . '%';
-                    $params[':search_client_code'] = '%' . strtolower($search) . '%';
-                    $params[':search_eir'] = '%' . preg_replace('/\s+/', '', $search) . '%';
-                    $fromWhere .= " AND (
-                        UPPER(i.container_no) LIKE :search_container
-                        OR LOWER(c.client_name) LIKE :search_client_name
-                        OR LOWER(c.client_code) LIKE :search_client_code
-                        OR CONCAT(i.i_id, CASE WHEN i.gate_status='IN' THEN 'I' ELSE 'O' END) LIKE :search_eir
-                    )";
-                }
-            }
             
             // Client filter
             if (!empty($filters['client']) && $filters['client'] !== 'all') {
-                $fromWhere .= " AND i.client_id = :client_id";
+                $query .= " AND i.client_id = :client_id";
                 $params[':client_id'] = $filters['client'];
             }
             
             // Container number filter
             if (!empty($filters['container_no'])) {
-                $fromWhere .= " AND i.container_no LIKE :container_no";
+                $query .= " AND i.container_no LIKE :container_no";
                 $params[':container_no'] = '%' . strtoupper($filters['container_no']) . '%';
             }
             
             // ISO Code filter
             if (!empty($filters['iso_code'])) {
-                $fromWhere .= " AND LOWER(i.iso_code) LIKE :iso_code";
+                $query .= " AND LOWER(i.iso_code) LIKE :iso_code";
                 $params[':iso_code'] = '%' . strtolower($filters['iso_code']) . '%';
             }
             
             // Date filters
             if (!empty($filters['date_in_from']) && !empty($filters['date_in_to'])) {
-                $fromWhere .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
+                $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
                 $params[':date_in_from'] = $filters['date_in_from'];
                 $params[':date_in_to'] = $filters['date_in_to'];
             }
             
             if (!empty($filters['date_out_from']) && !empty($filters['date_out_to'])) {
-                $fromWhere .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
+                $query .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
                 $params[':date_out_from'] = $filters['date_out_from'];
                 $params[':date_out_to'] = $filters['date_out_to'];
             }
             
             // Text filters
             if (!empty($filters['checker'])) {
-                $fromWhere .= " AND LOWER(i.origin) LIKE :checker";
+                $query .= " AND LOWER(i.origin) LIKE :checker";
                 $params[':checker'] = '%' . strtolower($filters['checker']) . '%';
             }
             
             if (!empty($filters['consignee'])) {
-                $fromWhere .= " AND LOWER(i.ex_consignee) LIKE :consignee";
+                $query .= " AND LOWER(i.ex_consignee) LIKE :consignee";
                 $params[':consignee'] = '%' . strtolower($filters['consignee']) . '%';
             }
             
             if (!empty($filters['hauler_in'])) {
-                $fromWhere .= " AND LOWER(i.hauler) LIKE :hauler_in";
+                $query .= " AND LOWER(i.hauler) LIKE :hauler_in";
                 $params[':hauler_in'] = '%' . strtoupper($filters['hauler_in']) . '%';
             }
             
             if (!empty($filters['vessel_in'])) {
-                $fromWhere .= " AND LOWER(i.vessel) LIKE :vessel_in";
+                $query .= " AND LOWER(i.vessel) LIKE :vessel_in";
                 $params[':vessel_in'] = '%' . strtoupper($filters['vessel_in']) . '%';
             }
             
             if (!empty($filters['plate_no_in'])) {
-                $fromWhere .= " AND LOWER(i.plate_no) LIKE :plate_no_in";
+                $query .= " AND LOWER(i.plate_no) LIKE :plate_no_in";
                 $params[':plate_no_in'] = '%' . strtoupper($filters['plate_no_in']) . '%';
             }
             
             if (!empty($filters['hauler_out'])) {
-                $fromWhere .= " AND LOWER(i.hauler) LIKE :hauler_out";
+                $query .= " AND LOWER(i.hauler) LIKE :hauler_out";
                 $params[':hauler_out'] = '%' . strtoupper($filters['hauler_out']) . '%';
             }
             
             if (!empty($filters['vessel_out'])) {
-                $fromWhere .= " AND LOWER(i.vessel) LIKE :vessel_out";
+                $query .= " AND LOWER(i.vessel) LIKE :vessel_out";
                 $params[':vessel_out'] = '%' . strtoupper($filters['vessel_out']) . '%';
             }
             
             if (!empty($filters['shipper'])) {
-                $fromWhere .= " AND LOWER(i.shipper) LIKE :shipper";
+                $query .= " AND LOWER(i.shipper) LIKE :shipper";
                 $params[':shipper'] = '%' . strtoupper($filters['shipper']) . '%';
             }
             
             if (!empty($filters['destination'])) {
-                $fromWhere .= " AND LOWER(i.location) LIKE :destination";
+                $query .= " AND LOWER(i.location) LIKE :destination";
                 $params[':destination'] = '%' . strtoupper($filters['destination']) . '%';
             }
             
             if (!empty($filters['booking_number'])) {
-                $fromWhere .= " AND LOWER(i.booking) LIKE :booking_number";
+                $query .= " AND LOWER(i.booking) LIKE :booking_number";
                 $params[':booking_number'] = '%' . strtoupper($filters['booking_number']) . '%';
             }
             
             if (!empty($filters['seal_no'])) {
-                $fromWhere .= " AND LOWER(i.seal_no) LIKE :seal_no";
+                $query .= " AND LOWER(i.seal_no) LIKE :seal_no";
                 $params[':seal_no'] = '%' . strtoupper($filters['seal_no']) . '%';
             }
             
             if (!empty($filters['contact_no'])) {
-                $fromWhere .= " AND LOWER(i.contact_no) LIKE :contact_no";
+                $query .= " AND LOWER(i.contact_no) LIKE :contact_no";
                 $params[':contact_no'] = '%' . strtoupper($filters['contact_no']) . '%';
             }
             
             if (!empty($filters['bill_of_lading'])) {
-                $fromWhere .= " AND LOWER(i.bill_of_lading) LIKE :bill_of_lading";
+                $query .= " AND LOWER(i.bill_of_lading) LIKE :bill_of_lading";
                 $params[':bill_of_lading'] = '%' . strtoupper($filters['bill_of_lading']) . '%';
             }
             
             // Status filters
             if (!empty($filters['status_in']) && $filters['status_in'] !== 'all') {
-                $fromWhere .= " AND LOWER(cs.status) LIKE :status_in";
+                $query .= " AND LOWER(cs.status) LIKE :status_in";
                 $params[':status_in'] = '%' . strtolower($filters['status_in']) . '%';
             }
             
             if (!empty($filters['status_out']) && $filters['status_out'] !== 'all') {
-                $fromWhere .= " AND LOWER(cs.status) LIKE :status_out";
+                $query .= " AND LOWER(cs.status) LIKE :status_out";
                 $params[':status_out'] = '%' . strtolower($filters['status_out']) . '%';
             }
             
             // Size/Type filter (combined)
             if (!empty($filters['size_type']) && $filters['size_type'] !== 'all') {
-                $fromWhere .= " AND CONCAT(st.size, st.type) = :size_type";
+                $query .= " AND CONCAT(st.size, st.type) = :size_type";
                 $params[':size_type'] = $filters['size_type'];
             }
-
-            $countRow = DB::selectOne("SELECT COUNT(*) as total {$fromWhere}", $params);
-            $total = (int) ($countRow->total ?? 0);
-
-            $dataQuery = $dataSelect . $fromWhere . " ORDER BY {$safeInDate} DESC, i.i_id DESC LIMIT {$perPage} OFFSET {$offset}";
-            $results = DB::select($dataQuery, $params);
-
-            $now = Carbon::now(config('app.timezone', 'Asia/Manila'));
-            foreach ($results as $row) {
-                if (empty($row->date)) {
-                    $row->days = 0;
-                    continue;
-                }
-
-                $time = !empty($row->time) ? $row->time : '00:00:00';
-
-                try {
-                    $gateIn = Carbon::parse("{$row->date} {$time}", config('app.timezone', 'Asia/Manila'));
-                    $row->days = max(0, $gateIn->diffInDays($now, false));
-                } catch (\Throwable $e) {
-                    $row->days = 0;
-                }
-            }
-
+            
+            $query .= " ORDER BY st.size ASC, {$safeInDate} DESC";
+            
+            $results = DB::select($query, $params);
+            
+            // Build summary report data
             $summaryByClient = [];
             $sizeTypeList = [];
-
-            if ($includeSummary) {
-                // Build summary report data via SQL aggregation to avoid scanning all rows in PHP
-                $summaryQuery = "SELECT
-                        CASE
-                            WHEN c.client_code IS NOT NULL AND c.client_code <> '' THEN c.client_code
-                            ELSE c.client_name
-                        END as client_display,
-                        CONCAT(st.size, st.type) as size_type,
-                        COUNT(*) as total
-                    {$fromWhere}
-                    GROUP BY client_display, size_type
-                    ORDER BY size_type ASC, client_display ASC";
-                $summaryRows = DB::select($summaryQuery, $params);
-
-                foreach ($summaryRows as $item) {
-                    $clientDisplay = $item->client_display;
-                    $sizeType = $item->size_type;
-
-                    if (!empty($sizeType) && !empty($clientDisplay)) {
-                        if (!in_array($sizeType, $sizeTypeList)) {
-                            $sizeTypeList[] = $sizeType;
-                        }
-
-                        if (!isset($summaryByClient[$clientDisplay])) {
-                            $summaryByClient[$clientDisplay] = [];
-                        }
-
-                        $summaryByClient[$clientDisplay][$sizeType] = (int) $item->total;
+            
+            foreach ($results as $item) {
+                $clientDisplay = $item->client_code ?: $item->client;
+                $sizeType = $item->size;
+                
+                if (!empty($sizeType) && !empty($clientDisplay)) {
+                    // Track unique size types
+                    if (!in_array($sizeType, $sizeTypeList)) {
+                        $sizeTypeList[] = $sizeType;
                     }
+                    
+                    // Initialize client entry if not exists
+                    if (!isset($summaryByClient[$clientDisplay])) {
+                        $summaryByClient[$clientDisplay] = [];
+                    }
+                    
+                    // Initialize size type count if not exists
+                    if (!isset($summaryByClient[$clientDisplay][$sizeType])) {
+                        $summaryByClient[$clientDisplay][$sizeType] = 0;
+                    }
+                    
+                    // Increment count
+                    $summaryByClient[$clientDisplay][$sizeType]++;
                 }
             }
-
+            
             return response()->json([
                 'success' => true,
                 'data' => $results,
-                'total' => $total,
-                'page' => $page,
-                'per_page' => $perPage,
-                'total_pages' => $perPage > 0 ? (int) ceil($total / $perPage) : 1,
-                'summary' => $includeSummary ? [
+                'summary' => [
                     'by_client' => $summaryByClient,
                     'size_types' => $sizeTypeList,
-                ] : null,
+                ],
             ]);
             
         } catch (\Exception $e) {
@@ -1619,6 +1450,14 @@ class InventoryController extends Controller
     public function export(Request $request)
     {
         try {
+            // Reuse the search logic
+            $searchResponse = $this->search($request);
+            $data = json_decode($searchResponse->getContent(), true);
+            
+            if (!$data['success']) {
+                return response()->json(['success' => false, 'message' => 'Failed to export'], 500);
+            }
+            
             $filename = 'inventory_export_' . now()->format('Y-m-d_H-i-s') . '.csv';
             $filePath = storage_path('app/public/exports/' . $filename);
             
@@ -1628,51 +1467,17 @@ class InventoryController extends Controller
             
             $file = fopen($filePath, 'w');
             fputcsv($file, ['EIR No.', 'Container No.', 'Client', 'Size', 'Gate', 'Date', 'Time', 'Days', 'Status', 'Class', 'DMF', 'Location', 'EIR Notes', 'App Notes']);
-
-            $filters = $request->all();
-            $page = 1;
-            $perPage = 500;
-            $exportedRows = 0;
-
-            do {
-                $payload = array_merge($filters, [
-                    'page' => $page,
-                    'per_page' => $perPage,
-                    'include_summary' => false,
-                ]);
-
-                $pageRequest = Request::create('/api/inventory/search', 'POST', $payload);
-                $pageRequest->setUserResolver($request->getUserResolver());
-
-                $searchResponse = $this->search($pageRequest);
-                $data = json_decode($searchResponse->getContent(), true);
-
-                if (!is_array($data) || !($data['success'] ?? false)) {
-                    fclose($file);
-                    @unlink($filePath);
-
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Failed to export inventory data',
-                    ], 500);
-                }
-
-                $rows = $data['data'] ?? [];
-                foreach ($rows as $row) {
-                    fputcsv($file, (array) $row);
-                    $exportedRows++;
-                }
-
-                $rowCount = count($rows);
-                $page++;
-            } while ($rowCount === $perPage);
+            
+            foreach ($data['data'] as $row) {
+                fputcsv($file, (array) $row);
+            }
             
             fclose($file);
             
             // Log audit - REPORTS action for exporting report
             DB::table('audit_logs')->insert([
                 'action' => 'REPORTS',
-                'description' => '[INVENTORY] Exported ' . $exportedRows . ' inventory record(s) to CSV file: ' . $filename,
+                'description' => '[INVENTORY] Exported ' . count($data['data']) . ' inventory record(s) to CSV file: ' . $filename,
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
@@ -1942,92 +1747,6 @@ class InventoryController extends Controller
         $noZero = "NULLIF(NULLIF({$withoutFraction}, '0000-00-00'), '0000-00-00 00:00:00')";
 
         return "STR_TO_DATE({$noZero}, '{$format}')";
-    }
-
-    private function getInventoryPageRecordAccessData(): array
-    {
-        $user = Auth::user();
-        $privId = (int) ($user->priv_id ?? 0);
-
-        if ($privId === 1) {
-            return [
-                'can_view' => true,
-                'module_edit' => true,
-                'module_delete' => true,
-            ];
-        }
-
-        $prefix = DB::getTablePrefix();
-
-        $page = DB::selectOne("SELECT p_id FROM {$prefix}pages WHERE page = 'inventory' LIMIT 1");
-        if (!$page) {
-            return [
-                'can_view' => false,
-                'module_edit' => false,
-                'module_delete' => false,
-            ];
-        }
-
-        $access = DB::selectOne(
-            "SELECT acs_edit, acs_delete
-             FROM {$prefix}pages_access
-             WHERE privilege = :privilege AND page_id = :page_id
-             LIMIT 1",
-            [
-                'privilege' => $privId,
-                'page_id' => $page->p_id,
-            ]
-        );
-
-        if (!$access) {
-            return [
-                'can_view' => false,
-                'module_edit' => false,
-                'module_delete' => false,
-            ];
-        }
-
-        $moduleEdit = (bool) ($access->acs_edit ?? 0);
-        $moduleDelete = (bool) ($access->acs_delete ?? 0);
-
-        return [
-            'can_view' => $moduleEdit || $moduleDelete,
-            'module_edit' => $moduleEdit,
-            'module_delete' => $moduleDelete,
-        ];
-    }
-
-    private function normalizeImageRelativePath(string $path): string
-    {
-        $path = trim(str_replace('\\', '/', $path));
-        $path = trim($path, '/');
-
-        if ($path === '') {
-            return '';
-        }
-
-        $segments = [];
-        foreach (explode('/', $path) as $segment) {
-            if ($segment === '' || $segment === '.' || $segment === '..') {
-                continue;
-            }
-
-            $segments[] = $segment;
-        }
-
-        return implode('/', $segments);
-    }
-
-    private function toInventoryImageFullPath(string $relativePath): string
-    {
-        $base = rtrim(self::INVENTORY_IMAGES_BASE_DIRECTORY, '/');
-        return $relativePath === '' ? $base : $base . '/' . $relativePath;
-    }
-
-    private function isImageFile(string $fileName): bool
-    {
-        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'], true);
     }
 }
 
