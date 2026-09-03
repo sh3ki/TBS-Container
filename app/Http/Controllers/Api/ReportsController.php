@@ -1174,7 +1174,7 @@ class ReportsController extends Controller
                 $client = $client->where('c_id', $clientId);
             }
             $client = $client->first();
-            $clientCode = $client ? ($client->client_code ?: $client->client_name) : 'ALL';
+            $clientName = $client ? $client->client_name : 'ALL';
 
             $tablePrefix = DB::getTablePrefix();
             $invTable = $tablePrefix . 'inventory';
@@ -1327,7 +1327,7 @@ class ReportsController extends Controller
                 'outgoing' => $outgoingData,
                 'inventory' => $inventoryData,
                 'aging' => $agingData,
-            ], $date, $clientCode);
+            ], $date, $clientName);
 
             // Log audit - REPORTS action
             DB::table('audit_logs')->insert([
@@ -1338,7 +1338,8 @@ class ReportsController extends Controller
                 'ip_address' => $request->ip(),
             ]);
 
-            $filename = $clientCode . ' DMR ' . $date . '.xlsx';
+            $safeClientName = preg_replace('/[\\\\\/:*?"<>|]/', '-', $clientName);
+            $filename = $safeClientName . ' DMR ' . $date . '.xlsx';
             return response()->download($filePath, $filename)->deleteFileAfterSend(true);
         } catch (\Exception $e) {
             Log::error('DMR Export Error: ' . $e->getMessage(), [
