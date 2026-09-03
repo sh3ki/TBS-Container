@@ -1201,7 +1201,7 @@ class ReportsController extends Controller
                     'inventory.ex_consignee',
                     'inventory.hauler',
                     'inventory.plate_no',
-                    'inventory.load',
+                    DB::raw('COALESCE(inventory.origin, "") as load'),
                     DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
                 )
                 ->orderBy('container_size_type.size', 'asc')
@@ -1233,9 +1233,8 @@ class ReportsController extends Controller
                     'inventory.shipper',
                     'inventory.hauler',
                     'inventory.booking',
-                    'inventory.destination',
+                    'inventory.location',
                     'inventory.plate_no',
-                    'inventory.load',
                     'inventory.chasis',
                     DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
                 )
