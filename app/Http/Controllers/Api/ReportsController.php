@@ -1188,7 +1188,7 @@ class ReportsController extends Controller
                     return $q->where('inventory.client_id', $clientId);
                 })
                 ->select(
-                    'inventory.eir_no',
+                    DB::raw('CONCAT(inventory.i_id, "I") as eir_no'),
                     DB::raw('DATE(inventory.date_added) as date'),
                     DB::raw('TIME(inventory.date_added) as time'),
                     'inventory.container_no',
@@ -1222,7 +1222,7 @@ class ReportsController extends Controller
                     return $q->where('inventory.client_id', $clientId);
                 })
                 ->select(
-                    'inventory.eir_no',
+                    DB::raw('CONCAT(inventory.i_id, "O") as eir_no'),
                     DB::raw('DATE(inventory.approval_date) as date'),
                     DB::raw('TIME(inventory.approval_date) as time'),
                     'inventory.container_no',
