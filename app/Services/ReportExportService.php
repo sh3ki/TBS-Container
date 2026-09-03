@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -942,9 +943,29 @@ class ReportExportService
      */
     public function exportDmrMultiSheet(array $data, string $date, string $clientCode): string
     {
-        // Create fresh spreadsheet
-        $this->spreadsheet = new Spreadsheet();
-        $this->spreadsheet->removeSheetByIndex(0); // Remove default sheet
+        try {
+            // Create fresh spreadsheet
+            $this->spreadsheet = new Spreadsheet();
+            $this->spreadsheet->removeSheetByIndex(0); // Remove default sheet
+            
+            // Validate data
+            if (empty($data)) {
+                throw new \Exception('No data provided for export');
+            }
+
+            $incomingCount = count($data['incoming'] ?? []);
+            $outgoingCount = count($data['outgoing'] ?? []);
+            $inventoryCount = count($data['inventory'] ?? []);
+            $agingCount = count($data['aging'] ?? []);
+            
+            Log::info('DMR Export Started', [
+                'date' => $date,
+                'clientCode' => $clientCode,
+                'incoming' => $incomingCount,
+                'outgoing' => $outgoingCount,
+                'inventory' => $inventoryCount,
+                'aging' => $agingCount,
+            ]);
         
         // Styles
         $titleStyle = [
@@ -1181,7 +1202,20 @@ class ReportExportService
 
         $writer = new Xlsx($this->spreadsheet);
         $writer->save($filepath);
+        
+        Log::info('DMR Export Completed', [
+            'filepath' => $filepath,
+            'filename' => $filename,
+        ]);
 
         return $filepath;
+        } catch (\Exception $e) {
+            Log::error('DMR Export Service Error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'date' => $date,
+                'clientCode' => $clientCode,
+            ]);
+            throw $e;
+        }
     }
 }
