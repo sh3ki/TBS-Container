@@ -1185,10 +1185,10 @@ class ReportsController extends Controller
             ->whereNotNull('st.size')
             ->select(
                 'inv.eir_no',
-                DB::raw('DATE(fjp_inv.date_added) as date'),
-                DB::raw('TIME(fjp_inv.date_added) as time'),
+                DB::raw('DATE(inv.date_added) as date'),
+                DB::raw('TIME(inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                DB::raw('CONCAT(st.size, st.type) as size_type'),
                 'cs.status',
                 'inv.vessel',
                 'inv.voyage',
@@ -1198,7 +1198,7 @@ class ReportsController extends Controller
                 'inv.hauler',
                 'inv.plate_no',
                 'inv.load',
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client')
+                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client')
             );
 
         if ($clientId && $clientId !== 'all' && $clientId !== '') {
@@ -1221,10 +1221,10 @@ class ReportsController extends Controller
             ->whereNotNull('st.size')
             ->select(
                 'inv.eir_no',
-                DB::raw('DATE(fjp_inv.approval_date) as date'),
-                DB::raw('TIME(fjp_inv.approval_date) as time'),
+                DB::raw('DATE(inv.approval_date) as date'),
+                DB::raw('TIME(inv.approval_date) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                DB::raw('CONCAT(st.size, st.type) as size_type'),
                 'cs.status',
                 'inv.vessel',
                 'inv.voyage',
@@ -1235,7 +1235,7 @@ class ReportsController extends Controller
                 'inv.plate_no',
                 'inv.load',
                 'inv.chasis',
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client')
+                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client')
             );
 
         if ($clientId && $clientId !== 'all' && $clientId !== '') {
@@ -1267,13 +1267,13 @@ class ReportsController extends Controller
             ->whereNotNull('st.size')
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                DB::raw('CONCAT(st.size, st.type) as size_type'),
                 'cs.status',
                 'inv.class',
                 'inv.date_manufactured as dmf',
-                DB::raw('DATE(fjp_inv.date_added) as date_in'),
-                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(fjp_inv.date_added), INTERVAL 1 DAY)) as age'),
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                DB::raw('DATE(inv.date_added) as date_in'),
+                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(inv.date_added), INTERVAL 1 DAY)) as age'),
+                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client'),
                 'c.client_name'
             );
 
@@ -1306,13 +1306,13 @@ class ReportsController extends Controller
             ->whereNotNull('st.size')
             ->select(
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                DB::raw('CONCAT(st.size, st.type) as size_type'),
                 'cs.status',
                 'inv.class',
                 'inv.date_manufactured as dmf',
-                DB::raw('DATE(fjp_inv.date_added) as date_in'),
-                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(fjp_inv.date_added), INTERVAL 1 DAY)) as age'),
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client'),
+                DB::raw('DATE(inv.date_added) as date_in'),
+                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(inv.date_added), INTERVAL 1 DAY)) as age'),
+                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client'),
                 'c.client_name'
             );
 
