@@ -1067,9 +1067,26 @@ class ReportsController extends Controller
 
         $data = $query->orderBy('c.client_name', 'asc')->orderBy('inv.date_added', 'asc')->get();
 
-        // Generate XLS using the service
+        // Determine selected fields (sent from frontend as JSON map)
+        $selectedFields = null;
+        if ($request->has('fields') && $request->fields) {
+            $decoded = json_decode($request->fields, true);
+            if (is_array($decoded)) {
+                // Keep order defined by DEFAULT_INCOMING_FIELDS order
+                $order = ['eir_no','date','time','container_no','size_type','status','vessel','voyage','class','date_manufactured','ex_consignee','hauler','plate_no','load','origin','chasis'];
+                $selected = [];
+                foreach ($order as $k) {
+                    if (array_key_exists($k, $decoded) && $decoded[$k]) {
+                        $selected[] = $k;
+                    }
+                }
+                $selectedFields = $selected;
+            }
+        }
+
+        // Generate XLS using the service (respect selected fields if provided)
         $exportService = new ReportExportService();
-        $filePath = $exportService->exportIncomingReportByClient($data, $request->start_date, $request->end_date);
+        $filePath = $exportService->exportIncomingReportByClient($data, $request->start_date, $request->end_date, $selectedFields);
 
         // Log audit - REPORTS action
         DB::table('audit_logs')->insert([
@@ -1135,9 +1152,25 @@ class ReportsController extends Controller
 
         $data = $query->orderBy('c.client_name', 'asc')->orderBy('inv.date_added', 'asc')->get();
 
-        // Generate XLS using the service
+        // Determine selected fields (sent from frontend as JSON map)
+        $selectedFields = null;
+        if ($request->has('fields') && $request->fields) {
+            $decoded = json_decode($request->fields, true);
+            if (is_array($decoded)) {
+                $order = ['eir_no','date','time','container_no','size_type','status','vessel','voyage','shipper','hauler','booking','destination','plate_no','load','chasis','seal_no'];
+                $selected = [];
+                foreach ($order as $k) {
+                    if (array_key_exists($k, $decoded) && $decoded[$k]) {
+                        $selected[] = $k;
+                    }
+                }
+                $selectedFields = $selected;
+            }
+        }
+
+        // Generate XLS using the service (respect selected fields if provided)
         $exportService = new ReportExportService();
-        $filePath = $exportService->exportOutgoingReportByClient($data, $request->start_date, $request->end_date);
+        $filePath = $exportService->exportOutgoingReportByClient($data, $request->start_date, $request->end_date, $selectedFields);
 
         // Log audit - REPORTS action
         DB::table('audit_logs')->insert([
