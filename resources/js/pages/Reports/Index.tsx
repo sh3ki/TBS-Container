@@ -7,7 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Download, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { FileText, Download, Search, Filter } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -24,6 +32,82 @@ interface FieldCheckboxes {
     [key: string]: boolean;
 }
 
+const DEFAULT_INCOMING_FIELDS: FieldCheckboxes = {
+    eir_no: true,
+    date: true,
+    time: true,
+    container_no: true,
+    size_type: true,
+    status: true,
+    vessel: true,
+    voyage: true,
+    class: true,
+    date_manufactured: true,
+    ex_consignee: true,
+    hauler: true,
+    plate_no: true,
+    load: true,
+    origin: true,
+    chasis: true,
+};
+
+const DEFAULT_OUTGOING_FIELDS: FieldCheckboxes = {
+    eir_no: true,
+    date: true,
+    time: true,
+    container_no: true,
+    size_type: true,
+    status: true,
+    vessel: true,
+    voyage: true,
+    shipper: true,
+    hauler: true,
+    booking: true,
+    destination: true,
+    plate_no: true,
+    load: true,
+    chasis: true,
+    seal_no: true,
+};
+
+const incomingFieldOptions = [
+    { key: 'eir_no', label: 'EIR No.' },
+    { key: 'date', label: 'Date' },
+    { key: 'time', label: 'Time' },
+    { key: 'container_no', label: 'Cont. No.' },
+    { key: 'size_type', label: 'Size/Type' },
+    { key: 'status', label: 'Status' },
+    { key: 'vessel', label: 'Vessel' },
+    { key: 'voyage', label: 'Voyage' },
+    { key: 'class', label: 'Class' },
+    { key: 'date_manufactured', label: 'Date mfd' },
+    { key: 'ex_consignee', label: 'Ex-Consignee' },
+    { key: 'hauler', label: 'Hauler' },
+    { key: 'plate_no', label: 'Plate No.' },
+    { key: 'load', label: 'Load' },
+    { key: 'origin', label: 'Origin' },
+    { key: 'chasis', label: 'Chasis' },
+] as const;
+
+const outgoingFieldOptions = [
+    { key: 'eir_no', label: 'EIR No.' },
+    { key: 'date', label: 'Date' },
+    { key: 'time', label: 'Time' },
+    { key: 'container_no', label: 'Container No.' },
+    { key: 'size_type', label: 'Size/Type' },
+    { key: 'status', label: 'Status' },
+    { key: 'vessel', label: 'Vessel' },
+    { key: 'voyage', label: 'Voyage' },
+    { key: 'shipper', label: 'Shipper' },
+    { key: 'hauler', label: 'Hauler' },
+    { key: 'booking', label: 'Booking' },
+    { key: 'destination', label: 'Destination' },
+    { key: 'plate_no', label: 'Plate No.' },
+    { key: 'load', label: 'Load' },
+    { key: 'chasis', label: 'Chasis' },
+    { key: 'seal_no', label: 'Seal No.' },
+] as const;
+
 const Index: React.FC = () => {
     const { toasts, removeToast, success, error } = useModernToast();
     
@@ -36,53 +120,19 @@ const Index: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
     const [showDocsFeeConfirm, setShowDocsFeeConfirm] = useState(false);
+    const [showColumnOptionsModal, setShowColumnOptionsModal] = useState(false);
     const [incomingData, setIncomingData] = useState<Record<string, unknown>[]>([]);
     const [outgoingData, setOutgoingData] = useState<Record<string, unknown>[]>([]);
     const [dmrData, setDmrData] = useState<Record<string, unknown>[]>([]);
     const [dcrData, setDcrData] = useState<Record<string, unknown>[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
-    const [isFieldsCollapsed, setIsFieldsCollapsed] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [showBackToTop, setShowBackToTop] = useState(false);
 
-    const [incomingFields, setIncomingFields] = useState<FieldCheckboxes>({
-        eir_no: true,
-        date: true,
-        time: true,
-        container_no: true,
-        size_type: true,
-        status: true,
-        vessel: true,
-        voyage: true,
-        class: true,
-        date_manufactured: true,
-        ex_consignee: true,
-        hauler: true,
-        plate_no: true,
-        load: true,
-        origin: true,
-        chasis: true,
-    });
+    const [incomingFields, setIncomingFields] = useState<FieldCheckboxes>({ ...DEFAULT_INCOMING_FIELDS });
 
-    const [outgoingFields, setOutgoingFields] = useState<FieldCheckboxes>({
-        eir_no: true,
-        date: true,
-        time: true,
-        container_no: true,
-        size_type: true,
-        status: true,
-        vessel: true,
-        voyage: true,
-        shipper: true,
-        hauler: true,
-        booking: true,
-        destination: true,
-        plate_no: true,
-        load: true,
-        chasis: true,
-        seal_no: true,
-    });
+    const [outgoingFields, setOutgoingFields] = useState<FieldCheckboxes>({ ...DEFAULT_OUTGOING_FIELDS });
 
     useEffect(() => {
         loadClients();
@@ -533,6 +583,51 @@ const Index: React.FC = () => {
         });
     })();
 
+    const activeColumnFields = activeTab === 'incoming' ? incomingFields : outgoingFields;
+    const activeColumnOptions = activeTab === 'incoming' ? incomingFieldOptions : outgoingFieldOptions;
+    const checkedColumnCount = Object.values(activeColumnFields).filter((isVisible) => Boolean(isVisible)).length;
+
+    const handleToggleColumnField = (key: string, checked: boolean) => {
+        if (activeTab === 'incoming') {
+            setIncomingFields({ ...incomingFields, [key]: checked });
+            return;
+        }
+        setOutgoingFields({ ...outgoingFields, [key]: checked });
+    };
+
+    const handleSaveColumnOptions = () => {
+        try {
+            const key = activeTab === 'incoming' ? 'reports_columns_incoming' : 'reports_columns_outgoing';
+            const data = activeTab === 'incoming' ? incomingFields : outgoingFields;
+            window.localStorage.setItem(key, JSON.stringify(data));
+            setShowColumnOptionsModal(false);
+            success('Column options saved');
+        } catch (err) {
+            console.error('Failed to save column options', err);
+            error('Failed to save column options');
+        }
+    };
+
+    // Load cached column options on mount
+    useEffect(() => {
+        try {
+            const inc = window.localStorage.getItem('reports_columns_incoming');
+            const out = window.localStorage.getItem('reports_columns_outgoing');
+            if (inc) {
+                const parsed = JSON.parse(inc);
+                setIncomingFields({ ...DEFAULT_INCOMING_FIELDS, ...parsed });
+            }
+            if (out) {
+                const parsed = JSON.parse(out);
+                setOutgoingFields({ ...DEFAULT_OUTGOING_FIELDS, ...parsed });
+            }
+        } catch (err) {
+            // ignore parse errors
+            console.error('Failed to load saved column options', err);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const renderIncomingTab = () => {
         const allClientGroups = groupDataByClient(filteredReportData);
 
@@ -541,11 +636,7 @@ const Index: React.FC = () => {
                 {/* Merged Filter and Fields Section */}
                 <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                     {/* Header */}
-                    <div 
-                        className="cursor-pointer flex items-center justify-between px-6 py-5"
-                        onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
-                        style={{ backgroundColor: colors.brand.primary }}
-                    >
+                    <div className="flex items-center justify-between px-6 py-5" style={{ backgroundColor: colors.brand.primary }}>
                         <div className="flex items-center gap-3">
                             <Search className="w-5 h-5 text-white" />
                             <div>
@@ -553,18 +644,26 @@ const Index: React.FC = () => {
                                 <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                             </div>
                         </div>
-                        {isFieldsCollapsed ? (
-                            <ChevronDown className="w-5 h-5 text-white" />
-                        ) : (
-                            <ChevronUp className="w-5 h-5 text-white" />
-                        )}
                     </div>
                     
                     {/* Content */}
                     <div className="p-6">
                         {/* Filter Section */}
                         <div className="mb-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                                    <div className="relative mt-1.5">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <Input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="pl-10"
+                                            placeholder="Search by container number or EIR number..."
+                                        />
+                                    </div>
+                                </div>
                                 <div>
                                     <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
                                     <Select value={clientId} onValueChange={setClientId}>
@@ -601,67 +700,24 @@ const Index: React.FC = () => {
                                         placeholder="yyyy-mm-dd"
                                     />
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Search Bar */}
-                        <div className="mb-6">
-                            <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <Input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
-                                    placeholder="Search by container number or EIR number..."
-                                />
-                            </div>
-                        </div>
-
-                        {/* Fields Section */}
-                        {!isFieldsCollapsed && (
-                            <div className="mb-6">
-                                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {[
-                                        { key: 'eir_no', label: 'EIR No.' },
-                                        { key: 'date', label: 'Date' },
-                                        { key: 'time', label: 'Time' },
-                                        { key: 'container_no', label: 'Cont. No.' },
-                                        { key: 'size_type', label: 'Size/Type' },
-                                        { key: 'status', label: 'Status' },
-                                        { key: 'vessel', label: 'Vessel' },
-                                        { key: 'voyage', label: 'Voyage' },
-                                        { key: 'class', label: 'Class' },
-                                        { key: 'date_manufactured', label: 'Date mfd' },
-                                        { key: 'ex_consignee', label: 'Ex-Consignee' },
-                                        { key: 'hauler', label: 'Hauler' },
-                                        { key: 'plate_no', label: 'Plate No.' },
-                                        { key: 'load', label: 'Load' },
-                                        { key: 'origin', label: 'Origin' },
-                                        { key: 'chasis', label: 'Chasis' },
-                                    ].map(({ key, label }) => (
-                                        <div key={key} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`incoming-${key}`}
-                                                checked={incomingFields[key]}
-                                                onCheckedChange={(checked) =>
-                                                    setIncomingFields({ ...incomingFields, [key]: checked === true })
-                                                }
-                                            />
-                                            <label
-                                                htmlFor={`incoming-${key}`}
-                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                                style={{ color: colors.text.primary }}
-                                            >
-                                                {label}
-                                            </label>
-                                        </div>
-                                    ))}
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2 block">Column Options</Label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowColumnOptionsModal(true)}
+                                        className="flex items-center gap-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs mt-1.5"
+                                    >
+                                        <Filter className="w-4 h-4 text-gray-600" />
+                                        <span>Columns</span>
+                                        {checkedColumnCount > 0 && (
+                                            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                                                {checkedColumnCount}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* Footer */}
@@ -723,11 +779,7 @@ const Index: React.FC = () => {
                 {/* Merged Filter and Fields Section */}
                 <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                     {/* Header */}
-                    <div 
-                        className="cursor-pointer flex items-center justify-between px-6 py-5"
-                        onClick={() => setIsFieldsCollapsed(!isFieldsCollapsed)}
-                        style={{ backgroundColor: colors.brand.primary }}
-                    >
+                    <div className="flex items-center justify-between px-6 py-5" style={{ backgroundColor: colors.brand.primary }}>
                         <div className="flex items-center gap-3">
                             <Search className="w-5 h-5 text-white" />
                             <div>
@@ -735,18 +787,26 @@ const Index: React.FC = () => {
                                 <p className="text-sm text-white/90 mt-0.5">Generate and export container reports</p>
                             </div>
                         </div>
-                        {isFieldsCollapsed ? (
-                            <ChevronDown className="w-5 h-5 text-white" />
-                        ) : (
-                            <ChevronUp className="w-5 h-5 text-white" />
-                        )}
                     </div>
                     
                     {/* Content */}
                     <div className="p-6">
                         {/* Filter Section */}
                         <div className="mb-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
+                                    <div className="relative mt-1.5">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <Input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="pl-10"
+                                            placeholder="Search by container number or EIR number..."
+                                        />
+                                    </div>
+                                </div>
                                 <div>
                                     <Label className="text-sm font-semibold mb-2">Client <span className="text-red-500">*</span></Label>
                                     <Select value={clientId} onValueChange={setClientId}>
@@ -783,67 +843,24 @@ const Index: React.FC = () => {
                                         placeholder="yyyy-mm-dd"
                                     />
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Search Bar */}
-                        <div className="mb-6">
-                            <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <Input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
-                                    placeholder="Search by container number or EIR number..."
-                                />
-                            </div>
-                        </div>
-
-                        {/* Fields Section */}
-                        {!isFieldsCollapsed && (
-                            <div className="mb-6">
-                                <Label className="text-sm font-semibold mb-4 block">Fields to display: <span className="text-red-500">*</span></Label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[
-                                    { key: 'eir_no', label: 'EIR No.' },
-                                    { key: 'date', label: 'Date' },
-                                    { key: 'time', label: 'Time' },
-                                    { key: 'container_no', label: 'Container No.' },
-                                    { key: 'size_type', label: 'Size/Type' },
-                                    { key: 'status', label: 'Status' },
-                                    { key: 'vessel', label: 'Vessel' },
-                                    { key: 'voyage', label: 'Voyage' },
-                                    { key: 'shipper', label: 'Shipper' },
-                                    { key: 'hauler', label: 'Hauler' },
-                                    { key: 'booking', label: 'Booking' },
-                                    { key: 'destination', label: 'Destination' },
-                                    { key: 'plate_no', label: 'Plate No.' },
-                                    { key: 'load', label: 'Load' },
-                                    { key: 'chasis', label: 'Chasis' },
-                                    { key: 'seal_no', label: 'Seal No.' },
-                                ].map(({ key, label}) => (
-                                    <div key={key} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`outgoing-${key}`}
-                                            checked={outgoingFields[key]}
-                                            onCheckedChange={(checked) =>
-                                                setOutgoingFields({ ...outgoingFields, [key]: checked === true })
-                                            }
-                                        />
-                                        <label
-                                            htmlFor={`outgoing-${key}`}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                            style={{ color: colors.text.primary }}
-                                        >
-                                            {label}
-                                        </label>
-                                    </div>
-                                ))}
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2 block">Column Options</Label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowColumnOptionsModal(true)}
+                                        className="flex items-center gap-2 h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs mt-1.5"
+                                    >
+                                        <Filter className="w-4 h-4 text-gray-600" />
+                                        <span>Columns</span>
+                                        {checkedColumnCount > 0 && (
+                                            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                                                {checkedColumnCount}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* Footer */}
@@ -1315,6 +1332,44 @@ const Index: React.FC = () => {
                     confirmText="Export"
                     cancelText="Cancel"
                 />
+
+                <Dialog open={showColumnOptionsModal} onOpenChange={setShowColumnOptionsModal}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                                Column Options
+                            </DialogTitle>
+                            <DialogDescription>
+                                Choose which fields to display in the {activeTab === 'incoming' ? 'Incoming' : 'Outgoing'} report table
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4">
+                            {activeColumnOptions.map(({ key, label }) => (
+                                <div key={key} className="flex items-center space-x-2 min-w-[180px]">
+                                    <Checkbox
+                                        id={`column-${activeTab}-${key}`}
+                                        checked={activeColumnFields[key]}
+                                        onCheckedChange={(checked) => handleToggleColumnField(key, checked === true)}
+                                    />
+                                    <label
+                                        htmlFor={`column-${activeTab}-${key}`}
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 min-w-0"
+                                        style={{ color: colors.text.primary }}
+                                    >
+                                        {label}
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
+
+                        <DialogFooter className="gap-2">
+                            <ModernButton type="button" variant="add" onClick={handleSaveColumnOptions}>
+                                Save
+                            </ModernButton>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 <div className="p-2 rounded-xl shadow-sm flex gap-2" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                     <button
