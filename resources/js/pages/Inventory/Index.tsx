@@ -1154,8 +1154,7 @@ const Index: React.FC = () => {
                                     label: 'EIR No.',
                                     render: (row: InventoryRecord) => (
                                         <div 
-                                            className="font-semibold text-gray-900 min-w-[40px]"
-                                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                            className="font-semibold text-gray-900 min-w-[40px] pointer-events-none"
                                         >
                                             {row.eir_no}
                                         </div>
@@ -1166,8 +1165,7 @@ const Index: React.FC = () => {
                                     label: 'Cont. No.',
                                     render: (row: InventoryRecord) => (
                                         <div 
-                                            className="font-medium text-gray-900 min-w-[110px]"
-                                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                            className="font-medium text-gray-900 min-w-[110px] pointer-events-none"
                                         >
                                             {row.container_no}
                                         </div>
