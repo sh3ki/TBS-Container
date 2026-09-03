@@ -649,7 +649,7 @@ const Index: React.FC = () => {
                     {/* Content */}
                     <div className="p-6">
                         {/* Filter Section */}
-                        <div className="mb-6">
+                        <div className="">
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                                 <div>
                                     <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
@@ -718,15 +718,15 @@ const Index: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        {/* Footer */}
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                        <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                                <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found in <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span> client groups
+                            </p>
+                        </div>
                     </div>
 
-                    {/* Footer */}
-                    <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
-                    <div className="px-6 py-4 bg-gray-50">
-                        <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                            <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found in <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span> client groups
-                        </p>
-                    </div>
+                    
                 </div>
 
                 {/* Display grouped data */}
@@ -792,7 +792,7 @@ const Index: React.FC = () => {
                     {/* Content */}
                     <div className="p-6">
                         {/* Filter Section */}
-                        <div className="mb-6">
+                        <div className="">
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                                 <div>
                                     <Label className="text-sm font-semibold mb-2 block">Search Containers</Label>
@@ -861,14 +861,12 @@ const Index: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="w-full h-px" style={{ backgroundColor: colors.table.border }}></div>
-                    <div className="px-6 py-4 bg-gray-50">
-                        <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
-                            <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found in <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span> client groups
-                        </p>
+                        {/* Footer */}
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-sm font-medium" style={{ color: colors.text.secondary }}>
+                                <span className="font-bold" style={{ color: colors.text.primary }}>{filteredReportData.length}</span> containers found in <span className="font-bold" style={{ color: colors.text.primary }}>{allClientGroups.length}</span> client groups
+                            </p>
+                        </div>
                     </div>
                 </div>
 
