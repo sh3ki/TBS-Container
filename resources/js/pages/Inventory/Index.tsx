@@ -1152,9 +1152,10 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'eir_no', 
                                     label: 'EIR No.',
+                                    disableRowClick: true,
                                     render: (row: InventoryRecord) => (
                                         <div 
-                                            className="font-semibold text-gray-900 min-w-[40px] pointer-events-none"
+                                            className="font-semibold text-gray-900 min-w-[40px]"
                                         >
                                             {row.eir_no}
                                         </div>
@@ -1163,12 +1164,19 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'container_no', 
                                     label: 'Cont. No.',
+                                    disableRowClick: true,
                                     render: (row: InventoryRecord) => (
-                                        <div 
-                                            className="font-medium text-gray-900 min-w-[110px] pointer-events-none"
+                                        <button
+                                            type="button"
+                                            onClick={(e: React.MouseEvent) => {
+                                                e.stopPropagation();
+                                                openLegacyPrintInOut(row);
+                                            }}
+                                            className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
+                                            title="Print IN/OUT legacy template"
                                         >
                                             {row.container_no}
-                                        </div>
+                                        </button>
                                     )
                                 },
                                 { 
