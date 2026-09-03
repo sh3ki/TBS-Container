@@ -171,7 +171,7 @@ export default function Index() {
         setPageAccess({
           can_view: Boolean(response.data.can_view),
           module_edit: Boolean(response.data.module_edit),
-          module_delete: Boolean(response.data.module_delete),
+          module_delete: Number(response.data.module_delete) > 0,
         });
       }
     } catch {
@@ -192,7 +192,7 @@ export default function Index() {
         setPageAccess((prev) => ({
           ...prev,
           module_edit: Boolean(response.data.data.module_edit),
-          module_delete: Boolean(response.data.data.module_delete),
+          module_delete: Number(response.data.data.module_delete) > 0,
           can_view: Boolean(response.data.data.can_view),
         }));
       }
