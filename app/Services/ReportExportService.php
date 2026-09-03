@@ -1042,7 +1042,7 @@ class ReportExportService
         $currentRow += 2;
 
         // Headers
-        $outgoingHeaders = ['EIR', 'Date', 'Time', 'Container No', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Destination', 'Plate No', 'Load', 'Chasis'];
+        $outgoingHeaders = ['EIR', 'Date', 'Time', 'Container No', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Location', 'Plate No', 'Chasis'];
         $col = 'A';
         foreach ($outgoingHeaders as $header) {
             $sheetOutgoing->setCellValue($col . $currentRow, $header);
@@ -1065,15 +1065,14 @@ class ReportExportService
             $sheetOutgoing->setCellValue($col . $currentRow, $row->shipper ?? ''); $col++;
             $sheetOutgoing->setCellValue($col . $currentRow, $row->hauler ?? ''); $col++;
             $sheetOutgoing->setCellValue($col . $currentRow, $row->booking ?? ''); $col++;
-            $sheetOutgoing->setCellValue($col . $currentRow, $row->destination ?? ''); $col++;
+            $sheetOutgoing->setCellValue($col . $currentRow, $row->location ?? ''); $col++;
             $sheetOutgoing->setCellValue($col . $currentRow, $row->plate_no ?? ''); $col++;
-            $sheetOutgoing->setCellValue($col . $currentRow, $row->load ?? ''); $col++;
             $sheetOutgoing->setCellValue($col . $currentRow, $row->chasis ?? ''); $col++;
             
             $currentRow++;
         }
 
-        foreach (range('A', 'O') as $col) {
+        foreach (range('A', 'N') as $col) {
             $sheetOutgoing->getColumnDimension($col)->setAutoSize(true);
         }
 
