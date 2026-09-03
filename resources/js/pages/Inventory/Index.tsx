@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { ModernButton, ModernTable, ModernBadge, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernButton, ModernTable, ModernBadge, ModernCard, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Printer } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter } from 'lucide-react';
 import { colors } from '@/lib/colors';
 
 interface Client {
@@ -64,6 +63,12 @@ interface InventoryRecord {
     [key: string]: unknown;
 }
 
+interface ViewerImage {
+    src: string;
+    name: string;
+    relativePath?: string;
+}
+
 const Index: React.FC = () => {
     const { toasts, removeToast, success, error } = useModernToast();
     
@@ -75,7 +80,8 @@ const Index: React.FC = () => {
     const [reportData, setReportData] = useState<InventoryRecord[]>([]);
     const [totalCount, setTotalCount] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState<number>(15);
+    // Request a very large page size so the table shows all rows by default
+    const [itemsPerPage, setItemsPerPage] = useState<number>(999999);
 
     // Summary report data
     const [summaryData, setSummaryData] = useState<{
@@ -101,9 +107,12 @@ const Index: React.FC = () => {
     const [showViewModal, setShowViewModal] = useState(false);
     const [viewRecord, setViewRecord] = useState<InventoryRecord | null>(null);
     // Images for view modal
-    const [containerImages, setContainerImages] = useState<string[]>([]);
+    const [containerImages, setContainerImages] = useState<ViewerImage[]>([]);
     const [showImageViewer, setShowImageViewer] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    // Show/hide Back to Top button
+    const [showBackToTop, setShowBackToTop] = useState(false);
+    const thumbContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Confirmation dialog states
     const [showApproveConfirm, setShowApproveConfirm] = useState(false);
@@ -124,15 +133,15 @@ const Index: React.FC = () => {
     const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
     const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
     const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
-    
-    // Filter collapse state
-    const [isFiltersCollapsed, setIsFiltersCollapsed] = useState(true);
+
+    // Filter modal state
+    const [showFiltersModal, setShowFiltersModal] = useState(false);
     
     // Search state
     const [searchTerm, setSearchTerm] = useState('');
+    const isFirstSearchEffect = useRef(true);
 
-    // Filter states
-    const [filters, setFilters] = useState({
+    const defaultFilters = {
         client: 'all',
         iso_code: '',
         container_no: '',
@@ -157,13 +166,100 @@ const Index: React.FC = () => {
         bill_of_lading: '',
         status_out: 'all',
         gate_status: 'CURRENTLY',
-        auto_clear: false,
-    });
+    };
+
+    // Filter states
+    const [filters, setFilters] = useState(defaultFilters);
 
     useEffect(() => {
         loadDropdownData();
         loadAllInventory();
         fetchDropdownOptions();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (isFirstSearchEffect.current) {
+            isFirstSearchEffect.current = false;
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setCurrentPage(1);
+            void fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: false });
+        }, 450);
+
+        return () => window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm]);
+
+    const currentImage = containerImages[currentImageIndex] ?? null;
+    const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
+
+    useEffect(() => {
+        if (currentImageIndex >= containerImages.length) {
+            setCurrentImageIndex(containerImages.length > 0 ? 0 : 0);
+        }
+    }, [containerImages, currentImageIndex]);
+
+    useEffect(() => {
+        if (!thumbContainerRef.current) return;
+        if (!containerImages || containerImages.length === 0) return;
+        const container = thumbContainerRef.current;
+        const el = container.querySelector(`[data-index="${currentImageIndex}"]`) as HTMLElement | null;
+        if (!el) return;
+
+        setTimeout(() => {
+            try {
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } catch {
+                const elLeft = el.offsetLeft;
+                const elWidth = el.offsetWidth;
+                const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
+                container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
+            }
+        }, 50);
+    }, [currentImageIndex, containerImages, showImageViewer]);
+
+    useEffect(() => {
+        if (!showImageViewer || containerImages.length === 0) {
+            return;
+        }
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                setCurrentImageIndex((prev) => (prev - 1 + containerImages.length) % containerImages.length);
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                setCurrentImageIndex((prev) => (prev + 1) % containerImages.length);
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [showImageViewer, containerImages.length]);
+
+    // Back to Top button visibility based on scroll position
+    useEffect(() => {
+        const onScroll = () => {
+            try {
+                setShowBackToTop(window.scrollY > 200);
+            } catch {
+                // ignore (server-side or other envs)
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('scroll', onScroll);
+            }
+        };
     }, []);
 
     const fetchDropdownOptions = async () => {
@@ -217,23 +313,72 @@ const Index: React.FC = () => {
         }
     };
 
-    const loadAllInventory = async () => {
+    const fetchInventory = async ({
+        page = 1,
+        perPage = itemsPerPage,
+        search = searchTerm,
+        showToast = false,
+        includeSummary = false,
+    }: {
+        page?: number;
+        perPage?: number;
+        search?: string;
+        showToast?: boolean;
+        includeSummary?: boolean;
+    } = {}) => {
         setLoading(true);
         try {
-            const response = await axios.post('/api/inventory/search', {
-                gate_status: 'CURRENTLY'
-            });
+            const payload = {
+                ...buildFilterPayload(),
+                gate_status: (filters.gate_status || 'CURRENTLY') as string,
+                page,
+                per_page: perPage,
+                search: search?.trim() || '',
+                include_summary: includeSummary,
+            };
+
+            const response = await axios.post('/api/inventory/search', payload);
             
             if (response.data.success) {
                 setReportData(response.data.data || []);
-                setTotalCount(response.data.total || 0);
-                setSummaryData(response.data.summary || null);
+                setTotalCount(Number(response.data.total || 0));
+                if (includeSummary) {
+                    setSummaryData(response.data.summary || null);
+                } else {
+                    setSummaryData(null);
+                }
+                if (showToast) {
+                    success(`Found ${(response.data.total ?? response.data.data?.length ?? 0).toLocaleString()} records`);
+                }
+            } else {
+                error(response.data.message || 'Failed to load inventory data');
+                setReportData([]);
+                setSummaryData(null);
+                setTotalCount(0);
             }
-        } catch (err) {
-            console.error('Failed to load inventory:', err);
+        } catch (err: unknown) {
+            const errorCaught = err as { response?: { data?: { message?: string } } };
+            error(errorCaught.response?.data?.message || 'Failed to load inventory data');
+            setReportData([]);
+            setSummaryData(null);
+            setTotalCount(0);
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchSummaryData = async () => {
+        await fetchInventory({
+            page: 1,
+            perPage: 1,
+            search: searchTerm,
+            includeSummary: true,
+            showToast: false,
+        });
+    };
+
+    const loadAllInventory = async () => {
+        await fetchInventory({ page: 1, perPage: itemsPerPage, search: '', showToast: false });
     };
 
     const handleFilterChange = (field: string, value: string | boolean) => {
@@ -244,10 +389,6 @@ const Index: React.FC = () => {
         const payload: Record<string, unknown> = {};
 
         Object.entries(filters).forEach(([key, value]) => {
-            if (key === 'auto_clear') {
-                return;
-            }
-
             if (typeof value === 'string') {
                 const trimmed = value.trim();
                 if (trimmed && trimmed.toLowerCase() !== 'all') {
@@ -259,43 +400,7 @@ const Index: React.FC = () => {
         return payload;
     };
 
-    // Apply search filter to reportData
-    const parseDateTime = (dateString?: string, timeString?: string) => {
-        if (!dateString) return NaN;
-        let dt: Date | null = null;
-
-        if (timeString && timeString.includes(':')) {
-            const iso = `${dateString}T${timeString}`;
-            dt = new Date(iso);
-            if (isNaN(dt.getTime())) {
-                dt = new Date(`${dateString} ${timeString}`);
-            }
-        } else {
-            dt = new Date(dateString);
-        }
-
-        return dt && !isNaN(dt.getTime()) ? dt.getTime() : NaN;
-    };
-
-    const filteredReportData = reportData
-        .filter(record => {
-            if (!searchTerm) return true;
-            const search = searchTerm.toLowerCase();
-            const container = (record.container_no || '').toString().toLowerCase();
-            const eir = (record.eir_no || '').toString().toLowerCase();
-            const client = (record.client || record.client_name || record.client_code || '').toString().toLowerCase();
-            return container.includes(search) || eir.includes(search) || client.includes(search);
-        })
-        .sort((a, b) => {
-            const ta = parseDateTime(a.date as string, a.time as string);
-            const tb = parseDateTime(b.date as string, b.time as string);
-
-            if (isNaN(ta) && isNaN(tb)) return 0;
-            if (isNaN(ta)) return 1; // put invalid/old at the end
-            if (isNaN(tb)) return -1;
-
-            return tb - ta; // newest first
-        });
+    const filteredReportData = reportData;
 
     // Format date to "Jan 01, 2025"
     const formatDate = (dateString: string) => {
@@ -309,6 +414,21 @@ const Index: React.FC = () => {
             });
         } catch {
             return dateString;
+        }
+    };
+
+    // Format date to "Jan 2002" (month and year only)
+    const formatMonthYear = (dateString?: string) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString || '-';
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                year: 'numeric'
+            });
+        } catch {
+            return dateString || '-';
         }
     };
 
@@ -369,28 +489,100 @@ const Index: React.FC = () => {
         }
     };
 
-    // Format folder date as MM-DD-YYYY (e.g. 08-05-2026)
-    const formatFolderDate = (dateString?: string) => {
-        if (!dateString) return null;
-        // try parsing as ISO yyyy-mm-dd
-        const d = new Date(dateString);
-        if (!isNaN(d.getTime())) {
-            const mm = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            const yyyy = String(d.getFullYear());
-            return `${mm}-${dd}-${yyyy}`;
-        }
+    // Compact duration for table display: "12d 10h 24m", "14h 23m", "12m"
+    const formatDurationCompactFrom = (dateString?: string, timeString?: string, fallback?: number) => {
+        try {
+            if (!dateString) return fallback !== undefined ? `${fallback}d` : '-';
 
-        // fallback: try splitting
-        const parts = dateString.split('-');
-        if (parts.length >= 3) {
-            // assume yyyy-mm-dd
-            const yyyy = parts[0];
-            const mm = parts[1].padStart(2, '0');
-            const dd = parts[2].padStart(2, '0');
-            return `${mm}-${dd}-${yyyy}`;
+            let inDate: Date | null = null;
+
+            if (timeString && timeString.includes(':')) {
+                const iso = `${dateString}T${timeString}`;
+                inDate = new Date(iso);
+                if (isNaN(inDate.getTime())) {
+                    inDate = new Date(`${dateString} ${timeString}`);
+                }
+            } else {
+                inDate = new Date(dateString);
+            }
+
+            if (!inDate || isNaN(inDate.getTime())) return fallback !== undefined ? `${fallback}d` : '-';
+
+            const now = new Date();
+            let diffMs = now.getTime() - inDate.getTime();
+            if (diffMs < 0) diffMs = 0;
+
+            const minutesTotal = Math.floor(diffMs / 60000);
+            const days = Math.floor(minutesTotal / (60 * 24));
+            const hours = Math.floor((minutesTotal - days * 24 * 60) / 60);
+            const minutes = minutesTotal - days * 24 * 60 - hours * 60;
+
+            if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        } catch {
+            return fallback !== undefined ? `${fallback}d` : '-';
         }
-        return null;
+    };
+
+    const getImageNameFromUrl = (imageUrl: string) => {
+        try {
+            const url = new URL(imageUrl, window.location.origin);
+            const rawPath = url.searchParams.get('path') || imageUrl;
+            const decodedPath = decodeURIComponent(rawPath);
+            const segments = decodedPath.split('/').filter(Boolean);
+            return segments[segments.length - 1] || `Image ${containerImages.length + 1}`;
+        } catch {
+            const decoded = decodeURIComponent(imageUrl);
+            const segments = decoded.split('/').filter(Boolean);
+            return segments[segments.length - 1] || `Image ${containerImages.length + 1}`;
+        }
+    };
+
+    const normalizeViewerImages = (images: unknown[]): ViewerImage[] => {
+        return images
+            .map((image) => {
+                if (typeof image === 'string') {
+                    return {
+                        src: image,
+                        name: getImageNameFromUrl(image),
+                    };
+                }
+
+                if (image && typeof image === 'object') {
+                    const record = image as Record<string, unknown>;
+                    const srcValue =
+                        (typeof record.url === 'string' && record.url) ||
+                        (typeof record.src === 'string' && record.src) ||
+                        (typeof record.image_url === 'string' && record.image_url) ||
+                        (typeof record.path === 'string' && record.path) ||
+                        (typeof record.relative_path === 'string' && `/api/inventory/images/file?path=${encodeURIComponent(record.relative_path)}`) ||
+                        '';
+
+                    if (!srcValue) {
+                        return null;
+                    }
+
+                    const nameValue =
+                        (typeof record.name === 'string' && record.name) ||
+                        (typeof record.filename === 'string' && record.filename) ||
+                        (typeof record.original_name === 'string' && record.original_name) ||
+                        getImageNameFromUrl(srcValue);
+
+                    return {
+                        src: srcValue,
+                        name: nameValue,
+                        relativePath: typeof record.relative_path === 'string' ? record.relative_path : undefined,
+                    };
+                }
+
+                return null;
+            })
+            .filter((item): item is ViewerImage => item !== null)
+            .map((item, index) => ({
+                ...item,
+                name: item.name || `Image ${index + 1}`,
+            }));
     };
 
     // Fetch container images using the containerimages API used by the explorer
@@ -398,20 +590,20 @@ const Index: React.FC = () => {
         setContainerImages([]);
         if (!dateString || !containerNo) return;
 
-        const folderDate = formatFolderDate(dateString);
-        if (!folderDate) return;
-
-        const inOrOut = (gateStatus || 'in').toString().toLowerCase().startsWith('out') ? 'out' : 'in';
-        const relativePath = `${folderDate}/${inOrOut}/${containerNo}/`;
-
         try {
-            const res = await axios.get('/api/containerimages/list', { params: { path: relativePath } });
-            if (res.data && res.data.success && res.data.data && Array.isArray(res.data.data.items)) {
-                const imgs = res.data.data.items
-                    .filter((it: any) => it.is_image)
-                    .map((it: any) => `/api/containerimages/file?path=${encodeURIComponent(it.relative_path)}`);
+            const res = await axios.get('/api/inventory/images', {
+                params: {
+                    date: dateString,
+                    gate_status: gateStatus || 'IN',
+                    container_no: containerNo,
+                },
+            });
 
-                if (imgs.length > 0) setContainerImages(imgs);
+            if (res.data && res.data.success && Array.isArray(res.data.data)) {
+                const normalized = normalizeViewerImages(res.data.data);
+                if (normalized.length > 0) {
+                    setContainerImages(normalized);
+                }
             }
         } catch (err) {
             // ignore and leave images empty
@@ -584,6 +776,7 @@ const Index: React.FC = () => {
                     eir_no: data.i_id?.toString() || '',
                     container_no: data.container_no,
                     client: data.client_name || '',
+                    client_code: data.client_code || '',
                     client_id: data.client_id?.toString(),
                     size: data.container_size || '',
                     size_type_id: data.size_type_id,
@@ -621,10 +814,11 @@ const Index: React.FC = () => {
                 setViewRecord(mappedRecord);
                 // If API already provided images, use them. Otherwise fall back to containerimages list API.
                 if (response.data.data.images && Array.isArray(response.data.data.images) && response.data.data.images.length > 0) {
-                    setContainerImages(response.data.data.images);
+                    setContainerImages(normalizeViewerImages(response.data.data.images));
                 } else {
                     await fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
                 }
+                setCurrentImageIndex(0);
                 setShowViewModal(true);
             } else {
                 error(response.data.message || 'Failed to load container details');
@@ -655,6 +849,7 @@ const Index: React.FC = () => {
                     eir_no: data.i_id?.toString() || '',
                     container_no: data.container_no,
                     client: data.client_name || '',
+                    client_code: data.client_code || '',
                     client_id: data.client_id?.toString(),
                     size: data.container_size || '',
                     size_type_id: data.size_type_id,
@@ -789,60 +984,19 @@ const Index: React.FC = () => {
     };
 
     const handleSearch = async () => {
-        setLoading(true);
         setCurrentPage(1);
+        await fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: true });
+    };
 
-        try {
-            const payload = buildFilterPayload();
-            const response = await axios.post('/api/inventory/search', payload);
-            
-            if (response.data.success) {
-                setReportData(response.data.data || []);
-                setSummaryData(response.data.summary || null);
-                success(`Found ${response.data.data?.length || 0} records`);
-                
-                if (filters.auto_clear) {
-                    setFilters({
-                        client: 'all',
-                        iso_code: '',
-                        container_no: '',
-                        date_out_from: '',
-                        date_in_from: '',
-                        date_out_to: '',
-                        date_in_to: '',
-                        hauler_out: '',
-                        checker: '',
-                        vessel_out: '',
-                        consignee: '',
-                        shipper: '',
-                        hauler_in: '',
-                        destination: '',
-                        vessel_in: '',
-                        booking_number: '',
-                        plate_no_in: '',
-                        seal_no: '',
-                        status_in: 'all',
-                        contact_no: '',
-                        size_type: 'all',
-                        bill_of_lading: '',
-                        status_out: 'all',
-                        gate_status: 'CURRENTLY',
-                        auto_clear: filters.auto_clear,
-                    });
-                }
-            } else {
-                error(response.data.message || 'Failed to load inventory data');
-                setReportData([]);
-                setSummaryData(null);
-            }
-        } catch (error_caught: unknown) {
-            const err = error_caught as { response?: { data?: { message?: string } } };
-            error(err.response?.data?.message || 'Failed to search inventory');
-            setReportData([]);
-            setSummaryData(null);
-        } finally {
-            setLoading(false);
-        }
+    const handleApplyFilters = async () => {
+        await handleSearch();
+        setShowFiltersModal(false);
+    };
+
+    const handleResetFilters = () => {
+        setFilters(defaultFilters);
+        setCurrentPage(1);
+        void fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: false });
     };
 
     const handleOpenExportConfirm = () => {
@@ -854,7 +1008,10 @@ const Index: React.FC = () => {
         setLoading(true);
 
         try {
-            const payload = buildFilterPayload();
+            const payload = {
+                ...buildFilterPayload(),
+                search: searchTerm.trim(),
+            };
             const response = await axios.post('/api/inventory/export', payload, { responseType: 'blob' });
 
             const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
@@ -896,27 +1053,17 @@ const Index: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Generate, Summary, and Export Buttons */}
+                    {/* Summary and Export Buttons */}
                     <div className="flex items-center gap-3">
                         <ModernButton 
-                            variant="primary" 
-                            onClick={handleSearch} 
-                            disabled={loading}
-                            className="px-6 py-3"
-                        >
-                            <FileText className="w-5 h-5" />
-                            {loading ? 'Generating...' : 'Generate'}
-                        </ModernButton>
-                        <ModernButton 
                             variant="edit" 
-                            onClick={() => {
+                            onClick={async () => {
                                 if (reportData.length === 0) {
                                     error('Please generate a report first to view the summary');
                                     return;
                                 }
                                 if (!summaryData) {
-                                    error('Summary data is not available. Please regenerate the report.');
-                                    return;
+                                    await fetchSummaryData();
                                 }
                                 setShowSummaryModal(true);
                             }} 
@@ -938,51 +1085,437 @@ const Index: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Filter Section */}
-                <div className="rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                    {/* Filter Header */}
-                    <div 
-                        className="cursor-pointer flex items-center justify-between px-6 py-5"
-                        onClick={() => setIsFiltersCollapsed(!isFiltersCollapsed)}
-                        style={{ backgroundColor: colors.brand.primary }}
+                {/* SEARCH & FILTER CARD */}
+                <div className="relative" style={{ zIndex: 0 }}>
+                    <ModernCard
+                        title="Search & Filter Inventory"
+                        subtitle="Find containers quickly"
+                        icon={<Search className="w-5 h-5" />}
                     >
-                        <div className="flex items-center gap-3">
-                            <Search className="w-5 h-5 text-white" />
-                            <div>
-                                <h2 className="text-xl font-bold text-white">Search & Filter Inventory</h2>
-                                <p className="text-sm text-white/90 mt-0.5">Find containers quickly</p>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="md:col-span-3">
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Search Containers</Label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                                    <Input
+                                        type="text"
+                                        placeholder="Search by container number, EIR, or client..."
+                                        value={searchTerm}
+                                        onChange={(e) => {
+                                            setSearchTerm(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="pl-10 h-11"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-1">
+                                <Label className="text-sm font-semibold mb-2 text-gray-900">Filter Options</Label>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowFiltersModal(true)}
+                                    className="flex items-center gap-2 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                                    disabled={loading}
+                                >
+                                    <Filter className="w-4 h-4 text-gray-600" />
+                                    <span>Filters</span>
+                                    {Object.entries(filters).some(([key, value]) => {
+                                        if (typeof value !== 'string') return false;
+                                        return value.trim() !== '' && value.trim().toLowerCase() !== 'all' && !(key === 'gate_status' && value === 'CURRENTLY');
+                                    }) && (
+                                        <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                                            Active
+                                        </span>
+                                    )}
+                                </button>
                             </div>
                         </div>
-                        {isFiltersCollapsed ? (
-                            <ChevronDown className="w-5 h-5 text-white" />
-                        ) : (
-                            <ChevronUp className="w-5 h-5 text-white" />
-                        )}
-                    </div>
-                    
-                    {/* Filter Content */}
-                    {!isFiltersCollapsed && (
-                        <div className="p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-sm text-gray-600">
+                                <span className="font-semibold text-gray-900">{totalCount.toLocaleString()}</span> container{totalCount !== 1 ? 's' : ''} found
+                            </p>
+                        </div>
+                    </ModernCard>
+                </div>
+
+                {/* Results Table */}
+                <div className="w-full max-w-full overflow-x-auto">
+                    {loading ? (
+                        <div className="text-center py-12">
+                            <p style={{ color: colors.text.secondary }}>Loading inventory...</p>
+                        </div>
+                    ) : filteredReportData.length > 0 ? (
+                        <ModernTable
+                            columns={[
+                                { 
+                                    key: 'eir_no', 
+                                    label: 'EIR No.',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="font-semibold text-gray-900 min-w-[40px]">{row.eir_no}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'container_no', 
+                                    label: 'Cont. No.',
+                                    render: (row: InventoryRecord) => (
+                                        <button
+                                            type="button"
+                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintInOut(row); }}
+                                            className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
+                                            title="Print IN/OUT legacy template"
+                                        >
+                                            {row.container_no}
+                                        </button>
+                                    )
+                                },
+                                { 
+                                    key: 'client', 
+                                    label: 'Client',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-900 min-w-[120px] max-w-[150px]">
+                                            <div className="font-medium">{row.client}</div>
+                                            <div className="text-xs text-gray-500">{row.client_code}</div>
+                                        </div>
+                                    )
+                                },
+                                {
+                                    key: 'info',
+                                    label: 'Size / Status / Class',
+                                    render: (row: InventoryRecord) => {
+                                        // size variant
+                                        let sizeVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const size = row.size;
+                                        if (size === '10DJH') sizeVariant = 'success';
+                                        else if (size === '20FR') sizeVariant = 'error';
+                                        else if (size === '20HR') sizeVariant = 'warning';
+                                        else if (size === '20OT') sizeVariant = 'info';
+                                        else if (size === '20RF') sizeVariant = 'success';
+                                        else if (size === '20RH') sizeVariant = 'error';
+                                        else if (size === '40DC') sizeVariant = 'warning';
+                                        else if (size === '40FR') sizeVariant = 'info';
+                                        else if (size === '40HC') sizeVariant = 'success';
+                                        else if (size === '40OT') sizeVariant = 'error';
+                                        else if (size === '40RH') sizeVariant = 'warning';
+
+                                        // status variant
+                                        let statusVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const status = row.status;
+                                        if (status === 'ASIS') statusVariant = 'warning';
+                                        else if (status === 'AVL') statusVariant = 'success';
+                                        else if (status === 'DMG') statusVariant = 'error';
+                                        else if (status === 'FSV') statusVariant = 'info';
+                                        else if (status === 'HLD') statusVariant = 'error';
+                                        else if (status === 'REPO') statusVariant = 'warning';
+                                        else if (status === 'RPR') statusVariant = 'success';
+                                        else if (status === 'WSH') statusVariant = 'info';
+
+                                        // class variant
+                                        let classVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                        const containerClass = row.class;
+                                        if (containerClass === 'A') classVariant = 'success';
+                                        else if (containerClass === 'B') classVariant = 'warning';
+                                        else if (containerClass === 'C') classVariant = 'error';
+
+                                        return (
+                                            <div className="flex flex-col gap-1 min-w-[110px]">
+                                                <div>
+                                                    <ModernBadge variant={statusVariant}>{row.status || '-'}</ModernBadge>
+                                                </div>
+                                                <div>
+                                                    <ModernBadge variant={sizeVariant}>{row.size || '-'}</ModernBadge>
+                                                </div>
+                                                <div>
+                                                    <ModernBadge variant={classVariant}>{row.class || '-'}</ModernBadge>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                },
+                                {
+                                    key: 'date_days',
+                                    label: 'DATE/TIME / Days',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[130px]">
+                                            <div className="font-medium">{formatDate(row.date)}</div>
+                                            <div className="text-xs text-gray-500 mt-1">{formatTime(row.time)}</div>
+                                            <div className="mt-1">
+                                                <span className="font-bold text-gray-900 text-sm">DAYS: {formatDurationCompactFrom(row.date, row.time, row.days)}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                },
+                                { 
+                                    key: 'dmf', 
+                                    label: 'Date mfd',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[80px]">{formatMonthYear(row.dmf as string)}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'location', 
+                                    label: 'Loc',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="text-sm text-gray-600 min-w-[40px]">{row.location}</div>
+                                    )
+                                },
+                                { 
+                                    key: 'eir_notes', 
+                                    label: 'EIR Notes',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="min-w-[200px] max-w-[250px]">
+                                            <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes || '-'}</span>
+                                        </div>
+                                    )
+                                },
+                                { 
+                                    key: 'app_notes', 
+                                    label: 'App Notes',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="flex items-center gap-2 min-w-[150px]">
+                                            {row.app_notes && row.app_notes.trim() ? (
+                                                <span className="text-sm text-gray-600">{row.app_notes}</span>
+                                            ) : (
+                                                <ModernButton
+                                                    variant="add"
+                                                    size="sm"
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenApprovalModal(row); }}
+                                                    title="Approve Container"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                </ModernButton>
+                                            )}
+                                        </div>
+                                    )
+                                },
+                                { 
+                                    key: 'actions', 
+                                    label: 'Actions',
+                                    render: (row: InventoryRecord) => (
+                                        <div className="min-w-[120px]">
+                                            <div className="grid grid-cols-3 gap-2 justify-items-end">
+                                                <ModernButton 
+                                                    variant="primary" 
+                                                    size="sm" 
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleViewRecord(row); }}
+                                                    title="View Details"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                </ModernButton>
+
+                                                <ModernButton 
+                                                    variant="edit" 
+                                                    size="sm" 
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenEditModal(row); }}
+                                                    title="Edit Container"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </ModernButton>
+
+                                                <ModernButton
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
+                                                    title="Print"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5" />
+                                                </ModernButton>
+
+                                                {row.is_hold ? (
+                                                    <ModernButton
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenUnholdConfirm(row); }}
+                                                        title="Remove from Hold"
+                                                        disabled={updatingStatus}
+                                                    >
+                                                        <Unlock className="w-3.5 h-3.5" />
+                                                    </ModernButton>
+                                                ) : (
+                                                    <ModernButton
+                                                        variant="toggle"
+                                                        size="sm"
+                                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenHoldModal(row); }}
+                                                        title="Place on Hold"
+                                                        disabled={updatingStatus}
+                                                    >
+                                                        <Lock className="w-3.5 h-3.5" />
+                                                    </ModernButton>
+                                                )}
+
+                                                <ModernButton
+                                                    variant={row.container_status_id === 8 ? "add" : "edit"}
+                                                    size="sm"
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
+                                                    title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
+                                                    disabled={updatingStatus}
+                                                >
+                                                    <Truck className="w-3.5 h-3.5" />
+                                                </ModernButton>
+
+                                                <ModernButton 
+                                                    variant="delete" 
+                                                    size="sm" 
+                                                    onClick={(e: React.MouseEvent) => {
+                                                        e.stopPropagation();
+                                                        setRecordToDelete(row);
+                                                        setShowDeleteConfirm(true);
+                                                    }}
+                                                    title="Delete Container"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </ModernButton>
+                                            </div>
+                                        </div>
+                                    )
+                                },
+                            ]}
+                            onRowClick={handleViewRecord}
+                            data={filteredReportData}
+                        />
+                    ) : (
+                        <div className="text-center py-12">
+                            <p style={{ color: colors.text.secondary }}>No inventory records found</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Filters Modal */}
+            <Dialog open={showFiltersModal} onOpenChange={setShowFiltersModal}>
+                <DialogContent className="!max-w-[90vw] !w-[90vw] !max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                            Filter Options
+                        </DialogTitle>
+                        <DialogDescription>
+                            Apply filters to refine inventory results
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2">
                         {/* Column 1 */}
                         <div className="space-y-3">
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Client</Label>
-                                <Select value={filters.client} onValueChange={(value) => handleFilterChange('client', value)}>
+                                <Label className="text-sm font-semibold mb-2">In/Out</Label>
+                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={(value) => handleFilterChange('gate_status', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="Real Time Inventory" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="CURRENTLY">Real Time Inventory</SelectItem>
+                                        <SelectItem value="IN">In</SelectItem>
+                                        <SelectItem value="OUT">Out</SelectItem>
+                                        <SelectItem value="BOTH">Both</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Status In</Label>
+                                <Select value={filters.status_in} onValueChange={(value) => handleFilterChange('status_in', value)}>
                                     <SelectTrigger className="mt-1.5">
                                         <SelectValue placeholder="All" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">All</SelectItem>
-                                        {clients.map((client) => (
-                                            <SelectItem key={client.id} value={client.id}>
-                                                {client.text}
+                                        {statusesIn.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                                {status}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
 
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Status Out</Label>
+                                <Select value={filters.status_out} onValueChange={(value) => handleFilterChange('status_out', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {statusesOut.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                                {status}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Size/Type</Label>
+                                <Select value={filters.size_type} onValueChange={(value) => handleFilterChange('size_type', value)}>
+                                    <SelectTrigger className="mt-1.5">
+                                        <SelectValue placeholder="All" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All</SelectItem>
+                                        {sizeTypes.map((st) => (
+                                            <SelectItem key={st.value} value={st.value}>
+                                                {st.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">ISO Code</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.iso_code}
+                                    onChange={(e) => handleFilterChange('iso_code', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                            
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Checker</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.checker}
+                                    onChange={(e) => handleFilterChange('checker', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Seal No.</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.seal_no}
+                                    onChange={(e) => handleFilterChange('seal_no', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Bill of Lading</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.bill_of_lading}
+                                    onChange={(e) => handleFilterChange('bill_of_lading', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Column 2 */}
+                        <div className="space-y-3">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Container No.</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.container_no}
+                                    onChange={(e) => handleFilterChange('container_no', e.target.value)}
+                                    className="mt-1.5"
+                                    placeholder="Search container..."
+                                />
+                            </div>
+                            
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Date In (From)</Label>
                                 <Input
@@ -1026,53 +1559,53 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Seal No.</Label>
+                                <Label className="text-sm font-semibold mb-2">Booking Number</Label>
                                 <Input
                                     type="text"
-                                    value={filters.seal_no}
-                                    onChange={(e) => handleFilterChange('seal_no', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Bill of Lading</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.bill_of_lading}
-                                    onChange={(e) => handleFilterChange('bill_of_lading', e.target.value)}
+                                    value={filters.booking_number}
+                                    onChange={(e) => handleFilterChange('booking_number', e.target.value)}
                                     className="mt-1.5"
                                 />
                             </div>
 
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Destination</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.destination}
+                                    onChange={(e) => handleFilterChange('destination', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Status In</Label>
-                                <Select value={filters.status_in} onValueChange={(value) => handleFilterChange('status_in', value)}>
+                                <Label className="text-sm font-semibold mb-2">Shipper</Label>
+                                <Input
+                                    type="text"
+                                    value={filters.shipper}
+                                    onChange={(e) => handleFilterChange('shipper', e.target.value)}
+                                    className="mt-1.5"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Column 3 */}
+                        <div className="space-y-3">
+                            <div>
+                                <Label className="text-sm font-semibold mb-2">Client</Label>
+                                <Select value={filters.client} onValueChange={(value) => handleFilterChange('client', value)}>
                                     <SelectTrigger className="mt-1.5">
                                         <SelectValue placeholder="All" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">All</SelectItem>
-                                        {statusesIn.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                                {status}
+                                        {clients.map((client) => (
+                                            <SelectItem key={client.id} value={client.id}>
+                                                {client.text}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </div>
-                        </div>
-
-                        {/* Column 2 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">ISO Code</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.iso_code}
-                                    onChange={(e) => handleFilterChange('iso_code', e.target.value)}
-                                    className="mt-1.5"
-                                />
                             </div>
 
                             <div>
@@ -1118,67 +1651,6 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Destination</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.destination}
-                                    onChange={(e) => handleFilterChange('destination', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Booking Number</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.booking_number}
-                                    onChange={(e) => handleFilterChange('booking_number', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Status Out</Label>
-                                <Select value={filters.status_out} onValueChange={(value) => handleFilterChange('status_out', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {statusesOut.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                                {status}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                        </div>
-
-                        {/* Column 3 */}
-                        <div className="space-y-3">
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Container No.</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.container_no}
-                                    onChange={(e) => handleFilterChange('container_no', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="Search container..."
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Checker</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.checker}
-                                    onChange={(e) => handleFilterChange('checker', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
                                 <Label className="text-sm font-semibold mb-2">Consignee</Label>
                                 <Input
                                     type="text"
@@ -1197,15 +1669,7 @@ const Index: React.FC = () => {
                                     className="mt-1.5"
                                 />
                             </div>
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Shipper</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.shipper}
-                                    onChange={(e) => handleFilterChange('shipper', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
+
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Contact No.</Label>
                                 <Input
@@ -1215,361 +1679,28 @@ const Index: React.FC = () => {
                                     className="mt-1.5"
                                 />
                             </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Size/Type</Label>
-                                <Select value={filters.size_type} onValueChange={(value) => handleFilterChange('size_type', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {sizeTypes.map((st) => (
-                                            <SelectItem key={st.value} value={st.value}>
-                                                {st.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">In/Out</Label>
-                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={(value) => handleFilterChange('gate_status', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="Real Time Inventory" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="CURRENTLY">Real Time Inventory</SelectItem>
-                                        <SelectItem value="IN">In</SelectItem>
-                                        <SelectItem value="OUT">Out</SelectItem>
-                                        <SelectItem value="BOTH">Both</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex items-center space-x-2 mt-2">
-                                <Checkbox
-                                    id="auto-clear"
-                                    checked={filters.auto_clear}
-                                    onCheckedChange={(checked) => handleFilterChange('auto_clear', checked as boolean)}
-                                />
-                                <Label htmlFor="auto-clear" className="text-sm font-semibold cursor-pointer">
-                                    Auto Clear Fields
-                                </Label>
-                            </div>
                         </div>
                     </div>
-                        </div>
-                    )}
-                    
-                    {/* Search Bar */}
-                    <div className="px-6 py-4 bg-white">
-                        <Label className="text-sm font-semibold mb-2 text-gray-900">Search Containers</Label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                            <Input
-                                type="text"
-                                placeholder="Search by container number, EIR, or client..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 h-11"
-                            />
-                        </div>
-                    </div>
-                    
-                    {/* Container Count */}
-                    <div className="px-6 py-4 bg-white border-t border-gray-200">
-                        <p className="text-sm text-gray-600">
-                            <span className="font-semibold text-gray-900">{filteredReportData.length.toLocaleString()}</span> container{filteredReportData.length !== 1 ? 's' : ''} found
-                        </p>
-                    </div>
-                </div>
 
-                {/* Results Table */}
-                <div className="w-full max-w-full overflow-x-auto">
-                    {loading ? (
-                        <div className="text-center py-12">
-                            <p style={{ color: colors.text.secondary }}>Loading inventory...</p>
-                        </div>
-                    ) : filteredReportData.length > 0 ? (
-                        <ModernTable
-                            columns={[
-                                { 
-                                    key: 'eir_no', 
-                                    label: 'EIR No.',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="font-semibold text-gray-900 min-w-[80px]">{row.eir_no}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'container_no', 
-                                    label: 'Cont. No.',
-                                    render: (row: InventoryRecord) => (
-                                        <button
-                                            type="button"
-                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintInOut(row); }}
-                                            className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
-                                            title="Print IN/OUT legacy template"
-                                        >
-                                            {row.container_no}
-                                        </button>
-                                    )
-                                },
-                                { 
-                                    key: 'client', 
-                                    label: 'Client',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-900 min-w-[120px] max-w-[150px]">
-                                            <div className="font-medium">{row.client}</div>
-                                            <div className="text-xs text-gray-500">{row.client_code}</div>
-                                        </div>
-                                    )
-                                },
-                                { 
-                                    key: 'size', 
-                                    label: 'Size',
-                                    render: (row: InventoryRecord) => {
-                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
-                                        const size = row.size;
-                                        
-                                        // Distinct colors for each size type (cycling through 4 colors)
-                                        if (size === '10DJH') variant = 'success';
-                                        else if (size === '20FR') variant = 'error';
-                                        else if (size === '20HR') variant = 'warning';
-                                        else if (size === '20OT') variant = 'info';
-                                        else if (size === '20RF') variant = 'success';
-                                        else if (size === '20RH') variant = 'error';
-                                        else if (size === '40DC') variant = 'warning';
-                                        else if (size === '40FR') variant = 'info';
-                                        else if (size === '40HC') variant = 'success';
-                                        else if (size === '40OT') variant = 'error';
-                                        else if (size === '40RH') variant = 'warning';
-                                        
-                                        return (
-                                            <div className="min-w-[70px]">
-                                                <ModernBadge variant={variant}>{row.size || '-'}</ModernBadge>
-                                            </div>
-                                        );
-                                    }
-                                },
-                                { 
-                                    key: 'gate', 
-                                    label: 'Gate',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="min-w-[60px]">
-                                            <ModernBadge variant={row.gate === 'IN' ? 'success' : 'warning'}>
-                                                {row.gate}
-                                            </ModernBadge>
-                                        </div>
-                                    )
-                                },
-                                {
-                                    key: 'date_time',
-                                    label: 'DATE/TIME',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[120px]">
-                                            <div className="font-medium">{formatDate(row.date)}</div>
-                                            <div className="text-xs text-gray-500 mt-1">{formatTime(row.time)}</div>
-                                        </div>
-                                    )
-                                },
-                                { 
-                                    key: 'days', 
-                                    label: 'Days',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm font-medium text-gray-900 min-w-[50px]">{row.days}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'status', 
-                                    label: 'Status',
-                                    render: (row: InventoryRecord) => {
-                                        let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
-                                        const status = row.status;
-                                        
-                                        // Distinct colors for each status (cycling through 4 colors)
-                                        if (status === 'ASIS') variant = 'warning';
-                                        else if (status === 'AVL') variant = 'success';
-                                        else if (status === 'DMG') variant = 'error';
-                                        else if (status === 'FSV') variant = 'info';
-                                        else if (status === 'HLD') variant = 'error';
-                                        else if (status === 'REPO') variant = 'warning';
-                                        else if (status === 'RPR') variant = 'success';
-                                        else if (status === 'WSH') variant = 'info';
-                                        
-                                        return (
-                                            <div className="min-w-[80px]">
-                                                <ModernBadge variant={variant}>
-                                                    {row.status || '-'}
-                                                </ModernBadge>
-                                            </div>
-                                        );
-                                    }
-                                },
-                                { 
-                                    key: 'class', 
-                                    label: 'Class',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.class}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'dmf', 
-                                    label: 'Date mfd',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[100px]">{formatDate(row.dmf)}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'location', 
-                                    label: 'Loc',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[50px]">{row.location}</div>
-                                    )
-                                },
-                                { 
-                                    key: 'eir_notes', 
-                                    label: 'EIR Notes',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="min-w-[200px] max-w-[250px]">
-                                            <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes || '-'}</span>
-                                        </div>
-                                    )
-                                },
-                                { 
-                                    key: 'app_notes', 
-                                    label: 'App Notes',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="flex items-center gap-2 min-w-[120px]">
-                                            {row.app_notes && row.app_notes.trim() ? (
-                                                <span className="text-sm text-gray-600">{row.app_notes}</span>
-                                            ) : (
-                                                <ModernButton
-                                                    variant="add"
-                                                    size="sm"
-                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenApprovalModal(row); }}
-                                                    title="Approve Container"
-                                                >
-                                                    <CheckCircle className="w-4 h-4" />
-                                                </ModernButton>
-                                            )}
-                                        </div>
-                                    )
-                                },
-                                { 
-                                    key: 'actions', 
-                                    label: 'Actions',
-                                    render: (row: InventoryRecord) => (
-                                        <div className="flex items-center justify-end gap-2">
-                                            {/* View Button */}
-                                            <ModernButton 
-                                                variant="primary" 
-                                                size="sm" 
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleViewRecord(row); }}
-                                                title="View Details"
-                                            >
-                                                <Eye className="w-3.5 h-3.5" />
-                                            </ModernButton>
-
-                                            {/* Edit Button */}
-                                            <ModernButton 
-                                                variant="edit" 
-                                                size="sm" 
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenEditModal(row); }}
-                                                title="Edit Container"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </ModernButton>
-
-                                            {/* Print Button (Legacy single print template) */}
-                                            <ModernButton
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
-                                                title="Print"
-                                            >
-                                                <Printer className="w-3.5 h-3.5" />
-                                            </ModernButton>
-
-                                            {/* Hold/Unhold Button */}
-                                            {row.is_hold ? (
-                                                <ModernButton
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenUnholdConfirm(row); }}
-                                                    title="Remove from Hold"
-                                                    disabled={updatingStatus}
-                                                >
-                                                    <Unlock className="w-3.5 h-3.5" />
-                                                </ModernButton>
-                                            ) : (
-                                                <ModernButton
-                                                    variant="toggle"
-                                                    size="sm"
-                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenHoldModal(row); }}
-                                                    title="Place on Hold"
-                                                    disabled={updatingStatus}
-                                                >
-                                                    <Lock className="w-3.5 h-3.5" />
-                                                </ModernButton>
-                                            )}
-                                            
-                                            {/* Repo/Available Button with Truck Icon */}
-                                            <ModernButton
-                                                variant={row.container_status_id === 8 ? "add" : "edit"}
-                                                size="sm"
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
-                                                title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
-                                                disabled={updatingStatus}
-                                            >
-                                                <Truck className="w-3.5 h-3.5" />
-                                            </ModernButton>
-
-                                            {/* Delete Button */}
-                                            <ModernButton 
-                                                variant="delete" 
-                                                size="sm" 
-                                                onClick={(e: React.MouseEvent) => {
-                                                    e.stopPropagation();
-                                                    setRecordToDelete(row);
-                                                    setShowDeleteConfirm(true);
-                                                }}
-                                                title="Delete Container"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </ModernButton>
-                                        </div>
-                                    )
-                                },
-                            ]}
-                            onRowClick={handleViewRecord}
-                            data={
-                                itemsPerPage >= filteredReportData.length
-                                    ? filteredReportData
-                                    : filteredReportData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                            }
-                            pagination={{
-                                currentPage: currentPage,
-                                totalPages: Math.max(1, Math.ceil(filteredReportData.length / (itemsPerPage || filteredReportData.length))),
-                                total: filteredReportData.length,
-                                perPage: itemsPerPage >= filteredReportData.length ? filteredReportData.length : itemsPerPage,
-                                onPageChange: (p: number) => setCurrentPage(p),
-                                onPerPageChange: (per: number) => {
-                                    setItemsPerPage(per);
-                                    setCurrentPage(1);
-                                },
-                                rowsOptions: [15, 20, 50, 100],
-                            }}
-                            paginationPosition="top"
-                        />
-                    ) : (
-                        <div className="text-center py-12">
-                            <p style={{ color: colors.text.secondary }}>No inventory records found</p>
-                        </div>
-                    )}
-                </div>
-            </div>
+                    <DialogFooter className="gap-2">
+                        <ModernButton
+                            variant="secondary"
+                            onClick={handleResetFilters}
+                            disabled={loading}
+                        >
+                            Reset
+                        </ModernButton>
+                        <ModernButton
+                            variant="primary"
+                            onClick={handleApplyFilters}
+                            disabled={loading}
+                        >
+                            <FileText className="w-4 h-4" />
+                            {loading ? 'Applying...' : 'Apply'}
+                        </ModernButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Hold Modal */}
             <Dialog open={showHoldModal} onOpenChange={setShowHoldModal}>
@@ -1621,31 +1752,91 @@ const Index: React.FC = () => {
 
             {/* Image Viewer Modal */}
             <Dialog open={showImageViewer} onOpenChange={setShowImageViewer}>
-                <DialogContent className="max-w-4xl">
-                    <div className="relative flex items-center justify-center bg-black">
-                        <button
-                            className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white p-2 bg-black/40 rounded"
-                            onClick={() => setCurrentImageIndex((i) => (i - 1 + containerImages.length) % containerImages.length)}
-                        >
-                            <ChevronLeft className="w-6 h-6" />
-                        </button>
+                <DialogContent className="!w-fit !max-w-[96vw] max-h-[94vh] p-4 sm:p-5 flex items-center justify-center overflow-hidden">
+                    <div className="flex flex-col items-center gap-3 w-fit max-h-[90vh] overflow-hidden">
+                        {currentImage && (
+                            <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
+                                {currentImage.name}
+                            </div>
+                        )}
 
-                        <img
-                            src={containerImages[currentImageIndex]}
-                            alt={`image-${currentImageIndex}`}
-                            className="max-h-[70vh] object-contain"
-                        />
+                        <div className="flex items-center justify-center">
+                            <div
+                                className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5"
+                                style={{ width: viewerFrameWidth }}
+                                onClick={(e) => {
+                                    const images = containerImages;
+                                    if (images.length === 0) return;
+                                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                                    const x = (e as React.MouseEvent).clientX - rect.left;
+                                    const w = rect.width;
+                                    if (x < w * 0.3) {
+                                        setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+                                    } else if (x > w * 0.7) {
+                                        setCurrentImageIndex((prev) => (prev + 1) % images.length);
+                                    }
+                                }}
+                            >
+                                {currentImage && (
+                                    <div className="flex items-center justify-center w-full h-full">
+                                        <img
+                                            src={currentImage.src}
+                                            alt={currentImage.name}
+                                            className="w-full h-full object-contain mx-auto"
+                                            style={{ display: 'block' }}
+                                        />
+                                    </div>
+                                )}
 
-                        <button
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white p-2 bg-black/40 rounded"
-                            onClick={() => setCurrentImageIndex((i) => (i + 1) % containerImages.length)}
-                        >
-                            <ChevronRight className="w-6 h-6" />
-                        </button>
+                                {containerImages.length > 0 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={(ev) => {
+                                                ev.stopPropagation();
+                                                setCurrentImageIndex((prev) => (prev - 1 + containerImages.length) % containerImages.length);
+                                            }}
+                                            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                                            aria-label="Previous"
+                                        >
+                                            <ChevronLeft className="w-5 h-5 text-black" />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={(ev) => {
+                                                ev.stopPropagation();
+                                                setCurrentImageIndex((prev) => (prev + 1) % containerImages.length);
+                                            }}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
+                                            aria-label="Next"
+                                        >
+                                            <ChevronRight className="w-5 h-5 text-black" />
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ width: viewerFrameWidth }}>
+                            <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-1 sm:px-2">
+                                {containerImages.map((imageItem, idx) => (
+                                    <button
+                                        key={`${imageItem.src}-${idx}`}
+                                        data-index={idx}
+                                        onClick={() => setCurrentImageIndex(idx)}
+                                        className={`flex-none p-1 rounded ${idx === currentImageIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
+                                    >
+                                        <img
+                                            src={imageItem.src}
+                                            alt={imageItem.name}
+                                            className="w-24 sm:w-28 aspect-[4/3] object-cover rounded"
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                    <DialogFooter>
-                        <ModernButton variant="toggle" onClick={() => setShowImageViewer(false)}>Close</ModernButton>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -1854,11 +2045,11 @@ const Index: React.FC = () => {
                                         <div>
                                             <Label className="text-xs uppercase text-gray-600">Images</Label>
                                             <div className="flex gap-2 overflow-x-auto py-2">
-                                                {containerImages.map((src, idx) => (
+                                                {containerImages.map((imageItem, idx) => (
                                                     <img
-                                                        key={src}
-                                                        src={src}
-                                                        alt={`img-${idx}`}
+                                                        key={`${imageItem.src}-${idx}`}
+                                                        src={imageItem.src}
+                                                        alt={imageItem.name}
                                                         className="w-28 h-20 object-cover rounded cursor-pointer border"
                                                         onClick={() => { setCurrentImageIndex(idx); setShowImageViewer(true); }}
                                                     />
@@ -2377,6 +2568,39 @@ const Index: React.FC = () => {
                     </DialogFooter> */}
                 </DialogContent>
             </Dialog>
+
+            <button
+                aria-label="Back to top"
+                title="Back to top"
+                onClick={() => {
+                    try {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    } catch {
+                        // ignore
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    right: 20,
+                    bottom: 24,
+                    zIndex: 9999,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    background: '#111827',
+                    color: '#ffffff',
+                    display: showBackToTop ? 'flex' : 'none',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+                    cursor: 'pointer',
+                    border: 'none',
+                    outline: 'none',
+                    transition: 'opacity 200ms ease',
+                }}
+            >
+                ↑
+            </button>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
