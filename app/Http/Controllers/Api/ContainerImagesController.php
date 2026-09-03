@@ -458,8 +458,8 @@ class ContainerImagesController extends Controller
             ];
         }
 
-        $moduleEdit = (bool)($access->acs_edit ?? 0);
-        $moduleDelete = (bool)($access->acs_delete ?? 0);
+        $moduleEdit = (int)($access->acs_edit ?? 0) > 0;
+        $moduleDelete = (int)($access->acs_delete ?? 0) > 0;
 
         return [
             'can_view' => $moduleEdit || $moduleDelete,
