@@ -1271,13 +1271,13 @@ class ReportsController extends Controller
                 })
                 ->select(
                     'inventory.container_no',
-                    DB::raw('CONCAT(container_size_type.size, container_size_type.type) as size_type'),
+                    DB::raw("CONCAT({$sizeTypeTable}.size, {$sizeTypeTable}.type) as size_type"),
                     'container_status.status',
                     'inventory.class',
                     'inventory.date_manufactured as dmf',
-                    DB::raw('DATE(inventory.date_added) as date_in'),
-                    DB::raw('DATEDIFF("' . $date . '", DATE(inventory.date_added)) as age'),
-                    DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
+                    DB::raw("DATE({$invTable}.date_added) as date_in"),
+                    DB::raw("DATEDIFF('{$date}', DATE({$invTable}.date_added)) as age"),
+                    DB::raw("CASE WHEN {$clientTable}.client_code IS NOT NULL AND {$clientTable}.client_code <> '' THEN {$clientTable}.client_code ELSE {$clientTable}.client_name END as client")
                 )
                 ->orderBy('container_size_type.size', 'asc')
                 ->orderBy('container_size_type.type', 'asc')
@@ -1307,17 +1307,17 @@ class ReportsController extends Controller
                 })
                 ->select(
                     'inventory.container_no',
-                    DB::raw('CONCAT(container_size_type.size, container_size_type.type) as size_type'),
+                    DB::raw("CONCAT({$sizeTypeTable}.size, {$sizeTypeTable}.type) as size_type"),
                     'container_status.status',
                     'inventory.class',
                     'inventory.date_manufactured as dmf',
-                    DB::raw('DATE(inventory.date_added) as date_in'),
-                    DB::raw('DATEDIFF("' . $date . '", DATE(inventory.date_added)) as age'),
-                    DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
+                    DB::raw("DATE({$invTable}.date_added) as date_in"),
+                    DB::raw("DATEDIFF('{$date}', DATE({$invTable}.date_added)) as age"),
+                    DB::raw("CASE WHEN {$clientTable}.client_code IS NOT NULL AND {$clientTable}.client_code <> '' THEN {$clientTable}.client_code ELSE {$clientTable}.client_name END as client")
                 )
                 ->orderBy('container_size_type.size', 'asc')
                 ->orderBy('container_size_type.type', 'asc')
-                ->orderByDesc(DB::raw('DATEDIFF("' . $date . '", DATE(inventory.date_added))'))
+                ->orderByDesc(DB::raw("DATEDIFF('{$date}', DATE({$invTable}.date_added))"))
                 ->get();
 
             // Generate XLS using the service with all data
