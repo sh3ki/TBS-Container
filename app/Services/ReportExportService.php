@@ -1022,7 +1022,7 @@ class ReportExportService
             $sheetIncoming->setCellValue($col . $currentRow, $row->ex_consignee ?? ''); $col++;
             $sheetIncoming->setCellValue($col . $currentRow, $row->hauler ?? ''); $col++;
             $sheetIncoming->setCellValue($col . $currentRow, $row->plate_no ?? ''); $col++;
-            $sheetIncoming->setCellValue($col . $currentRow, $row->load ?? ''); $col++;
+            $sheetIncoming->setCellValue($col . $currentRow, $row->load_value ?? ''); $col++;
             
             $currentRow++;
         }
