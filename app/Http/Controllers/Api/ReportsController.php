@@ -1165,185 +1165,174 @@ class ReportsController extends Controller
 
             $date = $request->date;
             $clientId = $request->client_id;
-        $dateStart = $date . ' 00:00:00';
-        $dateEnd = $date . ' 23:59:59';
+            $dateStart = $date . ' 00:00:00';
+            $dateEnd = $date . ' 23:59:59';
 
-        // Get client name for filename
-        $client = Client::where('archived', 0);
-        if ($clientId && $clientId !== 'all' && $clientId !== '') {
-            $client = $client->where('c_id', $clientId);
-        }
-        $client = $client->first();
-        $clientCode = $client ? ($client->client_code ?: $client->client_name) : 'ALL';
-        $clientName = $client ? $client->client_name : 'Unknown';
+            // Get client name for filename
+            $client = Client::where('archived', 0);
+            if ($clientId && $clientId !== 'all' && $clientId !== '') {
+                $client = $client->where('c_id', $clientId);
+            }
+            $client = $client->first();
+            $clientCode = $client ? ($client->client_code ?: $client->client_name) : 'ALL';
 
-        // 1. INCOMING - Containers gated IN on this date
-        $incomingQuery = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->whereBetween('inv.date_added', [$dateStart, $dateEnd])
-            ->where('inv.gate_status', 'IN')
-            ->whereNotNull('st.size')
-            ->select(
-                'inv.eir_no',
-                DB::raw('DATE(inv.date_added) as date'),
-                DB::raw('TIME(inv.date_added) as time'),
-                'inv.container_no',
-                DB::raw('CONCAT(st.size, st.type) as size_type'),
-                'cs.status',
-                'inv.vessel',
-                'inv.voyage',
-                'inv.class',
-                'inv.date_manufactured',
-                'inv.ex_consignee',
-                'inv.hauler',
-                'inv.plate_no',
-                'inv.load',
-                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client')
-            );
+            // 1. INCOMING - Containers gated IN on this date
+            $incomingData = DB::table('inventory')
+                ->leftJoin('clients', 'inventory.client_id', '=', 'clients.c_id')
+                ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
+                ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
+                ->whereBetween('inventory.date_added', [$dateStart, $dateEnd])
+                ->where('inventory.gate_status', 'IN')
+                ->whereNotNull('container_size_type.size')
+                ->when($clientId && $clientId !== 'all' && $clientId !== '', function ($q) use ($clientId) {
+                    return $q->where('inventory.client_id', $clientId);
+                })
+                ->select(
+                    'inventory.eir_no',
+                    DB::raw('DATE(inventory.date_added) as date'),
+                    DB::raw('TIME(inventory.date_added) as time'),
+                    'inventory.container_no',
+                    DB::raw('CONCAT(container_size_type.size, container_size_type.type) as size_type'),
+                    'container_status.status',
+                    'inventory.vessel',
+                    'inventory.voyage',
+                    'inventory.class',
+                    'inventory.date_manufactured',
+                    'inventory.ex_consignee',
+                    'inventory.hauler',
+                    'inventory.plate_no',
+                    'inventory.load',
+                    DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
+                )
+                ->orderBy('container_size_type.size', 'asc')
+                ->orderBy('container_size_type.type', 'asc')
+                ->orderBy('inventory.date_added', 'asc')
+                ->get();
 
-        if ($clientId && $clientId !== 'all' && $clientId !== '') {
-            $incomingQuery->where('inv.client_id', $clientId);
-        }
+            // 2. OUTGOING - Containers approved for gate OUT on this date
+            $outgoingData = DB::table('inventory')
+                ->leftJoin('clients', 'inventory.client_id', '=', 'clients.c_id')
+                ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
+                ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
+                ->whereBetween('inventory.approval_date', [$dateStart, $dateEnd])
+                ->where('inventory.gate_status', 'IN')
+                ->where('inventory.complete', 1)
+                ->whereNotNull('container_size_type.size')
+                ->when($clientId && $clientId !== 'all' && $clientId !== '', function ($q) use ($clientId) {
+                    return $q->where('inventory.client_id', $clientId);
+                })
+                ->select(
+                    'inventory.eir_no',
+                    DB::raw('DATE(inventory.approval_date) as date'),
+                    DB::raw('TIME(inventory.approval_date) as time'),
+                    'inventory.container_no',
+                    DB::raw('CONCAT(container_size_type.size, container_size_type.type) as size_type'),
+                    'container_status.status',
+                    'inventory.vessel',
+                    'inventory.voyage',
+                    'inventory.shipper',
+                    'inventory.hauler',
+                    'inventory.booking',
+                    'inventory.destination',
+                    'inventory.plate_no',
+                    'inventory.load',
+                    'inventory.chasis',
+                    DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
+                )
+                ->orderBy('container_size_type.size', 'asc')
+                ->orderBy('container_size_type.type', 'asc')
+                ->orderBy('inventory.approval_date', 'asc')
+                ->get();
 
-        $incomingData = $incomingQuery->orderBy('st.size', 'asc')
-            ->orderBy('st.type', 'asc')
-            ->orderBy('inv.date_added', 'asc')
-            ->get();
+            // 3. INVENTORY - Aging report (containers in yard as of this date)
+            $inventoryData = DB::table('inventory')
+                ->leftJoin('clients', 'inventory.client_id', '=', 'clients.c_id')
+                ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
+                ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
+                ->leftJoin('pre_inventory', 'pre_inventory.inv_id', '=', 'inventory.i_id')
+                ->leftJoin('inventory as out_inv', 'out_inv.i_id', '=', 'inventory.out_id')
+                ->leftJoin('pre_inventory as out_pre', 'out_pre.inv_id', '=', 'out_inv.i_id')
+                ->whereDate('inventory.date_added', '<=', $date)
+                ->where('inventory.gate_status', 'IN')
+                ->where(function ($query) use ($date) {
+                    $query->where('inventory.complete', 0)
+                        ->orWhere(function ($q) use ($date) {
+                            $q->where('inventory.complete', 1)
+                                ->whereDate('out_inv.date_added', '>', $date);
+                        });
+                })
+                ->whereNotNull('container_size_type.size')
+                ->when($clientId && $clientId !== 'all' && $clientId !== '', function ($q) use ($clientId) {
+                    return $q->where('inventory.client_id', $clientId);
+                })
+                ->select(
+                    'inventory.container_no',
+                    DB::raw('CONCAT(container_size_type.size, container_size_type.type) as size_type'),
+                    'container_status.status',
+                    'inventory.class',
+                    'inventory.date_manufactured as dmf',
+                    DB::raw('DATE(inventory.date_added) as date_in'),
+                    DB::raw('DATEDIFF("' . $date . '", DATE(inventory.date_added)) as age'),
+                    DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
+                )
+                ->orderBy('container_size_type.size', 'asc')
+                ->orderBy('container_size_type.type', 'asc')
+                ->orderBy('inventory.date_added', 'asc')
+                ->get();
 
-        // 2. OUTGOING - Containers gated OUT on this date
-        $outgoingQuery = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->whereBetween('inv.approval_date', [$dateStart, $dateEnd])
-            ->where('inv.gate_status', 'IN')
-            ->where('inv.complete', 1)
-            ->whereNotNull('st.size')
-            ->select(
-                'inv.eir_no',
-                DB::raw('DATE(inv.approval_date) as date'),
-                DB::raw('TIME(inv.approval_date) as time'),
-                'inv.container_no',
-                DB::raw('CONCAT(st.size, st.type) as size_type'),
-                'cs.status',
-                'inv.vessel',
-                'inv.voyage',
-                'inv.shipper',
-                'inv.hauler',
-                'inv.booking',
-                'inv.destination',
-                'inv.plate_no',
-                'inv.load',
-                'inv.chasis',
-                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client')
-            );
+            // 4. AGING - Same as inventory but sorted by age
+            $agingData = DB::table('inventory')
+                ->leftJoin('clients', 'inventory.client_id', '=', 'clients.c_id')
+                ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
+                ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
+                ->leftJoin('pre_inventory', 'pre_inventory.inv_id', '=', 'inventory.i_id')
+                ->leftJoin('inventory as out_inv', 'out_inv.i_id', '=', 'inventory.out_id')
+                ->leftJoin('pre_inventory as out_pre', 'out_pre.inv_id', '=', 'out_inv.i_id')
+                ->whereDate('inventory.date_added', '<=', $date)
+                ->where('inventory.gate_status', 'IN')
+                ->where(function ($query) use ($date) {
+                    $query->where('inventory.complete', 0)
+                        ->orWhere(function ($q) use ($date) {
+                            $q->where('inventory.complete', 1)
+                                ->whereDate('out_inv.date_added', '>', $date);
+                        });
+                })
+                ->whereNotNull('container_size_type.size')
+                ->when($clientId && $clientId !== 'all' && $clientId !== '', function ($q) use ($clientId) {
+                    return $q->where('inventory.client_id', $clientId);
+                })
+                ->select(
+                    'inventory.container_no',
+                    DB::raw('CONCAT(container_size_type.size, container_size_type.type) as size_type'),
+                    'container_status.status',
+                    'inventory.class',
+                    'inventory.date_manufactured as dmf',
+                    DB::raw('DATE(inventory.date_added) as date_in'),
+                    DB::raw('DATEDIFF("' . $date . '", DATE(inventory.date_added)) as age'),
+                    DB::raw('CASE WHEN clients.client_code IS NOT NULL AND clients.client_code <> "" THEN clients.client_code ELSE clients.client_name END as client')
+                )
+                ->orderBy('container_size_type.size', 'asc')
+                ->orderBy('container_size_type.type', 'asc')
+                ->orderByDesc(DB::raw('DATEDIFF("' . $date . '", DATE(inventory.date_added))'))
+                ->get();
 
-        if ($clientId && $clientId !== 'all' && $clientId !== '') {
-            $outgoingQuery->where('inv.client_id', $clientId);
-        }
+            // Generate XLS using the service with all data
+            $exportService = new ReportExportService();
+            $filePath = $exportService->exportDmrMultiSheet([
+                'incoming' => $incomingData,
+                'outgoing' => $outgoingData,
+                'inventory' => $inventoryData,
+                'aging' => $agingData,
+            ], $date, $clientCode);
 
-        $outgoingData = $outgoingQuery->orderBy('st.size', 'asc')
-            ->orderBy('st.type', 'asc')
-            ->orderBy('inv.approval_date', 'asc')
-            ->get();
-
-        // 3. INVENTORY - Aging report (containers in yard as of this date)
-        $inventoryQuery = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
-            ->leftJoin('inventory as o', 'o.i_id', '=', 'inv.out_id')
-            ->leftJoin('pre_inventory as po', 'po.inv_id', '=', 'o.i_id')
-            ->whereDate('inv.date_added', '<=', $date)
-            ->where('inv.gate_status', 'IN')
-            ->where(function ($query) use ($date) {
-                $query->where('inv.complete', 0)
-                    ->orWhere(function ($q) use ($date) {
-                        $q->where('inv.complete', 1)
-                            ->whereDate('o.date_added', '>', $date);
-                    });
-            })
-            ->whereNotNull('st.size')
-            ->select(
-                'inv.container_no',
-                DB::raw('CONCAT(st.size, st.type) as size_type'),
-                'cs.status',
-                'inv.class',
-                'inv.date_manufactured as dmf',
-                DB::raw('DATE(inv.date_added) as date_in'),
-                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(inv.date_added), INTERVAL 1 DAY)) as age'),
-                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client'),
-                'c.client_name'
-            );
-
-        if ($clientId && $clientId !== 'all' && $clientId !== '') {
-            $inventoryQuery->where('inv.client_id', $clientId);
-        }
-
-        $inventoryData = $inventoryQuery->orderBy('st.size', 'asc')
-            ->orderBy('st.type', 'asc')
-            ->orderBy('inv.date_added', 'asc')
-            ->get();
-
-        // 4. AGING - Summary by age groups
-        $agingQuery = DB::table('inventory as inv')
-            ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
-            ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-            ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
-            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
-            ->leftJoin('inventory as o', 'o.i_id', '=', 'inv.out_id')
-            ->leftJoin('pre_inventory as po', 'po.inv_id', '=', 'o.i_id')
-            ->whereDate('inv.date_added', '<=', $date)
-            ->where('inv.gate_status', 'IN')
-            ->where(function ($query) use ($date) {
-                $query->where('inv.complete', 0)
-                    ->orWhere(function ($q) use ($date) {
-                        $q->where('inv.complete', 1)
-                            ->whereDate('o.date_added', '>', $date);
-                    });
-            })
-            ->whereNotNull('st.size')
-            ->select(
-                'inv.container_no',
-                DB::raw('CONCAT(st.size, st.type) as size_type'),
-                'cs.status',
-                'inv.class',
-                'inv.date_manufactured as dmf',
-                DB::raw('DATE(inv.date_added) as date_in'),
-                DB::raw('DATEDIFF("' . $date . '", SUBDATE(DATE(inv.date_added), INTERVAL 1 DAY)) as age'),
-                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client'),
-                'c.client_name'
-            );
-
-        if ($clientId && $clientId !== 'all' && $clientId !== '') {
-            $agingQuery->where('inv.client_id', $clientId);
-        }
-
-        $agingData = $agingQuery->orderBy('st.size', 'asc')
-            ->orderBy('st.type', 'asc')
-            ->orderBy('inv.date_added', 'asc')
-            ->get();
-
-        // Generate XLS using the service with all data
-        $exportService = new ReportExportService();
-        $filePath = $exportService->exportDmrMultiSheet([
-            'incoming' => $incomingData,
-            'outgoing' => $outgoingData,
-            'inventory' => $inventoryData,
-            'aging' => $agingData,
-        ], $date, $clientCode);
-
-        // Log audit - REPORTS action
-        DB::table('audit_logs')->insert([
-            'action' => 'REPORTS',
-            'description' => '[REPORTS] DMR Report exported ' . count($inventoryData) . ' record(s) to XLS file',
-            'user_id' => auth()->user()->user_id ?? null,
-            'date_added' => now(),
-            'ip_address' => $request->ip(),
-        ]);
+            // Log audit - REPORTS action
+            DB::table('audit_logs')->insert([
+                'action' => 'REPORTS',
+                'description' => '[REPORTS] DMR Report exported ' . count($inventoryData) . ' record(s) to XLS file',
+                'user_id' => auth()->user()->user_id ?? null,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
 
             $filename = $clientCode . ' DMR ' . $date . '.xlsx';
             return response()->download($filePath, $filename)->deleteFileAfterSend(true);
