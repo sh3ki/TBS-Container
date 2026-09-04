@@ -341,7 +341,8 @@ const Index: React.FC = () => {
             
             if (response.data.success) {
                 setReportData(response.data.data || []);
-                setTotalCount(Number(response.data.total || 0));
+                const totalFromApi = response.data.total ?? (Array.isArray(response.data.data) ? response.data.data.length : 0);
+                setTotalCount(Number(totalFromApi || 0));
                 if (includeSummary) {
                     setSummaryData(response.data.summary || null);
                 } else {
