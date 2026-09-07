@@ -108,8 +108,14 @@ export default function Authenticated({ children }: PropsWithChildren) {
     const groupedPermissions = categories.map(category => ({
         ...category,
         permissions: (auth.permissions || [])
-            .filter(p => 
-                category.items.some(item => p.page.toLowerCase().includes(item))
+            .filter(p =>
+                category.items.some(item => {
+                    if (item === 'containerimages') {
+                        return p.page.toLowerCase() === 'containerimages' && Number(p.acs_edit) > 0;
+                    }
+
+                    return p.page.toLowerCase().includes(item);
+                })
             )
             .sort((a, b) => {
                 const indexA = category.items.findIndex(item => a.page.toLowerCase().includes(item));
