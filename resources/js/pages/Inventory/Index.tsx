@@ -1273,6 +1273,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'eir_notes', 
                                     label: 'EIR Notes',
+                                    disableRowClick: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="min-w-[200px] max-w-[250px]">
                                             <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes || '-'}</span>
@@ -1282,6 +1283,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'app_notes', 
                                     label: 'App Notes',
+                                    disableRowClick: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="flex items-center gap-2 min-w-[150px]">
                                             {row.app_notes && row.app_notes.trim() ? (
