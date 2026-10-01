@@ -49,6 +49,13 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Clients/EditClient', ['clientId' => (int)$id]);
     })->name('clients.edit');
 
+    // EDI is currently available only to the primary administrator (user 1).
+    Route::get('/edi', function () {
+        abort_unless((int) auth()->id() === 1, 403);
+
+        return Inertia::render('EDI/Index');
+    })->name('edi.index');
+
     // Inventory
     Route::get('/inventory', function () {
         return Inertia::render('Inventory/Index');
