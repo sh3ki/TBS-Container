@@ -30,6 +30,8 @@ yarn-error.log
 # Large database files
 tbs_db.sql
 *.sql
+!database/sql/
+!database/sql/add_edi_page.sql
 
 /update_db.md
 /update_db_tbs.sh
