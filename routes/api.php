@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ContainerImagesController;
+use App\Http\Controllers\Api\EdiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -423,6 +424,15 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         // Admin Actions (NEW!)
         Route::post('/{hashedId}/toggle-status', [UsersController::class, 'toggleStatus']); // Activate/Deactivate
         Route::post('/{hashedId}/force-logout', [UsersController::class, 'forceLogout']); // Force logout user
+    });
+
+    // EDI configuration and manual dispatch (primary administrator only).
+    Route::prefix('edi')->group(function () {
+        Route::get('/profiles', [EdiController::class, 'index']);
+        Route::get('/clients', [EdiController::class, 'clients']);
+        Route::post('/profiles', [EdiController::class, 'store']);
+        Route::put('/profiles/{profile}', [EdiController::class, 'update']);
+        Route::post('/profiles/{profile}/send', [EdiController::class, 'send']);
     });
 
     // Audit Logs - Complete API with all legacy features
