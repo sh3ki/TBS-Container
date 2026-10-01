@@ -49,13 +49,34 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
     const [clients, setClients] = useState<Client[]>(initialClients);
     const [billingData, setBillingData] = useState<BillingData[]>([]);
     const [loading, setLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15;
+    const [showBackToTop, setShowBackToTop] = useState(false);
     const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
 
     useEffect(() => {
         loadClients();
+    }, []);
+
+    // Back to Top button visibility based on scroll position
+    useEffect(() => {
+        const onScroll = () => {
+            try {
+                setShowBackToTop(window.scrollY > 200);
+            } catch {
+                // ignore (server-side or other envs)
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('scroll', onScroll);
+            }
+        };
     }, []);
 
     const loadClients = async () => {
@@ -91,7 +112,6 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
 
             if (response.data.success) {
                 setBillingData(response.data.data);
-                setCurrentPage(1); // Reset to first page
                 
                 success(`Generated ${response.data.data.length} billing records`);
             } else {
@@ -352,7 +372,7 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                             </div>
                         </div>
 
-                        {/* Billing Data Table with Pagination */}
+                        {/* Billing Data Table */}
                         <ModernTable
                             columns={[
                                 {
@@ -474,17 +494,9 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                                 },
                             ]}
                             data={billingData
-                                .filter(item => sizeType === 'all' || item.container_size === sizeType)
-                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
+                                .filter(item => sizeType === 'all' || item.container_size === sizeType)}
                             loading={loading}
                             emptyMessage="No billing records found. Generate a report to view data."
-                            pagination={{
-                                currentPage,
-                                totalPages: Math.ceil(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length / itemsPerPage),
-                                perPage: itemsPerPage,
-                                total: billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length,
-                                onPageChange: setCurrentPage,
-                            }}
                         />
                     </>
                 )}
@@ -500,6 +512,39 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                     </ModernCard>
                 )}
             </div>
+
+            <button
+                aria-label="Back to top"
+                title="Back to top"
+                onClick={() => {
+                    try {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    } catch {
+                        // ignore
+                    }
+                }}
+                style={{
+                    position: 'fixed',
+                    right: 20,
+                    bottom: 24,
+                    zIndex: 9999,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    background: '#111827',
+                    color: '#ffffff',
+                    display: showBackToTop ? 'flex' : 'none',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
+                    cursor: 'pointer',
+                    border: 'none',
+                    outline: 'none',
+                    transition: 'opacity 200ms ease',
+                }}
+            >
+                ↑
+            </button>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
