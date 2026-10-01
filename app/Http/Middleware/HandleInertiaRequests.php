@@ -53,8 +53,9 @@ class HandleInertiaRequests extends Middleware
                 FROM fjp_pages_access
                 JOIN fjp_pages ON fjp_pages_access.page_id = fjp_pages.p_id
                 WHERE fjp_pages_access.privilege = ?
+                  AND (fjp_pages.page <> ? OR ? = 1)
                 ORDER BY fjp_pages.arrange_no
-            ', [$request->user()->priv_id]);
+            ', [$request->user()->priv_id, 'edi', $request->user()->user_id]);
         }
 
         return [
