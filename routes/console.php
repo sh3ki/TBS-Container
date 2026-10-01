@@ -4,6 +4,12 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+Schedule::command('edi:dispatch-auto')
+    ->everyMinute()
+    ->name('edi-dispatch-auto')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
