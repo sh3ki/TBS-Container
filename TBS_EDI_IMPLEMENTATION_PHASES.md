@@ -1,220 +1,77 @@
-# TBS EDI Implementation Phases (Laravel)
+# EDI Revamp Implementation Plan
 
-## Goal
-Build a standalone EDI module inside Laravel that reproduces legacy behavior exactly, including:
-1. Automatic sending
-2. Manual sending from web buttons
-3. Per-client formatting and routing differences
-4. Send-state tracking to prevent duplicates
-5. Multi-channel delivery (HTTP, file, email, SFTP)
-6. Full legacy client coverage (all clients present in legacy EDI)
+## Scope
 
-## Locked Decisions (Confirmed)
-1. Preserve exact payload format per client first.
-2. Preserve exact channel per client first.
-3. Use queued delivery with retries and dead-letter logging.
-4. Use explicit dispatch audit tables for every attempt.
-5. Integrate all clients from legacy EDI (no partial client scope).
+Implement the EDI module in this Laravel project using `inventory`/`fjp_inventory` as the source of movement records.
 
-## Guiding Rule
-Legacy behavior parity first, modernization second.
+The vanilla system confirms that gate-out creates a new inventory row linked to the gate-in row. Every inventory row is therefore an independent movement event:
 
-## Phase 0 - Freeze Legacy Behavior
-### Scope
-Capture exact source behavior before coding.
+- `gate_status = IN` produces an IN message and uses the `GIE` filename marker.
+- `gate_status = OUT` produces an OUT message and uses the `GOE` filename marker.
 
-### Inputs
-1. Legacy CSP and exported routines (already available)
-2. Legacy PHP exporters (already available)
-3. Legacy VBS trigger scripts (already available)
+## Locked business rules
 
-### Deliverables
-1. Client-by-client behavior matrix
-2. Trigger map (manual, auto, interval)
-3. Payload specification per client
-4. Delivery channel map per client
+1. A profile supports IN, OUT, or BOTH.
+2. The profile baseline is `enabled_at`, not `created_at`.
+3. Only inventory rows created at or after `enabled_at` are eligible.
+4. A row is eligible only when its client and direction match the profile.
+5. A successful send permanently excludes a transaction.
+6. IN and OUT use separate uploaded CODECO D95B templates and mappings.
+7. Missing/unmapped optional fields are skipped and logged; valid fields continue.
+8. One file contains all eligible unsent rows for one profile, direction, and run.
+9. No eligible rows means no file and no delivery attempt.
+10. States are `pending`, `generating`, `generated`, `sending`, `sent`, `failed`, and `retry_pending`.
+11. Failed delivery retries three times with a two-minute delay by default.
+12. All schedule and audit timestamps use `Asia/Manila`.
+13. Existing queued work keeps its profile version; new work uses the updated profile version.
 
-### Exit Criteria
-1. No unknown fields in any client payload
-2. No unknown send path for any go-live client
+## Implementation order
 
-## Phase 1 - EDI Module Foundation
-### Scope
-Create isolated EDI module in Laravel without touching existing non-EDI flows.
+1. Verify and preserve the existing gate-in/gate-out inventory flow.
+2. Add profile baseline, direction/template, transaction, artifact, and delivery-log storage.
+3. Encrypt destination credentials and support SFTP, FTP, FTPS, and HTTPS/API.
+4. Replace broad inventory selection with direction-aware, baseline-aware, duplicate-safe selection.
+5. Add CODECO template upload, mapping suggestions, and manual mappings.
+6. Implement template-preserving generation and `CLIENTGIE...`/`CLIENTGOE...` filenames.
+7. Implement automatic scheduling, Generate Now, and Retry.
+8. Rebuild the EDI UI with paginated logs above paginated profiles.
+9. Remove obsolete EDI-only structures only after replacement paths are verified.
+10. Run migrations, static checks, frontend build, and targeted tests.
 
-### Components
-1. EDI config file
-2. EDI database tables
-3. EDI service interfaces
-4. EDI logging and audit base
-5. EDI feature flags
+## Verification checklist
 
-### Database Tables
-1. edi_profiles
-2. edi_profile_fields
-3. edi_dispatch_batches
-4. edi_dispatch_records
-5. edi_dispatch_attempts
-6. edi_outbound_artifacts
+- IN and OUT are separate inventory rows and dispatch records.
+- Disabled profiles never create automatic dispatches.
+- Enabling a profile establishes `enabled_at` and excludes older inventory rows.
+- Profile edits do not rewrite queued transaction snapshots.
+- Duplicate scheduler runs cannot claim the same movement twice.
+- Transactions become `sent` only after adapter success.
+- Failed delivery remains visible and retryable.
+- No-record runs create no empty file.
+- Manila-time windows, overnight windows, and intervals work correctly.
+- Artifacts preserve the uploaded sample structure and selected mappings.
 
-### Exit Criteria
-1. Migrations applied successfully
-2. Basic profile CRUD works
-3. Dispatch log can store a full send attempt lifecycle
+## Current implementation status
 
-## Phase 2 - Data Extraction and Formatting Parity
-### Scope
-Implement exact payload generation per client.
+Completed in Laravel:
 
-### Rules to Preserve
-1. Field ordering
-2. Delimiters and line endings
-3. Terminator (ENDRECORD or END OF FILE)
-4. Optional extra field behavior (example: class)
-5. Record filters and limits
-6. Legacy string cleanup logic (remarks line-break stripping)
+- `fjp_inventory`/`inventory` direction-aware eligibility using `gate_status` and `enabled_at`.
+- Independent IN and OUT direction templates, mapping suggestions, administrator mappings, and checked output-field filtering.
+- Immediate server-side sample analysis on upload: only the first UNH-to-UNT message structure is used for mapping analysis, while the original template order and static values are preserved. Repeated transaction structures are deduplicated in the mapping choices.
+- Two-column manual mapping controls: enabled inventory output fields are matched against unique detected CODECO segment/element candidates; suggestions are advisory and administrator selections are saved as confirmed mappings.
+- `codeco` D95B catalog migration/model/seeder with official UNECE source references, CODECO segment meanings, mandatory/conditional usage, repetition, and commonly used CODECO qualifier values including `CN`, `CF`, `FCL`, and `LCL`.
+- Versioned transaction snapshots so queued work keeps the old profile configuration after edits.
+- Generation and delivery state machine, private stored artifacts, download metadata, retries, and retry actions.
+- SFTP, FTP, FTPS, HTTP/HTTPS API delivery adapters with encrypted credentials.
+- Manila-time scheduling, blank/partial/overnight time windows, Generate Now, and automatic scheduler dispatch.
+- Paginated EDI Logs above paginated profile data in the EDI page.
+- Replacement migrations and removal of the four empty legacy dispatch tables.
 
-### Deliverables
-1. EdiQueryService
-2. EdiFormatterService
-3. Golden sample output artifacts per client
+Verification completed:
 
-### Exit Criteria
-1. Generated payload diff matches legacy for test data
-2. No schema mismatch for mapped fields
-
-## Phase 3 - Delivery Adapters
-### Scope
-Support each legacy send route as adapter strategies.
-
-### Adapters
-1. HttpSenderAdapter
-2. FileDropSenderAdapter
-3. EmailAttachmentSenderAdapter
-4. SftpSenderAdapter
-
-### Required Behaviors
-1. Timeout control
-2. Retry and backoff
-3. Response capture
-4. Idempotency guard
-5. Post-send artifact archive
-
-### Exit Criteria
-1. Each adapter can pass integration tests
-2. Failed delivery is fully recorded and retryable
-
-## Phase 4 - Automatic Scheduling
-### Scope
-Replace legacy browser and VBS triggers with server-side scheduling.
-
-### Jobs and Commands
-1. edi:dispatch-auto command
-2. Per-profile queued dispatch jobs
-3. Retry worker policy
-
-### Legacy Frequency Parity
-1. 300-second style cycles for export-like profiles
-2. 7200-second style cycles for long-interval profiles
-3. Per-profile schedule override
-
-### Exit Criteria
-1. Scheduler executes without overlaps
-2. Dispatch throughput and timings are stable
-
-## Phase 5 - Manual Operations UI
-### Scope
-Allow operations team to trigger and verify sends.
-
-### UI Features
-1. Client profile list and status
-2. Payload preview
-3. Send now action
-4. Resend action with confirmation
-5. Attempt history and error details
-
-### Controls
-1. Role-based access
-2. Audit logging
-3. Kill switch visibility
-
-### Exit Criteria
-1. Manual send reproduces auto send output
-2. Operator can troubleshoot failures without CLI access
-
-## Phase 6 - Verification and Parallel Run
-### Scope
-Run old and new in parallel, then cut over safely.
-
-### Validation
-1. Payload diff checks
-2. Record count checks
-3. Duplicate prevention checks
-4. Transport success rate checks
-
-### Cutover
-1. Enable low-risk client first
-2. Monitor
-3. Enable next client batches
-
-### Rollback
-1. EDI global disable flag
-2. Per-client disable flag
-3. Job drain and stop procedure
-
-### Exit Criteria
-1. Business signoff per client
-2. Legacy flow can be retired
-
-## Phase 7 - Hardening and Operations
-### Scope
-Production reliability and security improvements.
-
-### Tasks
-1. Secret management via environment variables
-2. Alerting for repeated failures
-3. Artifact retention policy
-4. Failed queue dashboard
-5. Runbook for support team
-
-### Exit Criteria
-1. On-call runbook validated
-2. Alert thresholds tuned
-
-## Remaining Clarifications Needed Before Coding Starts
-1. Final destination details per client:
-	HTTP endpoint URL, file-drop path, SMTP recipients, or SFTP host/remote path
-2. Credentials and auth per client channel:
-	API keys, SMTP auth, SFTP user/key or password, host fingerprints
-3. Send schedule per client:
-	keep legacy cadence (300-second style or 7200-second style) or provide override
-4. Sent-state policy:
-	confirm mark-as-sent only after confirmed delivery success
-5. Resend policy:
-	allowed with reason logging, and whether approval is required
-6. Manual send access:
-	roles/users allowed to trigger send and resend from Laravel UI
-7. Environment mapping:
-	which channels are enabled in staging vs production for each client
-
-## Default Assumptions If Not Provided
-1. Unsent records only are dispatch candidates
-2. Mark sent only after successful delivery
-3. Retry backoff: 60s, 300s, 900s
-4. Max attempts: 3
-5. Auto schedule default: every 5 minutes
-6. Storage location: private storage path with timestamped filenames
-7. Manual resend is allowed only for admins and always audited
-
-## Implementation Order (Execution Guide)
-1. Implement Phase 1 foundation
-2. Implement Phase 2 formatter for first two clients
-3. Implement Phase 3 adapters needed by those clients
-4. Implement Phase 4 scheduler and workers
-5. Implement Phase 5 manual UI and audit trail
-6. Run Phase 6 parallel validation
-7. Roll forward client-by-client
-
-## Notes
-1. Existing non-EDI Laravel modules are not modified unless needed for EDI data access.
-2. EDI module remains isolated and can be toggled independently.
+- Laravel migrations applied successfully.
+- EDI routes and scheduler command registered successfully.
+- PHP lint passed for the changed backend files.
+- Vite production build passed.
+- CODECO catalog migration and seeder applied successfully.
+- The repository-wide PHPUnit/Pest suite remains blocked by its pre-existing SQLite setup: it attempts to alter `users` before the `users` table exists. This is unrelated to the EDI migrations and should be repaired separately before relying on the full suite.
