@@ -432,7 +432,14 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::get('/clients', [EdiController::class, 'clients']);
         Route::post('/profiles', [EdiController::class, 'store']);
         Route::put('/profiles/{profile}', [EdiController::class, 'update']);
-        Route::post('/profiles/{profile}/send', [EdiController::class, 'send']);
+        Route::get('/profiles/{profile}/credentials', [EdiController::class, 'showCredentials']);
+        Route::post('/samples/analyze', [EdiController::class, 'analyzeSample']);
+        Route::post('/profiles/{profile}/samples', [EdiController::class, 'uploadSample']);
+        Route::post('/profiles/{profile}/send', [EdiController::class, 'dispatch']);
+        Route::post('/profiles/{profile}/generate', [EdiController::class, 'generate']);
+        Route::get('/logs', [EdiController::class, 'logs']);
+        Route::post('/logs/{log}/retry', [EdiController::class, 'retryLog']);
+        Route::get('/logs/{log}/download', [EdiController::class, 'downloadLog']);
     });
 
     // Audit Logs - Complete API with all legacy features
