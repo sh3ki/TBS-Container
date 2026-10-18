@@ -2,44 +2,48 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\Api\EdiController;
 use App\Models\EdiProfile;
+use App\Services\EdiProfileDispatchService;
 use Illuminate\Console\Command;
-use Illuminate\Http\Request;
 
 class DispatchDueEdiProfiles extends Command
 {
     protected $signature = 'edi:dispatch-auto';
     protected $description = 'Generate queued payloads for due automatic EDI profiles';
 
-    public function handle(EdiController $controller): int
+    public function handle(EdiProfileDispatchService $dispatch): int
     {
-        $now = now();
+        $now = now('Asia/Manila');
         $count = 0;
 
         EdiProfile::query()
             ->where('is_enabled', true)
-            ->where('automatic_enabled', true)
             ->where(function ($query) use ($now) {
                 $query->whereNull('next_run_at')->orWhere('next_run_at', '<=', $now);
             })
             ->get()
-            ->each(function (EdiProfile $profile) use ($controller, $now, &$count) {
+            ->each(function (EdiProfile $profile) use ($now, $dispatch, &$count) {
                 $currentTime = $now->format('H:i:s');
-                if ($profile->start_time && $currentTime < $profile->start_time) return;
-                if ($profile->end_time && $currentTime > $profile->end_time) return;
+                if ($profile->start_time || $profile->end_time) {
+                    $start = $profile->start_time ?: '00:00:00';
+                    $end = $profile->end_time ?: '23:59:59';
+                    $inside = $start <= $end
+                        ? ($currentTime >= $start && $currentTime <= $end)
+                        : ($currentTime >= $start || $currentTime <= $end);
+                    if (! $inside) return;
+                }
 
                 try {
-                    $controller->send(Request::create('/api/edi/profiles/' . $profile->profile_id . '/send', 'POST'), $profile);
+                    $dispatch->dispatch($profile, 'automatic');
                     $profile->update([
                         'last_run_at' => $now,
-                        'next_run_at' => $now->copy()->addSeconds($profile->interval_seconds),
+                        'next_run_at' => $now->copy()->startOfMinute()->addMinutes($profile->schedule_minutes ?: max(1, (int) round($profile->interval_seconds / 60))),
                     ]);
                     $count++;
                 } catch (\Throwable $exception) {
                     $profile->update([
                         'last_run_at' => $now,
-                        'next_run_at' => $now->copy()->addSeconds($profile->interval_seconds),
+                        'next_run_at' => $now->copy()->startOfMinute()->addMinutes($profile->schedule_minutes ?: max(1, (int) round($profile->interval_seconds / 60))),
                         'last_error' => $exception->getMessage(),
                     ]);
                     $this->error($profile->profile_name . ': ' . $exception->getMessage());
