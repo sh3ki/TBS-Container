@@ -15,15 +15,15 @@ return new class extends Migration
             ->update([
                 'destination_type' => 'sftp',
                 'destination_config' => json_encode([
-                    'host' => 'ftp.msc.com',
+                'host' => env('EDI_MSC_HOST', ''),
                     'remote_path' => '/To_MSC/CODECO/',
                     'timeout_seconds' => 120,
                 ]),
                 'credentials' => json_encode([
-                    'host' => 'ftp.msc.com',
-                    'port' => '22',
-                    'username' => 'PH980-FJP_DPT',
-                    'password' => 'jklpr8dp',
+                    'host' => env('EDI_MSC_HOST', ''),
+                    'port' => env('EDI_MSC_PORT', '22'),
+                    'username' => env('EDI_MSC_USERNAME', ''),
+                    'password' => env('EDI_MSC_PASSWORD', ''),
                 ]),
                 'updated_at' => now(),
             ]);
