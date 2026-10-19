@@ -11,6 +11,7 @@ import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
 import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter } from 'lucide-react';
 import { colors } from '@/lib/colors';
+import CachedFieldHistory from '@/components/CachedFieldHistory';
 
 interface Client {
     id: string;
@@ -1039,6 +1040,7 @@ const Index: React.FC = () => {
     return (
         <AuthenticatedLayout>
             <Head title="Inventory" />
+            <CachedFieldHistory />
             <div className="space-y-6 overflow-hidden">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -1874,6 +1876,7 @@ const Index: React.FC = () => {
                             <Label htmlFor="approval-notes" className="text-gray-900">Approval Notes (Max 300 characters) *</Label>
                             <Textarea
                                 id="approval-notes"
+                                data-history-key="inventory.approval_notes"
                                 value={approvalNotes}
                                 onChange={(e) => setApprovalNotes(e.target.value.toUpperCase())}
                                 placeholder="Enter approval notes..."
@@ -2100,6 +2103,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Container No. <span className="text-red-500">*</span></Label>
                                     <Input 
+                                        data-history-key="inventory.container_no"
                                         value={editFormData.container_no} 
                                         onChange={(e) => setEditFormData({...editFormData, container_no: e.target.value.toUpperCase()})}
                                     />
@@ -2201,6 +2205,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">ISO Code</Label>
                                     <Input 
+                                        data-history-key="inventory.iso_code"
                                         value={editFormData.iso_code || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, iso_code: e.target.value.toUpperCase()})}
                                     />
@@ -2226,6 +2231,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Vessel</Label>
                                     <Input 
+                                        data-history-key="inventory.vessel"
                                         value={editFormData.vessel || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, vessel: e.target.value.toUpperCase()})}
                                     />
@@ -2233,6 +2239,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Voyage</Label>
                                     <Input 
+                                        data-history-key="inventory.voyage"
                                         value={editFormData.voyage || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, voyage: e.target.value.toUpperCase()})}
                                     />
@@ -2240,6 +2247,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Checker</Label>
                                     <Input 
+                                        data-history-key="inventory.checker"
                                         value={editFormData.checker || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, checker: e.target.value.toUpperCase()})}
                                     />
@@ -2247,6 +2255,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Consignee</Label>
                                     <Input 
+                                        data-history-key="inventory.ex_consignee"
                                         value={editFormData.ex_consignee || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, ex_consignee: e.target.value.toUpperCase()})}
                                     />
@@ -2277,6 +2286,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Plate No.</Label>
                                     <Input 
+                                        data-history-key="inventory.plate_no"
                                         value={editFormData.plate_no || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, plate_no: e.target.value.toUpperCase()})}
                                     />
@@ -2284,6 +2294,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Hauler</Label>
                                     <Input 
+                                        data-history-key="inventory.hauler"
                                         value={editFormData.hauler || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, hauler: e.target.value.toUpperCase()})}
                                     />
@@ -2295,6 +2306,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Hauler Driver</Label>
                                     <Input 
+                                        data-history-key="inventory.hauler_driver"
                                         value={editFormData.hauler_driver || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, hauler_driver: e.target.value.toUpperCase()})}
                                     />
@@ -2302,6 +2314,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">License No.</Label>
                                     <Input 
+                                        data-history-key="inventory.license_no"
                                         value={editFormData.license_no || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, license_no: e.target.value.toUpperCase()})}
                                     />
@@ -2309,6 +2322,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Location</Label>
                                     <Input 
+                                        data-history-key="inventory.location"
                                         value={editFormData.location} 
                                         onChange={(e) => setEditFormData({...editFormData, location: e.target.value.toUpperCase()})}
                                     />
@@ -2316,6 +2330,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Chasis</Label>
                                     <Input 
+                                        data-history-key="inventory.chasis"
                                         value={editFormData.chasis || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, chasis: e.target.value.toUpperCase()})}
                                     />
@@ -2323,6 +2338,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Contact No.</Label>
                                     <Input 
+                                        data-history-key="inventory.contact_no"
                                         value={editFormData.contact_no || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, contact_no: e.target.value.toUpperCase()})}
                                     />
@@ -2330,6 +2346,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Bill of Lading</Label>
                                     <Input 
+                                        data-history-key="inventory.bill_of_lading"
                                         value={editFormData.bill_of_lading || ''} 
                                         onChange={(e) => setEditFormData({...editFormData, bill_of_lading: e.target.value.toUpperCase()})}
                                     />
@@ -2337,6 +2354,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Remarks (EIR Notes)</Label>
                                     <Textarea 
+                                        data-history-key="inventory.remarks"
                                         value={editFormData.eir_notes} 
                                         onChange={(e) => setEditFormData({...editFormData, eir_notes: e.target.value.toUpperCase()})}
                                         className="min-h-[80px]"
@@ -2345,6 +2363,7 @@ const Index: React.FC = () => {
                                 <div>
                                     <Label className="text-gray-900">Approval Notes</Label>
                                     <Textarea 
+                                        data-history-key="inventory.approval_notes"
                                         value={editFormData.app_notes} 
                                         onChange={(e) => setEditFormData({...editFormData, app_notes: e.target.value.toUpperCase()})}
                                         className="min-h-[80px]"
