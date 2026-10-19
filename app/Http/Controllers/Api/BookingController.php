@@ -28,9 +28,14 @@ class BookingController extends Controller
     {
         $query = Booking::with(['client', 'user']);
 
-        // Default: show only active bookings (not expired with remaining containers)
+        // Default: show every booking that has not expired yet. A booking remains
+        // visible through its expiration date, including bookings expiring today.
         if (!$request->has('show_all')) {
-            $query->active();
+            $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
+            $query->whereDate('expiration_date', '>=', $today)
+                  ->whereHas('client', function ($clientQuery) {
+                      $clientQuery->where('archived', 0);
+                  });
         }
 
         // Sort
