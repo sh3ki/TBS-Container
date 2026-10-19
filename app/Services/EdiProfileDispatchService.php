@@ -43,7 +43,20 @@ class EdiProfileDispatchService
                 }
                 return ['log_id' => $log->log_id, 'filename' => $log->filename, 'status' => 'sent'];
             } catch (\Throwable $exception) {
-                $log->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
+                $nextRetry = Carbon::now($profile->timezone ?: 'Asia/Manila')->addSeconds($profile->retry_delay_seconds ?: 120);
+                $status = $log->attempts >= ($profile->max_attempts ?: 3) ? 'failed' : 'retry_pending';
+                $log->update([
+                    'status' => $status,
+                    'error_message' => $exception->getMessage(),
+                    'next_retry_at' => $status === 'retry_pending' ? $nextRetry : null,
+                ]);
+                if ($log->transaction_ids) {
+                    EdiTransaction::whereIn('transaction_id', $log->transaction_ids)->update([
+                        'status' => $status,
+                        'last_error' => $exception->getMessage(),
+                        'next_retry_at' => $status === 'retry_pending' ? $nextRetry : null,
+                    ]);
+                }
                 throw $exception;
             }
         }
@@ -206,14 +219,40 @@ class EdiProfileDispatchService
     private function dispatchMscIn(EdiProfile $profile, ?int $userId, Carbon $now, array $filters = []): ?array
     {
         $manual = ! empty($filters);
+        if (! $manual) {
+            $retry = $this->retryDueMscDeliveries($profile, $now);
+            // A retry uses the already-generated artifact and does not query
+            // inventory. New movements in this run may still be sent below.
+        }
+        $intervalSeconds = max(1, (int) ($profile->interval_seconds ?: (($profile->schedule_minutes ?: 5) * 60)));
         $transactions = $this->claimMscTransactions($profile, $now, [
             ...$filters,
             'sent_mode' => $filters['sent_mode'] ?? 'unsent',
+            'start_at' => $manual ? ($filters['start_at'] ?? null) : $now->copy()->subSeconds($intervalSeconds),
             'end_at' => $manual ? ($filters['end_at'] ?? $now) : $now,
         ]);
         if ($transactions->isEmpty()) return null;
 
         return $this->createMscArtifact($profile, $transactions, $filters['file_type'] ?? 'EDI', $userId, true, $now);
+    }
+
+    private function retryDueMscDeliveries(EdiProfile $profile, Carbon $now): ?array
+    {
+        $log = EdiDeliveryLog::query()
+            ->where('profile_id', $profile->profile_id)
+            ->where('direction', 'IN')
+            ->where('status', 'retry_pending')
+            ->where(function ($query) use ($now) {
+                $query->whereNull('next_retry_at')->orWhere('next_retry_at', '<=', $now);
+            })
+            ->whereNotNull('artifact_path')
+            ->where('attempts', '<', $profile->max_attempts ?: 3)
+            ->oldest('log_id')
+            ->first();
+
+        if (! $log || ! Storage::disk('local')->exists($log->artifact_path)) return null;
+
+        return $this->retry($log);
     }
 
     private function generateMscIn(EdiProfile $profile, string $fileType, ?int $userId, array $filters): array
@@ -322,8 +361,18 @@ class EdiProfileDispatchService
             $profile->update(['last_success_at' => $sentAt, 'last_error' => null]);
             return ['log_id' => $log->log_id, 'direction' => 'IN', 'filename' => $filename, 'record_count' => $transactions->count(), 'status' => 'sent', 'warnings' => []];
         } catch (\Throwable $exception) {
-            $log->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
-            $transactions->each(fn ($t) => $t->update(['status' => 'failed', 'last_error' => $exception->getMessage()]));
+            $nextRetry = Carbon::now($profile->timezone ?: 'Asia/Manila')->addSeconds($profile->retry_delay_seconds ?: 120);
+            $status = $log->attempts >= ($profile->max_attempts ?: 3) ? 'failed' : 'retry_pending';
+            $log->update([
+                'status' => $status,
+                'error_message' => $exception->getMessage(),
+                'next_retry_at' => $status === 'retry_pending' ? $nextRetry : null,
+            ]);
+            $transactions->each(fn ($t) => $t->update([
+                'status' => $status,
+                'last_error' => $exception->getMessage(),
+                'next_retry_at' => $status === 'retry_pending' ? $nextRetry : null,
+            ]));
             throw $exception;
         }
     }
@@ -592,9 +641,6 @@ class EdiProfileDispatchService
 
     private function directionsFor(EdiProfile $profile)
     {
-        if ((int) $profile->client_id === 67) {
-            return collect([new EdiProfileDirection(['direction' => 'IN', 'file_type' => 'EDI'])]);
-        }
         $directions = $profile->directions;
         if ($directions->isNotEmpty()) {
             return $directions->filter(fn ($direction) => $profile->direction_mode === 'BOTH' || $direction->direction === $profile->direction_mode)->values();
