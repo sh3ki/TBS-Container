@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { saveFieldHistory } from '@/components/CachedFieldHistory';
 import { ModernButton, ModernConfirmDialog } from '@/components/modern';
 import { Printer, Search } from 'lucide-react';
 import axios from 'axios';
@@ -694,6 +695,18 @@ export default function ProcessGateOutModal({
             });
 
             if (response.data.success) {
+                saveFieldHistory({
+                    'gateinout.vessel': formData.vessel,
+                    'gateinout.voyage': formData.voyage,
+                    'gateinout.hauler': formData.hauler,
+                    'gateinout.hauler_driver': formData.hauler_driver,
+                    'gateinout.license_no': formData.license_no,
+                    'gateinout.location': formData.location,
+                    'gateinout.chasis': formData.chasis,
+                    'gateinout.contact_no': formData.contact_no,
+                    'gateinout.seal_no': formData.seal_no,
+                    'gateinout.remarks': formData.remarks,
+                });
                 // Open print window
                 window.open(
                     `/api/gateinout/print-gate-pass/${response.data.inventory_id}?status=OUT`,
