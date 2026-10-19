@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
+import { saveFieldHistory } from '@/components/CachedFieldHistory';
 
 interface Client {
     id: string;
@@ -645,6 +646,7 @@ const Index: React.FC = () => {
             });
 
             if (response.data.success) {
+                saveFieldHistory({ 'inventory.approval_notes': approvalNotes });
                 success('Container approved successfully!');
                 setShowApproveConfirm(false);
                 setSelectedRecord(null);
@@ -936,6 +938,24 @@ const Index: React.FC = () => {
             const response = await axios.put(`/api/inventory/${identifier}`, payload);
 
             if (response.data.success) {
+                saveFieldHistory({
+                    'inventory.container_no': editFormData.container_no,
+                    'inventory.iso_code': editFormData.iso_code,
+                    'inventory.vessel': editFormData.vessel,
+                    'inventory.voyage': editFormData.voyage,
+                    'inventory.checker': editFormData.checker,
+                    'inventory.ex_consignee': editFormData.ex_consignee,
+                    'inventory.plate_no': editFormData.plate_no,
+                    'inventory.hauler': editFormData.hauler,
+                    'inventory.hauler_driver': editFormData.hauler_driver,
+                    'inventory.license_no': editFormData.license_no,
+                    'inventory.location': editFormData.location,
+                    'inventory.chasis': editFormData.chasis,
+                    'inventory.contact_no': editFormData.contact_no,
+                    'inventory.bill_of_lading': editFormData.bill_of_lading,
+                    'inventory.remarks': editFormData.eir_notes,
+                    'inventory.approval_notes': editFormData.app_notes,
+                });
                 success('Container updated successfully!');
                 setShowEditConfirm(false);
                 setEditFormData(null);
