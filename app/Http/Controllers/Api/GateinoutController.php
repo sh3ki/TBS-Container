@@ -1404,8 +1404,9 @@ class GateinoutController extends Controller
 
             // Search bookings by book_no, filter by client_id ONLY
             // This ensures cross-client booking pollution is prevented
-            // OLD SYSTEM LOGIC: Only show ACTIVE bookings
-            // ACTIVE = expiration_date > TODAY AND has available slots (any of twenty_rem, fourty_rem, fourty_five_rem > 0)
+            // Only show bookings that are valid through today (Manila time) and
+            // still have numeric or container-list capacity remaining.
+            $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
             $query = "
                 SELECT 
                     b.b_id,
@@ -1421,11 +1422,16 @@ class GateinoutController extends Controller
                     b.expiration_date
                 FROM {$this->prefix}bookings b
                 WHERE b.client_id = ?
-                  AND b.expiration_date > CURDATE()
-                  AND (b.twenty_rem > 0 OR b.fourty_rem > 0 OR b.fourty_five_rem > 0)
+                  AND b.expiration_date >= ?
+                  AND (
+                      COALESCE(b.twenty_rem, 0) > 0
+                      OR COALESCE(b.fourty_rem, 0) > 0
+                      OR COALESCE(b.fourty_five_rem, 0) > 0
+                      OR (b.cont_list_rem IS NOT NULL AND b.cont_list_rem <> '')
+                  )
             ";
 
-            $params = [$clientId];
+            $params = [$clientId, $today];
 
             if (!empty($key)) {
                 $query .= " AND b.book_no LIKE ?";
@@ -1495,7 +1501,7 @@ class GateinoutController extends Controller
             }
 
             // Check if booking is expired
-            $today = date('Y-m-d');
+            $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
             if ($booking->expiration_date && strtotime($booking->expiration_date) < strtotime($today)) {
                 return response()->json([
                     'success' => false,
