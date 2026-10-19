@@ -31,7 +31,7 @@ class EdiProfileDispatchService
     public function retry(EdiDeliveryLog $log): array
     {
         $profile = EdiProfile::findOrFail($log->profile_id);
-        if ((int) $profile->client_id === 67 && $log->direction === 'IN' && $log->artifact_path && Storage::disk('local')->exists($log->artifact_path)) {
+        if ((int) $profile->client_id === 67 && in_array($log->direction, ['IN', 'OUT'], true) && $log->artifact_path && Storage::disk('local')->exists($log->artifact_path)) {
             $payload = Storage::disk('local')->get($log->artifact_path);
             $log->update(['status' => 'sending', 'attempts' => $log->attempts + 1, 'next_retry_at' => null]);
             try {
@@ -70,8 +70,8 @@ class EdiProfileDispatchService
      */
     public function generatePreview(EdiProfile $profile, string $directionCode, string $fileType, ?int $userId = null, array $filters = []): array
     {
-        if ((int) $profile->client_id === 67 && $directionCode === 'IN') {
-            return $this->generateMscIn($profile, $fileType, $userId, $filters);
+        if ((int) $profile->client_id === 67 && in_array($directionCode, ['IN', 'OUT'], true)) {
+            return $this->generateMscDirection($profile, $directionCode, $fileType, $userId, $filters);
         }
         $direction = $profile->directions()->where('direction', $directionCode)->firstOrFail();
         $now = Carbon::now($profile->timezone ?: 'Asia/Manila');
@@ -133,8 +133,8 @@ class EdiProfileDispatchService
 
     private function dispatchDirection(EdiProfile $profile, EdiProfileDirection $direction, string $trigger, ?int $userId, Carbon $now, array $filters = []): ?array
     {
-        if ((int) $profile->client_id === 67 && $direction->direction === 'IN') {
-            return $this->dispatchMscIn($profile, $userId, $now, $filters);
+        if ((int) $profile->client_id === 67 && in_array($direction->direction, ['IN', 'OUT'], true)) {
+            return $this->dispatchMscDirection($profile, $direction->direction, $userId, $now, $filters);
         }
         $this->claimEligibleTransactions($profile, $direction, $now);
         $transactions = EdiTransaction::query()
@@ -216,31 +216,32 @@ class EdiProfileDispatchService
         }
     }
 
-    private function dispatchMscIn(EdiProfile $profile, ?int $userId, Carbon $now, array $filters = []): ?array
+    private function dispatchMscDirection(EdiProfile $profile, string $direction, ?int $userId, Carbon $now, array $filters = []): ?array
     {
         $manual = ! empty($filters);
         if (! $manual) {
-            $retry = $this->retryDueMscDeliveries($profile, $now);
+            $retry = $this->retryDueMscDeliveries($profile, $direction, $now);
             // A retry uses the already-generated artifact and does not query
             // inventory. New movements in this run may still be sent below.
         }
-        $intervalSeconds = max(1, (int) ($profile->interval_seconds ?: (($profile->schedule_minutes ?: 5) * 60)));
-        $transactions = $this->claimMscTransactions($profile, $now, [
+        $transactions = $this->claimMscTransactions($profile, $direction, $now, [
             ...$filters,
             'sent_mode' => $filters['sent_mode'] ?? 'unsent',
-            'start_at' => $manual ? ($filters['start_at'] ?? null) : $now->copy()->subSeconds($intervalSeconds),
+            // Automatic runs collect all still-unsent eligible movements so
+            // missed scheduler intervals are recovered on the next run.
+            'start_at' => $manual ? ($filters['start_at'] ?? null) : null,
             'end_at' => $manual ? ($filters['end_at'] ?? $now) : $now,
         ]);
         if ($transactions->isEmpty()) return null;
 
-        return $this->createMscArtifact($profile, $transactions, $filters['file_type'] ?? 'EDI', $userId, true, $now);
+        return $this->createMscArtifact($profile, $direction, $transactions, $filters['file_type'] ?? 'EDI', $userId, true, $now);
     }
 
-    private function retryDueMscDeliveries(EdiProfile $profile, Carbon $now): ?array
+    private function retryDueMscDeliveries(EdiProfile $profile, string $direction, Carbon $now): ?array
     {
         $log = EdiDeliveryLog::query()
             ->where('profile_id', $profile->profile_id)
-            ->where('direction', 'IN')
+            ->where('direction', $direction)
             ->where('status', 'retry_pending')
             ->where(function ($query) use ($now) {
                 $query->whereNull('next_retry_at')->orWhere('next_retry_at', '<=', $now);
@@ -255,17 +256,17 @@ class EdiProfileDispatchService
         return $this->retry($log);
     }
 
-    private function generateMscIn(EdiProfile $profile, string $fileType, ?int $userId, array $filters): array
+    private function generateMscDirection(EdiProfile $profile, string $direction, string $fileType, ?int $userId, array $filters): array
     {
         $timezone = $profile->timezone ?: 'Asia/Manila';
         $now = Carbon::now($timezone);
-        $transactions = $this->claimMscTransactions($profile, $now, $filters + ['sent_mode' => 'unsent']);
+        $transactions = $this->claimMscTransactions($profile, $direction, $now, $filters + ['sent_mode' => 'unsent']);
         if ($transactions->isEmpty()) return [];
 
-        return $this->createMscArtifact($profile, $transactions, $fileType, $userId, false, $now, true);
+        return $this->createMscArtifact($profile, $direction, $transactions, $fileType, $userId, false, $now, true);
     }
 
-    private function claimMscTransactions(EdiProfile $profile, Carbon $now, array $filters): \Illuminate\Support\Collection
+    private function claimMscTransactions(EdiProfile $profile, string $direction, Carbon $now, array $filters): \Illuminate\Support\Collection
     {
         $mode = in_array(($filters['sent_mode'] ?? 'unsent'), ['unsent', 'sent', 'both'], true)
             ? $filters['sent_mode'] : 'unsent';
@@ -290,18 +291,18 @@ class EdiProfileDispatchService
 
         $query = DB::table('inventory as i')
             ->where('i.client_id', 67)
-            ->where('i.gate_status', 'IN')
+            ->where('i.gate_status', $direction)
             ->where('i.date_added', '>=', $startAt)
             ->where('i.date_added', '<', $endAt ?: $now)
-            ->when($mode === 'sent', fn ($q) => $q->whereExists(function ($sub) use ($profile) {
+            ->when($mode === 'sent', fn ($q) => $q->whereExists(function ($sub) use ($profile, $direction) {
                 $sub->select(DB::raw(1))->from('edi_transactions as et')
                     ->whereColumn('et.inventory_id', 'i.i_id')->where('et.profile_id', $profile->profile_id)
-                    ->where('et.direction', 'IN')->where('et.status', 'sent');
+                    ->where('et.direction', $direction)->where('et.status', 'sent');
             }))
-            ->when($mode === 'unsent', fn ($q) => $q->whereNotExists(function ($sub) use ($profile) {
+            ->when($mode === 'unsent', fn ($q) => $q->whereNotExists(function ($sub) use ($profile, $direction) {
                 $sub->select(DB::raw(1))->from('edi_transactions as et')
                     ->whereColumn('et.inventory_id', 'i.i_id')->where('et.profile_id', $profile->profile_id)
-                    ->where('et.direction', 'IN')->where('et.status', 'sent');
+                    ->where('et.direction', $direction)->where('et.status', 'sent');
             }))
             ->select('i.*')
             ->orderBy('i.date_added')->orderBy('i.i_id')
@@ -309,9 +310,9 @@ class EdiProfileDispatchService
             ->get();
 
         $fields = $profile->fields()->where('is_enabled', true)->pluck('source_column')->values()->all();
-        return $query->map(function ($record) use ($profile, $fields, $now) {
+        return $query->map(function ($record) use ($profile, $direction, $fields, $now) {
             $transaction = EdiTransaction::firstOrCreate(
-                ['profile_id' => $profile->profile_id, 'direction' => 'IN', 'inventory_id' => $record->i_id],
+                ['profile_id' => $profile->profile_id, 'direction' => $direction, 'inventory_id' => $record->i_id],
                 ['profile_version' => $profile->profile_version, 'status' => 'pending', 'eligible_at' => $now, 'snapshot' => array_merge((array) $record, ['_edi_fields' => $fields])]
             );
             if (! $transaction->snapshot) $transaction->update(['snapshot' => array_merge((array) $record, ['_edi_fields' => $fields])]);
@@ -319,37 +320,57 @@ class EdiProfileDispatchService
         });
     }
 
-    private function createMscArtifact(EdiProfile $profile, $transactions, string $fileType, ?int $userId, bool $send, Carbon $now, bool $manual = false): array
+    private function createMscArtifact(EdiProfile $profile, string $direction, $transactions, string $fileType, ?int $userId, bool $send, Carbon $now, bool $manual = false): array
     {
-        $fingerprint = hash('sha256', implode('|', [strtolower($fileType), $transactions->pluck('inventory_id')->sort()->implode(',')]));
-        $existing = EdiDeliveryLog::where('profile_id', $profile->profile_id)->where('direction', 'IN')
+        $fingerprint = hash('sha256', implode('|', [$direction, strtolower($fileType), $transactions->pluck('inventory_id')->sort()->implode(',')]));
+        $existing = EdiDeliveryLog::where('profile_id', $profile->profile_id)->where('direction', $direction)
             ->where('transaction_fingerprint', $fingerprint)->whereIn('status', ['generated', 'sending', 'sent'])
             ->whereNotNull('artifact_path')->latest('log_id')->first();
         if ($existing && Storage::disk('local')->exists($existing->artifact_path)) {
-            return ['log_id' => $existing->log_id, 'direction' => 'IN', 'filename' => $existing->filename, 'transaction_count' => $existing->transaction_count, 'status' => $existing->status, 'warnings' => []];
+            if ($send && $existing->status !== 'sent') {
+                $payload = Storage::disk('local')->get($existing->artifact_path);
+                try {
+                    $existing->update(['status' => 'sending', 'attempts' => $existing->attempts + 1]);
+                    $delivery = app(EdiDeliveryService::class)->deliver($profile, $payload, $existing->filename, $existing->artifact_path);
+                    $sentAt = Carbon::now($profile->timezone ?: 'Asia/Manila');
+                    $existing->update(['status' => 'sent', 'sent_at' => $sentAt, 'response' => $delivery]);
+                    if ($existing->transaction_ids) {
+                        EdiTransaction::whereIn('transaction_id', $existing->transaction_ids)
+                            ->update(['status' => 'sent', 'sent_at' => $sentAt, 'last_error' => null]);
+                    }
+                    $profile->update(['last_success_at' => $sentAt, 'last_error' => null]);
+                } catch (\Throwable $exception) {
+                    $existing->update(['status' => 'failed', 'error_message' => $exception->getMessage()]);
+                    throw $exception;
+                }
+            }
+            return ['log_id' => $existing->log_id, 'direction' => $direction, 'filename' => $existing->filename, 'transaction_count' => $existing->transaction_count, 'status' => $existing->status, 'warnings' => []];
         }
 
-        $reference = DB::transaction(function () use ($profile) {
-            $counter = DB::table('edi_interchange_counters')->where('client_id', 67)->where('direction', 'IN')->lockForUpdate()->first();
+        $references = DB::transaction(function () use ($profile, $transactions) {
+            $counter = DB::table('edi_interchange_counters')->where('client_id', 67)->lockForUpdate()->first();
             if (! $counter) {
-                DB::table('edi_interchange_counters')->insert(['client_id' => 67, 'direction' => 'IN', 'next_number' => 2, 'created_at' => now(), 'updated_at' => now()]);
-                return 'REF0001';
+                $next = 1;
+                DB::table('edi_interchange_counters')->insert(['client_id' => 67, 'direction' => 'IN', 'next_number' => 2 + $transactions->count(), 'created_at' => now(), 'updated_at' => now()]);
+            } else {
+                $next = (int) $counter->next_number;
+                DB::table('edi_interchange_counters')->where('id', $counter->id)->update(['next_number' => $next + 1 + $transactions->count(), 'updated_at' => now()]);
             }
-            DB::table('edi_interchange_counters')->where('id', $counter->id)->update(['next_number' => ((int) $counter->next_number) + 1, 'updated_at' => now()]);
-            return 'REF'.str_pad((string) $counter->next_number, 4, '0', STR_PAD_LEFT);
+            return ['REF'.str_pad((string) $next, 4, '0', STR_PAD_LEFT), collect(range($next + 1, $next + $transactions->count()))->map(fn ($number) => 'MSC'.str_pad((string) $number, 4, '0', STR_PAD_LEFT))->all()];
         });
-        $filename = 'MSCGIE'.$now->format('YmdHis').'.'.strtolower($fileType);
-        $payload = $this->renderMscIn($transactions, $reference, $profile);
+        [$reference, $messageReferences] = $references;
+        $filename = 'MSC'.($direction === 'IN' ? 'GIE' : 'GOE').$now->format('YmdHis').'.'.strtolower($fileType);
+        $payload = $this->renderMsc($direction, $transactions, $reference, $messageReferences, $profile, $now);
         $path = 'edi/'.$now->format('Y/m/d').'/'.$filename;
         Storage::disk('local')->put($path, $payload);
         $log = EdiDeliveryLog::create([
-            'profile_id' => $profile->profile_id, 'direction' => 'IN', 'filename' => $filename,
+            'profile_id' => $profile->profile_id, 'direction' => $direction, 'filename' => $filename,
             'profile_version' => $profile->profile_version, 'transaction_count' => $transactions->count(),
             'status' => 'generated', 'artifact_path' => $path, 'sha256' => hash('sha256', $payload),
             'transaction_fingerprint' => $fingerprint, 'generated_at' => $now, 'requested_by' => $userId,
             'transaction_ids' => $transactions->pluck('transaction_id')->values()->all(),
         ]);
-        if (! $send) return ['log_id' => $log->log_id, 'direction' => 'IN', 'filename' => $filename, 'transaction_count' => $transactions->count(), 'status' => 'generated', 'warnings' => []];
+        if (! $send) return ['log_id' => $log->log_id, 'direction' => $direction, 'filename' => $filename, 'transaction_count' => $transactions->count(), 'status' => 'generated', 'warnings' => []];
 
         try {
             $log->update(['status' => 'sending', 'attempts' => $log->attempts + 1]);
@@ -359,7 +380,7 @@ class EdiProfileDispatchService
             $log->update(['status' => 'sent', 'sent_at' => $sentAt, 'response' => $delivery]);
             $transactions->each(fn ($t) => $t->update(['status' => 'sent', 'sent_at' => $sentAt, 'last_error' => null]));
             $profile->update(['last_success_at' => $sentAt, 'last_error' => null]);
-            return ['log_id' => $log->log_id, 'direction' => 'IN', 'filename' => $filename, 'record_count' => $transactions->count(), 'status' => 'sent', 'warnings' => []];
+            return ['log_id' => $log->log_id, 'direction' => $direction, 'filename' => $filename, 'record_count' => $transactions->count(), 'status' => 'sent', 'warnings' => []];
         } catch (\Throwable $exception) {
             $nextRetry = Carbon::now($profile->timezone ?: 'Asia/Manila')->addSeconds($profile->retry_delay_seconds ?: 120);
             $status = $log->attempts >= ($profile->max_attempts ?: 3) ? 'failed' : 'retry_pending';
@@ -377,17 +398,23 @@ class EdiProfileDispatchService
         }
     }
 
-    private function renderMscIn($transactions, string $reference, EdiProfile $profile): string
+    private function renderMsc(string $direction, $transactions, string $reference, array $messageReferences, EdiProfile $profile, Carbon $now): string
     {
         $eol = ($profile->line_ending ?: 'LF') === 'CRLF' ? "\r\n" : "\n";
-        $segments = ['UNB+UNOA:2+FJPPHMNL+MSC+'.Carbon::now('Asia/Manila')->format('ymd:Hi').'+'.$reference];
+        $segments = ['UNB+UNOA:2+FJPPHMNL+MSC+'.$now->format('ymd:Hi').'+'.$reference];
         foreach ($transactions->values() as $index => $transaction) {
             $s = (array) $transaction->snapshot;
-            $message = 'MSC'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT);
+            $message = $messageReferences[$index];
             $load = ((int) ($s['load_type'] ?? 0)) === 1 ? '4' : (((int) ($s['load_type'] ?? 0)) === 2 ? '5' : '');
             $date = $s['date_added'] ?? '';
             try { $date = Carbon::parse((string) $date, 'Asia/Manila')->format('YmdHi'); } catch (\Throwable) {}
-            $segments = array_merge($segments, [
+            $segments = array_merge($segments, $direction === 'OUT' ? [
+                'UNH+'.$message.'+CODECO:D:95B:UN:ITG13', 'BGM+36+'.$message.'+9', 'NAD+CF+MSC:160:166',
+                'EQD+CN+'.($s['container_no'] ?? '').'+'.($s['iso_code'] ?? '').':102:5++2+'.$load,
+                'RFF+BN:'.($s['booking'] ?? ''), 'TMD+3', 'DTM+7:'.$date.':203', 'LOC+165+PHMNL:139:6+MNL10:BER:ZZZ',
+                'SEL+'.($s['seal_no'] ?? '').'+SH', 'TDT+20++1++'.($s['plate_no'] ?? '').':172+++'.($s['hauler'] ?? ''),
+                'CNT+12:1', 'UNT+13+'.$message,
+            ] : [
                 'UNH+'.$message.'+CODECO:D:95B:UN:ITG13', 'BGM+34+'.$message.'+9', 'NAD+CF+MSC:160:166',
                 'EQD+CN+'.($s['container_no'] ?? '').'+'.($s['iso_code'] ?? '').':102:5++3+'.$load,
                 'DTM+7:'.$date.':203', 'LOC+165+PHMNL:139:6+MNL10:BER:ZZZ',
@@ -641,6 +668,10 @@ class EdiProfileDispatchService
 
     private function directionsFor(EdiProfile $profile)
     {
+        if ((int) $profile->client_id === 67) {
+            return collect(in_array($profile->direction_mode, ['IN', 'BOTH'], true) ? [new EdiProfileDirection(['direction' => 'IN', 'file_type' => 'EDI'])] : [])
+                ->merge(in_array($profile->direction_mode, ['OUT', 'BOTH'], true) ? [new EdiProfileDirection(['direction' => 'OUT', 'file_type' => 'EDI'])] : []);
+        }
         $directions = $profile->directions;
         if ($directions->isNotEmpty()) {
             return $directions->filter(fn ($direction) => $profile->direction_mode === 'BOTH' || $direction->direction === $profile->direction_mode)->values();
