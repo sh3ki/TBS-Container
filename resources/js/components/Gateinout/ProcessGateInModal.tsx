@@ -233,21 +233,21 @@ export default function ProcessGateInModal({
                 date_mnfg: dateForDB,
                 cnt_status: parseInt(formData.status),
                 size_type: parseInt(formData.sizetype),
-                iso_code: formData.iso_code,
+                iso_code: formData.iso_code.toUpperCase(),
                 cnt_class: formData.class,
-                vessel: formData.vessel,
-                voyage: formData.voyage,
-                ex_consignee: formData.ex_consignee,
+                vessel: formData.vessel.toUpperCase(),
+                voyage: formData.voyage.toUpperCase(),
+                ex_consignee: formData.ex_consignee.toUpperCase(),
                 load_type: parseInt(formData.load),
-                plate_no: formData.plate_no,
-                hauler: formData.hauler,
-                hauler_driver: formData.hauler_driver,
-                license_no: formData.license_no,
-                location: formData.location,
-                chasis: formData.chasis,
-                contact_no: formData.contact_no,
-                bol: formData.bill_of_lading,
-                remarks: formData.remarks,
+                plate_no: formData.plate_no.toUpperCase(),
+                hauler: formData.hauler.toUpperCase(),
+                hauler_driver: formData.hauler_driver.toUpperCase(),
+                license_no: formData.license_no.toUpperCase(),
+                location: formData.location.toUpperCase(),
+                chasis: formData.chasis.toUpperCase(),
+                contact_no: formData.contact_no.toUpperCase(),
+                bol: formData.bill_of_lading.toUpperCase(),
+                remarks: formData.remarks.toUpperCase(),
                 checker: checkerToSave,
             });
 
@@ -350,7 +350,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>ISO Code <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value })} />
+                                    <Input value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Class <span className="text-red-500">*</span></Label>
@@ -378,15 +378,15 @@ export default function ProcessGateInModal({
                             <div className="space-y-3">
                                 <div>
                                     <Label>Vessel <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value })} />
+                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Voyage <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value })} />
+                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value })} />
+                                    <Input value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Load <span className="text-red-500">*</span></Label>
@@ -401,19 +401,19 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Plate No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value })} />
+                                    <Input value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Hauler <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value })} />
+                                    <Input value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Hauler Driver <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value })} />
+                                    <Input value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>License No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value })} />
+                                    <Input value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value.toUpperCase() })} />
                                 </div>
                             </div>
 
@@ -421,25 +421,25 @@ export default function ProcessGateInModal({
                             <div className="space-y-3">
                                 <div>
                                     <Label>Location <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
+                                    <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Chasis <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value })} />
+                                    <Input value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Contact No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value })} />
+                                    <Input value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Bill of Lading <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value })} />
+                                    <Input value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Remarks <span className="text-red-500">*</span></Label>
                                     <Textarea
                                         value={formData.remarks}
-                                        onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                                        onChange={(e) => setFormData({ ...formData, remarks: e.target.value.toUpperCase() })}
                                         className="min-h-[80px]"
                                     />
                                 </div>
