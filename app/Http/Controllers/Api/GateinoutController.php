@@ -944,7 +944,7 @@ class GateinoutController extends Controller
     }
 
     /**
-     * Process Gate OUT - Update inventory record
+     * Process Gate OUT - preserve the IN event and create a linked OUT event.
      */
     public function processGateOut(Request $request)
     {
@@ -982,70 +982,72 @@ class GateinoutController extends Controller
                 ], 422);
             }
 
-            // Check if container exists in inventory
-            $containerCheck = DB::select(
-                "SELECT i_id FROM {$this->prefix}inventory WHERE container_no = ? AND complete = 0",
-                [$validated['container_no']]
+            // The IN row is the source event. Gate OUT must not overwrite it;
+            // inventory history uses a separate OUT row linked through out_id.
+            $inRecord = DB::selectOne(
+                "SELECT * FROM {$this->prefix}inventory
+                 WHERE container_no = ? AND client_id = ? AND gate_status = 'IN' AND complete = 0
+                 ORDER BY i_id DESC LIMIT 1",
+                [$validated['container_no'], $validated['client_id']]
             );
-            
-            if (empty($containerCheck)) {
+
+            if (!$inRecord) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Container not found in yard or already gated out'
                 ], 422);
             }
 
-            $inventoryId = $containerCheck[0]->i_id;
+            $inventoryId = $inRecord->i_id;
 
             DB::beginTransaction();
 
             try {
-                // Update inventory record - mark as complete and update all Gate OUT fields
+                // Create a separate OUT event using the IN event's immutable
+                // container metadata and the values captured at Gate OUT.
+                $outInventoryId = DB::table('inventory')->insertGetId([
+                    'container_no' => $validated['container_no'],
+                    'client_id' => $validated['client_id'],
+                    'date_manufactured' => $inRecord->date_manufactured,
+                    'container_status' => $validated['container_status'],
+                    'size_type' => $validated['size_type'],
+                    'iso_code' => $validated['iso_code'],
+                    'class' => $inRecord->class,
+                    'vessel' => $validated['vessel'],
+                    'voyage' => $validated['voyage'],
+                    'origin' => $validated['checker'],
+                    'ex_consignee' => $inRecord->ex_consignee,
+                    'load_type' => $validated['load_type'],
+                    'plate_no' => $validated['plate_no'],
+                    'hauler' => $validated['hauler'],
+                    'hauler_driver' => $validated['hauler_driver'],
+                    'license_no' => $validated['license_no'],
+                    'location' => $validated['location'],
+                    'chasis' => $validated['chasis'],
+                    'contact_no' => $validated['contact_no'],
+                    'bill_of_lading' => $inRecord->bill_of_lading,
+                    'remarks' => $validated['remarks'],
+                    'booking' => $validated['booking_no'],
+                    'shipper' => $validated['shipper'],
+                    'seal_no' => $validated['seal_no'],
+                    'date_added' => now(),
+                    'complete' => 1,
+                    'gate_status' => 'OUT',
+                    'user_id' => Auth::check() ? Auth::user()->user_id : 0,
+                ]);
+
+                // Close the IN event and link it to its corresponding OUT event.
                 DB::update(
-                    "UPDATE {$this->prefix}inventory 
-                     SET complete = 1, 
-                         container_status = ?,
-                         vessel = ?,
-                         voyage = ?,
-                         plate_no = ?,
-                         hauler = ?,
-                         hauler_driver = ?,
-                         license_no = ?,
-                         origin = ?,
-                         location = ?,
-                         load_type = ?,
-                         chasis = ?,
-                         contact_no = ?,
-                         shipper = ?,
-                         booking = ?,
-                         seal_no = ?,
-                         remarks = ?
-                     WHERE container_no = ? AND complete = 0",
-                    [
-                        $validated['container_status'],
-                        $validated['vessel'],
-                        $validated['voyage'],
-                        $validated['plate_no'],
-                        $validated['hauler'],
-                        $validated['hauler_driver'],
-                        $validated['license_no'],
-                        $validated['checker'],
-                        $validated['location'],
-                        $validated['load_type'],
-                        $validated['chasis'],
-                        $validated['contact_no'],
-                        $validated['shipper'],
-                        $validated['booking_no'],
-                        $validated['seal_no'],
-                        $validated['remarks'],
-                        $validated['container_no']
-                    ]
+                    "UPDATE {$this->prefix}inventory
+                     SET complete = 1, out_id = ?
+                     WHERE i_id = ? AND gate_status = 'IN' AND complete = 0",
+                    [$outInventoryId, $inventoryId]
                 );
 
-                // Update pre_inventory status to finished with inventory ID
+                // Finish the pre-OUT record and link it to the OUT inventory event.
                 DB::update(
-                    "UPDATE {$this->prefix}pre_inventory SET status = 1, date_completed = ? WHERE p_id = ?",
-                    [now(), $validated['p_id']]
+                    "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
+                    [$outInventoryId, now(), $validated['p_id']]
                 );
 
                 // BOOKING SLOT DEDUCTION - Decrement booking slots based on container size
@@ -1126,7 +1128,7 @@ class GateinoutController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Container successfully gated OUT',
-                    'inventory_id' => $inventoryId
+                    'inventory_id' => $outInventoryId
                 ]);
 
             } catch (\Exception $e) {
