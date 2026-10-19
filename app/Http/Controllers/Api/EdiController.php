@@ -140,8 +140,10 @@ class EdiController extends Controller
         if ($validated['is_enabled']) {
             $required = $validated['direction_mode'] ?? $profile->direction_mode ?? 'BOTH';
             $directions = $profile->directions()->pluck('direction')->all();
-            $complete = $required === 'IN' ? in_array('IN', $directions, true)
-                : ($required === 'OUT' ? in_array('OUT', $directions, true) : in_array('IN', $directions, true) && in_array('OUT', $directions, true));
+            $complete = (int) ($validated['client_id'] ?? $profile->client_id) === 67
+                ? true
+                : ($required === 'IN' ? in_array('IN', $directions, true)
+                    : ($required === 'OUT' ? in_array('OUT', $directions, true) : in_array('IN', $directions, true) && in_array('OUT', $directions, true)));
             abort_unless($complete, 422, 'Upload the required CODECO sample for every enabled direction before enabling this profile.');
         }
 
@@ -204,7 +206,14 @@ class EdiController extends Controller
             'end_time' => ['nullable', 'date_format:H:i'],
             'sent_mode' => ['nullable', Rule::in(['unsent', 'sent', 'both'])],
         ]);
-        $directions = $data['direction'] === 'BOTH' ? ['IN', 'OUT'] : [$data['direction']];
+        if ((int) $profile->client_id === 67) {
+            $configuredMode = $profile->direction_mode ?: 'IN';
+            $directions = $configuredMode === 'BOTH'
+                ? ($data['direction'] === 'BOTH' ? ['IN', 'OUT'] : [$data['direction']])
+                : [$configuredMode];
+        } else {
+            $directions = $data['direction'] === 'BOTH' ? ['IN', 'OUT'] : [$data['direction']];
+        }
         $results = [];
         foreach ($directions as $direction) {
             $result = $dispatch->generatePreview($profile, $direction, $data['file_type'], optional($request->user())->user_id, $data);
