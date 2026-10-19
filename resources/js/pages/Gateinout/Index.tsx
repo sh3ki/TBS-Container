@@ -1193,7 +1193,7 @@ export default function Index() {
                 <Input
                   value={preOutForm.plate_no}
                   onChange={(e) =>
-                    setPreOutForm({ ...preOutForm, plate_no: e.target.value })
+                    setPreOutForm({ ...preOutForm, plate_no: e.target.value.toUpperCase() })
                   }
                   placeholder="ABC-1234"
                 />
@@ -1206,7 +1206,7 @@ export default function Index() {
                 <Input
                   value={preOutForm.hauler}
                   onChange={(e) =>
-                    setPreOutForm({ ...preOutForm, hauler: e.target.value })
+                    setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
                   }
                   placeholder="Hauler/Trucking company name"
                 />
@@ -1312,7 +1312,7 @@ export default function Index() {
                 <Input
                   value={editPreOutForm.plate_no}
                   onChange={(e) =>
-                    setEditPreOutForm({ ...editPreOutForm, plate_no: e.target.value })
+                    setEditPreOutForm({ ...editPreOutForm, plate_no: e.target.value.toUpperCase() })
                   }
                 />
               </div>
@@ -1321,7 +1321,7 @@ export default function Index() {
                 <Input
                   value={editPreOutForm.hauler}
                   onChange={(e) =>
-                    setEditPreOutForm({ ...editPreOutForm, hauler: e.target.value })
+                    setEditPreOutForm({ ...editPreOutForm, hauler: e.target.value.toUpperCase() })
                   }
                 />
               </div>
