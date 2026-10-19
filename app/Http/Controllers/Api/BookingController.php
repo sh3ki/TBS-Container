@@ -245,10 +245,10 @@ class BookingController extends Controller
      */
     public function update(Request $request, $hashedId)
     {
-        // Find booking by hashed ID
-        $booking = Booking::all()->first(function($b) use ($hashedId) {
-            return $b->hashed_id === $hashedId;
-        });
+        // Find the booking without hydrating the entire bookings table.
+        // Production contains tens of thousands of rows, so Booking::all()
+        // can exhaust PHP-FPM's memory limit before the update runs.
+        $booking = Booking::whereRaw('MD5(b_id) = ?', [$hashedId])->first();
 
         if (!$booking) {
             return response()->json([
@@ -290,10 +290,8 @@ class BookingController extends Controller
             }
         }
 
-        // Find client by hashed ID
-        $client = Client::all()->first(function($c) use ($request) {
-            return $c->hashed_id === $request->clientid;
-        });
+        // Resolve the client directly in SQL instead of loading every client.
+        $client = Client::whereRaw('MD5(c_id) = ?', [$request->clientid])->first();
 
         if (!$client) {
             return response()->json([
