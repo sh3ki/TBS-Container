@@ -293,6 +293,7 @@ export default function Index() {
   };
 
   const handleShipperInput = async (value: string) => {
+    value = value.toUpperCase();
     setFormData({ ...formData, shipper: value });
     
     if (value.length > 1) {
@@ -401,8 +402,8 @@ export default function Index() {
     
     try {
       const response = await axios.put(`/api/bookings/${editFormData.id}`, {
-        bnum: editFormData.bnum,
-        ship: editFormData.ship,
+        bnum: editFormData.bnum.toUpperCase(),
+        ship: editFormData.ship.toUpperCase(),
         exp: editFormData.exp,
         two: editFormData.two,
         four: editFormData.four,
@@ -775,7 +776,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
-                  <Input value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value })} className={errors.bnum ? 'border-red-500' : ''} />
+                  <Input value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value.toUpperCase() })} className={errors.bnum ? 'border-red-500' : ''} />
                   {errors.bnum && <p className="text-red-500 text-xs mt-1">{errors.bnum[0]}</p>}
                 </div>
                 <div>
@@ -814,7 +815,7 @@ export default function Index() {
                         <div 
                           key={idx} 
                           onClick={() => { 
-                            setFormData({ ...formData, shipper }); 
+                            setFormData({ ...formData, shipper: shipper.toUpperCase() });
                             setShowShipperSuggestions(false); 
                           }} 
                           className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-900 text-sm"
@@ -847,7 +848,7 @@ export default function Index() {
                   <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
                   <Textarea
                     value={formData.cnums}
-                    onChange={(e) => setFormData({ ...formData, cnums: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, cnums: e.target.value.toUpperCase() })}
                     rows={4}
                     placeholder="Enter container numbers (comma-separated, 11 chars each)"
                     className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`}
@@ -907,7 +908,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
-                  <Input value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value })} />
+                  <Input value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value.toUpperCase() })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">Client <span className="text-red-500">*</span></Label>
@@ -931,7 +932,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Shipper <span className="text-red-500">*</span></Label>
-                  <Input value={editFormData.ship} onChange={(e) => setEditFormData({ ...editFormData, ship: e.target.value })} />
+                  <Input value={editFormData.ship} onChange={(e) => setEditFormData({ ...editFormData, ship: e.target.value.toUpperCase() })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">Expiration Date <span className="text-red-500">*</span></Label>
