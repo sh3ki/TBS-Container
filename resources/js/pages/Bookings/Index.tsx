@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar } from 'lucide-react';
 import { colors } from '@/lib/colors';
+import CachedFieldHistory from '@/components/CachedFieldHistory';
 
 interface Client {
   id: string;
@@ -623,6 +624,7 @@ export default function Index() {
   return (
     <AuthenticatedLayout>
       <Head title="Booking Management" />
+      <CachedFieldHistory />
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       
       <div className="space-y-6">
@@ -776,7 +778,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
-                  <Input value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value.toUpperCase() })} className={errors.bnum ? 'border-red-500' : ''} />
+                  <Input data-history-key="booking.booking_no" value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value.toUpperCase() })} className={errors.bnum ? 'border-red-500' : ''} />
                   {errors.bnum && <p className="text-red-500 text-xs mt-1">{errors.bnum[0]}</p>}
                 </div>
                 <div>
@@ -800,6 +802,7 @@ export default function Index() {
                 <div className="relative">
                   <Label className="text-gray-900">Shipper <span className="text-red-500">*</span></Label>
                   <Input
+                    data-history-key="booking.shipper"
                     value={formData.shipper}
                     onChange={(e) => handleShipperInput(e.target.value)}
                     placeholder="Enter shipper name"
@@ -847,6 +850,7 @@ export default function Index() {
                 <div>
                   <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
                   <Textarea
+                      data-history-key="booking.container_numbers"
                     value={formData.cnums}
                       onChange={(e) => setFormData({ ...formData, cnums: e.target.value.toUpperCase() })}
                     rows={4}
@@ -908,7 +912,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
-                  <Input value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value.toUpperCase() })} />
+                  <Input data-history-key="booking.booking_no" value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value.toUpperCase() })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">Client <span className="text-red-500">*</span></Label>
@@ -932,7 +936,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Shipper <span className="text-red-500">*</span></Label>
-                  <Input value={editFormData.ship} onChange={(e) => setEditFormData({ ...editFormData, ship: e.target.value.toUpperCase() })} />
+                  <Input data-history-key="booking.shipper" value={editFormData.ship} onChange={(e) => setEditFormData({ ...editFormData, ship: e.target.value.toUpperCase() })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">Expiration Date <span className="text-red-500">*</span></Label>
