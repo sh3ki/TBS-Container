@@ -81,7 +81,6 @@ class EdiController extends Controller
             'fields.*.is_enabled' => ['required', 'boolean'],
         ]);
         $validated['schedule_minutes'] = max(1, (int) round(((int) $validated['interval_seconds']) / 60));
-        if ((int) ($validated['client_id'] ?? 0) === 67) $validated['direction_mode'] = 'IN';
         $validated['manual_enabled'] = true;
         $validated['automatic_enabled'] = true;
         if ($validated['is_enabled']) {
@@ -136,17 +135,13 @@ class EdiController extends Controller
             'fields.*.is_enabled' => ['required', 'boolean'],
         ]);
         $validated['schedule_minutes'] = max(1, (int) round(((int) $validated['interval_seconds']) / 60));
-        if ((int) ($validated['client_id'] ?? $profile->client_id) === 67) $validated['direction_mode'] = 'IN';
         $validated['manual_enabled'] = true;
         $validated['automatic_enabled'] = true;
         if ($validated['is_enabled']) {
             $required = $validated['direction_mode'] ?? $profile->direction_mode ?? 'BOTH';
             $directions = $profile->directions()->pluck('direction')->all();
-            $complete = (int) ($validated['client_id'] ?? $profile->client_id) === 67;
-            if (! $complete) {
-                $complete = $required === 'IN' ? in_array('IN', $directions, true)
-                    : ($required === 'OUT' ? in_array('OUT', $directions, true) : in_array('IN', $directions, true) && in_array('OUT', $directions, true));
-            }
+            $complete = $required === 'IN' ? in_array('IN', $directions, true)
+                : ($required === 'OUT' ? in_array('OUT', $directions, true) : in_array('IN', $directions, true) && in_array('OUT', $directions, true));
             abort_unless($complete, 422, 'Upload the required CODECO sample for every enabled direction before enabling this profile.');
         }
 
@@ -209,7 +204,7 @@ class EdiController extends Controller
             'end_time' => ['nullable', 'date_format:H:i'],
             'sent_mode' => ['nullable', Rule::in(['unsent', 'sent', 'both'])],
         ]);
-        $directions = (int) $profile->client_id === 67 ? ['IN'] : ($data['direction'] === 'BOTH' ? ['IN', 'OUT'] : [$data['direction']]);
+        $directions = $data['direction'] === 'BOTH' ? ['IN', 'OUT'] : [$data['direction']];
         $results = [];
         foreach ($directions as $direction) {
             $result = $dispatch->generatePreview($profile, $direction, $data['file_type'], optional($request->user())->user_id, $data);
