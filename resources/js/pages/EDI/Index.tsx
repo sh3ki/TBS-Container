@@ -778,7 +778,7 @@ export default function Index() {
                     {generateProfile ? (
                         <div className="space-y-4 py-3">
                             <div className="text-sm font-medium text-gray-800">{generateProfile.profile_name}</div>
-                            {generateProfile.client_id !== 67 ? <label className="block text-sm font-medium text-gray-700">
+                            <label className="block text-sm font-medium text-gray-700">
                                 Direction
                                 <Select value={generateDirection} onValueChange={(value) => setGenerateDirection(value as 'IN' | 'OUT' | 'BOTH')}>
                                     <SelectTrigger className="mt-1 w-full text-gray-900"><SelectValue /></SelectTrigger>
@@ -788,7 +788,7 @@ export default function Index() {
                                         <SelectItem value="BOTH">Both IN and OUT</SelectItem>
                                     </SelectContent>
                                 </Select>
-                            </label> : null}
+                            </label>
                             <label className="block text-sm font-medium text-gray-700">
                                 File type
                                 <Select value={generateFileType} onValueChange={(value) => setGenerateFileType(value as 'EDI' | 'TXT')}>
