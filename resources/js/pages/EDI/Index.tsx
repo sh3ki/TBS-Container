@@ -1215,7 +1215,7 @@ export default function Index() {
                                     <div className="mt-1 font-mono text-xs leading-5">UNB → UNH → BGM → NAD → EQD → DTM → LOC → TDT → IMD → FTX → CNT → UNT → UNZ</div>
                                     <div className="mt-1 text-xs">The formatter reads values directly from the inventory table. Sample upload and field mapping do not control this profile.</div>
                                 </div> : null}
-                                <Select disabled={selected.client_id === 67} value={selected.client_id === 67 ? 'IN' : (selected.direction_mode || 'BOTH')} onValueChange={(value) => update({ direction_mode: value as EdiProfile['direction_mode'] })}>
+                                <Select value={selected.direction_mode || 'BOTH'} onValueChange={(value) => update({ direction_mode: value as EdiProfile['direction_mode'] })}>
                                     <SelectTrigger className="mb-2 w-full text-gray-900"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="IN">IN only</SelectItem>
@@ -1230,7 +1230,7 @@ export default function Index() {
                                                 <input
                                                 type="file"
                                                 accept=".edi,.txt,text/plain"
-                                                disabled={selected.client_id === 67 || sampleAnalyzing[direction]}
+                                                disabled={sampleAnalyzing[direction]}
                                                 onChange={(e) => {
                                                     const file = e.target.files?.[0] || null;
                                                     setSampleFiles((current) => ({ ...current, [direction]: file }));
