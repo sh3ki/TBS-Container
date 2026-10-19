@@ -6,8 +6,6 @@ type HistoryEntry = {
 };
 
 const STORAGE_KEY = 'fjpwl.field-history.v1';
-const DEBOUNCE_MS = 350;
-
 const readHistory = (): HistoryEntry[] => {
     try {
         const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -17,13 +15,22 @@ const readHistory = (): HistoryEntry[] => {
     }
 };
 
-const saveHistoryValue = (key: string, value: string) => {
-    const normalized = value.trim();
-    if (!normalized) return;
+export const saveFieldHistory = (entries: Record<string, string | undefined | null>) => {
+    const values = Object.entries(entries).filter(([, value]) => typeof value === 'string' && value.trim());
+    if (values.length === 0) return;
 
-    const history = readHistory().filter((entry) => !(entry.key === key && entry.value === normalized));
-    history.unshift({ key, value: normalized });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 300)));
+    let history = readHistory();
+    values.forEach(([key, value]) => {
+        const normalized = (value as string).trim();
+        history = history.filter((entry) => !(entry.key === key && entry.value === normalized));
+        history.unshift({ key, value: normalized });
+    });
+
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 300)));
+    } catch {
+        // Ignore storage failures; autocomplete remains available for existing history.
+    }
 };
 
 const getSuggestions = (key: string, query: string) => {
@@ -43,18 +50,11 @@ export default function CachedFieldHistory() {
     const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
     useEffect(() => {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-
-        const update = (element: HTMLElement, saveValue: boolean) => {
+        const update = (element: HTMLElement) => {
             const key = element.dataset.historyKey;
             if (!key) return;
 
             const value = (element as HTMLInputElement | HTMLTextAreaElement).value;
-            if (saveValue) {
-                window.clearTimeout(timer);
-                timer = window.setTimeout(() => saveHistoryValue(key, value), DEBOUNCE_MS);
-            }
-
             const rect = element.getBoundingClientRect();
             setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
             setSuggestions(getSuggestions(key, value));
@@ -63,12 +63,12 @@ export default function CachedFieldHistory() {
 
         const handleFocus = (event: FocusEvent) => {
             const element = event.target as HTMLElement;
-            if (element.dataset.historyKey) update(element, false);
+            if (element.dataset.historyKey) update(element);
         };
 
         const handleInput = (event: Event) => {
             const element = event.target as HTMLElement;
-            if (element.dataset.historyKey) update(element, true);
+            if (element.dataset.historyKey) update(element);
         };
 
         const handleOutsideClick = (event: MouseEvent) => {
@@ -82,14 +82,16 @@ export default function CachedFieldHistory() {
         document.addEventListener('focusin', handleFocus);
         document.addEventListener('input', handleInput);
         document.addEventListener('mousedown', handleOutsideClick);
-        window.addEventListener('resize', () => activeField && update(activeField, false));
-        window.addEventListener('scroll', () => activeField && update(activeField, false), true);
+        const handleViewportChange = () => activeField && update(activeField);
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('scroll', handleViewportChange, true);
 
         return () => {
-            if (timer) window.clearTimeout(timer);
             document.removeEventListener('focusin', handleFocus);
             document.removeEventListener('input', handleInput);
             document.removeEventListener('mousedown', handleOutsideClick);
+            window.removeEventListener('resize', handleViewportChange);
+            window.removeEventListener('scroll', handleViewportChange, true);
         };
     }, [activeField]);
 
@@ -101,7 +103,6 @@ export default function CachedFieldHistory() {
         setter?.call(element, value);
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
-        saveHistoryValue(element.dataset.historyKey || '', value);
         setActiveField(null);
         setSuggestions([]);
     };
