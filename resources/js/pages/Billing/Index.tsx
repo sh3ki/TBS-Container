@@ -314,65 +314,9 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                     </ModernCard>
                 </div>
 
-                {/* Totals Row - Above Table */}
+                {/* Billing Data Table */}
                 {billingData.length > 0 && (
                     <>
-                        <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                                <div>
-                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>
-                                        Total Units
-                                    </div>
-                                    <div className="text-2xl font-bold flex items-center gap-2" style={{ color: colors.text.primary }}>
-                                        <Users className="w-5 h-5" />
-                                        {billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>
-                                        Total Days
-                                    </div>
-                                    <div className="text-2xl font-bold flex items-center gap-2" style={{ color: colors.text.primary }}>
-                                        <Clock className="w-5 h-5" />
-                                        {billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.storage_days, 0)}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>
-                                        Storage Cost
-                                    </div>
-                                    <div className="text-2xl font-bold" style={{ color: '#10B981' }}>
-                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.storage_charges, 0))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>
-                                        Handling (OFF)
-                                    </div>
-                                    <div className="text-2xl font-bold" style={{ color: '#F59E0B' }}>
-                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.handling_off, 0))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>
-                                        Handling (ON)
-                                    </div>
-                                    <div className="text-2xl font-bold" style={{ color: '#F59E0B' }}>
-                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.handling_on, 0))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>
-                                        Overall Total
-                                    </div>
-                                    <div className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
-                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.total, 0))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Billing Data Table */}
                         <ModernTable
                             columns={[
                                 {
@@ -498,6 +442,50 @@ const Index: React.FC<BillingIndexProps> = ({ clients: initialClients = [] }) =>
                             loading={loading}
                             emptyMessage="No billing records found. Generate a report to view data."
                         />
+
+                        {/* Totals Row - Below Table */}
+                        <div className="p-6 rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                                <div>
+                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>Total Units</div>
+                                    <div className="text-2xl font-bold flex items-center gap-2" style={{ color: colors.text.primary }}>
+                                        <Users className="w-5 h-5" />
+                                        {billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).length}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>Total Days</div>
+                                    <div className="text-2xl font-bold flex items-center gap-2" style={{ color: colors.text.primary }}>
+                                        <Clock className="w-5 h-5" />
+                                        {billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.storage_days, 0)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>Storage Cost</div>
+                                    <div className="text-2xl font-bold" style={{ color: '#10B981' }}>
+                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.storage_charges, 0))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>Handling (OFF)</div>
+                                    <div className="text-2xl font-bold" style={{ color: '#F59E0B' }}>
+                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.handling_off, 0))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>Handling (ON)</div>
+                                    <div className="text-2xl font-bold" style={{ color: '#F59E0B' }}>
+                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.handling_on, 0))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-xs uppercase font-semibold mb-1" style={{ color: colors.text.secondary }}>Overall Total</div>
+                                    <div className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                                        {formatCurrency(billingData.filter(item => sizeType === 'all' || item.container_size === sizeType).reduce((sum, item) => sum + item.total, 0))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </>
                 )}
 
