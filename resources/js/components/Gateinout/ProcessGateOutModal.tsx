@@ -539,7 +539,8 @@ export default function ProcessGateOutModal({
     };
 
     const handleInputChange = (field: string, value: string | number) => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
+        const uppercaseFields = ['vessel', 'voyage', 'hauler', 'hauler_driver', 'license_no', 'location', 'chasis', 'contact_no', 'seal_no', 'remarks'];
+        setFormData((prev) => ({ ...prev, [field]: typeof value === 'string' && uppercaseFields.includes(field) ? value.toUpperCase() : value }));
     };
 
     // Fetch bookings list for autocomplete
@@ -674,21 +675,21 @@ export default function ProcessGateOutModal({
                 container_status: parseInt(formData.status),
                 size_type: formData.size_type,
                 iso_code: formData.iso_code,
-                vessel: formData.vessel,
-                voyage: formData.voyage,
-                plate_no: formData.plate_no,
-                hauler: formData.hauler,
-                hauler_driver: formData.hauler_driver,
-                license_no: formData.license_no,
+                vessel: formData.vessel.toUpperCase(),
+                voyage: formData.voyage.toUpperCase(),
+                plate_no: formData.plate_no.toUpperCase(),
+                hauler: formData.hauler.toUpperCase(),
+                hauler_driver: formData.hauler_driver.toUpperCase(),
+                license_no: formData.license_no.toUpperCase(),
                 checker: checkerToSave,
-                location: formData.location,
+                location: formData.location.toUpperCase(),
                 load_type: parseInt(formData.load),
-                chasis: formData.chasis,
-                contact_no: formData.contact_no,
+                chasis: formData.chasis.toUpperCase(),
+                contact_no: formData.contact_no.toUpperCase(),
                 shipper: formData.shipper,
                 booking_no: formData.booking,
-                seal_no: formData.seal_no,
-                remarks: formData.remarks,
+                seal_no: formData.seal_no.toUpperCase(),
+                remarks: formData.remarks.toUpperCase(),
                 save_and_book: formData.save_and_book,
             });
 
