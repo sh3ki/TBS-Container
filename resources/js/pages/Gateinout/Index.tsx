@@ -12,6 +12,7 @@ import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
+import { saveFieldHistory } from '@/components/CachedFieldHistory';
 
 interface PreInventoryRecord extends Record<string, unknown> {
   hashed_id: string;
@@ -367,6 +368,7 @@ export default function Index() {
       if (response.data.message) {
         const [type, msg] = response.data.message;
         if (type === 'success') {
+          saveFieldHistory({ 'gateinout.plate_no': preOutForm.plate_no, 'gateinout.hauler': preOutForm.hauler });
           success('Pre-Out added successfully');
           setShowAddPreOutModal(false);
           setPreOutForm({ plate_no: '', hauler: '' });
@@ -473,6 +475,7 @@ export default function Index() {
       if (response.data.message) {
         const [type, msg] = response.data.message;
         if (type === 'success') {
+          saveFieldHistory({ 'gateinout.plate_no': editPreOutForm.plate_no, 'gateinout.hauler': editPreOutForm.hauler });
           setShowEditPreOutModal(false);
           setConfirmUpdatePreOut(false);
           await fetchData();
