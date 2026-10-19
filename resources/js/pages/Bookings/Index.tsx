@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
+import { saveFieldHistory } from '@/components/CachedFieldHistory';
 
 interface Client {
   id: string;
@@ -332,6 +333,11 @@ export default function Index() {
       
       const response = await axios.post('/api/bookings', payload);
       if (response.data.success) {
+        saveFieldHistory({
+          'booking.booking_no': formData.bnum,
+          'booking.shipper': formData.shipper,
+          'booking.container_numbers': bookingType === 'with' ? formData.cnums : undefined,
+        });
         success('Booking created successfully');
         setShowAddModal(false);
         setConfirmAddBooking(false);
@@ -413,6 +419,7 @@ export default function Index() {
         isc: bookingType === 'with' ? '1' : '0',
       });
       if (response.data.success) {
+        saveFieldHistory({ 'booking.booking_no': editFormData.bnum, 'booking.shipper': editFormData.ship });
         success('Booking updated successfully');
         setShowEditModal(false);
         fetchBookings();
