@@ -99,7 +99,7 @@ class Booking extends Model
      */
     public function isExpired()
     {
-        return $this->expiration_date < now();
+        return $this->expiration_date->toDateString() < now(config('app.timezone', 'Asia/Manila'))->toDateString();
     }
 
     /**
@@ -142,7 +142,7 @@ class Booking extends Model
      */
     public function getIsActiveAttribute()
     {
-        return $this->expiration_date >= now()->toDateString() && $this->hasAvailableContainers();
+        return $this->expiration_date->toDateString() >= now(config('app.timezone', 'Asia/Manila'))->toDateString();
     }
 
     /**
@@ -159,11 +159,17 @@ class Booking extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('expiration_date', '>', now()->toDateString())
+        $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
+
+        return $query->whereDate('expiration_date', '>=', $today)
                      ->where(function($q) {
                          $q->where('twenty_rem', '>', 0)
                            ->orWhere('fourty_rem', '>', 0)
-                           ->orWhere('fourty_five_rem', '>', 0);
+                           ->orWhere('fourty_five_rem', '>', 0)
+                           ->orWhere(function($listQuery) {
+                               $listQuery->whereNotNull('cont_list_rem')
+                                   ->where('cont_list_rem', '<>', '');
+                           });
                      })
                      ->whereHas('client', function($q) {
                          $q->where('archived', 0);
@@ -171,18 +177,13 @@ class Booking extends Model
     }
 
     /**
-     * Scope for expired bookings.
+     * Scope for bookings whose expiration date has passed.
      */
     public function scopeExpired($query)
     {
-        return $query->where(function($q) {
-            $q->where('expiration_date', '<', now()->toDateString())
-              ->orWhere(function($q2) {
-                  $q2->where('twenty_rem', '=', 0)
-                     ->where('fourty_rem', '=', 0)
-                     ->where('fourty_five_rem', '=', 0);
-              });
-        });
+        $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
+
+        return $query->whereDate('expiration_date', '<', $today);
     }
 
     /**
