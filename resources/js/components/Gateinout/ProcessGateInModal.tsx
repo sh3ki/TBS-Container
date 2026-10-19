@@ -350,7 +350,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>ISO Code <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.iso_code" value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Class <span className="text-red-500">*</span></Label>
@@ -378,15 +378,15 @@ export default function ProcessGateInModal({
                             <div className="space-y-3">
                                 <div>
                                     <Label>Vessel <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.vessel" value={formData.vessel} onChange={(e) => setFormData({ ...formData, vessel: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Voyage <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.voyage" value={formData.voyage} onChange={(e) => setFormData({ ...formData, voyage: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Ex-Consignee <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.ex_consignee" value={formData.ex_consignee} onChange={(e) => setFormData({ ...formData, ex_consignee: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Load <span className="text-red-500">*</span></Label>
@@ -401,19 +401,19 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Plate No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.plate_no" value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Hauler <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.hauler" value={formData.hauler} onChange={(e) => setFormData({ ...formData, hauler: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Hauler Driver <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.hauler_driver" value={formData.hauler_driver} onChange={(e) => setFormData({ ...formData, hauler_driver: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>License No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.license_no" value={formData.license_no} onChange={(e) => setFormData({ ...formData, license_no: e.target.value.toUpperCase() })} />
                                 </div>
                             </div>
 
@@ -421,23 +421,24 @@ export default function ProcessGateInModal({
                             <div className="space-y-3">
                                 <div>
                                     <Label>Location <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.location" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Chasis <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.chasis" value={formData.chasis} onChange={(e) => setFormData({ ...formData, chasis: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Contact No. <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.contact_no" value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Bill of Lading <span className="text-red-500">*</span></Label>
-                                    <Input value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.bill_of_lading" value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Remarks <span className="text-red-500">*</span></Label>
                                     <Textarea
+                                        data-history-key="gateinout.remarks"
                                         value={formData.remarks}
                                         onChange={(e) => setFormData({ ...formData, remarks: e.target.value.toUpperCase() })}
                                         className="min-h-[80px]"
