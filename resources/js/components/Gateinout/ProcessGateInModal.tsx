@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { saveFieldHistory } from '@/components/CachedFieldHistory';
 import { ModernButton, ModernConfirmDialog } from '@/components/modern';
 import { Printer, Calendar } from 'lucide-react';
 import axios from 'axios';
@@ -253,6 +254,21 @@ export default function ProcessGateInModal({
 
             if (response.data.success) {
                 // 🖨️ AUTO-PRINT: Open print window (EXACT LEGACY BEHAVIOR)
+                saveFieldHistory({
+                    'gateinout.iso_code': formData.iso_code,
+                    'gateinout.vessel': formData.vessel,
+                    'gateinout.voyage': formData.voyage,
+                    'gateinout.ex_consignee': formData.ex_consignee,
+                    'gateinout.plate_no': formData.plate_no,
+                    'gateinout.hauler': formData.hauler,
+                    'gateinout.hauler_driver': formData.hauler_driver,
+                    'gateinout.license_no': formData.license_no,
+                    'gateinout.location': formData.location,
+                    'gateinout.chasis': formData.chasis,
+                    'gateinout.contact_no': formData.contact_no,
+                    'gateinout.bill_of_lading': formData.bill_of_lading,
+                    'gateinout.remarks': formData.remarks,
+                });
                 const inventoryId = response.data.inventory_id;
                 const printUrl = `/api/gateinout/print-gate-pass/${inventoryId}?status=IN`;
                 window.open(printUrl, '_blank', 'width=1280,height=800');
