@@ -11,6 +11,7 @@ import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filte
 import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
+import CachedFieldHistory from '@/components/CachedFieldHistory';
 
 interface PreInventoryRecord extends Record<string, unknown> {
   hashed_id: string;
@@ -598,6 +599,7 @@ export default function Index() {
   return (
     <AuthenticatedLayout>
       <Head title="Gate In & Out" />
+      <CachedFieldHistory />
       <button
         aria-label="Back to top"
         title="Back to top"
@@ -1191,6 +1193,7 @@ export default function Index() {
                   Plate No. <span className="text-red-500">*</span>
                 </Label>
                 <Input
+                  data-history-key="gateinout.plate_no"
                   value={preOutForm.plate_no}
                   onChange={(e) =>
                     setPreOutForm({ ...preOutForm, plate_no: e.target.value.toUpperCase() })
@@ -1204,6 +1207,7 @@ export default function Index() {
                   Hauler <span className="text-red-500">*</span>
                 </Label>
                 <Input
+                  data-history-key="gateinout.hauler"
                   value={preOutForm.hauler}
                   onChange={(e) =>
                     setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
@@ -1310,6 +1314,7 @@ export default function Index() {
               <div>
                 <Label className="text-gray-900">Plate No.</Label>
                 <Input
+                  data-history-key="gateinout.plate_no"
                   value={editPreOutForm.plate_no}
                   onChange={(e) =>
                     setEditPreOutForm({ ...editPreOutForm, plate_no: e.target.value.toUpperCase() })
@@ -1319,6 +1324,7 @@ export default function Index() {
               <div>
                 <Label className="text-gray-900">Hauler</Label>
                 <Input
+                  data-history-key="gateinout.hauler"
                   value={editPreOutForm.hauler}
                   onChange={(e) =>
                     setEditPreOutForm({ ...editPreOutForm, hauler: e.target.value.toUpperCase() })
