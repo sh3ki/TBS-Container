@@ -54,6 +54,7 @@ export default function ProcessGateInModal({
 }: ProcessGateInModalProps) {
     const [showConfirm, setShowConfirm] = useState(false);
     const [checkerName, setCheckerName] = useState('');
+    const [autoFillIsoCode, setAutoFillIsoCode] = useState(false);
     const initialFormData = {
         date_manufactured: '',
         status: '',
@@ -83,6 +84,7 @@ export default function ProcessGateInModal({
             // reset to initial state each time modal opens
             setFormData({ ...initialFormData });
             setCheckerName(currentUserFullName || '');
+            setAutoFillIsoCode(false);
 
             if (record) {
                 // Clean plate_no and hauler: if contains "-", set as empty
@@ -97,6 +99,7 @@ export default function ProcessGateInModal({
             // clear form when modal closes
             setFormData({ ...initialFormData });
             setCheckerName(currentUserFullName || '');
+            setAutoFillIsoCode(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [record, open]);
@@ -106,6 +109,10 @@ export default function ProcessGateInModal({
             const response = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
             if (response.data.success && response.data.data) {
                 const data = response.data.data;
+                const savedIsoCode = (data.iso_code || '').toString().trim();
+                const hasSavedSizeType = Boolean(data.sizetype_id && Number(data.sizetype_id) > 0);
+                const hasSavedIsoCode = Boolean(savedIsoCode && savedIsoCode !== '-' && savedIsoCode.toLowerCase() !== 'record not found');
+                setAutoFillIsoCode(!hasSavedSizeType && !hasSavedIsoCode);
                 setFormData(prev => ({
                     ...prev,
                     sizetype: data.sizetype_id ? data.sizetype_id.toString() : '',
@@ -122,9 +129,12 @@ export default function ProcessGateInModal({
                 } else {
                     setCheckerName(currentUserFullName || '');
                 }
+            } else {
+                setAutoFillIsoCode(true);
             }
         } catch (error) {
             console.error('Error fetching container details:', error);
+            setAutoFillIsoCode(true);
             setCheckerName(currentUserFullName || '');
         }
     };
@@ -179,6 +189,11 @@ export default function ProcessGateInModal({
         }
         if (!formData.class) {
             (showError ? showError('Please select Class') : alert('Please select Class'));
+            return;
+        }
+
+        if (!/^((0[1-9])|(1[0-2]))\/\d{4}$/.test(formData.date_manufactured)) {
+            (showError ? showError('Date Manufactured must use a valid MM/YYYY format with a month from 01 to 12') : alert('Date Manufactured must use a valid MM/YYYY format with a month from 01 to 12'));
             return;
         }
         
@@ -320,6 +335,11 @@ export default function ProcessGateInModal({
                                                 // Allow user to type mm/yyyy naturally
                                                 // Remove any invalid characters, keep only digits and slash
                                                 value = value.replace(/[^\d\/]/g, '');
+
+                                                const monthDigits = value.replace(/\D/g, '').slice(0, 2);
+                                                if (monthDigits.length === 2 && (Number(monthDigits) < 1 || Number(monthDigits) > 12)) {
+                                                    value = value.slice(0, 1);
+                                                }
                                                 
                                                 // Limit to mm/yyyy format (7 chars max)
                                                 if (value.length > 7) {
@@ -355,7 +375,30 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Size/Type <span className="text-red-500">*</span></Label>
-                                    <Select value={formData.sizetype} onValueChange={(value) => setFormData({ ...formData, sizetype: value })}>
+                                    <Select value={formData.sizetype} onValueChange={(value) => {
+                                        const selected = sizeTypeOptions.find((option) => option.s_id.toString() === value);
+                                        const sizeTypeKey = selected ? `${selected.size}${selected.type}`.replace(/[\s-]/g, '').toUpperCase() : '';
+                                        const officialIsoBySizeType: Record<string, string> = {
+                                            '20DC': '22G1',
+                                            '20FR': '22P1',
+                                            '20OT': '22U1',
+                                            '20RF': '22R1',
+                                            '20RH': '25R1',
+                                            '40DC': '42G1',
+                                            '40FR': '42P1',
+                                            '40HC': '45G1',
+                                            '40OT': '42U1',
+                                            '40RH': '45R1',
+                                            '45HC': 'L5G1',
+                                        };
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            sizetype: value,
+                                            iso_code: autoFillIsoCode && !prev.iso_code.trim()
+                                                ? (officialIsoBySizeType[sizeTypeKey] || prev.iso_code)
+                                                : prev.iso_code,
+                                        }));
+                                    }}>
                                         <SelectTrigger><SelectValue placeholder="Select size/type" /></SelectTrigger>
                                         <SelectContent>
                                             {sizeTypeOptions.map((opt) => (
