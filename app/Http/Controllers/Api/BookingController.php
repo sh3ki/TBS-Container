@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class BookingController extends Controller
 {
@@ -346,6 +347,12 @@ class BookingController extends Controller
         // Get old client name
         $oldClient = Client::find($booking->client_id);
         $oldClientName = $oldClient ? $oldClient->client_name : 'Unknown';
+
+        // Keep the values used for the audit entry before mutating the model.
+        // This also avoids comparing a cast Carbon date with the request string
+        // after the update has already happened.
+        $oldClientId = $booking->client_id;
+        $oldExpirationDate = $booking->expiration_date?->toDateString() ?? (string) $booking->expiration_date;
         
         $booking->update($data);
 
@@ -371,14 +378,14 @@ class BookingController extends Controller
         if ($oldBookNo !== $newBookNo) {
             $changes[] = 'Booking No: "' . $oldBookNo . '" -> "' . $newBookNo . '"';
         }
-        if ($booking->client_id !== $client->c_id) {
+        if ($oldClientId !== $client->c_id) {
             $changes[] = 'Client: "' . $oldClientName . '" -> "' . $newClientName . '"';
         }
         if ($oldShipper !== strtoupper($request->ship)) {
             $changes[] = 'Shipper: "' . $oldShipper . '" -> "' . strtoupper($request->ship) . '"';
         }
-        if ($booking->expiration_date !== $request->exp) {
-            $changes[] = 'Expiration: "' . $booking->expiration_date . '" -> "' . $request->exp . '"';
+        if ($oldExpirationDate !== $request->exp) {
+            $changes[] = 'Expiration: "' . $oldExpirationDate . '" -> "' . $request->exp . '"';
         }
         
         // Track quantity changes if not container list based
@@ -395,13 +402,23 @@ class BookingController extends Controller
         }
         
         if (count($changes) > 0) {
-            DB::table('audit_logs')->insert([
-                'action' => 'EDIT',
-                'description' => '[BOOKING] Edited booking "' . $newBookNo . '": ' . implode(', ', $changes),
-                'user_id' => Auth::user()->user_id ?? null,
-                'date_added' => now(),
-                'ip_address' => request()->ip(),
-            ]);
+            try {
+                // Keep the same EDIT action used by the other application pages.
+                // Audit logging must not turn a successful booking update into
+                // a 500 when the hosted database has an older audit definition.
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[BOOKING] Edited booking "' . $newBookNo . '": ' . implode(', ', $changes),
+                    'user_id' => Auth::user()?->user_id,
+                    'date_added' => now(),
+                    'ip_address' => request()->ip(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Booking updated but audit log could not be written.', [
+                    'booking_id' => $booking->b_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([
