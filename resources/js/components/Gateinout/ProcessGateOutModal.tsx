@@ -792,6 +792,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Hauler</Label>
                                 <Input
+                                    data-history-key="gateinout.hauler"
                                     value={formData.hauler}
                                     onChange={(e) => handleInputChange('hauler', e.target.value)}
                                 />
@@ -829,6 +830,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Vessel *</Label>
                                 <Input
+                                    data-history-key="gateinout.vessel"
                                     value={formData.vessel}
                                     onChange={(e) => handleInputChange('vessel', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -838,6 +840,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Voyage *</Label>
                                 <Input
+                                    data-history-key="gateinout.voyage"
                                     value={formData.voyage}
                                     onChange={(e) => handleInputChange('voyage', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -847,6 +850,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Hauler Driver *</Label>
                                 <Input
+                                    data-history-key="gateinout.hauler_driver"
                                     value={formData.hauler_driver}
                                     onChange={(e) => handleInputChange('hauler_driver', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -856,6 +860,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>License Number *</Label>
                                 <Input
+                                    data-history-key="gateinout.license_no"
                                     value={formData.license_no}
                                     onChange={(e) => handleInputChange('license_no', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -865,6 +870,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Location *</Label>
                                 <Input
+                                    data-history-key="gateinout.location"
                                     value={formData.location}
                                     onChange={(e) => handleInputChange('location', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -889,6 +895,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Chasis *</Label>
                                 <Input
+                                    data-history-key="gateinout.chasis"
                                     value={formData.chasis}
                                     onChange={(e) => handleInputChange('chasis', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -916,6 +923,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Contact No. *</Label>
                                 <Input
+                                    data-history-key="gateinout.contact_no"
                                     value={formData.contact_no}
                                     onChange={(e) => handleInputChange('contact_no', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -975,6 +983,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Seal No. *</Label>
                                 <Input
+                                    data-history-key="gateinout.seal_no"
                                     value={formData.seal_no}
                                     onChange={(e) => handleInputChange('seal_no', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -1002,6 +1011,7 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Remarks *</Label>
                                 <Textarea
+                                    data-history-key="gateinout.remarks"
                                     value={formData.remarks}
                                     onChange={(e) => handleInputChange('remarks', e.target.value)}
                                     className="min-h-[80px]"
