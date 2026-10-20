@@ -1,4 +1,4 @@
-import { ModernBadge, ModernButton, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
+import { ModernBadge, ModernButton, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import {
     Dialog,
     DialogContent,
@@ -175,6 +175,7 @@ export default function Index() {
     const [saving, setSaving] = useState(false);
     const [sending, setSending] = useState<number | null>(null);
     const [toggling, setToggling] = useState<number | null>(null);
+    const [toggleProfileTarget, setToggleProfileTarget] = useState<EdiProfile | null>(null);
     const [generating, setGenerating] = useState<number | null>(null);
     const [generateOpen, setGenerateOpen] = useState(false);
     const [sendOpen, setSendOpen] = useState(false);
@@ -455,7 +456,12 @@ export default function Index() {
         setGenerateSentMode('unsent');
         setSendOpen(true);
     };
-    const toggleProfile = async (profile: EdiProfile) => {
+    const requestToggleProfile = (profile: EdiProfile) => {
+        setToggleProfileTarget(profile);
+    };
+    const toggleProfile = async () => {
+        if (!toggleProfileTarget) return;
+        const profile = toggleProfileTarget;
         setToggling(profile.profile_id);
         try {
             await axios.post(`/api/edi/profiles/${profile.profile_id}/toggle`);
@@ -465,6 +471,7 @@ export default function Index() {
             showError(error?.response?.data?.message || 'Unable to toggle EDI profile.');
         } finally {
             setToggling(null);
+            setToggleProfileTarget(null);
         }
     };
     const sendManual = async () => {
@@ -740,7 +747,7 @@ export default function Index() {
                                             disabled={toggling === row.profile_id}
                                             onClick={(event: React.MouseEvent) => {
                                                 event.stopPropagation();
-                                                void toggleProfile(row);
+                                                requestToggleProfile(row);
                                             }}
                                             title={row.is_enabled ? 'Disable profile' : 'Enable profile'}
                                         >
@@ -1388,6 +1395,19 @@ export default function Index() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <ModernConfirmDialog
+                open={toggleProfileTarget !== null}
+                onOpenChange={(open) => {
+                    if (!open && toggling === null) setToggleProfileTarget(null);
+                }}
+                title={toggleProfileTarget?.is_enabled ? 'Disable EDI profile?' : 'Enable EDI profile?'}
+                description={toggleProfileTarget
+                    ? `Are you sure you want to ${toggleProfileTarget.is_enabled ? 'disable' : 'enable'} "${toggleProfileTarget.profile_name}"?`
+                    : ''}
+                confirmText={toggleProfileTarget?.is_enabled ? 'Yes, disable' : 'Yes, enable'}
+                type={toggleProfileTarget?.is_enabled ? 'warning' : 'success'}
+                onConfirm={() => void toggleProfile()}
+            />
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
