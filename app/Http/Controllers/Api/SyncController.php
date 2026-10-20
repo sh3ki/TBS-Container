@@ -155,6 +155,7 @@ class SyncController extends Controller
 
     private function recordFingerprint(string $table, array $columns, array $primaryKeys): string
     {
+        sort($columns);
         $hash = hash_init('sha256');
         $query = DB::table($table)->select($columns);
         foreach ($primaryKeys as $key) {
