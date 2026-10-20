@@ -131,7 +131,9 @@ class SyncController extends Controller
             foreach ($columns as $column) {
                 $values[$column] = $this->fingerprintValue($row->{$column});
             }
-            hash_update($hash, json_encode($values, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
+            // Keep this canonical format compatible with the PHP 7.3 legacy
+            // client, which does not have JSON_INVALID_UTF8_SUBSTITUTE.
+            hash_update($hash, json_encode($values, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) . "\n");
         }
 
         return hash_final($hash);
