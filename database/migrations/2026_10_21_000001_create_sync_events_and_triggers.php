@@ -17,16 +17,20 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('sync_events', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('source_table', 64);
-            $table->string('operation', 12);
-            $table->json('primary_key');
-            $table->json('row_data')->nullable();
-            $table->char('row_hash', 64)->nullable();
-            $table->timestamp('occurred_at')->useCurrent();
-            $table->index(['source_table', 'id']);
-        });
+        // MySQL DDL is not transactional. If a previous deployment failed after
+        // creating this table, keep the empty table and finish the trigger setup.
+        if (!Schema::hasTable('sync_events')) {
+            Schema::create('sync_events', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->string('source_table', 64);
+                $table->string('operation', 12);
+                $table->json('primary_key');
+                $table->json('row_data')->nullable();
+                $table->char('row_hash', 64)->nullable();
+                $table->timestamp('occurred_at')->useCurrent();
+                $table->index(['source_table', 'id']);
+            });
+        }
 
         $connection = DB::connection();
         $database = $connection->getDatabaseName();
@@ -36,7 +40,7 @@ return new class extends Migration
         foreach ($this->tables as $logicalTable) {
             $physicalTable = $prefix . $logicalTable;
             $columns = array_map(
-                fn ($row) => $row->column_name,
+                fn ($row) => $this->metadataValue($row, 'column_name'),
                 $connection->select(
                     'SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position',
                     [$database, $physicalTable]
@@ -44,7 +48,7 @@ return new class extends Migration
             );
 
             $primaryKeys = array_map(
-                fn ($row) => $row->column_name,
+                fn ($row) => $this->metadataValue($row, 'column_name'),
                 $connection->select(
                     'SELECT column_name FROM information_schema.key_column_usage WHERE table_schema = ? AND table_name = ? AND constraint_name = ? ORDER BY ordinal_position',
                     [$database, $physicalTable, 'PRIMARY']
@@ -110,5 +114,11 @@ return new class extends Migration
     private function quoteIdentifier(string $identifier): string
     {
         return '`' . str_replace('`', '``', $identifier) . '`';
+    }
+
+    private function metadataValue(object $row, string $name): string
+    {
+        $values = array_change_key_case((array) $row, CASE_LOWER);
+        return (string) ($values[strtolower($name)] ?? '');
     }
 };
