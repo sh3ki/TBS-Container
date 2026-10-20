@@ -432,6 +432,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::get('/clients', [EdiController::class, 'clients']);
         Route::post('/profiles', [EdiController::class, 'store']);
         Route::put('/profiles/{profile}', [EdiController::class, 'update']);
+        Route::post('/profiles/{profile}/toggle', [EdiController::class, 'toggle']);
         Route::get('/profiles/{profile}/credentials', [EdiController::class, 'showCredentials']);
         Route::post('/samples/analyze', [EdiController::class, 'analyzeSample']);
         Route::post('/profiles/{profile}/samples', [EdiController::class, 'uploadSample']);
