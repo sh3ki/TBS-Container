@@ -98,11 +98,11 @@ class SyncController extends Controller
         foreach (self::TABLES as $table) {
             $physical = $prefix . $table;
             $columns = collect(DB::select(
-                'SELECT column_name, data_type, is_nullable, column_type, ordinal_position FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position',
+                'SELECT COLUMN_NAME AS column_name, DATA_TYPE AS data_type, IS_NULLABLE AS is_nullable, COLUMN_TYPE AS column_type, ORDINAL_POSITION AS ordinal_position FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position',
                 [$database, $physical]
             ));
             $keys = collect(DB::select(
-                'SELECT column_name FROM information_schema.key_column_usage WHERE table_schema = ? AND table_name = ? AND constraint_name = ? ORDER BY ordinal_position',
+                'SELECT COLUMN_NAME AS column_name FROM information_schema.key_column_usage WHERE table_schema = ? AND table_name = ? AND constraint_name = ? ORDER BY ordinal_position',
                 [$database, $physical, 'PRIMARY']
             ))->pluck('column_name')->values();
             $columnNames = $columns->pluck('column_name')->all();
