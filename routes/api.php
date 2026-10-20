@@ -74,6 +74,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::prefix('sync')->middleware('throttle:120,1')->group(function () {
         Route::get('/bootstrap', [SyncController::class, 'bootstrap']);
         Route::get('/changes', [SyncController::class, 'changes']);
+        Route::get('/snapshot', [SyncController::class, 'snapshot']);
         Route::post('/report', [SyncController::class, 'report']);
     });
 
