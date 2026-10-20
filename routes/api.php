@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ContainerImagesController;
 use App\Http\Controllers\Api\EdiController;
+use App\Http\Controllers\Api\SyncController;
 
 /*
 |--------------------------------------------------------------------------
@@ -70,6 +71,12 @@ Route::get('/csrf-token', function () {
 
 // Protected routes
 Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
+    Route::prefix('sync')->middleware('throttle:120,1')->group(function () {
+        Route::get('/bootstrap', [SyncController::class, 'bootstrap']);
+        Route::get('/changes', [SyncController::class, 'changes']);
+        Route::post('/report', [SyncController::class, 'report']);
+    });
+
     // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-inactive', [AuthController::class, 'logoutInactive']);
