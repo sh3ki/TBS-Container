@@ -180,6 +180,40 @@ class EdiController extends Controller
         return response()->json(['success' => true, 'data' => $this->profilePayload($profile->fresh(['fields', 'directions', 'client']))]);
     }
 
+    public function toggle(Request $request, EdiProfile $profile)
+    {
+        $this->ensureAdmin();
+
+        $enabled = ! $profile->is_enabled;
+        if ($enabled && (int) $profile->client_id !== 67) {
+            $required = $profile->direction_mode ?: 'BOTH';
+            $directions = $profile->directions()->pluck('direction')->all();
+            $complete = $required === 'IN'
+                ? in_array('IN', $directions, true)
+                : ($required === 'OUT'
+                    ? in_array('OUT', $directions, true)
+                    : in_array('IN', $directions, true) && in_array('OUT', $directions, true));
+            abort_unless($complete, 422, 'Upload the required CODECO sample for every enabled direction before enabling this profile.');
+        }
+
+        $profile->is_enabled = $enabled;
+        if ($enabled) {
+            $origin = now('Asia/Manila')->startOfMinute()->addMinute();
+            $profile->enabled_at = $origin;
+            $profile->next_run_at = $origin->copy()->addMinutes($profile->schedule_minutes ?: 5);
+        } else {
+            $profile->next_run_at = null;
+        }
+        $profile->profile_version = ((int) $profile->profile_version) + 1;
+        $profile->updated_by = $request->user()->user_id ?? null;
+        $profile->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->profilePayload($profile->fresh(['fields', 'directions', 'client'])),
+        ]);
+    }
+
     public function dispatch(Request $request, EdiProfile $profile, EdiProfileDispatchService $dispatch)
     {
         $this->ensureAdmin();
