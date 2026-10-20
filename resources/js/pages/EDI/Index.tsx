@@ -28,6 +28,7 @@ import {
     FileCode2,
     LoaderCircle,
     Plus,
+    Power,
     RefreshCw,
     Save,
     Send,
@@ -173,6 +174,7 @@ export default function Index() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [sending, setSending] = useState<number | null>(null);
+    const [toggling, setToggling] = useState<number | null>(null);
     const [generating, setGenerating] = useState<number | null>(null);
     const [generateOpen, setGenerateOpen] = useState(false);
     const [sendOpen, setSendOpen] = useState(false);
@@ -453,6 +455,18 @@ export default function Index() {
         setGenerateSentMode('unsent');
         setSendOpen(true);
     };
+    const toggleProfile = async (profile: EdiProfile) => {
+        setToggling(profile.profile_id);
+        try {
+            await axios.post(`/api/edi/profiles/${profile.profile_id}/toggle`);
+            await load();
+            success(`${profile.profile_name} ${profile.is_enabled ? 'disabled' : 'enabled'}.`);
+        } catch (error: any) {
+            showError(error?.response?.data?.message || 'Unable to toggle EDI profile.');
+        } finally {
+            setToggling(null);
+        }
+    };
     const sendManual = async () => {
         if (!sendProfile) return;
         setSending(sendProfile.profile_id);
@@ -719,6 +733,22 @@ export default function Index() {
                                             title="Edit profile"
                                         >
                                             <Edit3 className="h-3.5 w-3.5" />
+                                        </ModernButton>
+                                        <ModernButton
+                                            variant={row.is_enabled ? 'toggle' : 'add'}
+                                            size="sm"
+                                            disabled={toggling === row.profile_id}
+                                            onClick={(event: React.MouseEvent) => {
+                                                event.stopPropagation();
+                                                void toggleProfile(row);
+                                            }}
+                                            title={row.is_enabled ? 'Disable profile' : 'Enable profile'}
+                                        >
+                                            {toggling === row.profile_id ? (
+                                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                                <Power className="h-3.5 w-3.5" />
+                                            )}
                                         </ModernButton>
                                         <ModernButton
                                             variant="add"
