@@ -83,6 +83,41 @@ class SyncController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function snapshot(Request $request)
+    {
+        $this->authorizeSync($request, 'sync:read');
+
+        $table = (string) $request->query('table');
+        abort_unless(in_array($table, self::TABLES, true), 422, 'Table is not enabled for synchronization.');
+
+        $prefix = DB::connection()->getTablePrefix();
+        $physical = $prefix . $table;
+        $keys = collect(DB::select(
+            'SELECT COLUMN_NAME AS column_name FROM information_schema.key_column_usage WHERE table_schema = ? AND table_name = ? AND constraint_name = ? ORDER BY ORDINAL_POSITION',
+            [DB::connection()->getDatabaseName(), $physical, 'PRIMARY']
+        ))->pluck('column_name')->values()->all();
+        abort_unless(count($keys) === 1, 422, 'Snapshot requires a single-column primary key.');
+
+        $limit = min(1000, max(1, (int) $request->query('limit', 500)));
+        $query = DB::table($table)->orderBy($keys[0])->limit($limit);
+        if ($request->query('after') !== null && $request->query('after') !== '') {
+            $query->where($keys[0], '>', $request->query('after'));
+        }
+
+        $rows = $query->get();
+        $last = $rows->last();
+        $next = $last ? $last->{$keys[0]} : $request->query('after');
+
+        return response()->json([
+            'success' => true,
+            'table' => $table,
+            'primary_key' => $keys[0],
+            'rows' => $rows,
+            'next_after' => $next,
+            'has_more' => $last ? DB::table($table)->where($keys[0], '>', $next)->exists() : false,
+        ]);
+    }
+
     private function authorizeSync(Request $request, string $ability): void
     {
         abort_unless($request->user()?->currentAccessToken()?->can($ability), 403, 'Synchronization token is missing the required ability.');
