@@ -177,6 +177,15 @@ class SyncController extends Controller
 
     private function fingerprintValue(mixed $value): mixed
     {
-        return $value === null || is_array($value) || is_object($value) ? $value : (string) $value;
+        if ($value === null || is_array($value) || is_object($value)) {
+            return $value;
+        }
+
+        $value = (string) $value;
+        if (preg_match('/^-?\d+\.\d+$/', $value)) {
+            $value = rtrim(rtrim($value, '0'), '.');
+            $value = $value === '-0' ? '0' : $value;
+        }
+        return $value;
     }
 }
