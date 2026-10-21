@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 type HistoryEntry = {
     key: string;
@@ -44,9 +45,18 @@ const getSuggestions = (key: string, query: string) => {
         .slice(0, 8);
 };
 
+const applySuggestion = (element: HTMLElement, value: string) => {
+    const input = element as HTMLInputElement | HTMLTextAreaElement;
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
 export default function CachedFieldHistory() {
     const [activeField, setActiveField] = useState<HTMLElement | null>(null);
     const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
     useEffect(() => {
@@ -58,6 +68,7 @@ export default function CachedFieldHistory() {
             const rect = element.getBoundingClientRect();
             setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
             setSuggestions(getSuggestions(key, value));
+            setHighlightedIndex(-1);
             setActiveField(value.trim() ? element : null);
         };
 
@@ -73,15 +84,45 @@ export default function CachedFieldHistory() {
 
         const handleOutsideClick = (event: MouseEvent) => {
             const target = event.target as Node;
+            const option = target instanceof Element
+                ? target.closest('[data-cached-history-option]') as HTMLElement | null
+                : null;
+
+            if (option) return;
+
             if (activeField && !activeField.contains(target)) {
                 setActiveField(null);
                 setSuggestions([]);
             }
         };
 
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (!activeField || event.target !== activeField || suggestions.length === 0) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setHighlightedIndex((current) => (current + 1) % suggestions.length);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setHighlightedIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+            } else if (event.key === 'Enter' && highlightedIndex >= 0) {
+                event.preventDefault();
+                applySuggestion(activeField, suggestions[highlightedIndex]);
+                setActiveField(null);
+                setSuggestions([]);
+                setHighlightedIndex(-1);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                setActiveField(null);
+                setSuggestions([]);
+                setHighlightedIndex(-1);
+            }
+        };
+
         document.addEventListener('focusin', handleFocus);
         document.addEventListener('input', handleInput);
         document.addEventListener('mousedown', handleOutsideClick);
+        document.addEventListener('keydown', handleKeyDown);
         const handleViewportChange = () => activeField && update(activeField);
         window.addEventListener('resize', handleViewportChange);
         window.addEventListener('scroll', handleViewportChange, true);
@@ -90,39 +131,62 @@ export default function CachedFieldHistory() {
             document.removeEventListener('focusin', handleFocus);
             document.removeEventListener('input', handleInput);
             document.removeEventListener('mousedown', handleOutsideClick);
+            document.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('resize', handleViewportChange);
             window.removeEventListener('scroll', handleViewportChange, true);
         };
-    }, [activeField]);
+    }, [activeField, suggestions, highlightedIndex]);
 
     if (!activeField || suggestions.length === 0) return null;
 
+    const portalTarget = activeField.closest('[role="dialog"]') || document.body;
+    const targetRect = portalTarget.getBoundingClientRect();
+    const isBodyPortal = portalTarget === document.body;
+    const dropdownPosition = isBodyPortal
+        ? position
+        : {
+              top: position.top - targetRect.top,
+              left: position.left - targetRect.left,
+              width: position.width,
+          };
+
     const selectSuggestion = (value: string) => {
-        const element = activeField as HTMLInputElement | HTMLTextAreaElement;
-        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
-        setter?.call(element, value);
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
+        if (!activeField) return;
+        applySuggestion(activeField, value);
         setActiveField(null);
         setSuggestions([]);
+        setHighlightedIndex(-1);
     };
 
-    return (
+    return createPortal(
         <div
-            className="fixed z-[10000] max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
-            style={{ top: position.top, left: position.left, width: position.width }}
-            onMouseDown={(event) => event.preventDefault()}
+            className={`${isBodyPortal ? 'fixed' : 'absolute'} max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg`}
+            style={{
+                top: dropdownPosition.top,
+                left: dropdownPosition.left,
+                width: dropdownPosition.width,
+                zIndex: 2147483647,
+                pointerEvents: 'auto',
+            }}
         >
-            {suggestions.map((suggestion) => (
+            {suggestions.map((suggestion, index) => (
                 <button
                     type="button"
                     key={suggestion}
-                    className="block w-full cursor-pointer px-3 py-2 text-left text-gray-900 hover:bg-gray-100"
-                    onClick={() => selectSuggestion(suggestion)}
+                    data-cached-history-option="true"
+                    data-cached-history-value={suggestion}
+                    className={`block w-full cursor-pointer px-3 py-2 text-left text-gray-900 ${index === highlightedIndex ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        selectSuggestion(suggestion);
+                    }}
                 >
                     {suggestion}
                 </button>
             ))}
-        </div>
+        </div>,
+        portalTarget,
     );
 }
