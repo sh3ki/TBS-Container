@@ -977,10 +977,11 @@ export default function ProcessGateOutModal({
                                     <Input
                                         value={bookingSearchTerm}
                                         onChange={(e) => {
-                                            setBookingSearchTerm(e.target.value);
+                                            const bookingValue = e.target.value.toUpperCase();
+                                            setBookingSearchTerm(bookingValue);
                                             setBookingHighlightIndex(0);
-                                            if (e.target.value.length >= 1) {
-                                                fetchBookingsList(e.target.value);
+                                            if (bookingValue.length >= 1) {
+                                                fetchBookingsList(bookingValue);
                                             } else {
                                                 setShowBookingDropdown(false);
                                                 setBookingHighlightIndex(-1);
