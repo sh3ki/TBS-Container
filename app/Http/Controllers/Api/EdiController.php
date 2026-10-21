@@ -84,7 +84,7 @@ class EdiController extends Controller
         $validated['manual_enabled'] = true;
         $validated['automatic_enabled'] = true;
         if ($validated['is_enabled']) {
-            abort(422, 'Create the profile disabled, upload the required IN/OUT samples, then enable it.');
+            abort(422, 'Create the profile disabled, configure the required client formatter, then enable it.');
         }
 
         $profile = new EdiProfile(collect($validated)->except(['fields', 'credentials'])->all());
@@ -144,7 +144,7 @@ class EdiController extends Controller
                 ? true
                 : ($required === 'IN' ? in_array('IN', $directions, true)
                     : ($required === 'OUT' ? in_array('OUT', $directions, true) : in_array('IN', $directions, true) && in_array('OUT', $directions, true)));
-            abort_unless($complete, 422, 'Upload the required CODECO sample for every enabled direction before enabling this profile.');
+            abort_unless($complete, 422, 'Configure the required client formatter for every enabled direction before enabling this profile.');
         }
 
         $profile->fill(collect($validated)->except(['fields', 'credentials'])->all());
@@ -193,10 +193,14 @@ class EdiController extends Controller
                 : ($required === 'OUT'
                     ? in_array('OUT', $directions, true)
                     : in_array('IN', $directions, true) && in_array('OUT', $directions, true));
-            abort_unless($complete, 422, 'Upload the required CODECO sample for every enabled direction before enabling this profile.');
+            abort_unless($complete, 422, 'Configure the required client formatter for every enabled direction before enabling this profile.');
         }
 
         $profile->is_enabled = $enabled;
+        // Enabling an EDI profile also enables its interval-based automatic
+        // dispatch. Disabling the profile stops automatic dispatch through
+        // the is_enabled guard in the scheduler.
+        $profile->automatic_enabled = $enabled;
         if ($enabled) {
             $origin = now('Asia/Manila')->startOfMinute()->addMinute();
             $profile->enabled_at = $origin;
@@ -225,7 +229,12 @@ class EdiController extends Controller
             'end_time' => ['nullable', 'date_format:H:i'],
             'sent_mode' => ['nullable', Rule::in(['unsent', 'sent', 'both'])],
         ]);
-        return response()->json(['success' => true, 'data' => $dispatch->dispatch($profile, app()->runningInConsole() ? 'automatic' : 'manual', optional($request->user())->user_id, $data)]);
+        try {
+            return response()->json(['success' => true, 'data' => $dispatch->dispatch($profile, app()->runningInConsole() ? 'automatic' : 'manual', optional($request->user())->user_id, $data)]);
+        } catch (\Throwable $exception) {
+            report($exception);
+            return response()->json(['success' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 
     public function generate(Request $request, EdiProfile $profile, EdiProfileDispatchService $dispatch)
@@ -265,7 +274,12 @@ class EdiController extends Controller
     public function retryLog(\App\Models\EdiDeliveryLog $log, EdiProfileDispatchService $dispatch)
     {
         $this->ensureAdmin();
-        return response()->json(['success' => true, 'data' => $dispatch->retry($log)]);
+        try {
+            return response()->json(['success' => true, 'data' => $dispatch->retry($log)]);
+        } catch (\Throwable $exception) {
+            report($exception);
+            return response()->json(['success' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 
     public function uploadSample(Request $request, EdiProfile $profile)
