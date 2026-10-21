@@ -1409,6 +1409,8 @@ class ReportsController extends Controller
                     'container_status.status',
                     'inventory.class',
                     'inventory.date_manufactured as dmf',
+                    'inventory.remarks as eir_notes',
+                    'inventory.approval_notes as approval_notes',
                     DB::raw("DATE({$invTable}.date_added) as date_in"),
                     DB::raw("DATEDIFF('{$date}', DATE({$invTable}.date_added)) as age"),
                     DB::raw("CASE WHEN {$clientTable}.client_code IS NOT NULL AND {$clientTable}.client_code <> '' THEN {$clientTable}.client_code ELSE {$clientTable}.client_name END as client")
