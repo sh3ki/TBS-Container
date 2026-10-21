@@ -18,6 +18,7 @@ class DispatchDueEdiProfiles extends Command
 
         EdiProfile::query()
             ->where('is_enabled', true)
+            ->where('automatic_enabled', true)
             ->where(function ($query) use ($now) {
                 $query->whereNull('next_run_at')->orWhere('next_run_at', '<=', $now);
             })
