@@ -180,6 +180,7 @@ export default function Index() {
     const [generateOpen, setGenerateOpen] = useState(false);
     const [sendOpen, setSendOpen] = useState(false);
     const [sendProfile, setSendProfile] = useState<EdiProfile | null>(null);
+    const [sendDirection, setSendDirection] = useState<'IN' | 'OUT' | 'BOTH'>('BOTH');
     const [generateProfile, setGenerateProfile] = useState<EdiProfile | null>(null);
     const [generateDirection, setGenerateDirection] = useState<'IN' | 'OUT' | 'BOTH'>('BOTH');
     const [generateFileType, setGenerateFileType] = useState<'EDI' | 'TXT'>('EDI');
@@ -370,6 +371,7 @@ export default function Index() {
     };
     const sendNow = async (profile: EdiProfile) => {
         setSendProfile(profile);
+        setSendDirection(profile.direction_mode || 'BOTH');
         setGenerateFileType('EDI');
         setGenerateStartDate('');
         setGenerateEndDate('');
@@ -404,6 +406,7 @@ export default function Index() {
                 `/api/edi/profiles/${sendProfile.profile_id}/send`,
                 {
                     file_type: generateFileType,
+                    direction: sendDirection,
                     start_date: generateStartDate || null,
                     end_date: generateEndDate || null,
                     start_time: generateStartTime || null,
@@ -801,6 +804,18 @@ export default function Index() {
                                 <SelectContent><SelectItem value="EDI">EDI</SelectItem><SelectItem value="TXT">TXT</SelectItem></SelectContent>
                             </Select>
                         </label>
+                        <label className="block text-sm font-medium text-gray-700">Direction
+                            <Select value={sendDirection} onValueChange={(value) => setSendDirection(value as 'IN' | 'OUT' | 'BOTH')}>
+                                <SelectTrigger className="mt-1 w-full text-gray-900"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {sendProfile.direction_mode === 'BOTH' || !sendProfile.direction_mode ? <SelectItem value="IN">IN only</SelectItem> : null}
+                                    {sendProfile.direction_mode === 'BOTH' || !sendProfile.direction_mode ? <SelectItem value="OUT">OUT only</SelectItem> : null}
+                                    {sendProfile.direction_mode === 'BOTH' || !sendProfile.direction_mode ? <SelectItem value="BOTH">IN and OUT</SelectItem> : null}
+                                    {sendProfile.direction_mode === 'IN' ? <SelectItem value="IN">IN only</SelectItem> : null}
+                                    {sendProfile.direction_mode === 'OUT' ? <SelectItem value="OUT">OUT only</SelectItem> : null}
+                                </SelectContent>
+                            </Select>
+                        </label>
                         <label className="block text-sm font-medium text-gray-700">Transactions
                             <Select value={generateSentMode} onValueChange={(value) => setGenerateSentMode(value as 'unsent' | 'sent' | 'both')}>
                                 <SelectTrigger className="mt-1 w-full text-gray-900"><SelectValue /></SelectTrigger>
@@ -949,20 +964,6 @@ export default function Index() {
                     </DialogHeader>
                     {selected && (
                         <div className="space-y-5 px-6 py-5">
-                            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-                                <h3 className="mb-2 font-semibold text-blue-900">Movement direction and formatter</h3>
-                                <p className="mb-3 text-sm text-blue-800">
-                                    EDI structures are configured in the application code per client. Sample-file uploads and automatic field mapping are not used.
-                                </p>
-                                <Select value={selected.direction_mode || 'BOTH'} onValueChange={(value) => update({ direction_mode: value as EdiProfile['direction_mode'] })}>
-                                    <SelectTrigger className="w-full bg-white text-gray-900"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="IN">IN only</SelectItem>
-                                        <SelectItem value="OUT">OUT only</SelectItem>
-                                        <SelectItem value="BOTH">IN and OUT</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
                             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                                 <div className="mb-3 flex items-center gap-2">
                                     <div className="h-2 w-2 rounded-full bg-[#3E9AF4]" />
@@ -1011,6 +1012,26 @@ export default function Index() {
                                         </SelectContent>
                                     </Select>
                                 </label>
+                                    <label className="space-y-1 text-sm font-medium text-gray-700">
+                                        EDI IN/OUT
+                                        <Select
+                                            value={selected.direction_mode || 'BOTH'}
+                                            onValueChange={(value) =>
+                                                update({
+                                                    direction_mode: value as EdiProfile['direction_mode'],
+                                                })
+                                            }
+                                        >
+                                            <SelectTrigger className="mt-1 w-full text-gray-900">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="IN">IN only</SelectItem>
+                                                <SelectItem value="OUT">OUT only</SelectItem>
+                                                <SelectItem value="BOTH">IN and OUT</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </label>
                                     <div className="mt-4 flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
                                         <Checkbox
                                             id="edi-profile-enabled"
