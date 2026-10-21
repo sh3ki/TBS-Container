@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PreInventory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -717,7 +718,7 @@ class GateinoutController extends Controller
     public function getStatusOptions()
     {
         try {
-            $statuses = DB::select("SELECT s_id, status FROM {$this->prefix}container_status ORDER BY status ASC");
+            $statuses = Cache::remember('gateinout.lookup.statuses.v1', 3600, fn () => DB::select("SELECT s_id, status FROM {$this->prefix}container_status ORDER BY status ASC"));
             
             return response()->json([
                 'success' => true,
@@ -738,7 +739,7 @@ class GateinoutController extends Controller
     public function getSizeTypeOptions()
     {
         try {
-            $sizeTypes = DB::select("SELECT s_id, size, type FROM {$this->prefix}container_size_type WHERE archived = 0 ORDER BY size ASC, type ASC");
+            $sizeTypes = Cache::remember('gateinout.lookup.size_types.v1', 3600, fn () => DB::select("SELECT s_id, size, type FROM {$this->prefix}container_size_type WHERE archived = 0 ORDER BY size ASC, type ASC"));
             
             return response()->json([
                 'success' => true,
@@ -759,7 +760,7 @@ class GateinoutController extends Controller
     public function getLoadOptions()
     {
         try {
-            $loads = DB::select("SELECT l_id, type FROM {$this->prefix}load_type ORDER BY type ASC");
+            $loads = Cache::remember('gateinout.lookup.loads.v1', 3600, fn () => DB::select("SELECT l_id, type FROM {$this->prefix}load_type ORDER BY type ASC"));
             
             return response()->json([
                 'success' => true,
