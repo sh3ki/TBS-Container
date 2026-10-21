@@ -477,17 +477,22 @@ const Index: React.FC = () => {
         const grouped = new Map<string, Record<string, unknown>[]>();
         
         data.forEach((row) => {
-            const client = String(row.client || 'Unknown');
-            if (!grouped.has(client)) {
-                grouped.set(client, []);
+            const clientCode = String(row.client_code || row.client || 'Unknown');
+            const clientName = String(row.client_name || '').trim();
+            const groupKey = `${clientCode}||${clientName}`;
+            if (!grouped.has(groupKey)) {
+                grouped.set(groupKey, []);
             }
-            grouped.get(client)!.push(row);
+            grouped.get(groupKey)!.push(row);
         });
         
-        return Array.from(grouped.entries()).map(([clientName, records]) => ({
-            clientName,
-            records,
-        }));
+        return Array.from(grouped.entries()).map(([groupKey, records]) => {
+            const [clientCode, clientName] = groupKey.split('||');
+            return {
+                clientName: clientName ? `${clientCode} - ${clientName}` : clientCode,
+                records,
+            };
+        });
     };
 
     // Format date to "Oct 07, 2025"
@@ -733,10 +738,16 @@ const Index: React.FC = () => {
                 {allClientGroups.length > 0 ? (
                     <div className="space-y-8">
                         {allClientGroups.map((group, idx) => (
-                            <div key={idx} className="space-y-4">
+                            <div key={idx} className="overflow-hidden rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                                 {/* Client Header */}
-                                <div className="px-6 py-3 rounded-lg" style={{ backgroundColor: colors.brand.primary }}>
-                                    <h3 className="text-lg font-bold text-white">{group.clientName}</h3>
+                                <div className="flex items-center justify-between gap-4 px-6 py-4 border-b" style={{ backgroundColor: colors.brand.primary, borderColor: colors.brand.primary }}>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-white/75">Client</p>
+                                        <h3 className="mt-0.5 truncate text-base font-bold text-white">{group.clientName}</h3>
+                                    </div>
+                                    <span className="shrink-0 rounded-full border border-white bg-white px-3 py-1 text-xs font-semibold text-blue-700">
+                                        {group.records.length} {group.records.length === 1 ? 'record' : 'records'}
+                                    </span>
                                 </div>
                                 
                                 {/* Client Data Table */}
@@ -874,10 +885,16 @@ const Index: React.FC = () => {
                 {allClientGroups.length > 0 ? (
                     <div className="space-y-8">
                         {allClientGroups.map((group, idx) => (
-                            <div key={idx} className="space-y-4">
+                            <div key={idx} className="overflow-hidden rounded-xl shadow-sm" style={{ backgroundColor: colors.main, border: `1px solid ${colors.table.border}` }}>
                                 {/* Client Header */}
-                                <div className="px-6 py-3 rounded-lg" style={{ backgroundColor: colors.brand.primary }}>
-                                    <h3 className="text-lg font-bold text-white">{group.clientName}</h3>
+                                <div className="flex items-center justify-between gap-4 px-6 py-4 border-b" style={{ backgroundColor: colors.brand.primary, borderColor: colors.brand.primary }}>
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-white/75">Client</p>
+                                        <h3 className="mt-0.5 truncate text-base font-bold text-white">{group.clientName}</h3>
+                                    </div>
+                                    <span className="shrink-0 rounded-full border border-white bg-white px-3 py-1 text-xs font-semibold text-blue-700">
+                                        {group.records.length} {group.records.length === 1 ? 'record' : 'records'}
+                                    </span>
                                 </div>
                                 
                                 {/* Client Data Table */}
