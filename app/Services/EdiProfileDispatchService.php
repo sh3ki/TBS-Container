@@ -289,23 +289,27 @@ class EdiProfileDispatchService
         $startAt = $startAt ? Carbon::parse($startAt, 'Asia/Manila')->max($enabledAt) : $enabledAt;
         $endAt = $endAt ? Carbon::parse($endAt, 'Asia/Manila') : null;
 
-        $query = DB::table('inventory as i')
-            ->where('i.client_id', 67)
-            ->where('i.gate_status', $direction)
-            ->where('i.date_added', '>=', $startAt)
-            ->where('i.date_added', '<', $endAt ?: $now)
+        // Do not qualify these columns with an alias. This application uses
+        // a configurable table prefix (for example, fjp_) and the query
+        // builder rewrites the table name while raw alias-qualified columns
+        // can remain as `i.column`, causing production SQL failures.
+        $query = DB::table('inventory')
+            ->where('client_id', 67)
+            ->where('gate_status', $direction)
+            ->where('date_added', '>=', $startAt)
+            ->where('date_added', '<', $endAt ?: $now)
             ->when($mode === 'sent', fn ($q) => $q->whereExists(function ($sub) use ($profile, $direction) {
                 $sub->select(DB::raw(1))->from('edi_transactions as et')
-                    ->whereColumn('et.inventory_id', 'i.i_id')->where('et.profile_id', $profile->profile_id)
+                    ->whereColumn('et.inventory_id', 'i_id')->where('et.profile_id', $profile->profile_id)
                     ->where('et.direction', $direction)->where('et.status', 'sent');
             }))
             ->when($mode === 'unsent', fn ($q) => $q->whereNotExists(function ($sub) use ($profile, $direction) {
                 $sub->select(DB::raw(1))->from('edi_transactions as et')
-                    ->whereColumn('et.inventory_id', 'i.i_id')->where('et.profile_id', $profile->profile_id)
+                    ->whereColumn('et.inventory_id', 'i_id')->where('et.profile_id', $profile->profile_id)
                     ->where('et.direction', $direction)->where('et.status', 'sent');
             }))
-            ->select('i.*')
-            ->orderBy('i.date_added')->orderBy('i.i_id')
+            ->select('*')
+            ->orderBy('date_added')->orderBy('i_id')
             ->limit($profile->batch_limit ?: 500)
             ->get();
 
