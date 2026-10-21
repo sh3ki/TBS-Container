@@ -178,6 +178,8 @@ const Index: React.FC = () => {
             && normalizedValue !== 'all'
             && !(key === 'gate_status' && normalizedValue === 'currently');
     });
+    const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
+    const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
 
     useEffect(() => {
         loadDropdownData();
@@ -306,7 +308,7 @@ const Index: React.FC = () => {
             }
 
             if (statusesResponse.data.success) {
-                setStatusesIn(statusesResponse.data.statuses || []);
+                setStatusesIn(statusesResponse.data.data || []);
             }
         } catch (err) {
             console.error('Failed to load dropdown data:', err);
@@ -443,6 +445,18 @@ const Index: React.FC = () => {
 
     const handleFilterChange = (field: string, value: string | boolean) => {
         setFilters(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleGateStatusChange = (value: string) => {
+        setFilters((previous) => ({
+            ...previous,
+            gate_status: value,
+            ...(value === 'OUT'
+                ? { date_in_from: '', date_in_to: '' }
+                : value !== 'BOTH'
+                    ? { date_out_from: '', date_out_to: '' }
+                    : {}),
+        }));
     };
 
     const buildFilterPayload = (filterValues = filters) => {
@@ -1611,7 +1625,7 @@ const Index: React.FC = () => {
                         <div className="space-y-3">
                             <div>
                                 <Label className="text-sm font-semibold mb-2">In/Out</Label>
-                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={(value) => handleFilterChange('gate_status', value)}>
+                                <Select value={filters.gate_status || 'CURRENTLY'} onValueChange={handleGateStatusChange}>
                                     <SelectTrigger className="mt-1.5">
                                         <SelectValue placeholder="Real Time Inventory" />
                                     </SelectTrigger>
@@ -1716,7 +1730,15 @@ const Index: React.FC = () => {
                                 <Input
                                     type="date"
                                     value={filters.date_in_from}
-                                    onChange={(e) => handleFilterChange('date_in_from', e.target.value)}
+                                    disabled={!gateInDateFiltersEnabled}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setFilters((previous) => ({
+                                            ...previous,
+                                            date_in_from: value,
+                                            date_in_to: previous.date_in_to && previous.date_in_to < value ? '' : previous.date_in_to,
+                                        }));
+                                    }}
                                     className="mt-1.5"
                                     placeholder="yyyy-mm-dd"
                                 />
@@ -1727,7 +1749,14 @@ const Index: React.FC = () => {
                                 <Input
                                     type="date"
                                     value={filters.date_in_to}
-                                    onChange={(e) => handleFilterChange('date_in_to', e.target.value)}
+                                    disabled={!gateInDateFiltersEnabled}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (!filters.date_in_from || value >= filters.date_in_from) {
+                                            handleFilterChange('date_in_to', value);
+                                        }
+                                    }}
+                                    min={filters.date_in_from || undefined}
                                     className="mt-1.5"
                                     placeholder="yyyy-mm-dd"
                                 />
@@ -1798,7 +1827,15 @@ const Index: React.FC = () => {
                                 <Input
                                     type="date"
                                     value={filters.date_out_from}
-                                    onChange={(e) => handleFilterChange('date_out_from', e.target.value)}
+                                    disabled={!gateOutDateFiltersEnabled}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setFilters((previous) => ({
+                                            ...previous,
+                                            date_out_from: value,
+                                            date_out_to: previous.date_out_to && previous.date_out_to < value ? '' : previous.date_out_to,
+                                        }));
+                                    }}
                                     className="mt-1.5"
                                     placeholder="yyyy-mm-dd"
                                 />
@@ -1809,7 +1846,14 @@ const Index: React.FC = () => {
                                 <Input
                                     type="date"
                                     value={filters.date_out_to}
-                                    onChange={(e) => handleFilterChange('date_out_to', e.target.value)}
+                                    disabled={!gateOutDateFiltersEnabled}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (!filters.date_out_from || value >= filters.date_out_from) {
+                                            handleFilterChange('date_out_to', value);
+                                        }
+                                    }}
+                                    min={filters.date_out_from || undefined}
                                     className="mt-1.5"
                                     placeholder="yyyy-mm-dd"
                                 />
