@@ -1164,13 +1164,30 @@ class ReportExportService
             $sheetAging->setCellValue($col . $currentRow, $row->dmf ?? ''); $col++;
             $sheetAging->setCellValue($col . $currentRow, $row->eir_notes ?? ''); $col++;
             $sheetAging->setCellValue($col . $currentRow, $row->approval_notes ?? ''); $col++;
+            $sheetAging->getStyle('I' . $currentRow . ':J' . $currentRow)
+                ->getAlignment()
+                ->setWrapText(true)
+                ->setVertical(Alignment::VERTICAL_TOP);
             
             $currentRow++;
             $rowNumber++;
         }
 
-        foreach (range('A', 'J') as $col) {
-            $sheetAging->getColumnDimension($col)->setAutoSize(true);
+        $agingColumnWidths = [
+            'A' => 8,
+            'B' => 20,
+            'C' => 12,
+            'D' => 14,
+            'E' => 12,
+            'F' => 12,
+            'G' => 10,
+            'H' => 14,
+            'I' => 45,
+            'J' => 45,
+        ];
+
+        foreach ($agingColumnWidths as $col => $width) {
+            $sheetAging->getColumnDimension($col)->setWidth($width);
         }
 
         // Save file with new filename format
