@@ -1208,6 +1208,80 @@ class ReportsController extends Controller
             }
             $client = $client->first();
             $clientName = $client ? $client->client_name : 'ALL';
+            $dmrTablePrefix = DB::getTablePrefix();
+
+            // MSC/client 67 uses the client-specific four-sheet DMR layout.
+            if ((string) $clientId === '67') {
+                $inData = DB::table('inventory as inv')
+                    ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+                    ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+                    ->where('inv.client_id', 67)
+                    ->where('inv.gate_status', 'IN')
+                    ->where('inv.complete', 0)
+                    ->whereDate('inv.date_added', '<=', $date)
+                    ->select(
+                        'inv.container_no',
+                        DB::raw("CONCAT({$dmrTablePrefix}st.size, '/', {$dmrTablePrefix}st.type) as size_type"),
+                        'inv.date_manufactured',
+                        'cs.status as container_status',
+                        'inv.class',
+                        'inv.date_added',
+                        'inv.bill_of_lading',
+                        'inv.hauler'
+                    )
+                    ->orderBy('inv.date_added')
+                    ->get();
+
+                $outData = DB::table('inventory as out_inv')
+                    ->leftJoin('inventory as in_inv', function ($join) {
+                        $join->on('in_inv.out_id', '=', 'out_inv.i_id')
+                            ->where('in_inv.gate_status', '=', 'IN');
+                    })
+                    ->leftJoin('container_size_type as st', 'out_inv.size_type', '=', 'st.s_id')
+                    ->leftJoin('container_status as cs', 'out_inv.container_status', '=', 'cs.s_id')
+                    ->where('out_inv.client_id', 67)
+                    ->where('out_inv.gate_status', 'OUT')
+                    ->whereDate('out_inv.date_added', '<=', $date)
+                    ->select(
+                        'out_inv.container_no',
+                        DB::raw("CONCAT({$dmrTablePrefix}st.size, '/', {$dmrTablePrefix}st.type) as size_type"),
+                        'out_inv.date_manufactured',
+                        'cs.status as container_status',
+                        'out_inv.class',
+                        'in_inv.date_added as date_in',
+                        'out_inv.booking',
+                        'out_inv.seal_no',
+                        'out_inv.hauler',
+                        'out_inv.shipper',
+                        'out_inv.date_added as date_out'
+                    )
+                    ->orderBy('out_inv.date_added')
+                    ->get();
+
+                $sealData = DB::table('inventory')
+                    ->where('client_id', 67)
+                    ->where('gate_status', 'OUT')
+                    ->whereNotNull('seal_no')
+                    ->where('seal_no', '<>', '')
+                    ->whereDate('date_added', '<=', $date)
+                    ->select('seal_no', 'container_no as container_number')
+                    ->orderBy('date_added')
+                    ->get();
+
+                $exportService = new ReportExportService();
+                $filePath = $exportService->exportMscDmr($inData, $outData, $sealData, $date);
+                $filename = 'MSC_DMR_' . strtoupper(\Carbon\Carbon::parse($date)->format('Y_F_d')) . '.xlsx';
+
+                DB::table('audit_logs')->insert([
+                    'action' => 'REPORTS',
+                    'description' => '[REPORTS] MSC DMR exported ' . ($inData->count() + $outData->count()) . ' record(s) to XLS file',
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+
+                return response()->download($filePath, $filename)->deleteFileAfterSend(true);
+            }
 
             $tablePrefix = DB::getTablePrefix();
             $invTable = $tablePrefix . 'inventory';
