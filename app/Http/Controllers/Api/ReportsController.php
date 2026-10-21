@@ -1241,6 +1241,7 @@ class ReportsController extends Controller
                     ->leftJoin('container_status as cs', 'out_inv.container_status', '=', 'cs.s_id')
                     ->where('out_inv.client_id', 67)
                     ->where('out_inv.gate_status', 'OUT')
+                    ->whereYear('out_inv.date_added', \Carbon\Carbon::parse($date)->year)
                     ->whereDate('out_inv.date_added', '<=', $date)
                     ->select(
                         'out_inv.container_no',
@@ -1258,18 +1259,8 @@ class ReportsController extends Controller
                     ->orderBy('out_inv.date_added')
                     ->get();
 
-                $sealData = DB::table('inventory')
-                    ->where('client_id', 67)
-                    ->where('gate_status', 'OUT')
-                    ->whereNotNull('seal_no')
-                    ->where('seal_no', '<>', '')
-                    ->whereDate('date_added', '<=', $date)
-                    ->select('seal_no', 'container_no as container_number')
-                    ->orderBy('date_added')
-                    ->get();
-
                 $exportService = new ReportExportService();
-                $filePath = $exportService->exportMscDmr($inData, $outData, $sealData, $date);
+                $filePath = $exportService->exportMscDmr($inData, $outData, $outData, $date);
                 $filename = 'MSC_DMR_' . strtoupper(\Carbon\Carbon::parse($date)->format('Y_F_d')) . '.xlsx';
 
                 DB::table('audit_logs')->insert([
