@@ -75,6 +75,11 @@ chmod -R 755 "$APP_DIR"
 chmod -R 775 "$APP_DIR/storage"
 chmod -R 775 "$APP_DIR/bootstrap/cache"
 
+# Protect SFTP SSH configuration and known hosts
+chown -R www-data:www-data "$APP_DIR/storage/app/ssh"
+chmod 750 "$APP_DIR/storage/app/ssh"
+chmod 640 "$APP_DIR/storage/app/ssh/known_hosts"
+
 # Ensure temp uploads and container_pics directories exist and are writable
 echo "🗂️  Ensuring image storage directories..."
 mkdir -p "$APP_DIR/storage/app/temp_uploads"
