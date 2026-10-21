@@ -189,7 +189,6 @@ export default function Index() {
     const [generateEndTime, setGenerateEndTime] = useState('');
     const [generateSentMode, setGenerateSentMode] = useState<'unsent' | 'sent' | 'both'>('unsent');
     const [sampleFiles, setSampleFiles] = useState<{ IN: File | null; OUT: File | null }>({ IN: null, OUT: null });
-    const [sampleAnalyses, setSampleAnalyses] = useState<{ IN: string | null; OUT: string | null }>({ IN: null, OUT: null });
     const [sampleAnalyzing, setSampleAnalyzing] = useState<{ IN: boolean; OUT: boolean }>({ IN: false, OUT: false });
     const [mappingSelections, setMappingSelections] = useState<{ IN: Record<string, string>; OUT: Record<string, string> }>({ IN: {}, OUT: {} });
     const [secretsVisible, setSecretsVisible] = useState(false);
@@ -248,10 +247,6 @@ export default function Index() {
             api_key: '',
         });
         setSecretsVisible(false);
-        setMappingSelections({
-            IN: Object.fromEntries((profile.directions?.find((item) => item.direction === 'IN')?.mappings || []).map((mapping) => [mapping.source_column, mapping.token])),
-            OUT: Object.fromEntries((profile.directions?.find((item) => item.direction === 'OUT')?.mappings || []).map((mapping) => [mapping.source_column, mapping.token])),
-        });
         setEditOpen(true);
     };
     const openAdd = () => {
@@ -287,10 +282,6 @@ export default function Index() {
             })),
             directions: [],
         });
-        setSampleFiles({ IN: null, OUT: null });
-        setSampleAnalyses({ IN: null, OUT: null });
-        setSampleAnalyzing({ IN: false, OUT: false });
-        setMappingSelections({ IN: {}, OUT: {} });
         setCredentials({
             host: '',
             port: '',
@@ -310,32 +301,9 @@ export default function Index() {
             seconds: total % 60,
         };
     }, [selected?.interval_seconds]);
-    const analyzeSampleFile = async (direction: 'IN' | 'OUT', file: File) => {
-        setSampleAnalyzing((current) => ({ ...current, [direction]: true }));
-        const form = new FormData();
-        form.append('direction', direction);
-        form.append('file_type', file.name.toLowerCase().endsWith('.txt') ? 'TXT' : 'EDI');
-        form.append('sample', file);
-        try {
-            const response = await axios.post('/api/edi/samples/analyze', form, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            const analysis = response.data.data;
-            setSampleAnalyses((current) => ({ ...current, [direction]: analysis.draft_token }));
-            setSelected((current) => current ? {
-                ...current,
-                directions: [
-                    ...(current.directions || []).filter((item) => item.direction !== direction),
-                    analysis,
-                ],
-            } : current);
-            setMappingSelections((current) => ({ ...current, [direction]: Object.fromEntries((analysis.mapping_suggestions || []).map((item: any) => [item.source_column, ''])) }));
-            success(`${direction} sample analyzed and saved. Review the suggested mappings.`);
-        } catch (error: any) {
-            showError(error?.response?.data?.message || `Unable to analyze the ${direction} sample.`);
-        } finally {
-            setSampleAnalyzing((current) => ({ ...current, [direction]: false }));
-        }
+    const analyzeSampleFile = async (_direction: 'IN' | 'OUT', _file: File) => {
+        // Sample uploads are intentionally disabled. Client-specific EDI
+        // structures are maintained as fixed application formatters.
     };
     const setIntervalValue = (
         hours: number,
@@ -346,19 +314,8 @@ export default function Index() {
         if (!selected) return;
         setSaving(true);
         try {
-            const requestedEnabled = Boolean(selected.is_enabled);
-            const selectedDirections = selected.direction_mode === 'BOTH'
-                ? ['IN', 'OUT']
-                : [selected.direction_mode || 'BOTH'];
-            const uploadingRequiredSample = selectedDirections.some((direction) =>
-                sampleFiles[direction as 'IN' | 'OUT'] !== null,
-            );
-            // Samples are uploaded after the profile row exists. Save a new
-            // template configuration disabled first, then enable it only
-            // after all required direction samples have been persisted.
             const profilePayload = {
                 ...selected,
-                is_enabled: requestedEnabled && uploadingRequiredSample ? false : selected.is_enabled,
             };
             const entered = Object.fromEntries(
                 Object.entries(credentials).filter(([key, value]) => value && (secretsVisible || !['password', 'api_key'].includes(key))),
@@ -374,38 +331,7 @@ export default function Index() {
                           ? { ...profilePayload, credentials: entered }
                           : profilePayload,
                   );
-            let saved = response.data.data as EdiProfile;
-            for (const direction of ['IN', 'OUT'] as const) {
-                const file = sampleFiles[direction];
-                const draftToken = sampleAnalyses[direction];
-                if (!saved.profile_id || (!file && !draftToken)) continue;
-                const form = new FormData();
-                form.append('direction', direction);
-                form.append('file_type', file?.name.toLowerCase().endsWith('.txt') ? 'TXT' : 'EDI');
-                if (draftToken) {
-                    form.append('draft_token', draftToken);
-                    form.append('sample_filename', file?.name || `${direction}.edi`);
-                } else if (file) {
-                    form.append('sample', file);
-                }
-                const confirmedMappings = Object.entries(mappingSelections[direction])
-                    .filter(([, token]) => Boolean(token))
-                    .map(([source_column, token]) => ({
-                        source_column,
-                        token,
-                    }));
-                form.append('mappings', JSON.stringify(confirmedMappings));
-                await axios.post(`/api/edi/profiles/${saved.profile_id}/samples`, form, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-            }
-            if (requestedEnabled && !saved.is_enabled) {
-                const enabled = await axios.put(`/api/edi/profiles/${saved.profile_id}`, {
-                    ...saved,
-                    is_enabled: true,
-                });
-                saved = enabled.data.data as EdiProfile;
-            }
+            const saved = response.data.data as EdiProfile;
             setProfiles((current) =>
                 isAdding
                     ? [...current, saved]
@@ -414,10 +340,6 @@ export default function Index() {
                       ),
             );
             setSelected(clone(saved));
-            setSampleFiles({ IN: null, OUT: null });
-            setSampleAnalyses({ IN: null, OUT: null });
-            setSampleAnalyzing({ IN: false, OUT: false });
-            setMappingSelections({ IN: {}, OUT: {} });
             setIsAdding(false);
             setEditOpen(false);
             success(isAdding ? 'EDI profile created.' : 'EDI profile saved.');
@@ -676,7 +598,7 @@ export default function Index() {
                                     <div className="min-w-[120px] text-sm text-gray-600">
                                         {row.interval_seconds}s
                                         <div className="text-xs text-gray-500">
-                                            {row.automatic_enabled
+                                            {row.is_enabled && row.automatic_enabled
                                                 ? 'Automatic'
                                                 : 'Manual only'}
                                         </div>
@@ -1027,6 +949,20 @@ export default function Index() {
                     </DialogHeader>
                     {selected && (
                         <div className="space-y-5 px-6 py-5">
+                            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+                                <h3 className="mb-2 font-semibold text-blue-900">Movement direction and formatter</h3>
+                                <p className="mb-3 text-sm text-blue-800">
+                                    EDI structures are configured in the application code per client. Sample-file uploads and automatic field mapping are not used.
+                                </p>
+                                <Select value={selected.direction_mode || 'BOTH'} onValueChange={(value) => update({ direction_mode: value as EdiProfile['direction_mode'] })}>
+                                    <SelectTrigger className="w-full bg-white text-gray-900"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="IN">IN only</SelectItem>
+                                        <SelectItem value="OUT">OUT only</SelectItem>
+                                        <SelectItem value="BOTH">IN and OUT</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                                 <div className="mb-3 flex items-center gap-2">
                                     <div className="h-2 w-2 rounded-full bg-[#3E9AF4]" />
@@ -1243,7 +1179,7 @@ export default function Index() {
                                 </div>
                             </div>
                             </div>
-                            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                            <div className="hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                                 <h3 className="mb-3 font-semibold text-gray-900">
                                     Movement direction and CODECO samples
                                 </h3>
