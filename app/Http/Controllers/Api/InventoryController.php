@@ -1105,7 +1105,7 @@ class InventoryController extends Controller
     {
         try {
             $statuses = DB::select("
-                SELECT s_id, status 
+                SELECT s_id, status
                 FROM " . DB::getTablePrefix() . "container_status 
                 ORDER BY status ASC
             ");
@@ -1173,16 +1173,16 @@ class InventoryController extends Controller
     public function getStatusesList()
     {
         try {
-            $statuses = Cache::remember('inventory.lookup.statuses.v1', 3600, fn () => DB::select("
-                SELECT DISTINCT status 
+            $statuses = Cache::remember('inventory.lookup.statuses.v2', 3600, fn () => DB::select("
+                SELECT s_id, status
                 FROM " . DB::getTablePrefix() . "container_status 
                 WHERE status IS NOT NULL AND status != ''
-                ORDER BY status ASC
+                ORDER BY status ASC, s_id ASC
             "));
 
             return response()->json([
                 'success' => true,
-                'statuses' => array_map(fn($s) => $s->status, $statuses)
+                'data' => $statuses,
             ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -1248,8 +1248,8 @@ class InventoryController extends Controller
             // user presses Search. Keep the search scope narrow so this does not
             // turn into a broad client/name scan over the inventory table.
             if (!empty($filters['search'])) {
-                $query .= " AND (i.container_no LIKE :container_search OR CONCAT(i.i_id, CASE WHEN i.gate_status = 'IN' THEN 'I' ELSE 'O' END) LIKE :eir_search)";
-                $searchValue = '%' . strtoupper(trim((string) $filters['search'])) . '%';
+                $query .= " AND (LOWER(i.container_no) LIKE :container_search OR LOWER(CONCAT(i.i_id, CASE WHEN i.gate_status = 'IN' THEN 'I' ELSE 'O' END)) LIKE :eir_search)";
+                $searchValue = '%' . strtolower(trim((string) $filters['search'])) . '%';
                 // PDO MySQL does not safely support reusing one named placeholder
                 // twice when native prepares are enabled.
                 $params[':container_search'] = $searchValue;
@@ -1289,14 +1289,14 @@ class InventoryController extends Controller
             // Date filters
             if (!empty($filters['date_in_from']) && !empty($filters['date_in_to'])) {
                 $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
-                $params[':date_in_from'] = $filters['date_in_from'];
-                $params[':date_in_to'] = $filters['date_in_to'];
+                $params[':date_in_from'] = Carbon::parse($filters['date_in_from'], 'Asia/Manila')->startOfDay()->format('Y-m-d H:i:s');
+                $params[':date_in_to'] = Carbon::parse($filters['date_in_to'], 'Asia/Manila')->endOfDay()->format('Y-m-d H:i:s');
             }
             
             if (!empty($filters['date_out_from']) && !empty($filters['date_out_to'])) {
                 $query .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
-                $params[':date_out_from'] = $filters['date_out_from'];
-                $params[':date_out_to'] = $filters['date_out_to'];
+                $params[':date_out_from'] = Carbon::parse($filters['date_out_from'], 'Asia/Manila')->startOfDay()->format('Y-m-d H:i:s');
+                $params[':date_out_to'] = Carbon::parse($filters['date_out_to'], 'Asia/Manila')->endOfDay()->format('Y-m-d H:i:s');
             }
             
             // Text filters
