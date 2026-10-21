@@ -744,12 +744,24 @@ export default function ProcessGateOutModal({
         }
     };
 
+    const handleEnterToNextField = (e: React.KeyboardEvent<HTMLElement>) => {
+        if (e.key !== 'Enter' || e.defaultPrevented || e.target instanceof HTMLTextAreaElement) return;
+
+        e.preventDefault();
+        const currentField = (e.target as HTMLElement).closest<HTMLElement>('input, select, button, [tabindex]');
+        const fields = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(
+            'input:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ));
+        const currentIndex = currentField ? fields.indexOf(currentField) : -1;
+        fields[currentIndex + 1]?.focus();
+    };
+
     if (!record) return null;
 
     return (
         <>
             <Dialog open={open} onOpenChange={onClose}>
-                <DialogContent className="min-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="min-w-4xl max-h-[90vh] overflow-y-auto" onKeyDown={handleEnterToNextField}>
                     <DialogHeader>
                         <DialogTitle>Process Gate OUT</DialogTitle>
                         <DialogDescription>
