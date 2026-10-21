@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter, RotateCcw } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -82,8 +82,10 @@ const Index: React.FC = () => {
     const [reportData, setReportData] = useState<InventoryRecord[]>([]);
     const [totalCount, setTotalCount] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
-    // Request a very large page size so the table shows all rows by default
-    const [itemsPerPage, setItemsPerPage] = useState<number>(999999);
+    // CURRENTLY is intentionally loaded in full (normally ~1,000 rows). Historical
+    // BOTH results are requested in bounded windows by the virtualized table.
+    const [itemsPerPage, setItemsPerPage] = useState<number>(100);
+    const [loadingMoreHistorical, setLoadingMoreHistorical] = useState(false);
 
     // Summary report data
     const [summaryData, setSummaryData] = useState<{
@@ -141,7 +143,8 @@ const Index: React.FC = () => {
     
     // Search state
     const [searchTerm, setSearchTerm] = useState('');
-    const isFirstSearchEffect = useRef(true);
+    const [sortColumn, setSortColumn] = useState('');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     const defaultFilters = {
         client: 'all',
@@ -179,21 +182,6 @@ const Index: React.FC = () => {
         fetchDropdownOptions();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    useEffect(() => {
-        if (isFirstSearchEffect.current) {
-            isFirstSearchEffect.current = false;
-            return;
-        }
-
-        const timeoutId = window.setTimeout(() => {
-            setCurrentPage(1);
-            void fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: false });
-        }, 450);
-
-        return () => window.clearTimeout(timeoutId);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchTerm]);
 
     const currentImage = containerImages[currentImageIndex] ?? null;
     const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
@@ -288,14 +276,24 @@ const Index: React.FC = () => {
 
     const loadDropdownData = async () => {
         try {
-            // Load clients
-            const clientsResponse = await axios.get('/api/reports/clients');
+            // These lookups are independent. Loading them sequentially made the
+            // page wait for every round trip before the filter UI became usable.
+            const [clientsResponse, sizeTypesResponse, statusesResponse] = await Promise.all([
+                axios.get('/api/inventory/clients'),
+                axios.get('/api/inventory/size-types'),
+                axios.get('/api/inventory/statuses'),
+            ]);
+
             if (clientsResponse.data.success) {
-                setClients(clientsResponse.data.data);
+                setClients((clientsResponse.data.data || []).map((client: { c_id: number; client_code: string; client_name: string }) => ({
+                    id: String(client.c_id),
+                    c_id: client.c_id,
+                    code: client.client_code,
+                    name: client.client_name,
+                    text: `${client.client_code} - ${client.client_name}`,
+                })));
             }
 
-            // Load size types (combined)
-            const sizeTypesResponse = await axios.get('/api/inventory/size-types');
             if (sizeTypesResponse.data.success) {
                 const combined = sizeTypesResponse.data.data.map((st: { size: string; type: string }) => ({
                     value: `${st.size}${st.type}`,
@@ -304,8 +302,6 @@ const Index: React.FC = () => {
                 setSizeTypes(combined);
             }
 
-            // Load statuses
-            const statusesResponse = await axios.get('/api/inventory/statuses');
             if (statusesResponse.data.success) {
                 setStatusesIn(statusesResponse.data.statuses || []);
                 setStatusesOut(statusesResponse.data.statuses || []);
@@ -321,14 +317,24 @@ const Index: React.FC = () => {
         search = searchTerm,
         showToast = false,
         includeSummary = false,
+        append = false,
+        offset = 0,
+        limit = 100,
+        sortBy = sortColumn,
+        sortDir = sortDirection,
     }: {
         page?: number;
         perPage?: number;
         search?: string;
         showToast?: boolean;
         includeSummary?: boolean;
+        append?: boolean;
+        offset?: number;
+        limit?: number;
+        sortBy?: string;
+        sortDir?: 'asc' | 'desc';
     } = {}) => {
-        setLoading(true);
+        if (!append) setLoading(true);
         try {
             const payload = {
                 ...buildFilterPayload(),
@@ -337,12 +343,18 @@ const Index: React.FC = () => {
                 per_page: perPage,
                 search: search?.trim() || '',
                 include_summary: includeSummary,
+                virtualized: filters.gate_status === 'BOTH',
+                offset,
+                limit,
+                sort_by: sortBy,
+                sort_direction: sortDir,
             };
 
+            if (append) setLoadingMoreHistorical(true);
             const response = await axios.post('/api/inventory/search', payload);
             
             if (response.data.success) {
-                setReportData(response.data.data || []);
+                setReportData((previous) => append ? [...previous, ...(response.data.data || [])] : (response.data.data || []));
                 const totalFromApi = response.data.total ?? (Array.isArray(response.data.data) ? response.data.data.length : 0);
                 setTotalCount(Number(totalFromApi || 0));
                 if (includeSummary) {
@@ -367,17 +379,58 @@ const Index: React.FC = () => {
             setTotalCount(0);
         } finally {
             setLoading(false);
+            setLoadingMoreHistorical(false);
         }
     };
 
-    const fetchSummaryData = async () => {
-        await fetchInventory({
-            page: 1,
-            perPage: 1,
+    const loadMoreHistorical = useCallback(() => {
+        if (filters.gate_status !== 'BOTH' || loading || loadingMoreHistorical || reportData.length >= totalCount) {
+            return;
+        }
+
+        void fetchInventory({
             search: searchTerm,
-            includeSummary: true,
+            append: true,
+            offset: reportData.length,
+            limit: 100,
+        });
+    }, [filters.gate_status, loading, loadingMoreHistorical, reportData.length, searchTerm, totalCount]);
+
+    const handleSort = (column: string) => {
+        const nextDirection: 'asc' | 'desc' = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
+        const backendColumn = column === 'date_days' ? 'date_time' : column;
+        setSortColumn(column);
+        setSortDirection(nextDirection);
+        void fetchInventory({
+            search: searchTerm,
+            sortBy: backendColumn,
+            sortDir: nextDirection,
             showToast: false,
         });
+    };
+
+    const fetchSummaryData = async () => {
+        try {
+            // Summary is independent of the visible table. Do not call
+            // fetchInventory here because that replaces reportData and toggles
+            // the table loading state.
+            const response = await axios.post('/api/inventory/search', {
+                ...buildFilterPayload(),
+                gate_status: (filters.gate_status || 'CURRENTLY') as string,
+                search: searchTerm.trim(),
+                include_summary: true,
+                virtualized: false,
+            });
+
+            if (response.data.success) {
+                setSummaryData(response.data.summary || null);
+            } else {
+                error(response.data.message || 'Failed to load summary report');
+            }
+        } catch (err: unknown) {
+            const errorCaught = err as { response?: { data?: { message?: string } } };
+            error(errorCaught.response?.data?.message || 'Failed to load summary report');
+        }
     };
 
     const loadAllInventory = async () => {
@@ -435,19 +488,17 @@ const Index: React.FC = () => {
         }
     };
 
-    // Format time to "11:00:01 AM"
+    // Inventory timestamps are stored as Manila yard time. Display them in
+    // 24-hour/military format without converting the already-local DB value.
     const formatTime = (timeString: string) => {
         if (!timeString) return '-';
         try {
-            // If timeString is already in HH:MM:SS format, convert to 12-hour format
             const timeParts = timeString.split(':');
             if (timeParts.length >= 2) {
-                const hours = parseInt(timeParts[0]);
-                const minutes = timeParts[1];
-                const seconds = timeParts[2] || '00';
-                const ampm = hours >= 12 ? 'PM' : 'AM';
-                const hour12 = hours % 12 || 12;
-                return `${hour12}:${minutes}:${seconds} ${ampm}`;
+                const hours = Math.max(0, Math.min(23, parseInt(timeParts[0], 10)));
+                const minutes = timeParts[1].padStart(2, '0');
+                const seconds = (timeParts[2] || '00').padStart(2, '0');
+                return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
             }
             return timeString;
         } catch {
@@ -492,7 +543,7 @@ const Index: React.FC = () => {
         }
     };
 
-    // Compact duration for table display: "12d 10h 24m", "14h 23m", "12m"
+    // Table Days display uses whole-day ceiling: 2h => 1d, 1d 1h => 2d.
     const formatDurationCompactFrom = (dateString?: string, timeString?: string, fallback?: number) => {
         try {
             if (!dateString) return fallback !== undefined ? `${fallback}d` : '-';
@@ -515,14 +566,8 @@ const Index: React.FC = () => {
             let diffMs = now.getTime() - inDate.getTime();
             if (diffMs < 0) diffMs = 0;
 
-            const minutesTotal = Math.floor(diffMs / 60000);
-            const days = Math.floor(minutesTotal / (60 * 24));
-            const hours = Math.floor((minutesTotal - days * 24 * 60) / 60);
-            const minutes = minutesTotal - days * 24 * 60 - hours * 60;
-
-            if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-            if (hours > 0) return `${hours}h ${minutes}m`;
-            return `${minutes}m`;
+            const days = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+            return `${days}d`;
         } catch {
             return fallback !== undefined ? `${fallback}d` : '-';
         }
@@ -767,8 +812,10 @@ const Index: React.FC = () => {
         }
 
         try {
-            // Use hashed_id if available, otherwise use i_id directly
-            const identifier = record.hashed_id || record.i_id;
+            // Use the indexed numeric primary key for fast detail lookup. The
+            // hashed value remains available for external links, but MD5(i_id)
+            // forces a table scan in MySQL.
+            const identifier = record.i_id;
             const response = await axios.get(`/api/inventory/${identifier}`);
             
             if (response.data.success) {
@@ -816,14 +863,17 @@ const Index: React.FC = () => {
                     hold_date: data.hold_details && data.hold_details.date_added ? data.hold_details.date_added : undefined,
                 };
                 setViewRecord(mappedRecord);
-                // If API already provided images, use them. Otherwise fall back to containerimages list API.
+                // Open the modal as soon as the database record is ready. Image
+                // discovery is deliberately asynchronous so filesystem work does
+                // not block the modal opening.
                 if (response.data.data.images && Array.isArray(response.data.data.images) && response.data.data.images.length > 0) {
                     setContainerImages(normalizeViewerImages(response.data.data.images));
                 } else {
-                    await fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
+                    setContainerImages([]);
                 }
                 setCurrentImageIndex(0);
                 setShowViewModal(true);
+                void fetchContainerImages(mappedRecord.date as string, mappedRecord.gate as string, mappedRecord.container_no);
             } else {
                 error(response.data.message || 'Failed to load container details');
             }
@@ -1006,13 +1056,16 @@ const Index: React.FC = () => {
         window.open(`/api/inventory/print-inout?id=${idForPrint}&s=${status}`, '_blank', 'width=1280,height=900');
     };
 
-    const handleSearch = async () => {
+    const handleSearch = async (allowEmpty = false) => {
+        if (!allowEmpty && !searchTerm.trim()) {
+            return;
+        }
         setCurrentPage(1);
         await fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: true });
     };
 
     const handleApplyFilters = async () => {
-        await handleSearch();
+        await handleSearch(true);
         setShowFiltersModal(false);
     };
 
@@ -1121,16 +1174,53 @@ const Index: React.FC = () => {
                                 <Label className="text-sm font-semibold mb-2 text-gray-900">Search Containers</Label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search by container number, EIR, or client..."
-                                        value={searchTerm}
-                                        onChange={(e) => {
-                                            setSearchTerm(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="pl-10 h-11"
-                                    />
+                                    <div className="flex gap-2">
+                                        <Input
+                                            type="text"
+                                            placeholder="Search container no. or EIR no..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    void handleSearch();
+                                                }
+                                            }}
+                                            className="pl-10 h-11"
+                                        />
+                                        <ModernButton
+                                            type="button"
+                                            variant="primary"
+                                            onClick={() => void handleSearch()}
+                                            disabled={loading}
+                                            className="h-11 px-5 shrink-0"
+                                        >
+                                            Search
+                                        </ModernButton>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSearchTerm('');
+                                                setSortColumn('');
+                                                setSortDirection('desc');
+                                                setCurrentPage(1);
+                                                void fetchInventory({
+                                                    page: 1,
+                                                    perPage: itemsPerPage,
+                                                    search: '',
+                                                    sortBy: '',
+                                                    sortDir: 'desc',
+                                                    showToast: false,
+                                                });
+                                            }}
+                                            disabled={loading || (!searchTerm.trim() && !sortColumn)}
+                                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                            title="Reset search and sorting"
+                                            aria-label="Reset search and sorting"
+                                        >
+                                            <RotateCcw className="h-4 w-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1176,6 +1266,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'eir_no', 
                                     label: 'EIR No.',
+                                    sortable: true,
                                     disableRowClick: true,
                                     render: (row: InventoryRecord) => (
                                         <div 
@@ -1188,6 +1279,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'container_no', 
                                     label: 'Cont. No.',
+                                    sortable: true,
                                     disableRowClick: true,
                                     render: (row: InventoryRecord) => (
                                         <button
@@ -1206,6 +1298,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'client', 
                                     label: 'Client',
+                                    sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-900 min-w-[120px] max-w-[150px]">
                                             <div className="font-medium">{row.client}</div>
@@ -1269,10 +1362,11 @@ const Index: React.FC = () => {
                                 {
                                     key: 'date_days',
                                     label: 'DATE/TIME / Days',
+                                    sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[130px]">
                                             <div className="font-medium">{formatDate(row.date)}</div>
-                                            <div className="text-xs text-gray-500 mt-1">{formatTime(row.time)}</div>
+                                            <div className="text-sm font-medium text-gray-600 mt-1">{formatTime(row.time)}</div>
                                             <div className="mt-1">
                                                 <span className="font-bold text-gray-900 text-sm">DAYS: {formatDurationCompactFrom(row.date, row.time, row.days)}</span>
                                             </div>
@@ -1282,6 +1376,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'dmf', 
                                     label: 'Date mfd',
+                                    sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[80px]">{formatMonthYear(row.dmf as string)}</div>
                                     )
@@ -1289,6 +1384,7 @@ const Index: React.FC = () => {
                                 { 
                                     key: 'location', 
                                     label: 'Loc',
+                                    sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[40px]">{row.location}</div>
                                     )
@@ -1407,7 +1503,14 @@ const Index: React.FC = () => {
                                 },
                             ]}
                             onRowClick={handleViewRecord}
+                            onSort={handleSort}
+                            sortColumn={sortColumn === 'date_time' ? 'date_days' : sortColumn}
+                            sortDirection={sortDirection}
                             data={filteredReportData}
+                            virtualized
+                            rowHeight={128}
+                            useWindowScroll
+                            onReachEnd={filters.gate_status === 'BOTH' ? loadMoreHistorical : undefined}
                         />
                     ) : (
                         <div className="text-center py-12">
