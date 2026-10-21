@@ -143,7 +143,7 @@ const Index: React.FC = () => {
     // Search state
     const [searchTerm, setSearchTerm] = useState('');
     const [sortColumn, setSortColumn] = useState('');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const defaultFilters = {
         client: 'all',
@@ -1235,14 +1235,14 @@ const Index: React.FC = () => {
                                             onClick={() => {
                                                 setSearchTerm('');
                                                 setSortColumn('');
-                                                setSortDirection('desc');
+                                                setSortDirection('asc');
                                                 setCurrentPage(1);
                                                 void fetchInventory({
                                                     page: 1,
                                                     perPage: itemsPerPage,
                                                     search: '',
                                                     sortBy: '',
-                                                    sortDir: 'desc',
+                                                    sortDir: 'asc',
                                                     showToast: false,
                                                 });
                                             }}
