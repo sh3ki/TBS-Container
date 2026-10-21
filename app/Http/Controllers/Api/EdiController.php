@@ -223,12 +223,17 @@ class EdiController extends Controller
         $this->ensureAdmin();
         $data = $request->validate([
             'file_type' => ['nullable', Rule::in(['EDI', 'TXT'])],
+            'direction' => ['nullable', Rule::in(['IN', 'OUT', 'BOTH'])],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i'],
             'sent_mode' => ['nullable', Rule::in(['unsent', 'sent', 'both'])],
         ]);
+        $configuredMode = $profile->direction_mode ?: 'BOTH';
+        if (! empty($data['direction']) && $configuredMode !== 'BOTH' && $data['direction'] !== $configuredMode) {
+            abort(422, 'The selected direction is not enabled for this EDI profile.');
+        }
         try {
             return response()->json(['success' => true, 'data' => $dispatch->dispatch($profile, app()->runningInConsole() ? 'automatic' : 'manual', optional($request->user())->user_id, $data)]);
         } catch (\Throwable $exception) {
