@@ -50,6 +50,12 @@ php artisan wayfinder:generate
 npm install
 npm run build
 
+# MSC delivery requires PHP cURL with SFTP protocol support.
+if ! php -r 'exit(function_exists("curl_init") && in_array("sftp", curl_version()["protocols"] ?? [], true) ? 0 : 1);'; then
+	echo "ERROR: PHP cURL with SFTP protocol support is required for MSC EDI delivery."
+	exit 1
+fi
+
 # Run migrations
 echo "🗄️  Running migrations..."
 php artisan migrate --force
