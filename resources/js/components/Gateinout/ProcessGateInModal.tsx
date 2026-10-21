@@ -296,6 +296,18 @@ export default function ProcessGateInModal({
         }
     };
 
+    const handleEnterToNextField = (e: React.KeyboardEvent<HTMLElement>) => {
+        if (e.key !== 'Enter' || e.defaultPrevented || e.target instanceof HTMLTextAreaElement) return;
+
+        e.preventDefault();
+        const currentField = (e.target as HTMLElement).closest<HTMLElement>('input, select, button, [tabindex]');
+        const fields = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(
+            'input:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ));
+        const currentIndex = currentField ? fields.indexOf(currentField) : -1;
+        fields[currentIndex + 1]?.focus();
+    };
+
     return (
         <>
             <Dialog open={open} onOpenChange={onClose}>
@@ -308,7 +320,7 @@ export default function ProcessGateInModal({
                             Complete all required fields to process gate-in for {record?.container_no}
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleSubmit}>
+                    <form onSubmit={handleSubmit} onKeyDown={handleEnterToNextField}>
                         <div className="grid grid-cols-3 gap-6 py-4">
                             {/* Column 1 */}
                             <div className="space-y-3">
