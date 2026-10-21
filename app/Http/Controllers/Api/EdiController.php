@@ -148,7 +148,7 @@ class EdiController extends Controller
         }
 
         $profile->fill(collect($validated)->except(['fields', 'credentials'])->all());
-        if (array_key_exists('credentials', $validated) && ! empty(array_filter($validated['credentials'] ?? []))) {
+        if (array_key_exists('credentials', $validated)) {
             $existing = [];
             if (is_string($profile->getRawOriginal('credentials')) && trim((string) $profile->getRawOriginal('credentials')) !== '') {
                 try {
@@ -157,7 +157,21 @@ class EdiController extends Controller
                     $existing = json_decode((string) $profile->getRawOriginal('credentials'), true) ?: [];
                 }
             }
-            $profile->credentials = Crypt::encryptString(json_encode(array_merge($existing, array_filter($validated['credentials'], fn ($value) => $value !== null && $value !== ''))));
+            foreach (($validated['credentials'] ?? []) as $key => $value) {
+                // Empty non-secret fields mean "clear this saved value".
+                // Blank secret fields still mean "keep the encrypted secret".
+                if (($value === null || $value === '') && in_array($key, ['password', 'api_key'], true)) {
+                    continue;
+                }
+                if ($value === null || $value === '') {
+                    unset($existing[$key]);
+                } else {
+                    $existing[$key] = $value;
+                }
+            }
+            $profile->credentials = ! empty($existing)
+                ? Crypt::encryptString(json_encode($existing))
+                : null;
         }
         if ($profile->isDirty('is_enabled')) {
             if ($profile->is_enabled) {
