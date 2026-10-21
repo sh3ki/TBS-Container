@@ -99,7 +99,14 @@ if command -v supervisorctl >/dev/null 2>&1; then
 		supervisorctl reread || true
 		supervisorctl update || true
 	fi
+	if [ -f "$APP_DIR/deploy/supervisor/tbs-scheduler.conf" ]; then
+		echo "📄 Installing supervisor config for tbs-scheduler..."
+		cp "$APP_DIR/deploy/supervisor/tbs-scheduler.conf" /etc/supervisor/conf.d/tbs-scheduler.conf || true
+		supervisorctl reread || true
+		supervisorctl update || true
+	fi
 	supervisorctl restart tbs-worker:* || true
+	supervisorctl restart tbs-scheduler || true
 	supervisorctl restart tbs-email-automation || true
 fi
 
