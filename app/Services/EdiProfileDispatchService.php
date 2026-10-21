@@ -19,6 +19,10 @@ class EdiProfileDispatchService
         $timezone = $profile->timezone ?: 'Asia/Manila';
         $now = Carbon::now($timezone);
         $directions = $this->directionsFor($profile);
+        $requestedDirection = $filters['direction'] ?? null;
+        if ($requestedDirection && $requestedDirection !== 'BOTH') {
+            $directions = $directions->filter(fn ($direction) => $direction->direction === $requestedDirection)->values();
+        }
         $results = [];
 
         foreach ($directions as $direction) {
