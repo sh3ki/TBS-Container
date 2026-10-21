@@ -1218,6 +1218,7 @@ class ReportExportService
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             'borders' => ['allBorders' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
         ];
+        $this->spreadsheet->getDefaultStyle()->applyFromArray($cellStyle);
 
         $dateValue = static function ($value) {
             return $value ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(Carbon::parse($value)->startOfDay()) : null;
@@ -1255,7 +1256,6 @@ class ReportExportService
             $sheet->setCellValue('N' . $row, in_array($status, ['AVL', 'WSH'], true) ? 'WASHING' : ($status === 'DMG' ? 'DAMAGED' : ''));
             $row++;
         }
-        $sheet->getStyle('A1:N' . max(1, $row - 1))->applyFromArray($cellStyle);
         $sheet->getStyle('A1:N1')->applyFromArray($headerStyle);
         $sheet->getStyle('F2:F' . max(2, $row - 1))->getNumberFormat()->setFormatCode('yyyy-mm-dd');
         $sheet->getStyle('I2:I' . max(2, $row - 1))->getNumberFormat()->setFormatCode('yyyy-mm-dd');
@@ -1276,7 +1276,6 @@ class ReportExportService
             $sheet->setCellValue('Q' . $row, '=IF(OR(I' . $row . '="",P' . $row . '=""),"",IFERROR(DATEDIF(I' . $row . ',P' . $row . ',"d")+1,""))');
             $row++;
         }
-        $sheet->getStyle('A1:Q' . max(1, $row - 1))->applyFromArray($cellStyle);
         $sheet->getStyle('A1:Q1')->applyFromArray($headerStyle);
         foreach (['F', 'I', 'P'] as $column) $sheet->getStyle($column . '2:' . $column . max(2, $row - 1))->getNumberFormat()->setFormatCode('yyyy-mm-dd');
         $sheet->getStyle('J2:J' . max(2, $row - 1))->getNumberFormat()->setFormatCode('hh:mm:ss');
@@ -1287,9 +1286,9 @@ class ReportExportService
         $applySheet($sheet, ['SEAL NO', 'CONTAINER'], 2);
         $row = 2;
         foreach ($sealData as $item) {
-            $sheet->fromArray([$item->seal_no, $item->container_number], null, 'A' . $row++);
+            if (!$item->seal_no) continue;
+            $sheet->fromArray([$item->seal_no, $item->container_number ?? $item->container_no ?? ''], null, 'A' . $row++);
         }
-        $sheet->getStyle('A1:B' . max(1, $row - 1))->applyFromArray($cellStyle);
         $sheet->getStyle('A1:B1')->applyFromArray($headerStyle);
 
         $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Monthly Movement (' . strtoupper(Carbon::parse($date)->format('M Y')) . ')');
