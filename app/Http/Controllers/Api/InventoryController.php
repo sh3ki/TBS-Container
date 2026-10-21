@@ -1276,8 +1276,8 @@ class InventoryController extends Controller
             
             // Container number filter
             if (!empty($filters['container_no'])) {
-                $query .= " AND i.container_no LIKE :container_no";
-                $params[':container_no'] = '%' . strtoupper($filters['container_no']) . '%';
+                $query .= " AND LOWER(i.container_no) LIKE :container_no";
+                $params[':container_no'] = '%' . strtolower($filters['container_no']) . '%';
             }
             
             // ISO Code filter
@@ -1312,73 +1312,58 @@ class InventoryController extends Controller
             
             if (!empty($filters['hauler_in'])) {
                 $query .= " AND LOWER(i.hauler) LIKE :hauler_in";
-                $params[':hauler_in'] = '%' . strtoupper($filters['hauler_in']) . '%';
+                $params[':hauler_in'] = '%' . strtolower($filters['hauler_in']) . '%';
             }
             
             if (!empty($filters['vessel_in'])) {
                 $query .= " AND LOWER(i.vessel) LIKE :vessel_in";
-                $params[':vessel_in'] = '%' . strtoupper($filters['vessel_in']) . '%';
+                $params[':vessel_in'] = '%' . strtolower($filters['vessel_in']) . '%';
             }
             
             if (!empty($filters['plate_no_in'])) {
                 $query .= " AND LOWER(i.plate_no) LIKE :plate_no_in";
-                $params[':plate_no_in'] = '%' . strtoupper($filters['plate_no_in']) . '%';
-            }
-            
-            if (!empty($filters['hauler_out'])) {
-                $query .= " AND LOWER(i.hauler) LIKE :hauler_out";
-                $params[':hauler_out'] = '%' . strtoupper($filters['hauler_out']) . '%';
-            }
-            
-            if (!empty($filters['vessel_out'])) {
-                $query .= " AND LOWER(i.vessel) LIKE :vessel_out";
-                $params[':vessel_out'] = '%' . strtoupper($filters['vessel_out']) . '%';
+                $params[':plate_no_in'] = '%' . strtolower($filters['plate_no_in']) . '%';
             }
             
             if (!empty($filters['shipper'])) {
                 $query .= " AND LOWER(i.shipper) LIKE :shipper";
-                $params[':shipper'] = '%' . strtoupper($filters['shipper']) . '%';
+                $params[':shipper'] = '%' . strtolower($filters['shipper']) . '%';
             }
             
             if (!empty($filters['destination'])) {
                 $query .= " AND LOWER(i.location) LIKE :destination";
-                $params[':destination'] = '%' . strtoupper($filters['destination']) . '%';
+                $params[':destination'] = '%' . strtolower($filters['destination']) . '%';
             }
             
             if (!empty($filters['booking_number'])) {
                 $query .= " AND LOWER(i.booking) LIKE :booking_number";
-                $params[':booking_number'] = '%' . strtoupper($filters['booking_number']) . '%';
+                $params[':booking_number'] = '%' . strtolower($filters['booking_number']) . '%';
             }
             
             if (!empty($filters['seal_no'])) {
                 $query .= " AND LOWER(i.seal_no) LIKE :seal_no";
-                $params[':seal_no'] = '%' . strtoupper($filters['seal_no']) . '%';
+                $params[':seal_no'] = '%' . strtolower($filters['seal_no']) . '%';
             }
             
             if (!empty($filters['contact_no'])) {
                 $query .= " AND LOWER(i.contact_no) LIKE :contact_no";
-                $params[':contact_no'] = '%' . strtoupper($filters['contact_no']) . '%';
+                $params[':contact_no'] = '%' . strtolower($filters['contact_no']) . '%';
             }
             
             if (!empty($filters['bill_of_lading'])) {
                 $query .= " AND LOWER(i.bill_of_lading) LIKE :bill_of_lading";
-                $params[':bill_of_lading'] = '%' . strtoupper($filters['bill_of_lading']) . '%';
+                $params[':bill_of_lading'] = '%' . strtolower($filters['bill_of_lading']) . '%';
             }
             
             // Status filters
             if (!empty($filters['status_in']) && $filters['status_in'] !== 'all') {
-                $query .= " AND LOWER(cs.status) LIKE :status_in";
-                $params[':status_in'] = '%' . strtolower($filters['status_in']) . '%';
+                $query .= " AND i.container_status = :status_in";
+                $params[':status_in'] = $filters['status_in'];
             }
             
-            if (!empty($filters['status_out']) && $filters['status_out'] !== 'all') {
-                $query .= " AND LOWER(cs.status) LIKE :status_out";
-                $params[':status_out'] = '%' . strtolower($filters['status_out']) . '%';
-            }
-            
-            // Size/Type filter (combined)
+            // Size/Type filter (inventory.size_type foreign key)
             if (!empty($filters['size_type']) && $filters['size_type'] !== 'all') {
-                $query .= " AND CONCAT(st.size, st.type) = :size_type";
+                $query .= " AND i.size_type = :size_type";
                 $params[':size_type'] = $filters['size_type'];
             }
 
