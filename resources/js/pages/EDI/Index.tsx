@@ -318,8 +318,15 @@ export default function Index() {
             const profilePayload = {
                 ...selected,
             };
+            const isFileTransfer = ['sftp', 'ftp', 'ftps'].includes(selected.destination_type);
             const entered = Object.fromEntries(
-                Object.entries(credentials).filter(([key, value]) => value && (secretsVisible || !['password', 'api_key'].includes(key))),
+                Object.entries(credentials).filter(([key, value]) => {
+                    // Port and username are non-secret editable values. Keep
+                    // an empty port in the request so the server can remove a
+                    // previously saved value such as 22.
+                    if (isFileTransfer && (key === 'port' || key === 'username')) return true;
+                    return Boolean(value) && (secretsVisible || !['password', 'api_key'].includes(key));
+                }),
             );
             const response = isAdding
                 ? await axios.post('/api/edi/profiles', {
