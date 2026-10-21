@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
-import { ModernButton, ModernConfirmDialog } from '@/components/modern';
+import { ModernButton } from '@/components/modern';
 import { Printer, Search } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
@@ -67,7 +67,6 @@ export default function ProcessGateOutModal({
     onSuccess,
     showError,
 }: ProcessGateOutModalProps) {
-    const [showConfirm, setShowConfirm] = useState(false);
     const [containerOptions, setContainerOptions] = useState<ContainerOption[]>([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -1041,7 +1040,7 @@ export default function ProcessGateOutModal({
                         </ModernButton>
                         <ModernButton
                             variant="add"
-                            onClick={() => setShowConfirm(true)}
+                            onClick={handleConfirm}
                         >
                             <Printer className="h-4 w-4" />
                             Save & Print
@@ -1050,15 +1049,6 @@ export default function ProcessGateOutModal({
                 </DialogContent>
             </Dialog>
 
-            <ModernConfirmDialog
-                open={showConfirm}
-                onOpenChange={setShowConfirm}
-                onConfirm={handleConfirm}
-                title="Process Gate OUT"
-                description="Are you sure you want to process this Gate OUT? This will create a permanent record."
-                confirmText="Confirm Process"
-                type="success"
-            />
         </>
     );
 }
