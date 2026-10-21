@@ -77,8 +77,7 @@ const Index: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [clients, setClients] = useState<Client[]>([]);
     const [sizeTypes, setSizeTypes] = useState<{ value: string; label: string }[]>([]);
-    const [statusesIn, setStatusesIn] = useState<string[]>([]);
-    const [statusesOut, setStatusesOut] = useState<string[]>([]);
+    const [statusesIn, setStatusesIn] = useState<Array<{ s_id: number; status: string }>>([]);
     const [reportData, setReportData] = useState<InventoryRecord[]>([]);
     const [totalCount, setTotalCount] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
@@ -154,9 +153,7 @@ const Index: React.FC = () => {
         date_in_from: '',
         date_out_to: '',
         date_in_to: '',
-        hauler_out: '',
         checker: '',
-        vessel_out: '',
         consignee: '',
         shipper: '',
         hauler_in: '',
@@ -169,7 +166,6 @@ const Index: React.FC = () => {
         contact_no: '',
         size_type: 'all',
         bill_of_lading: '',
-        status_out: 'all',
         gate_status: 'CURRENTLY',
     };
 
@@ -302,8 +298,8 @@ const Index: React.FC = () => {
             }
 
             if (sizeTypesResponse.data.success) {
-                const combined = sizeTypesResponse.data.data.map((st: { size: string; type: string }) => ({
-                    value: `${st.size}${st.type}`,
+                const combined = sizeTypesResponse.data.data.map((st: { s_id: number; size: string; type: string }) => ({
+                    value: String(st.s_id),
                     label: `${st.size}${st.type}`
                 }));
                 setSizeTypes(combined);
@@ -311,7 +307,6 @@ const Index: React.FC = () => {
 
             if (statusesResponse.data.success) {
                 setStatusesIn(statusesResponse.data.statuses || []);
-                setStatusesOut(statusesResponse.data.statuses || []);
             }
         } catch (err) {
             console.error('Failed to load dropdown data:', err);
@@ -329,6 +324,7 @@ const Index: React.FC = () => {
         limit = 100,
         sortBy = sortColumn,
         sortDir = sortDirection,
+        filterValues = filters,
     }: {
         page?: number;
         perPage?: number;
@@ -340,17 +336,18 @@ const Index: React.FC = () => {
         limit?: number;
         sortBy?: string;
         sortDir?: 'asc' | 'desc';
+        filterValues?: typeof defaultFilters;
     } = {}) => {
         if (!append) setLoading(true);
         try {
             const payload = {
-                ...buildFilterPayload(),
-                gate_status: (filters.gate_status || 'CURRENTLY') as string,
+                ...buildFilterPayload(filterValues),
+                gate_status: (filterValues.gate_status || 'CURRENTLY') as string,
                 page,
                 per_page: perPage,
                 search: search?.trim() || '',
                 include_summary: includeSummary,
-                virtualized: filters.gate_status === 'BOTH',
+                virtualized: filterValues.gate_status === 'BOTH',
                 offset,
                 limit,
                 sort_by: sortBy,
@@ -448,10 +445,10 @@ const Index: React.FC = () => {
         setFilters(prev => ({ ...prev, [field]: value }));
     };
 
-    const buildFilterPayload = () => {
+    const buildFilterPayload = (filterValues = filters) => {
         const payload: Record<string, unknown> = {};
 
-        Object.entries(filters).forEach(([key, value]) => {
+        Object.entries(filterValues).forEach(([key, value]) => {
             if (typeof value === 'string') {
                 const trimmed = value.trim();
                 if (trimmed && trimmed.toLowerCase() !== 'all') {
@@ -1088,7 +1085,13 @@ const Index: React.FC = () => {
     const handleResetFilters = () => {
         setFilters(defaultFilters);
         setCurrentPage(1);
-        void fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: false });
+        void fetchInventory({
+            page: 1,
+            perPage: itemsPerPage,
+            search: searchTerm,
+            showToast: false,
+            filterValues: defaultFilters,
+        });
     };
 
     const handleOpenExportConfirm = () => {
@@ -1593,7 +1596,7 @@ const Index: React.FC = () => {
 
             {/* Filters Modal */}
             <Dialog open={showFiltersModal} onOpenChange={setShowFiltersModal}>
-                <DialogContent className="!max-w-[90vw] !w-[90vw] !max-h-[90vh] overflow-y-auto">
+                <DialogContent className="!max-w-6xl !w-[90vw] !max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
                             Filter Options
@@ -1622,7 +1625,7 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Status In</Label>
+                                <Label className="text-sm font-semibold mb-2">Status</Label>
                                 <Select value={filters.status_in} onValueChange={(value) => handleFilterChange('status_in', value)}>
                                     <SelectTrigger className="mt-1.5">
                                         <SelectValue placeholder="All" />
@@ -1630,25 +1633,8 @@ const Index: React.FC = () => {
                                     <SelectContent>
                                         <SelectItem value="all">All</SelectItem>
                                         {statusesIn.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                                {status}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Status Out</Label>
-                                <Select value={filters.status_out} onValueChange={(value) => handleFilterChange('status_out', value)}>
-                                    <SelectTrigger className="mt-1.5">
-                                        <SelectValue placeholder="All" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All</SelectItem>
-                                        {statusesOut.map((status) => (
-                                            <SelectItem key={status} value={status}>
-                                                {status}
+                                            <SelectItem key={status.s_id} value={String(status.s_id)}>
+                                                {status.status}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -1726,7 +1712,7 @@ const Index: React.FC = () => {
                             </div>
                             
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Date In (From)</Label>
+                                <Label className="text-sm font-semibold mb-2">Gate IN (Date From)</Label>
                                 <Input
                                     type="date"
                                     value={filters.date_in_from}
@@ -1737,7 +1723,7 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Date In (To)</Label>
+                                <Label className="text-sm font-semibold mb-2">Gate IN (Date To)</Label>
                                 <Input
                                     type="date"
                                     value={filters.date_in_to}
@@ -1748,7 +1734,7 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Hauler In</Label>
+                                <Label className="text-sm font-semibold mb-2">Hauler</Label>
                                 <Input
                                     type="text"
                                     value={filters.hauler_in}
@@ -1758,21 +1744,11 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Vessel In</Label>
+                                <Label className="text-sm font-semibold mb-2">Vessel</Label>
                                 <Input
                                     type="text"
                                     value={filters.vessel_in}
                                     onChange={(e) => handleFilterChange('vessel_in', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Booking Number</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.booking_number}
-                                    onChange={(e) => handleFilterChange('booking_number', e.target.value)}
                                     className="mt-1.5"
                                 />
                             </div>
@@ -1818,7 +1794,7 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Date Out (From)</Label>
+                                <Label className="text-sm font-semibold mb-2">Gate OUT (Date From)</Label>
                                 <Input
                                     type="date"
                                     value={filters.date_out_from}
@@ -1829,7 +1805,7 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Date Out (To)</Label>
+                                <Label className="text-sm font-semibold mb-2">Gate OUT (Date To)</Label>
                                 <Input
                                     type="date"
                                     value={filters.date_out_to}
@@ -1840,21 +1816,11 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Hauler Out</Label>
+                                <Label className="text-sm font-semibold mb-2">Booking Number</Label>
                                 <Input
                                     type="text"
-                                    value={filters.hauler_out}
-                                    onChange={(e) => handleFilterChange('hauler_out', e.target.value)}
-                                    className="mt-1.5"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold mb-2">Vessel Out</Label>
-                                <Input
-                                    type="text"
-                                    value={filters.vessel_out}
-                                    onChange={(e) => handleFilterChange('vessel_out', e.target.value)}
+                                    value={filters.booking_number}
+                                    onChange={(e) => handleFilterChange('booking_number', e.target.value)}
                                     className="mt-1.5"
                                 />
                             </div>
@@ -1870,7 +1836,7 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Plate No. In</Label>
+                                <Label className="text-sm font-semibold mb-2">Plate No.</Label>
                                 <Input
                                     type="text"
                                     value={filters.plate_no_in}
