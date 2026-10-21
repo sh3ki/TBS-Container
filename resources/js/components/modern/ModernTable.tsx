@@ -34,9 +34,14 @@ interface ModernTableProps<T = unknown> {
   sortDirection?: 'asc' | 'desc';
   pagination?: Pagination;
   paginationPosition?: 'top' | 'bottom' | 'both';
+  onReachEnd?: () => void;
+  scrollable?: boolean;
+  virtualized?: boolean;
+  rowHeight?: number;
+  useWindowScroll?: boolean;
 }
 
-export const ModernTable = <T extends Record<string, unknown>>({
+const ModernTableBase = <T extends Record<string, unknown>>({
   columns,
   data,
   loading = false,
@@ -48,7 +53,41 @@ export const ModernTable = <T extends Record<string, unknown>>({
   sortDirection,
   pagination,
   paginationPosition = 'bottom',
+  onReachEnd,
+  scrollable = false,
+  virtualized = false,
+  rowHeight = 128,
+  useWindowScroll = false,
 }: ModernTableProps<T>) => {
+  const [scrollTop, setScrollTop] = React.useState(0);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!virtualized || !useWindowScroll) return;
+
+    const updateWindowScroll = () => {
+      const element = viewportRef.current;
+      if (!element) return;
+      const tableTop = element.getBoundingClientRect().top + window.scrollY;
+      setScrollTop(Math.max(0, window.scrollY - tableTop));
+      if (onReachEnd && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500) {
+        onReachEnd();
+      }
+    };
+
+    updateWindowScroll();
+    window.addEventListener('scroll', updateWindowScroll, { passive: true });
+    window.addEventListener('resize', updateWindowScroll);
+    return () => {
+      window.removeEventListener('scroll', updateWindowScroll);
+      window.removeEventListener('resize', updateWindowScroll);
+    };
+  }, [virtualized, useWindowScroll, onReachEnd]);
+  const virtualStart = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - 5) : 0;
+  const virtualEnd = virtualized
+    ? Math.min(data.length, virtualStart + Math.ceil(700 / rowHeight) + 10)
+    : data.length;
+  const rowsToRender = virtualized ? data.slice(virtualStart, virtualEnd) : data;
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -60,7 +99,18 @@ export const ModernTable = <T extends Record<string, unknown>>({
   return (
     <div className="w-full">
       <div 
-        className="overflow-x-auto rounded-lg border" 
+        ref={viewportRef}
+        className={`${scrollable && !useWindowScroll ? 'max-h-[70vh] overflow-auto' : 'overflow-x-auto'} rounded-lg border`}
+        onScroll={(event) => {
+          if (useWindowScroll) return;
+          const element = event.currentTarget;
+          if (virtualized) {
+            setScrollTop(element.scrollTop);
+          }
+          if (onReachEnd && element.scrollTop + element.clientHeight >= element.scrollHeight - 500) {
+            onReachEnd();
+          }
+        }}
         style={{ 
           borderColor: colors.table.border,
           scrollbarWidth: 'thin',
@@ -93,7 +143,7 @@ export const ModernTable = <T extends Record<string, unknown>>({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider ${column.sortable && onSort ? 'cursor-pointer hover:bg-opacity-90' : ''}`}
+                  className={`px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider ${virtualized ? 'sticky top-0 z-10' : ''} ${column.sortable && onSort ? 'cursor-pointer hover:bg-opacity-90' : ''}`}
                   style={{
                     color: colors.table.headerText,
                     textAlign: column.align || 'left',
@@ -130,12 +180,22 @@ export const ModernTable = <T extends Record<string, unknown>>({
                 </td>
               </tr>
             ) : (
-              data.map((item, index) => (
+              <>
+                {virtualized && virtualStart > 0 && (
+                  <tr aria-hidden="true">
+                    <td colSpan={columns.length} style={{ height: virtualStart * rowHeight, padding: 0, border: 0 }} />
+                  </tr>
+                )}
+                {rowsToRender.map((item, localIndex) => {
+                  const index = virtualized ? virtualStart + localIndex : localIndex;
+                  return (
                 <tr
                   key={index}
                   className={`transition-colors duration-150 ${onRowClick ? 'cursor-pointer' : ''}`}
                   style={{
                     backgroundColor: index % 2 === 0 ? colors.table.row : colors.table.rowAlt,
+                    height: virtualized ? rowHeight : undefined,
+                    verticalAlign: 'top',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = colors.table.hover;
@@ -169,7 +229,14 @@ export const ModernTable = <T extends Record<string, unknown>>({
                     ))
                   )}
                 </tr>
-              ))
+                  );
+                })}
+                {virtualized && virtualEnd < data.length && (
+                  <tr aria-hidden="true">
+                    <td colSpan={columns.length} style={{ height: (data.length - virtualEnd) * rowHeight, padding: 0, border: 0 }} />
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>
@@ -233,3 +300,19 @@ export const ModernTable = <T extends Record<string, unknown>>({
     </div>
   );
 };
+
+// Modal state changes in the parent inventory page must not rebuild thousands
+// of table rows. The data/loading/streaming inputs are the only inputs that
+// should invalidate the table itself; action callback closures are intentionally
+// handled by the row event targets and do not affect layout.
+export const ModernTable = React.memo(
+  ModernTableBase,
+  (previous, next) =>
+    previous.data === next.data &&
+    previous.loading === next.loading &&
+    previous.scrollable === next.scrollable &&
+    previous.onReachEnd === next.onReachEnd &&
+    previous.pagination === next.pagination &&
+    previous.sortColumn === next.sortColumn &&
+    previous.sortDirection === next.sortDirection,
+) as typeof ModernTableBase;
