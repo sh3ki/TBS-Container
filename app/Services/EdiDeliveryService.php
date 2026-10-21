@@ -116,7 +116,8 @@ class EdiDeliveryService
         try {
             $handle = fopen($temporaryPath, 'rb');
             $scheme = $type === 'ftp' ? 'ftp' : ($type === 'ftps' ? 'ftps' : 'sftp');
-            $curl = curl_init($scheme . '://' . $host . '/' . $remotePath . '/' . rawurlencode($filename));
+            $remoteUrl = $scheme . '://' . $host . '/' . $remotePath . '/' . rawurlencode($filename);
+            $curl = curl_init($remoteUrl);
             curl_setopt_array($curl, [
                 CURLOPT_UPLOAD => true,
                 CURLOPT_INFILE => $handle,
@@ -127,14 +128,25 @@ class EdiDeliveryService
                 CURLOPT_CONNECTTIMEOUT => 30,
                 CURLOPT_TIMEOUT => (int) ($config['timeout_seconds'] ?? 120),
             ]);
+            if ($type === 'sftp' && defined('CURLOPT_SSH_AUTH_TYPES') && defined('CURLSSH_AUTH_PASSWORD')) {
+                curl_setopt($curl, CURLOPT_SSH_AUTH_TYPES, CURLSSH_AUTH_PASSWORD);
+            }
             $result = curl_exec($curl);
+            $errno = curl_errno($curl);
             $error = curl_error($curl);
             $code = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+            $primaryIp = (string) curl_getinfo($curl, CURLINFO_PRIMARY_IP);
+            $osError = defined('CURLINFO_OS_ERRNO') ? (int) curl_getinfo($curl, CURLINFO_OS_ERRNO) : 0;
             curl_close($curl);
             fclose($handle);
 
             if ($result === false || $error !== '') {
-                throw new RuntimeException('EDI SFTP delivery failed: ' . ($error ?: 'unknown cURL error'));
+                $detail = trim($error);
+                if ($detail === '') {
+                    $detail = 'cURL error '.$errno.($errno && function_exists('curl_strerror') ? ': '.curl_strerror($errno) : '');
+                }
+                if ($osError) $detail .= ' (OS error '.$osError.')';
+                throw new RuntimeException('EDI '.strtoupper($type).' delivery failed: '.$detail.' [host='.$host.', ip='.($primaryIp ?: 'unresolved').', port='.(int) ($config['port'] ?? $credentials['port'] ?? ($type === 'sftp' ? 22 : 21)).']');
             }
 
             return ['destination' => $type, 'status_code' => $code ?: 200, 'remote_path' => '/' . $remotePath . '/' . $filename, 'message' => 'EDI file uploaded successfully.'];
