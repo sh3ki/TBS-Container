@@ -175,6 +175,13 @@ const Index: React.FC = () => {
 
     // Filter states
     const [filters, setFilters] = useState(defaultFilters);
+    const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+        if (typeof value !== 'string') return false;
+        const normalizedValue = value.trim().toLowerCase();
+        return normalizedValue !== ''
+            && normalizedValue !== 'all'
+            && !(key === 'gate_status' && normalizedValue === 'currently');
+    });
 
     useEffect(() => {
         loadDropdownData();
@@ -1235,23 +1242,32 @@ const Index: React.FC = () => {
 
                             <div className="md:col-span-1">
                                 <Label className="text-sm font-semibold mb-2 text-gray-900">Filter Options</Label>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowFiltersModal(true)}
-                                    className="flex items-center gap-2 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
-                                    disabled={loading}
-                                >
-                                    <Filter className="w-4 h-4 text-gray-600" />
-                                    <span>Filters</span>
-                                    {Object.entries(filters).some(([key, value]) => {
-                                        if (typeof value !== 'string') return false;
-                                        return value.trim() !== '' && value.trim().toLowerCase() !== 'all' && !(key === 'gate_status' && value === 'CURRENTLY');
-                                    }) && (
-                                        <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
-                                            Active
-                                        </span>
-                                    )}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFiltersModal(true)}
+                                        className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                                        disabled={loading}
+                                    >
+                                        <Filter className="w-4 h-4 text-gray-600" />
+                                        <span>Filters</span>
+                                        {hasActiveFilters && (
+                                            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                                                Active
+                                            </span>
+                                        )}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleResetFilters}
+                                        disabled={loading || !hasActiveFilters}
+                                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                        title="Reset filters"
+                                        aria-label="Reset filters"
+                                    >
+                                        <RotateCcw className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1881,6 +1897,7 @@ const Index: React.FC = () => {
                             onClick={handleResetFilters}
                             disabled={loading}
                         >
+                            <RotateCcw className="w-4 h-4" />
                             Reset
                         </ModernButton>
                         <ModernButton
