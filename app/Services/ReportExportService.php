@@ -1138,7 +1138,7 @@ class ReportExportService
         $currentRow += 2;
 
         // Headers
-        $agingHeaders = ['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'AGE (DAYS)', 'STATUS', 'CLASS', 'DMF'];
+        $agingHeaders = ['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'AGE (DAYS)', 'STATUS', 'CLASS', 'DMF', 'EIR NOTES', 'APPROVAL NOTES'];
         $col = 'A';
         foreach ($agingHeaders as $header) {
             $sheetAging->setCellValue($col . $currentRow, $header);
@@ -1162,12 +1162,14 @@ class ReportExportService
             $sheetAging->setCellValue($col . $currentRow, $row->status ?? ''); $col++;
             $sheetAging->setCellValue($col . $currentRow, $row->class ?? ''); $col++;
             $sheetAging->setCellValue($col . $currentRow, $row->dmf ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->eir_notes ?? ''); $col++;
+            $sheetAging->setCellValue($col . $currentRow, $row->approval_notes ?? ''); $col++;
             
             $currentRow++;
             $rowNumber++;
         }
 
-        foreach (range('A', 'H') as $col) {
+        foreach (range('A', 'J') as $col) {
             $sheetAging->getColumnDimension($col)->setAutoSize(true);
         }
 
