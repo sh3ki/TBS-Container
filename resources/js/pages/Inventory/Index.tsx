@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter, RotateCcw } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter, RotateCcw, Copy } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -1056,6 +1056,15 @@ const Index: React.FC = () => {
         window.open(`/api/inventory/print-inout?id=${idForPrint}&s=${status}`, '_blank', 'width=1280,height=900');
     };
 
+    const handleCopyText = async (text: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            success(`Copied ${label}`);
+        } catch {
+            error(`Unable to copy ${label.toLowerCase()}`);
+        }
+    };
+
     const handleSearch = async (allowEmpty = false) => {
         if (!allowEmpty && !searchTerm.trim()) {
             return;
@@ -1282,17 +1291,31 @@ const Index: React.FC = () => {
                                     sortable: true,
                                     disableRowClick: true,
                                     render: (row: InventoryRecord) => (
-                                        <button
-                                            type="button"
-                                            onClick={(e: React.MouseEvent) => {
-                                                e.stopPropagation();
-                                                openLegacyPrintInOut(row);
-                                            }}
-                                            className="font-medium text-gray-900 min-w-[110px] underline underline-offset-2"
-                                            title="Print IN/OUT legacy template"
-                                        >
-                                            {row.container_no}
-                                        </button>
+                                        <div className="flex items-center gap-1 min-w-[135px]">
+                                            <button
+                                                type="button"
+                                                onClick={(e: React.MouseEvent) => {
+                                                    e.stopPropagation();
+                                                    void handleCopyText(row.container_no, row.container_no);
+                                                }}
+                                                className="inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                                title="Copy container number"
+                                                aria-label={`Copy container number ${row.container_no}`}
+                                            >
+                                                <Copy className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(e: React.MouseEvent) => {
+                                                    e.stopPropagation();
+                                                    openLegacyPrintInOut(row);
+                                                }}
+                                                className="font-medium text-gray-900 underline underline-offset-2"
+                                                title="Print IN/OUT legacy template"
+                                            >
+                                                {row.container_no}
+                                            </button>
+                                        </div>
                                     )
                                 },
                                 { 
@@ -1395,7 +1418,25 @@ const Index: React.FC = () => {
                                     disableRowClick: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="min-w-[200px] max-w-[250px]">
-                                            <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes || '-'}</span>
+                                            {row.eir_notes && row.eir_notes.trim() ? (
+                                                <div className="flex items-start gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e: React.MouseEvent) => {
+                                                            e.stopPropagation();
+                                                            void handleCopyText(row.eir_notes, 'EIR notes');
+                                                        }}
+                                                        className="inline-flex shrink-0 items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                                        title="Copy EIR notes"
+                                                        aria-label="Copy EIR notes"
+                                                    >
+                                                        <Copy className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm text-gray-600">-</span>
+                                            )}
                                         </div>
                                     )
                                 },
@@ -1406,7 +1447,21 @@ const Index: React.FC = () => {
                                     render: (row: InventoryRecord) => (
                                         <div className="flex items-center gap-2 min-w-[150px]">
                                             {row.app_notes && row.app_notes.trim() ? (
-                                                <span className="text-sm text-gray-600">{row.app_notes}</span>
+                                                <div className="flex items-start gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e: React.MouseEvent) => {
+                                                            e.stopPropagation();
+                                                            void handleCopyText(row.app_notes, 'App notes');
+                                                        }}
+                                                        className="inline-flex shrink-0 items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                                        title="Copy app notes"
+                                                        aria-label="Copy app notes"
+                                                    >
+                                                        <Copy className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <span className="text-sm text-gray-600">{row.app_notes}</span>
+                                                </div>
                                             ) : (
                                                 <ModernButton
                                                     variant="add"
