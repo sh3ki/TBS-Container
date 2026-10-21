@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
@@ -480,36 +481,10 @@ class InventoryController extends Controller
                 ", [$inventory->container_no]);
             }
 
-            // Attempt to include container images (if any) by scanning the container_pics folder.
+            // Image discovery is intentionally deferred to /api/inventory/images.
+            // The details request must be able to open the modal without scanning
+            // the filesystem first.
             $images = [];
-            try {
-                $baseDir = '/var/www/tbscontainermnl/public/container_pics';
-                if (!empty($inventory->date_added)) {
-                    $folderDate = Carbon::parse($inventory->date_added)->format('m-d-Y');
-                } else {
-                    $folderDate = null;
-                }
-
-                if ($folderDate) {
-                    $inOrOut = (strtolower($inventory->gate_status) === 'out') ? 'out' : 'in';
-                    $relativePath = trim($folderDate . '/' . $inOrOut . '/' . $inventory->container_no . '/', '/');
-                    $fullPath = rtrim($baseDir, '/') . '/' . $relativePath;
-
-                    if (File::exists($fullPath) && File::isDirectory($fullPath)) {
-                        $files = File::files($fullPath);
-                        foreach ($files as $f) {
-                            $name = $f->getFilename();
-                            $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-                            if (in_array($ext, ['jpg','jpeg','png','gif','webp','bmp'], true)) {
-                                $rel = ltrim($relativePath . '/' . $name, '/');
-                                $images[] = '/api/containerimages/file?path=' . urlencode($rel);
-                            }
-                        }
-                    }
-                }
-            } catch (\Throwable $e) {
-                // ignore image discovery failures
-            }
 
             return response()->json([
                 'success' => true,
@@ -1049,12 +1024,12 @@ class InventoryController extends Controller
     public function getClients()
     {
         try {
-            $clients = DB::select("
+            $clients = Cache::remember('inventory.lookup.clients.v1', 3600, fn () => DB::select("
                 SELECT c_id, client_code, client_name 
                 FROM " . DB::getTablePrefix() . "clients 
                 WHERE archived = 0 
                 ORDER BY client_name ASC
-            ");
+            "));
 
             return response()->json(['success' => true, 'data' => $clients]);
         } catch (\Exception $e) {
@@ -1109,12 +1084,12 @@ class InventoryController extends Controller
     public function getSizeTypes()
     {
         try {
-            $sizeTypes = DB::select("
+            $sizeTypes = Cache::remember('inventory.lookup.size_types.v1', 3600, fn () => DB::select("
                 SELECT s_id, size, type, description 
                 FROM " . DB::getTablePrefix() . "container_size_type 
                 WHERE archived IS NULL OR archived = 0
                 ORDER BY size ASC, type ASC
-            ");
+            "));
 
             return response()->json(['success' => true, 'data' => $sizeTypes]);
         } catch (\Exception $e) {
@@ -1198,12 +1173,12 @@ class InventoryController extends Controller
     public function getStatusesList()
     {
         try {
-            $statuses = DB::select("
+            $statuses = Cache::remember('inventory.lookup.statuses.v1', 3600, fn () => DB::select("
                 SELECT DISTINCT status 
                 FROM " . DB::getTablePrefix() . "container_status 
                 WHERE status IS NOT NULL AND status != ''
                 ORDER BY status ASC
-            ");
+            "));
 
             return response()->json([
                 'success' => true,
@@ -1268,7 +1243,19 @@ class InventoryController extends Controller
                     WHERE c.archived = 0";
             
             $params = [];
-            
+
+            // Search is intentionally explicit: the UI submits this only when the
+            // user presses Search. Keep the search scope narrow so this does not
+            // turn into a broad client/name scan over the inventory table.
+            if (!empty($filters['search'])) {
+                $query .= " AND (i.container_no LIKE :container_search OR CONCAT(i.i_id, CASE WHEN i.gate_status = 'IN' THEN 'I' ELSE 'O' END) LIKE :eir_search)";
+                $searchValue = '%' . strtoupper(trim((string) $filters['search'])) . '%';
+                // PDO MySQL does not safely support reusing one named placeholder
+                // twice when native prepares are enabled.
+                $params[':container_search'] = $searchValue;
+                $params[':eir_search'] = $searchValue;
+            }
+
             // Handle gate status filter (default to CURRENTLY for Real Time Inventory)
             $gateStatus = $filters['gate_status'] ?? 'CURRENTLY';
             if ($gateStatus === 'CURRENTLY') {
@@ -1394,16 +1381,76 @@ class InventoryController extends Controller
                 $query .= " AND CONCAT(st.size, st.type) = :size_type";
                 $params[':size_type'] = $filters['size_type'];
             }
-            
-            $query .= " ORDER BY st.size ASC, {$safeInDate} DESC";
-            
-            $results = DB::select($query, $params);
-            
-            // Build summary report data
+
+            // Keep only the FROM/JOIN/WHERE portion for count and aggregation.
+            // This avoids executing the full display projection (date parsing,
+            // hold checks, and formatted fields) just to count rows.
+            $fromPosition = strpos($query, "FROM {$prefix}inventory i");
+            if ($fromPosition === false) {
+                throw new \RuntimeException('Unable to build inventory filter query');
+            }
+            $filterSql = substr($query, $fromPosition);
+
+            // Summary is aggregated by the database across the complete filtered
+            // set, never from the limited/windowed rows returned to the table.
             $summaryByClient = [];
             $sizeTypeList = [];
+            if (filter_var($filters['include_summary'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $summaryQuery = "SELECT COALESCE(c.client_code, c.client_name) AS client_display, CONCAT(st.size, st.type) AS size_type, COUNT(*) AS total {$filterSql}";
+                $summaryRows = DB::select($summaryQuery . " GROUP BY client_display, size_type ORDER BY client_display, size_type", $params);
+                foreach ($summaryRows as $summaryRow) {
+                    if (!$summaryRow->client_display || !$summaryRow->size_type) {
+                        continue;
+                    }
+                    $sizeTypeList[] = $summaryRow->size_type;
+                    $summaryByClient[$summaryRow->client_display][$summaryRow->size_type] = (int) $summaryRow->total;
+                }
+                $sizeTypeList = array_values(array_unique($sizeTypeList));
+            }
+
+            // Only allow known sortable columns to reach ORDER BY. The default
+            // remains the existing newest-first inventory order.
+            $sortExpressions = [
+                '' => 'i.i_id',
+                'eir_no' => 'i.i_id',
+                'container_no' => 'i.container_no',
+                'client' => 'c.client_name',
+                'date_time' => 'i.date_added',
+                'dmf' => 'i.date_manufactured',
+                'location' => 'i.location',
+            ];
+            $sortBy = (string) ($filters['sort_by'] ?? '');
+            $sortExpression = $sortExpressions[$sortBy] ?? $sortExpressions[''];
+            $sortDirection = strtoupper((string) ($filters['sort_direction'] ?? 'DESC')) === 'ASC' ? 'ASC' : 'DESC';
+            $query .= " ORDER BY {$sortExpression} {$sortDirection}, i.i_id DESC";
+
+            // CURRENTLY is intentionally returned in full (normally ~1,000 rows).
+            // BOTH can represent the historical 570k+ rows, so it uses a bounded
+            // server-side window consumed by the virtualized client table.
+            $gateStatus = $filters['gate_status'] ?? 'CURRENTLY';
+            $totalQuery = "SELECT COUNT(*) AS total {$filterSql}";
+            $total = (int) (DB::selectOne($totalQuery, $params)->total ?? 0);
+
+            $isHistoricalWindow = $gateStatus === 'BOTH' || filter_var($filters['virtualized'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if ($isHistoricalWindow) {
+                $limit = min(max((int) ($filters['limit'] ?? 100), 1), 500);
+                $offset = max((int) ($filters['offset'] ?? 0), 0);
+                $query .= " LIMIT {$limit} OFFSET {$offset}";
+            }
+
+            $results = DB::select($query, $params);
             
+            // Keep the legacy response shape for callers that do not request a
+            // summary. Summary callers already received the complete SQL aggregate.
+            if (!filter_var($filters['include_summary'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $summaryByClient = [];
+                $sizeTypeList = [];
+            }
+
             foreach ($results as $item) {
+                if (filter_var($filters['include_summary'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                    continue;
+                }
                 $clientDisplay = $item->client_code ?: $item->client;
                 $sizeType = $item->size;
                 
@@ -1431,6 +1478,9 @@ class InventoryController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $results,
+                'total' => $total,
+                'offset' => (int) ($filters['offset'] ?? 0),
+                'limit' => $isHistoricalWindow ? (int) ($filters['limit'] ?? 100) : count($results),
                 'summary' => [
                     'by_client' => $summaryByClient,
                     'size_types' => $sizeTypeList,
