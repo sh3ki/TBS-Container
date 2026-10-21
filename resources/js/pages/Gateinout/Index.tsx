@@ -89,6 +89,7 @@ export default function Index() {
   const [showEditPreOutModal, setShowEditPreOutModal] = useState(false);
   const [showProcessGateInModal, setShowProcessGateInModal] = useState(false);
   const [showProcessGateOutModal, setShowProcessGateOutModal] = useState(false);
+  const hasActiveFilters = Boolean(searchTerm.trim()) || selectedClient !== 'all';
 
   const [showBackToTop, setShowBackToTop] = useState(false);
 
@@ -240,6 +241,12 @@ export default function Index() {
     setOutTableData(outRecords);
     setCurrentPageIn(1); // Reset to first page when filters change
     setCurrentPageOut(1);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedClient('all');
+    setTempSelectedClient('all');
   };
 
   // Refresh only IN rows (does not touch header counts/titles)
@@ -689,20 +696,32 @@ export default function Index() {
                 <Label className="text-sm font-semibold mb-2 text-gray-900">
                   Filter Options
                 </Label>
-                <button
-                  type="button"
-                  onClick={() => setShowFiltersModal(true)}
-                  className="flex items-center gap-2 h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
-                  disabled={loading}
-                >
-                  <Filter className="w-4 h-4 text-gray-600" />
-                  <span>Filters</span>
-                  {selectedClient !== 'all' && (
-                    <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
-                      1
-                    </span>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFiltersModal(true)}
+                    className="flex items-center gap-2 h-11 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                    disabled={loading}
+                  >
+                    <Filter className="w-4 h-4 text-gray-600" />
+                    <span>Filters</span>
+                    {selectedClient !== 'all' && (
+                      <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
+                        1
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    disabled={!hasActiveFilters || loading}
+                    title="Reset filters"
+                    aria-label="Reset filters"
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-xs transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-200">
@@ -1099,6 +1118,7 @@ export default function Index() {
                 setTempSelectedClient('all');
               }}
             >
+              <RefreshCw className="w-4 h-4" />
               Reset
             </ModernButton>
             <ModernButton
