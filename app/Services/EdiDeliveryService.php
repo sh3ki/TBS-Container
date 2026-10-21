@@ -131,6 +131,20 @@ class EdiDeliveryService
             if ($type === 'sftp' && defined('CURLOPT_SSH_AUTH_TYPES') && defined('CURLSSH_AUTH_PASSWORD')) {
                 curl_setopt($curl, CURLOPT_SSH_AUTH_TYPES, CURLSSH_AUTH_PASSWORD);
             }
+            if ($type === 'sftp') {
+                $knownHostsPath = trim((string) ($config['ssh_known_hosts'] ?? env('EDI_SFTP_KNOWN_HOSTS', '')));
+                $hostKeySha256 = trim((string) ($config['ssh_host_public_key_sha256'] ?? env('EDI_SFTP_HOST_KEY_SHA256', '')));
+
+                if ($knownHostsPath !== '' && defined('CURLOPT_SSH_KNOWNHOSTS')) {
+                    if (! is_file($knownHostsPath) || ! is_readable($knownHostsPath)) {
+                        throw new RuntimeException('EDI SFTP known-hosts file is missing or not readable: '.$knownHostsPath);
+                    }
+                    curl_setopt($curl, CURLOPT_SSH_KNOWNHOSTS, $knownHostsPath);
+                }
+                if ($hostKeySha256 !== '' && defined('CURLOPT_SSH_HOST_PUBLIC_KEY_SHA256')) {
+                    curl_setopt($curl, CURLOPT_SSH_HOST_PUBLIC_KEY_SHA256, $hostKeySha256);
+                }
+            }
             $result = curl_exec($curl);
             $errno = curl_errno($curl);
             $error = curl_error($curl);
@@ -146,6 +160,9 @@ class EdiDeliveryService
                     $detail = 'cURL error '.$errno.($errno && function_exists('curl_strerror') ? ': '.curl_strerror($errno) : '');
                 }
                 if ($osError) $detail .= ' (OS error '.$osError.')';
+                if ($type === 'sftp' && $errno === 60) {
+                    $detail .= ' Configure MSC\'s approved SSH host key using ssh_host_public_key_sha256 or ssh_known_hosts.';
+                }
                 throw new RuntimeException('EDI '.strtoupper($type).' delivery failed: '.$detail.' [host='.$host.', ip='.($primaryIp ?: 'unresolved').', port='.(int) ($config['port'] ?? $credentials['port'] ?? ($type === 'sftp' ? 22 : 21)).']');
             }
 
