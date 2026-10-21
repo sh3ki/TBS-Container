@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
 import {
     Dialog,
@@ -70,6 +70,8 @@ export default function ProcessGateOutModal({
     const [containerOptions, setContainerOptions] = useState<ContainerOption[]>([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [containerHighlightIndex, setContainerHighlightIndex] = useState(-1);
+    const suppressContainerResultsRef = useRef(false);
     const [isContainerSelected, setIsContainerSelected] = useState(false);
     const [checkerName, setCheckerName] = useState('');
     
@@ -106,6 +108,7 @@ export default function ProcessGateOutModal({
     const [bookingOptions, setBookingOptions] = useState<Array<{ book_no: string }>>([]);
     const [showBookingDropdown, setShowBookingDropdown] = useState(false);
     const [bookingSearchTerm, setBookingSearchTerm] = useState('');
+    const [bookingHighlightIndex, setBookingHighlightIndex] = useState(-1);
     const [defaultStatusId, setDefaultStatusId] = useState<string>('');
     const [defaultLoadId, setDefaultLoadId] = useState<string>('');
 
@@ -139,7 +142,7 @@ export default function ProcessGateOutModal({
 
     // Fetch available containers on mount and when search term changes
     useEffect(() => {
-        if (open && searchTerm.length >= 1) {
+        if (open && searchTerm.length >= 1 && !suppressContainerResultsRef.current) {
             fetchAvailableContainers(searchTerm);
         }
     }, [open, searchTerm]);
@@ -151,6 +154,7 @@ export default function ProcessGateOutModal({
             setFormData({ ...initialFormData });
             setSearchTerm('');
             setShowDropdown(false);
+            suppressContainerResultsRef.current = false;
             setCheckerName(currentUserFullName || '');
             setIsContainerSelected(false);
 
@@ -172,6 +176,7 @@ export default function ProcessGateOutModal({
             setCheckerName(currentUserFullName || '');
             setSearchTerm('');
             setShowDropdown(false);
+            suppressContainerResultsRef.current = false;
             setIsContainerSelected(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -398,9 +403,10 @@ export default function ProcessGateOutModal({
             const response = await axios.get('/api/gateinout/available-containers', {
                 params: { search }
             });
-            if (response.data.success) {
+            if (response.data.success && !suppressContainerResultsRef.current) {
                 setContainerOptions(response.data.data);
                 setShowDropdown(true);
+                setContainerHighlightIndex(response.data.data.length > 0 ? 0 : -1);
             }
         } catch (error) {
             console.error('Failed to fetch containers:', error);
@@ -408,8 +414,10 @@ export default function ProcessGateOutModal({
     };
 
     const handleContainerSearch = (value: string) => {
+        suppressContainerResultsRef.current = false;
         setSearchTerm(value);
         setFormData(prev => ({ ...prev, container_no: value }));
+        setContainerHighlightIndex(0);
         
         if (value.length >= 1) {
             setShowDropdown(true);
@@ -419,6 +427,9 @@ export default function ProcessGateOutModal({
     };
 
     const handleContainerSelect = async (container: ContainerOption) => {
+        suppressContainerResultsRef.current = true;
+        setShowDropdown(false);
+        setContainerHighlightIndex(-1);
         // Validate the container first
         try {
             const response = await axios.post('/api/gateinout/validate-container', {
@@ -528,6 +539,7 @@ export default function ProcessGateOutModal({
                 setIsContainerSelected(true); // Enable other fields
             }
         } catch (error: unknown) {
+            suppressContainerResultsRef.current = false;
             const err = error as { response?: { data?: { message?: string; hold_notes?: string } } };
             if (err.response?.data?.message) {
                 (showError ? showError(err.response.data.message) : alert(err.response.data.message));
@@ -559,6 +571,9 @@ export default function ProcessGateOutModal({
                 setBookingOptions(response.data.bookings || []);
                 if ((response.data.bookings || []).length > 0) {
                     setShowBookingDropdown(true);
+                    setBookingHighlightIndex(0);
+                } else {
+                    setBookingHighlightIndex(-1);
                 }
             }
         } catch (error) {
@@ -752,6 +767,20 @@ export default function ProcessGateOutModal({
                                     <Input
                                         value={searchTerm}
                                         onChange={(e) => handleContainerSearch(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (!showDropdown || containerOptions.length === 0) return;
+
+                                            if (e.key === 'ArrowDown') {
+                                                e.preventDefault();
+                                                setContainerHighlightIndex((previous) => (previous + 1) % containerOptions.length);
+                                            } else if (e.key === 'ArrowUp') {
+                                                e.preventDefault();
+                                                setContainerHighlightIndex((previous) => previous <= 0 ? containerOptions.length - 1 : previous - 1);
+                                            } else if (e.key === 'Enter' && containerHighlightIndex >= 0) {
+                                                e.preventDefault();
+                                                void handleContainerSelect(containerOptions[containerHighlightIndex]);
+                                            }
+                                        }}
                                         placeholder="Type to search..."
                                         maxLength={11}
                                         className="pr-10"
@@ -766,11 +795,11 @@ export default function ProcessGateOutModal({
                                             className="p-1 max-h-[200px] overflow-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400"
                                             style={{ scrollbarWidth: 'thin', scrollbarColor: '#d1d5db #f3f4f6' }}
                                         >
-                                            {containerOptions.map((container) => (
+                                            {containerOptions.map((container, idx) => (
                                                 <div
                                                     key={container.i_id}
                                                     onClick={() => handleContainerSelect(container)}
-                                                    className="relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-blue-50 hover:text-gray-900 text-gray-900"
+                                                    className={`relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-blue-50 hover:text-gray-900 text-gray-900 ${idx === containerHighlightIndex ? 'bg-blue-50' : ''}`}
                                                 >
                                                     {container.container_no}
                                                 </div>
@@ -949,10 +978,28 @@ export default function ProcessGateOutModal({
                                         value={bookingSearchTerm}
                                         onChange={(e) => {
                                             setBookingSearchTerm(e.target.value);
+                                            setBookingHighlightIndex(0);
                                             if (e.target.value.length >= 1) {
                                                 fetchBookingsList(e.target.value);
                                             } else {
                                                 setShowBookingDropdown(false);
+                                                setBookingHighlightIndex(-1);
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (!showBookingDropdown || bookingOptions.length === 0) return;
+
+                                            if (e.key === 'ArrowDown') {
+                                                e.preventDefault();
+                                                setBookingHighlightIndex((previous) => (previous + 1) % bookingOptions.length);
+                                            } else if (e.key === 'ArrowUp') {
+                                                e.preventDefault();
+                                                setBookingHighlightIndex((previous) => previous <= 0 ? bookingOptions.length - 1 : previous - 1);
+                                            } else if (e.key === 'Enter' && bookingHighlightIndex >= 0) {
+                                                e.preventDefault();
+                                                void handleBookingSelect(bookingOptions[bookingHighlightIndex].book_no);
+                                                setShowBookingDropdown(false);
+                                                setBookingHighlightIndex(-1);
                                             }
                                         }}
                                         onFocus={() => {
@@ -976,7 +1023,7 @@ export default function ProcessGateOutModal({
                                                     <div
                                                         key={idx}
                                                         onClick={() => handleBookingSelect(booking.book_no)}
-                                                        className="relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-blue-50 hover:text-gray-900 text-gray-900"
+                                                        className={`relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none hover:bg-blue-50 hover:text-gray-900 text-gray-900 ${idx === bookingHighlightIndex ? 'bg-blue-50' : ''}`}
                                                     >
                                                         {booking.book_no}
                                                     </div>
