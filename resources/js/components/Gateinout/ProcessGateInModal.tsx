@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
-import { ModernButton, ModernConfirmDialog } from '@/components/modern';
+import { ModernButton } from '@/components/modern';
 import { Printer, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
@@ -52,7 +52,6 @@ export default function ProcessGateInModal({
     onSuccess,
     showError,
 }: ProcessGateInModalProps) {
-    const [showConfirm, setShowConfirm] = useState(false);
     const [checkerName, setCheckerName] = useState('');
     const [autoFillIsoCode, setAutoFillIsoCode] = useState(false);
     const initialFormData = {
@@ -162,7 +161,7 @@ export default function ProcessGateInModal({
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         // Validation: All dropdowns must have selected option, all inputs must not be null
@@ -222,7 +221,7 @@ export default function ProcessGateInModal({
             }
         }
         
-        setShowConfirm(true);
+        await handleConfirm();
     };
 
     const handleConfirm = async () => {
@@ -290,12 +289,10 @@ export default function ProcessGateInModal({
                 
                 onSuccess();
                 onClose();
-                setShowConfirm(false);
             }
         } catch (error: unknown) {
             const axiosError = error as { response?: { data?: { message?: string } } };
             (showError ? showError(axiosError.response?.data?.message || 'Failed to process Gate IN') : alert(axiosError.response?.data?.message || 'Failed to process Gate IN'));
-            setShowConfirm(false);
         }
     };
 
@@ -519,15 +516,6 @@ export default function ProcessGateInModal({
                 </DialogContent>
             </Dialog>
 
-            <ModernConfirmDialog
-                open={showConfirm}
-                onOpenChange={setShowConfirm}
-                onConfirm={handleConfirm}
-                title="Process Gate IN"
-                description="Are you sure you want to process this Gate IN? This will create a permanent record."
-                confirmText="Confirm Process"
-                type="success"
-            />
         </>
     );
 }
