@@ -1394,7 +1394,7 @@ class InventoryController extends Controller
             }
 
             // Only allow known sortable columns to reach ORDER BY. The default
-            // remains the existing newest-first inventory order.
+            // defaults to the oldest inventory records first.
             $sortExpressions = [
                 '' => 'i.i_id',
                 'eir_no' => 'i.i_id',
@@ -1406,7 +1406,7 @@ class InventoryController extends Controller
             ];
             $sortBy = (string) ($filters['sort_by'] ?? '');
             $sortExpression = $sortExpressions[$sortBy] ?? $sortExpressions[''];
-            $sortDirection = strtoupper((string) ($filters['sort_direction'] ?? 'DESC')) === 'ASC' ? 'ASC' : 'DESC';
+            $sortDirection = strtoupper((string) ($filters['sort_direction'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
             $query .= " ORDER BY {$sortExpression} {$sortDirection}, i.i_id DESC";
 
             // CURRENTLY is intentionally returned in full (normally ~1,000 rows).
