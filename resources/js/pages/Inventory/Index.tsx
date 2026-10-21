@@ -443,6 +443,12 @@ const Index: React.FC = () => {
         await fetchInventory({ page: 1, perPage: itemsPerPage, search: '', showToast: false });
     };
 
+    const updateInventoryRow = (inventoryId: number, updates: Partial<InventoryRecord>) => {
+        setReportData((previous) => previous.map((row) => (
+            row.i_id === inventoryId ? { ...row, ...updates } : row
+        )));
+    };
+
     const handleFilterChange = (field: string, value: string | boolean) => {
         setFilters(prev => ({ ...prev, [field]: value }));
     };
@@ -711,10 +717,15 @@ const Index: React.FC = () => {
             if (response.data.success) {
                 saveFieldHistory({ 'inventory.approval_notes': approvalNotes });
                 success('Container approved successfully!');
+                updateInventoryRow(selectedRecord.i_id, {
+                    app_notes: approvalNotes.trim(),
+                    status: 'AVL',
+                    status_id: '1',
+                    container_status_id: 1,
+                });
                 setShowApproveConfirm(false);
                 setSelectedRecord(null);
                 setApprovalNotes('');
-                await loadAllInventory();
             } else {
                 error(response.data.message || 'Failed to approve container');
             }
@@ -749,10 +760,15 @@ const Index: React.FC = () => {
 
             if (response.data.success) {
                 success('Container placed on hold successfully!');
+                updateInventoryRow(selectedRecord.i_id, {
+                    status: 'HLD',
+                    status_id: '4',
+                    container_status_id: 4,
+                    is_hold: true,
+                });
                 setShowHoldModal(false);
                 setSelectedRecord(null);
                 setHoldNotes('');
-                await loadAllInventory();
             } else {
                 error(response.data.message || 'Failed to hold container');
             }
@@ -778,9 +794,14 @@ const Index: React.FC = () => {
 
             if (response.data.success) {
                 success('Container removed from hold successfully!');
+                updateInventoryRow(recordForAction.i_id, {
+                    status: 'AVL',
+                    status_id: '1',
+                    container_status_id: 1,
+                    is_hold: false,
+                });
                 setShowUnholdConfirm(false);
                 setRecordForAction(null);
-                await loadAllInventory();
             } else {
                 error(response.data.message || 'Failed to unhold container');
             }
@@ -809,9 +830,14 @@ const Index: React.FC = () => {
 
             if (response.data.success) {
                 success(`Container updated to ${action} successfully!`);
+                const newStatusId = isRepo ? 1 : 8;
+                updateInventoryRow(recordForAction.i_id, {
+                    status: isRepo ? 'AVL' : 'REPO',
+                    status_id: String(newStatusId),
+                    container_status_id: newStatusId,
+                });
                 setShowRepoToggleConfirm(false);
                 setRecordForAction(null);
-                await loadAllInventory();
             } else {
                 error(response.data.message || 'Failed to update container status');
             }
@@ -972,8 +998,7 @@ const Index: React.FC = () => {
 
     const handleConfirmEdit = async () => {
         if (!editFormData) return;
-        
-        setLoading(true);
+
         try {
             const identifier = editFormData.hashed_id || editFormData.i_id;
             
@@ -1000,7 +1025,7 @@ const Index: React.FC = () => {
                 date_manufactured: editFormData.dmf,
                 contact_no: editFormData.contact_no?.toUpperCase(),
                 bill_of_lading: editFormData.bill_of_lading?.toUpperCase(),
-                app_notes: editFormData.app_notes?.toUpperCase(),
+                approval_notes: editFormData.app_notes?.toUpperCase(),
             };
 
             const response = await axios.put(`/api/inventory/${identifier}`, payload);
@@ -1026,16 +1051,38 @@ const Index: React.FC = () => {
                 });
                 success('Container updated successfully!');
                 setShowEditConfirm(false);
+                setShowEditModal(false);
+                setReportData((previous) => previous.map((row) => {
+                    if (row.i_id !== editFormData.i_id) return row;
+
+                    const selectedClient = clients.find((client) => String(client.c_id) === String(editFormData.client_id));
+                    const selectedSizeType = sizeTypeOptions.find((sizeType) => String(sizeType.s_id) === String(editFormData.size_type_id));
+
+                    return {
+                        ...row,
+                        container_no: editFormData.container_no.toUpperCase(),
+                        client_id: editFormData.client_id,
+                        client: selectedClient?.name || row.client,
+                        client_code: selectedClient?.code || row.client_code,
+                        size: selectedSizeType ? `${selectedSizeType.size}${selectedSizeType.type}` : row.size,
+                        size_type_id: editFormData.size_type_id,
+                        status: editFormData.status,
+                        status_id: editFormData.status_id,
+                        container_status_id: Number(editFormData.status_id),
+                        class: editFormData.class,
+                        dmf: editFormData.dmf,
+                        location: editFormData.location,
+                        eir_notes: editFormData.eir_notes?.toUpperCase() || '',
+                        app_notes: editFormData.app_notes?.toUpperCase() || '',
+                    };
+                }));
                 setEditFormData(null);
-                await loadAllInventory();
             } else {
                 error(response.data.message || 'Failed to update container');
             }
         } catch (err: unknown) {
             const error_caught = err as { response?: { data?: { message?: string } } };
             error(error_caught.response?.data?.message || 'Failed to update container');
-        } finally {
-            setLoading(false);
         }
     };
 
