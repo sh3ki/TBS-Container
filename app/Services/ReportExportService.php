@@ -1198,4 +1198,123 @@ class ReportExportService
             throw $e;
         }
     }
+
+    /**
+     * Export the MSC/client 67 DMR workbook.
+     */
+    public function exportMscDmr(Collection $inData, Collection $outData, Collection $sealData, string $date): string
+    {
+        $this->spreadsheet = new Spreadsheet();
+        $this->spreadsheet->removeSheetByIndex(0);
+
+        $headerStyle = [
+            'font' => ['name' => 'Aptos Narrow', 'size' => 11, 'bold' => true, 'color' => ['rgb' => '000000']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFC000']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            'borders' => ['allBorders' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+        $cellStyle = [
+            'font' => ['name' => 'Aptos Narrow', 'size' => 11, 'color' => ['rgb' => '000000']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            'borders' => ['allBorders' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]],
+        ];
+
+        $dateValue = static function ($value) {
+            return $value ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(Carbon::parse($value)->startOfDay()) : null;
+        };
+        $timeValue = static function ($value) {
+            return $value ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(Carbon::parse($value)) - \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(Carbon::parse($value)->startOfDay()) : null;
+        };
+        $applySheet = static function ($sheet, array $headers, int $lastColumn) use ($headerStyle, $cellStyle) {
+            $col = 'A';
+            foreach ($headers as $header) {
+                $sheet->setCellValue($col . '1', $header);
+                $sheet->getStyle($col . '1')->applyFromArray($headerStyle);
+                $col++;
+            }
+            $sheet->getRowDimension(1)->setRowHeight(31);
+            $sheet->freezePane('A2');
+            $sheet->setAutoFilter('A1:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastColumn) . '1');
+            return $cellStyle;
+        };
+
+        $inHeaders = ['No.', 'LOCATION', 'DEPOT NAME', 'CONTAINER', 'SIZE/TYPE', 'YEAR BUILD', 'CONDITION', 'CLASS', 'DATE', 'TIME', 'IMPORT BL', 'HAULER', 'NO. OF DAY', 'SUGGESTION'];
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Daily Gate IN');
+        $this->spreadsheet->addSheet($sheet);
+        $applySheet($sheet, $inHeaders, 14);
+        $row = 2;
+        foreach ($inData as $index => $item) {
+            $dateCell = 'I' . $row;
+            $status = strtoupper((string) ($item->container_status ?? ''));
+            $sheet->fromArray([
+                $index + 1, 'MANILA', 'TBS', $item->container_no ?? '', $item->size_type ?? '',
+                $dateValue($item->date_manufactured), $item->container_status ?? '', $item->class ?? '',
+                $dateValue($item->date_added), $timeValue($item->date_added), $item->bill_of_lading ?? '', $item->hauler ?? '',
+            ], null, 'A' . $row);
+            $sheet->setCellValue('M' . $row, '=IF(' . $dateCell . '="","",TODAY()-' . $dateCell . '+1)');
+            $sheet->setCellValue('N' . $row, in_array($status, ['AVL', 'WSH'], true) ? 'WASHING' : ($status === 'DMG' ? 'DAMAGED' : ''));
+            $row++;
+        }
+        $sheet->getStyle('A1:N' . max(1, $row - 1))->applyFromArray($cellStyle);
+        $sheet->getStyle('A1:N1')->applyFromArray($headerStyle);
+        $sheet->getStyle('F2:F' . max(2, $row - 1))->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+        $sheet->getStyle('I2:I' . max(2, $row - 1))->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+        $sheet->getStyle('J2:J' . max(2, $row - 1))->getNumberFormat()->setFormatCode('hh:mm:ss');
+        $sheet->getStyle('M2:M' . max(2, $row - 1))->getNumberFormat()->setFormatCode('0.00');
+
+        $outHeaders = ['No.', 'LOCATION', 'DEPOT NAME', 'CONTAINER', 'SIZE/TYPE', 'YEAR BUILD', 'CONDITION', 'CLASS', 'DATE IN', 'TIME', 'EXPORT BOOKING', 'SEAL', 'BARLOCK (IF ANY)', 'HAULER', 'SHIPPER', 'DATE OUT', 'TOTAL DAYS'];
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Daily Gate OUT');
+        $this->spreadsheet->addSheet($sheet);
+        $applySheet($sheet, $outHeaders, 17);
+        $row = 2;
+        foreach ($outData as $index => $item) {
+            $sheet->fromArray([
+                $index + 1, 'MANILA', 'TBS', $item->container_no ?? '', $item->size_type ?? '', $dateValue($item->date_manufactured),
+                $item->container_status ?? '', $item->class ?? '', $dateValue($item->date_in), $timeValue($item->date_in),
+                $item->booking ?? '', $item->seal_no ?: '-', '-', $item->hauler ?? '', $item->shipper ?: '-', $dateValue($item->date_out),
+            ], null, 'A' . $row);
+            $sheet->setCellValue('Q' . $row, '=IF(OR(I' . $row . '="",P' . $row . '=""),"",IFERROR(DATEDIF(I' . $row . ',P' . $row . ',"d")+1,""))');
+            $row++;
+        }
+        $sheet->getStyle('A1:Q' . max(1, $row - 1))->applyFromArray($cellStyle);
+        $sheet->getStyle('A1:Q1')->applyFromArray($headerStyle);
+        foreach (['F', 'I', 'P'] as $column) $sheet->getStyle($column . '2:' . $column . max(2, $row - 1))->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+        $sheet->getStyle('J2:J' . max(2, $row - 1))->getNumberFormat()->setFormatCode('hh:mm:ss');
+        $sheet->getStyle('Q2:Q' . max(2, $row - 1))->getNumberFormat()->setFormatCode('0');
+
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Seal Stock Inventory');
+        $this->spreadsheet->addSheet($sheet);
+        $applySheet($sheet, ['SEAL NO', 'CONTAINER'], 2);
+        $row = 2;
+        foreach ($sealData as $item) {
+            $sheet->fromArray([$item->seal_no, $item->container_number], null, 'A' . $row++);
+        }
+        $sheet->getStyle('A1:B' . max(1, $row - 1))->applyFromArray($cellStyle);
+        $sheet->getStyle('A1:B1')->applyFromArray($headerStyle);
+
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Monthly Movement (' . strtoupper(Carbon::parse($date)->format('M Y')) . ')');
+        $this->spreadsheet->addSheet($sheet);
+        $sheet->mergeCells('A1:Q2');
+        $sheet->setCellValue('A1', 'MONTH OF ' . strtoupper(Carbon::parse($date)->format('F Y')));
+        $sheet->getStyle('A1:Q2')->applyFromArray([
+            'font' => ['name' => 'Aptos Narrow', 'size' => 16, 'bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+
+        foreach ($this->spreadsheet->getWorksheetIterator() as $worksheet) {
+            $worksheet->setShowGridlines(true);
+            // Fixed widths avoid PhpSpreadsheet scanning every historical cell during export.
+            $widths = [
+                'A' => 8, 'B' => 13, 'C' => 14, 'D' => 17, 'E' => 12, 'F' => 14,
+                'G' => 13, 'H' => 9, 'I' => 13, 'J' => 11, 'K' => 18, 'L' => 16,
+                'M' => 18, 'N' => 16, 'O' => 22, 'P' => 13, 'Q' => 13,
+            ];
+            foreach ($widths as $column => $width) $worksheet->getColumnDimension($column)->setWidth($width);
+        }
+        $this->spreadsheet->setActiveSheetIndex(0);
+        $filepath = storage_path('app/public/exports/MSC_DMR_' . strtoupper(Carbon::parse($date)->format('Y_F_d')) . '.xlsx');
+        if (!file_exists(dirname($filepath))) mkdir(dirname($filepath), 0755, true);
+        (new Xlsx($this->spreadsheet))->save($filepath);
+        return $filepath;
+    }
 }
