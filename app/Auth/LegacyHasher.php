@@ -58,10 +58,14 @@ class LegacyHasher implements HasherContract
             return password_verify($value, $hashedValue);
         }
 
-        // Otherwise use legacy SHA1 hashing
         $salt = $options['salt'] ?? '';
-        
-        return $this->hashWithSalt($value, $salt) === $hashedValue;
+
+        // The user-management page stores MD5(password . salt).
+        if (strlen($hashedValue) === 32) {
+            return hash_equals($hashedValue, md5($value . $salt));
+        }
+
+        return hash_equals($hashedValue, $this->hashWithSalt($value, $salt));
     }
 
     /**
