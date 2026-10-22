@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 type HistoryEntry = {
@@ -58,6 +58,26 @@ export default function CachedFieldHistory() {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+    // Keyboard events can arrive before React has committed the state update
+    // from ArrowUp/ArrowDown. Keep the current selection synchronously.
+    const activeFieldRef = useRef<HTMLElement | null>(null);
+    const suggestionsRef = useRef<string[]>([]);
+    const highlightedIndexRef = useRef(-1);
+
+    const setActiveHistoryField = (field: HTMLElement | null) => {
+        activeFieldRef.current = field;
+        setActiveField(field);
+    };
+
+    const setHistorySuggestions = (values: string[]) => {
+        suggestionsRef.current = values;
+        setSuggestions(values);
+    };
+
+    const setHistoryHighlightedIndex = (index: number) => {
+        highlightedIndexRef.current = index;
+        setHighlightedIndex(index);
+    };
 
     useEffect(() => {
         const update = (element: HTMLElement) => {
@@ -67,9 +87,9 @@ export default function CachedFieldHistory() {
             const value = (element as HTMLInputElement | HTMLTextAreaElement).value;
             const rect = element.getBoundingClientRect();
             setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-            setSuggestions(getSuggestions(key, value));
-            setHighlightedIndex(-1);
-            setActiveField(value.trim() ? element : null);
+            setHistorySuggestions(getSuggestions(key, value));
+            setHistoryHighlightedIndex(-1);
+            setActiveHistoryField(value.trim() ? element : null);
         };
 
         const handleFocus = (event: FocusEvent) => {
@@ -91,38 +111,45 @@ export default function CachedFieldHistory() {
             if (option) return;
 
             if (activeField && !activeField.contains(target)) {
-                setActiveField(null);
-                setSuggestions([]);
+                setActiveHistoryField(null);
+                setHistorySuggestions([]);
             }
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (!activeField || event.target !== activeField || suggestions.length === 0) return;
+            const currentField = activeFieldRef.current;
+            const currentSuggestions = suggestionsRef.current;
+            if (!currentField || event.target !== currentField || currentSuggestions.length === 0) return;
 
             if (event.key === 'ArrowDown') {
                 event.preventDefault();
-                setHighlightedIndex((current) => (current + 1) % suggestions.length);
+                event.stopPropagation();
+                setHistoryHighlightedIndex((highlightedIndexRef.current + 1) % currentSuggestions.length);
             } else if (event.key === 'ArrowUp') {
                 event.preventDefault();
-                setHighlightedIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
-            } else if (event.key === 'Enter' && highlightedIndex >= 0) {
+                event.stopPropagation();
+                setHistoryHighlightedIndex(highlightedIndexRef.current <= 0 ? currentSuggestions.length - 1 : highlightedIndexRef.current - 1);
+            } else if (event.key === 'Enter' && highlightedIndexRef.current >= 0) {
                 event.preventDefault();
-                applySuggestion(activeField, suggestions[highlightedIndex]);
-                setActiveField(null);
-                setSuggestions([]);
-                setHighlightedIndex(-1);
+                event.stopPropagation();
+                applySuggestion(currentField, currentSuggestions[highlightedIndexRef.current]);
+                setActiveHistoryField(null);
+                setHistorySuggestions([]);
+                setHistoryHighlightedIndex(-1);
             } else if (event.key === 'Escape') {
                 event.preventDefault();
-                setActiveField(null);
-                setSuggestions([]);
-                setHighlightedIndex(-1);
+                event.stopPropagation();
+                setActiveHistoryField(null);
+                setHistorySuggestions([]);
+                setHistoryHighlightedIndex(-1);
             }
         };
 
         document.addEventListener('focusin', handleFocus);
         document.addEventListener('input', handleInput);
         document.addEventListener('mousedown', handleOutsideClick);
-        document.addEventListener('keydown', handleKeyDown);
+        // Capture the event before form handlers can treat Enter as submit.
+        document.addEventListener('keydown', handleKeyDown, true);
         const handleViewportChange = () => activeField && update(activeField);
         window.addEventListener('resize', handleViewportChange);
         window.addEventListener('scroll', handleViewportChange, true);
@@ -131,7 +158,7 @@ export default function CachedFieldHistory() {
             document.removeEventListener('focusin', handleFocus);
             document.removeEventListener('input', handleInput);
             document.removeEventListener('mousedown', handleOutsideClick);
-            document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('keydown', handleKeyDown, true);
             window.removeEventListener('resize', handleViewportChange);
             window.removeEventListener('scroll', handleViewportChange, true);
         };
@@ -153,9 +180,9 @@ export default function CachedFieldHistory() {
     const selectSuggestion = (value: string) => {
         if (!activeField) return;
         applySuggestion(activeField, value);
-        setActiveField(null);
-        setSuggestions([]);
-        setHighlightedIndex(-1);
+        setActiveHistoryField(null);
+        setHistorySuggestions([]);
+        setHistoryHighlightedIndex(-1);
     };
 
     return createPortal(
