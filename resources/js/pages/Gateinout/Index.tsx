@@ -82,6 +82,10 @@ export default function Index() {
   const [currentPageOut, setCurrentPageOut] = useState(1);
   const [itemsPerPageIn, setItemsPerPageIn] = useState<number>(999999);
   const [itemsPerPageOut, setItemsPerPageOut] = useState<number>(999999);
+  const [sortColumnIn, setSortColumnIn] = useState('');
+  const [sortDirectionIn, setSortDirectionIn] = useState<'asc' | 'desc'>('asc');
+  const [sortColumnOut, setSortColumnOut] = useState('');
+  const [sortDirectionOut, setSortDirectionOut] = useState<'asc' | 'desc'>('asc');
 
   const [showAddPreInModal, setShowAddPreInModal] = useState(false);
   const [showAddPreOutModal, setShowAddPreOutModal] = useState(false);
@@ -247,6 +251,46 @@ export default function Index() {
     setSearchTerm('');
     setSelectedClient('all');
     setTempSelectedClient('all');
+  };
+
+  const handleSort = (table: 'in' | 'out', column: string) => {
+    if (table === 'in') {
+      setSortDirectionIn((currentDirection) => sortColumnIn === column && currentDirection === 'asc' ? 'desc' : 'asc');
+      setSortColumnIn(column);
+      return;
+    }
+
+    setSortDirectionOut((currentDirection) => sortColumnOut === column && currentDirection === 'asc' ? 'desc' : 'asc');
+    setSortColumnOut(column);
+  };
+
+  const sortRecords = (records: PreInventoryRecord[], column: string, direction: 'asc' | 'desc') => {
+    if (!column) return records;
+
+    return [...records].sort((a, b) => {
+      let left: string | number = '';
+      let right: string | number = '';
+
+      if (column === 'client') {
+        left = a.client_name || '';
+        right = b.client_name || '';
+      } else if (column === 'runtime') {
+        left = Number(a.runtime || 0);
+        right = Number(b.runtime || 0);
+      } else if (column === 'date_added') {
+        left = new Date(a.date_added).getTime() || 0;
+        right = new Date(b.date_added).getTime() || 0;
+      } else {
+        left = String(a[column] ?? '');
+        right = String(b[column] ?? '');
+      }
+
+      const comparison = typeof left === 'number' && typeof right === 'number'
+        ? left - right
+        : String(left).localeCompare(String(right), undefined, { sensitivity: 'base', numeric: true });
+
+      return direction === 'asc' ? comparison : -comparison;
+    });
   };
 
   // Refresh only IN rows (does not touch header counts/titles)
@@ -766,6 +810,7 @@ export default function Index() {
               {
                 key: 'container_no',
                 label: 'Container No',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="font-mono font-semibold text-gray-900 min-w-[70px]" title={record.container_no}>
                     {record.container_no}
@@ -775,6 +820,7 @@ export default function Index() {
               {
                 key: 'client',
                 label: 'Client Name',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="min-w-[120px] max-w-[120px]">
                     <div className="font-medium text-gray-900 " title={record.client_name}>{record.client_name}</div>
@@ -785,6 +831,7 @@ export default function Index() {
               {
                 key: 'plate_no',
                 label: 'Plate No',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[70px] " title={record.plate_no || '-'}>
                     {record.plate_no || '-'}
@@ -794,6 +841,7 @@ export default function Index() {
               {
                 key: 'hauler',
                 label: 'Hauler',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
                     {record.hauler || '-'}
@@ -829,6 +877,7 @@ export default function Index() {
               {
                 key: 'runtime',
                 label: 'Run Time',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div
                     className="font-semibold min-w-[70px]"
@@ -841,6 +890,7 @@ export default function Index() {
               {
                 key: 'date_added',
                 label: 'Date Created',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[80px] max-w-[110px]">
                     {formatDateTime(record.date_added)}
@@ -901,7 +951,10 @@ export default function Index() {
             onRowClick={(record: PreInventoryRecord) => {
               if (record.status.toLowerCase() === 'pending') handleProcessClick(record);
             }}
-            data={paginatedInRecords}
+            data={sortRecords(paginatedInRecords, sortColumnIn, sortDirectionIn)}
+            onSort={(column) => handleSort('in', column)}
+            sortColumn={sortColumnIn}
+            sortDirection={sortDirectionIn}
             loading={loading}
             emptyMessage="No IN records found."
             pagination={false}
@@ -938,6 +991,7 @@ export default function Index() {
               {
                 key: 'container_no',
                 label: 'Container No',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="font-mono font-semibold text-gray-900 min-w-[70px]" title={record.container_no}>
                     {record.container_no}
@@ -947,6 +1001,7 @@ export default function Index() {
               {
                 key: 'client',
                 label: 'Client Name',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="min-w-[120px] max-w-[120px]">
                     <div className="font-medium text-gray-900 " title={record.client_name}>{record.client_name}</div>
@@ -957,6 +1012,7 @@ export default function Index() {
               {
                 key: 'plate_no',
                 label: 'Plate No',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[70px] " title={record.plate_no || '-'}>
                     {record.plate_no || '-'}
@@ -966,6 +1022,7 @@ export default function Index() {
               {
                 key: 'hauler',
                 label: 'Hauler',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
                     {record.hauler || '-'}
@@ -1001,6 +1058,7 @@ export default function Index() {
               {
                 key: 'runtime',
                 label: 'Run Time',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div
                     className="font-semibold min-w-[70px]"
@@ -1013,6 +1071,7 @@ export default function Index() {
               {
                 key: 'date_added',
                 label: 'Date Created',
+                sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[80px] max-w-[110px]">
                     {formatDateTime(record.date_added)}
@@ -1070,7 +1129,10 @@ export default function Index() {
             onRowClick={(record: PreInventoryRecord) => {
               if (record.status.toLowerCase() === 'pending') handleProcessClick(record);
             }}
-            data={paginatedOutRecords}
+            data={sortRecords(paginatedOutRecords, sortColumnOut, sortDirectionOut)}
+            onSort={(column) => handleSort('out', column)}
+            sortColumn={sortColumnOut}
+            sortDirection={sortDirectionOut}
             loading={loading}
             emptyMessage="No OUT records found."
             pagination={false}
