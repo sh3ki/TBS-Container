@@ -41,10 +41,12 @@ export default function ImageViewerModal({
         setPan({ x: 0, y: 0 });
     };
 
-    const changeZoom = (nextZoom: number) => {
-        const boundedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom));
-        setZoom(boundedZoom);
-        if (boundedZoom === MIN_ZOOM) setPan({ x: 0, y: 0 });
+    const changeZoomBy = (delta: number) => {
+        setZoom((currentZoom) => {
+            const boundedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentZoom + delta));
+            if (boundedZoom === MIN_ZOOM) setPan({ x: 0, y: 0 });
+            return boundedZoom;
+        });
     };
 
     const moveImage = (deltaX: number, deltaY: number) => {
@@ -75,10 +77,10 @@ export default function ImageViewerModal({
                 onIndexChange((currentIndex + 1) % images.length);
             } else if (event.key === '+' || event.key === '=') {
                 event.preventDefault();
-                changeZoom(zoom + ZOOM_STEP);
+                changeZoomBy(ZOOM_STEP);
             } else if (event.key === '-') {
                 event.preventDefault();
-                changeZoom(zoom - ZOOM_STEP);
+                changeZoomBy(-ZOOM_STEP);
             } else if (event.key === '0') {
                 event.preventDefault();
                 resetZoom();
@@ -87,11 +89,11 @@ export default function ImageViewerModal({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [open, images.length, currentIndex, onIndexChange, zoom]);
+    }, [open, images.length, currentIndex, onIndexChange]);
 
     const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
         event.preventDefault();
-        changeZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+        changeZoomBy(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -158,10 +160,10 @@ export default function ImageViewerModal({
                             )}
 
                             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/65 p-1 text-white shadow-lg">
-                                <button type="button" onClick={() => changeZoom(zoom - ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} className="rounded-full p-2 hover:bg-white/20 disabled:opacity-40" aria-label="Zoom out"><Minus className="h-4 w-4" /></button>
+                                <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => changeZoomBy(-ZOOM_STEP)} disabled={zoom <= MIN_ZOOM} className="rounded-full p-2 hover:bg-white/20 disabled:opacity-40" aria-label="Zoom out"><Minus className="h-4 w-4" /></button>
                                 <span className="min-w-12 text-center text-xs font-medium">{Math.round(zoom * 100)}%</span>
-                                <button type="button" onClick={() => changeZoom(zoom + ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} className="rounded-full p-2 hover:bg-white/20 disabled:opacity-40" aria-label="Zoom in"><Plus className="h-4 w-4" /></button>
-                                <button type="button" onClick={resetZoom} disabled={zoom === MIN_ZOOM && pan.x === 0 && pan.y === 0} className="rounded-full p-2 hover:bg-white/20 disabled:opacity-40" aria-label="Reset zoom"><RotateCcw className="h-4 w-4" /></button>
+                                <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => changeZoomBy(ZOOM_STEP)} disabled={zoom >= MAX_ZOOM} className="rounded-full p-2 hover:bg-white/20 disabled:opacity-40" aria-label="Zoom in"><Plus className="h-4 w-4" /></button>
+                                <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={resetZoom} disabled={zoom === MIN_ZOOM && pan.x === 0 && pan.y === 0} className="rounded-full p-2 hover:bg-white/20 disabled:opacity-40" aria-label="Reset zoom"><RotateCcw className="h-4 w-4" /></button>
                             </div>
                         </div>
                     </div>
