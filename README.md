@@ -375,10 +375,21 @@ Check your database for existing users:
 SELECT username FROM fjp_users WHERE is_active = 1;
 ```
 
-The password is hashed using:
+Login verifies passwords using each account's stored salt and supports:
+
+- Legacy SHA1:
 ```
 SHA1(CONCAT(salt, SHA1('password'), SHA1(salt)))
 ```
+- Salted MD5, used by the user page when creating users or updating/resetting passwords:
+```
+MD5(CONCAT('password', salt))
+```
+- Existing bcrypt hashes.
+
+Different salt values are expected. Existing accounts do not need their salt changed
+or their password reset to use these supported formats. Usernames are
+case-insensitive; passwords must match exactly. Archived accounts cannot log in.
 
 ---
 
