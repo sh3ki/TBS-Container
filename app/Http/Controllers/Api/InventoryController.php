@@ -549,6 +549,84 @@ class InventoryController extends Controller
     }
 
     /**
+     * List images for one inventory record.
+     *
+     * Image folders are keyed by the record date, gate direction, and
+     * container number: container_pics/{MM-DD-YYYY}/{in|out}/{container_no}/
+     */
+    public function listContainerImages(Request $request)
+    {
+        $containerNo = strtoupper(trim((string) $request->query('container_no', '')));
+        $gateStatus = strtolower(trim((string) $request->query('gate_status', '')));
+        $date = trim((string) $request->query('date', ''));
+
+        if ($containerNo === '' || ! in_array($gateStatus, ['in', 'out'], true) || $date === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Date, gate status, and container number are required.',
+            ], 422);
+        }
+
+        try {
+            $dateFolder = $this->normalizeContainerImageDate($date);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid image date.',
+            ], 422);
+        }
+
+        $directory = $this->containerImageDirectory($dateFolder, $gateStatus, $containerNo);
+        if (! File::isDirectory($directory)) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        // Read only the exact container directory; never scan all image folders.
+        $images = collect(File::files($directory))
+            ->filter(fn ($file) => $this->isContainerImageFile($file->getFilename()))
+            ->sortBy(fn ($file) => $file->getFilename(), SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->map(function ($file) use ($dateFolder, $gateStatus, $containerNo) {
+                $relativePath = 'container_pics/' . $dateFolder . '/' . $gateStatus . '/' . $containerNo . '/' . $file->getFilename();
+
+                return [
+                    'name' => $file->getFilename(),
+                    'relative_path' => $relativePath,
+                    'url' => url('/api/inventory/images/file?path=' . rawurlencode($relativePath)),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $images,
+        ]);
+    }
+
+    /**
+     * Serve one image from the public container image tree.
+     */
+    public function viewContainerImageFile(Request $request)
+    {
+        $relativePath = trim((string) $request->query('path', ''), '/');
+        if ($relativePath === '' || str_contains($relativePath, '..') || str_contains($relativePath, "\0")) {
+            return response()->json(['success' => false, 'message' => 'Invalid file path.'], 422);
+        }
+
+        if (! str_starts_with($relativePath, 'container_pics/')) {
+            return response()->json(['success' => false, 'message' => 'Invalid file path.'], 422);
+        }
+
+        $baseDirectory = realpath(public_path('container_pics'));
+        $fullPath = realpath(public_path($relativePath));
+        if (! $baseDirectory || ! $fullPath || ! str_starts_with($fullPath, $baseDirectory . DIRECTORY_SEPARATOR)
+            || ! File::isFile($fullPath) || ! $this->isContainerImageFile(basename($fullPath))) {
+            return response()->json(['success' => false, 'message' => 'File not found.'], 404);
+        }
+
+        return response()->file($fullPath);
+    }
+
+    /**
      * Update inventory record
      * PUT /api/inventory/{hashedId}
      */
@@ -1782,6 +1860,34 @@ class InventoryController extends Controller
         $noZero = "NULLIF(NULLIF({$withoutFraction}, '0000-00-00'), '0000-00-00 00:00:00')";
 
         return "STR_TO_DATE({$noZero}, '{$format}')";
+    }
+
+    private function normalizeContainerImageDate(string $date): string
+    {
+        foreach (['m-d-Y', 'Y-m-d', 'm/d/Y', 'Y/m/d'] as $format) {
+            try {
+                $parsed = Carbon::createFromFormat($format, $date);
+                if ($parsed && $parsed->format($format) === $date) {
+                    return $parsed->format('m-d-Y');
+                }
+            } catch (\Throwable $e) {
+                // Try the next supported date representation.
+            }
+        }
+
+        return Carbon::parse($date)->format('m-d-Y');
+    }
+
+    private function containerImageDirectory(string $date, string $gateStatus, string $containerNo): string
+    {
+        $safeContainerNo = preg_replace('/[^A-Z0-9._-]/', '', $containerNo) ?? '';
+
+        return public_path('container_pics/' . $date . '/' . $gateStatus . '/' . $safeContainerNo);
+    }
+
+    private function isContainerImageFile(string $fileName): bool
+    {
+        return in_array(strtolower(pathinfo($fileName, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'], true);
     }
 }
 
