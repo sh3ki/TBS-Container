@@ -235,4 +235,34 @@
         scrollbar-width: thin;
         scrollbar-color: #d1d5db #f3f4f6;
     }
+
+    /* Keep the collapsed navigation rail clean and consistent across browsers. */
+    .app-sidebar-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.55) transparent;
+        scrollbar-gutter: stable;
+    }
+
+    .app-sidebar-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .app-sidebar-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .app-sidebar-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.55);
+        border-radius: 999px;
+    }
+
+    .app-sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.75);
+    }
+
+    .app-sidebar-scrollbar::-webkit-scrollbar-button {
+        display: none;
+        height: 0;
+        width: 0;
+    }
 }
