@@ -32,6 +32,7 @@ export default function ImageViewerModal({
     const [dragging, setDragging] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const dragStart = useRef({ x: 0, y: 0 });
+    const viewerRef = useRef<HTMLDivElement | null>(null);
     const thumbnailContainerRef = useRef<HTMLDivElement | null>(null);
     const currentImage = images[currentIndex] ?? null;
     const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
@@ -41,17 +42,26 @@ export default function ImageViewerModal({
         setPan({ x: 0, y: 0 });
     };
 
+    const clampPan = (nextPan: { x: number; y: number }, scale: number) => {
+        const viewer = viewerRef.current;
+        if (!viewer || scale <= MIN_ZOOM) return { x: 0, y: 0 };
+
+        const bounds = viewer.getBoundingClientRect();
+        const maxX = (bounds.width * (scale - 1)) / 2;
+        const maxY = (bounds.height * (scale - 1)) / 2;
+
+        return {
+            x: Math.min(maxX, Math.max(-maxX, nextPan.x)),
+            y: Math.min(maxY, Math.max(-maxY, nextPan.y)),
+        };
+    };
+
     const changeZoomBy = (delta: number) => {
         setZoom((currentZoom) => {
             const boundedZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentZoom + delta));
-            if (boundedZoom === MIN_ZOOM) setPan({ x: 0, y: 0 });
+            setPan((currentPan) => clampPan(currentPan, boundedZoom));
             return boundedZoom;
         });
-    };
-
-    const moveImage = (deltaX: number, deltaY: number) => {
-        if (zoom <= MIN_ZOOM) return;
-        setPan((current) => ({ x: current.x + deltaX, y: current.y + deltaY }));
     };
 
     useEffect(() => {
@@ -105,7 +115,7 @@ export default function ImageViewerModal({
 
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
         if (!dragging) return;
-        setPan({ x: event.clientX - dragStart.current.x, y: event.clientY - dragStart.current.y });
+        setPan(clampPan({ x: event.clientX - dragStart.current.x, y: event.clientY - dragStart.current.y }, zoom));
     };
 
     const stopDragging = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -123,6 +133,7 @@ export default function ImageViewerModal({
 
                     <div className="flex items-center justify-center">
                         <div
+                            ref={viewerRef}
                             className={`relative aspect-[4/3] overflow-hidden rounded-md bg-black/5 ${zoom > 1 ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
                             style={{ width: viewerFrameWidth, touchAction: 'none' }}
                             onWheel={handleWheel}
