@@ -1,6 +1,6 @@
 import React from 'react';
 import { colors } from '@/lib/colors';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Column<T = unknown> {
   key: string;
@@ -156,6 +156,11 @@ const ModernTableBase = <T extends Record<string, unknown>>({
                     {column.sortable && sortColumn === column.key && (
                       <span className="text-white">
                         {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                    {column.sortable && onSort && sortColumn !== column.key && (
+                      <span className="inline-flex text-white" aria-hidden="true">
+                        <ArrowUpDown className="h-4 w-4 opacity-90" />
                       </span>
                     )}
                   </div>
