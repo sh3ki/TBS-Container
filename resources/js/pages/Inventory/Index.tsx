@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Printer, Filter, RotateCcw, Copy } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
+import ImageViewerModal from '@/components/ImageViewerModal';
 
 interface Client {
     id: string;
@@ -115,7 +116,6 @@ const Index: React.FC = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     // Show/hide Back to Top button
     const [showBackToTop, setShowBackToTop] = useState(false);
-    const thumbContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Confirmation dialog states
     const [showApproveConfirm, setShowApproveConfirm] = useState(false);
@@ -188,52 +188,6 @@ const Index: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const currentImage = containerImages[currentImageIndex] ?? null;
-    const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
-
-    useEffect(() => {
-        if (currentImageIndex >= containerImages.length) {
-            setCurrentImageIndex(containerImages.length > 0 ? 0 : 0);
-        }
-    }, [containerImages, currentImageIndex]);
-
-    useEffect(() => {
-        if (!thumbContainerRef.current) return;
-        if (!containerImages || containerImages.length === 0) return;
-        const container = thumbContainerRef.current;
-        const el = container.querySelector(`[data-index="${currentImageIndex}"]`) as HTMLElement | null;
-        if (!el) return;
-
-        setTimeout(() => {
-            try {
-                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            } catch {
-                const elLeft = el.offsetLeft;
-                const elWidth = el.offsetWidth;
-                const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
-                container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
-            }
-        }, 50);
-    }, [currentImageIndex, containerImages, showImageViewer]);
-
-    useEffect(() => {
-        if (!showImageViewer || containerImages.length === 0) {
-            return;
-        }
-
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'ArrowLeft') {
-                event.preventDefault();
-                setCurrentImageIndex((prev) => (prev - 1 + containerImages.length) % containerImages.length);
-            } else if (event.key === 'ArrowRight') {
-                event.preventDefault();
-                setCurrentImageIndex((prev) => (prev + 1) % containerImages.length);
-            }
-        };
-
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [showImageViewer, containerImages.length]);
 
     // Back to Top button visibility based on scroll position
     useEffect(() => {
@@ -2017,95 +1971,13 @@ const Index: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Image Viewer Modal */}
-            <Dialog open={showImageViewer} onOpenChange={setShowImageViewer}>
-                <DialogContent className="!w-fit !max-w-[96vw] max-h-[94vh] p-4 sm:p-5 flex items-center justify-center overflow-hidden">
-                    <div className="flex flex-col items-center gap-3 w-fit max-h-[90vh] overflow-hidden">
-                        {currentImage && (
-                            <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
-                                {currentImage.name}
-                            </div>
-                        )}
-
-                        <div className="flex items-center justify-center">
-                            <div
-                                className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5"
-                                style={{ width: viewerFrameWidth }}
-                                onClick={(e) => {
-                                    const images = containerImages;
-                                    if (images.length === 0) return;
-                                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                                    const x = (e as React.MouseEvent).clientX - rect.left;
-                                    const w = rect.width;
-                                    if (x < w * 0.3) {
-                                        setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
-                                    } else if (x > w * 0.7) {
-                                        setCurrentImageIndex((prev) => (prev + 1) % images.length);
-                                    }
-                                }}
-                            >
-                                {currentImage && (
-                                    <div className="flex items-center justify-center w-full h-full">
-                                        <img
-                                            src={currentImage.src}
-                                            alt={currentImage.name}
-                                            className="w-full h-full object-contain mx-auto"
-                                            style={{ display: 'block' }}
-                                        />
-                                    </div>
-                                )}
-
-                                {containerImages.length > 0 && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={(ev) => {
-                                                ev.stopPropagation();
-                                                setCurrentImageIndex((prev) => (prev - 1 + containerImages.length) % containerImages.length);
-                                            }}
-                                            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
-                                            aria-label="Previous"
-                                        >
-                                            <ChevronLeft className="w-5 h-5 text-black" />
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={(ev) => {
-                                                ev.stopPropagation();
-                                                setCurrentImageIndex((prev) => (prev + 1) % containerImages.length);
-                                            }}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
-                                            aria-label="Next"
-                                        >
-                                            <ChevronRight className="w-5 h-5 text-black" />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <div style={{ width: viewerFrameWidth }}>
-                            <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-1 sm:px-2">
-                                {containerImages.map((imageItem, idx) => (
-                                    <button
-                                        key={`${imageItem.src}-${idx}`}
-                                        data-index={idx}
-                                        onClick={() => setCurrentImageIndex(idx)}
-                                        className={`flex-none p-1 rounded ${idx === currentImageIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
-                                    >
-                                        <img
-                                            src={imageItem.src}
-                                            alt={imageItem.name}
-                                            className="w-24 sm:w-28 aspect-[4/3] object-cover rounded"
-                                        />
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ImageViewerModal
+                open={showImageViewer}
+                onOpenChange={setShowImageViewer}
+                images={containerImages}
+                currentIndex={currentImageIndex}
+                onIndexChange={setCurrentImageIndex}
+            />
 
             {/* Approval Modal */}
             <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
