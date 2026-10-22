@@ -142,8 +142,10 @@ const Index: React.FC = () => {
     
     // Search state
     const [searchTerm, setSearchTerm] = useState('');
+    const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
     const [sortColumn, setSortColumn] = useState('');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const canResetSearch = Boolean(searchTerm.trim() || appliedSearchTerm || sortColumn);
 
     const defaultFilters = {
         client: 'all',
@@ -171,13 +173,17 @@ const Index: React.FC = () => {
 
     // Filter states
     const [filters, setFilters] = useState(defaultFilters);
-    const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
+    const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
+    const hasFilterValues = (filterValues: typeof defaultFilters) => Object.entries(filterValues).some(([key, value]) => {
         if (typeof value !== 'string') return false;
         const normalizedValue = value.trim().toLowerCase();
         return normalizedValue !== ''
             && normalizedValue !== 'all'
             && !(key === 'gate_status' && normalizedValue === 'currently');
     });
+    const hasActiveFilters = hasFilterValues(filters);
+    const hasAppliedFilters = hasFilterValues(appliedFilters);
+    const canResetFilters = hasActiveFilters || hasAppliedFilters;
     const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
     const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
 
@@ -1090,15 +1096,20 @@ const Index: React.FC = () => {
         }
         setCurrentPage(1);
         await fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: true });
+        setAppliedSearchTerm(searchTerm.trim());
     };
 
     const handleApplyFilters = async () => {
+        if (!hasActiveFilters) return;
         await handleSearch(true);
+        setAppliedFilters(filters);
         setShowFiltersModal(false);
     };
 
     const handleResetFilters = () => {
+        if (!canResetFilters) return;
         setFilters(defaultFilters);
+        setAppliedFilters(defaultFilters);
         setCurrentPage(1);
         void fetchInventory({
             page: 1,
@@ -1235,6 +1246,7 @@ const Index: React.FC = () => {
                                             type="button"
                                             onClick={() => {
                                                 setSearchTerm('');
+                                                setAppliedSearchTerm('');
                                                 setSortColumn('');
                                                 setSortDirection('asc');
                                                 setCurrentPage(1);
@@ -1247,7 +1259,7 @@ const Index: React.FC = () => {
                                                     showToast: false,
                                                 });
                                             }}
-                                            disabled={loading || (!searchTerm.trim() && !sortColumn)}
+                                            disabled={loading || !canResetSearch}
                                             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                                             title="Reset search and sorting"
                                             aria-label="Reset search and sorting"
@@ -1269,7 +1281,7 @@ const Index: React.FC = () => {
                                     >
                                         <Filter className="w-4 h-4 text-gray-600" />
                                         <span>Filters</span>
-                                        {hasActiveFilters && (
+                                        {canResetFilters && (
                                             <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs px-2 py-0.5">
                                                 Active
                                             </span>
@@ -1278,7 +1290,7 @@ const Index: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={handleResetFilters}
-                                        disabled={loading || !hasActiveFilters}
+                                        disabled={loading || !canResetFilters}
                                         className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                                         title="Reset filters"
                                         aria-label="Reset filters"
@@ -1906,7 +1918,7 @@ const Index: React.FC = () => {
                         <ModernButton
                             variant="secondary"
                             onClick={handleResetFilters}
-                            disabled={loading}
+                            disabled={loading || !canResetFilters}
                         >
                             <RotateCcw className="w-4 h-4" />
                             Reset
@@ -1914,7 +1926,7 @@ const Index: React.FC = () => {
                         <ModernButton
                             variant="primary"
                             onClick={handleApplyFilters}
-                            disabled={loading}
+                            disabled={loading || !hasActiveFilters}
                         >
                             <FileText className="w-4 h-4" />
                             {loading ? 'Applying...' : 'Apply'}
