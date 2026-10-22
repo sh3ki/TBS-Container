@@ -245,7 +245,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     }}
                 >
                     {/* Scrollable Menu Section */}
-                    <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+                    <nav className="app-sidebar-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-4">
                         <ul className="space-y-1 px-2">
                             {/* Dashboard */}
                             <li>
@@ -253,7 +253,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     <TooltipTrigger asChild>
                                         <Link
                                             href="/dashboard"
-                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                            className={`flex items-center gap-3 rounded-xl px-4 py-3.5 transition-all duration-200 group lg:justify-center lg:gap-0 lg:px-0 ${
                                                 isDashboardActive
                                                     ? 'shadow-lg'
                                                     : 'hover:bg-white/10 hover:text-white'
@@ -309,7 +309,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                                     <TooltipTrigger asChild>
                                                         <Link
                                                             href={`/${permission.page}`}
-                                                            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${
+                                                            className={`flex items-center gap-3 rounded-xl px-4 py-3.5 transition-all duration-200 group lg:justify-center lg:gap-0 lg:px-0 ${
                                                                 isActive
                                                                     ? 'shadow-lg'
                                                                     : 'hover:bg-white/10 hover:text-white'
@@ -353,7 +353,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                             <TooltipTrigger asChild>
                                 <button
                                     onClick={handleLogoutClick}
-                                    className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white/80 hover:bg-red-500/20 hover:text-white transition-all duration-200 group w-full"
+                                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-white/80 transition-all duration-200 group hover:bg-red-500/20 hover:text-white lg:justify-center lg:gap-0 lg:px-0"
                                 >
                                     <LogOutIcon className="h-5 w-5 flex-shrink-0 group-hover:scale-110 transition-transform" />
                                     <span className={`text-sm font-medium ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
