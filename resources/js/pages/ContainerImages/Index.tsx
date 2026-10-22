@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { ModernBadge, ModernButton, ModernCard, ModernConfirmDialog, ModernTable, ToastContainer, useModernToast } from '@/components/modern';
 import { colors } from '@/lib/colors';
-import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images, List, Grid, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FolderPlus, FolderOpen, Image as ImageIcon, RefreshCw, Trash2, Upload, ArrowLeft, Search, Shield, Download, Edit, Images, List, Grid, MoreHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ImageViewerModal from '@/components/ImageViewerModal';
 
 interface ExplorerItem extends Record<string, unknown> {
   name: string;
@@ -109,58 +110,8 @@ export default function Index() {
     return currentPath.split('/').filter(Boolean);
   }, [currentPath]);
 
-  const thumbContainerRef = useRef<HTMLDivElement | null>(null);
-
   // Use all items in the current folder (not search-filtered) for the image carousel
   const imageItems = useMemo(() => items.filter((i) => i.is_image), [items]);
-  const currentImage = imageItems[viewerIndex] ?? null;
-
-  // Keep viewerIndex in range when images change
-  useEffect(() => {
-    if (viewerIndex >= imageItems.length) {
-      setViewerIndex(imageItems.length > 0 ? 0 : 0);
-    }
-  }, [imageItems, viewerIndex]);
-
-  // Center the selected thumbnail in the carousel
-  useEffect(() => {
-    if (!thumbContainerRef.current) return;
-    if (!imageItems || imageItems.length === 0) return;
-    const container = thumbContainerRef.current;
-    const el = container.querySelector(`[data-index="${viewerIndex}"]`) as HTMLElement | null;
-    if (!el) return;
-    // Delay centering slightly to ensure layout has settled, then center the thumbnail
-    setTimeout(() => {
-      try {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      } catch {
-        const elLeft = el.offsetLeft;
-        const elWidth = el.offsetWidth;
-        const scrollTo = elLeft + elWidth / 2 - container.clientWidth / 2;
-        container.scrollTo({ left: Math.max(0, scrollTo), behavior: 'smooth' });
-      }
-    }, 50);
-  }, [viewerIndex, imageItems, imageViewerOpen]);
-
-  // Support keyboard navigation in image viewer (same behavior as chevrons)
-  useEffect(() => {
-    if (!imageViewerOpen || imageItems.length === 0) {
-      return;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        setViewerIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        setViewerIndex((prev) => (prev + 1) % imageItems.length);
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [imageViewerOpen, imageItems.length]);
 
   
 
@@ -514,7 +465,6 @@ export default function Index() {
   ];
 
   const canGoBack = breadcrumbParts.length > 0;
-  const viewerFrameWidth = 'min(92vw, calc((94vh - 220px) * 4 / 3))';
 
   return (
     <AuthenticatedLayout>
@@ -834,96 +784,17 @@ export default function Index() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
-        <DialogContent className="!w-fit !max-w-[96vw] max-h-[94vh] p-4 sm:p-5 flex items-center justify-center overflow-hidden">
-          <div className="flex flex-col items-center gap-3 w-fit max-h-[90vh] overflow-hidden">
-            {currentImage && (
-              <div className="text-center font-medium pt-2" style={{ color: colors.text.primary }}>
-                {currentImage.name}
-              </div>
-            )}
-
-            <div className="flex items-center justify-center">
-              <div
-                className="relative aspect-[4/3] overflow-hidden rounded-md bg-black/5"
-                style={{ width: viewerFrameWidth }}
-                onClick={(e) => {
-                  // Click left/right 30%/70% to go prev/next
-                  const images = imageItems;
-                  if (images.length === 0) return;
-                  const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                  const x = (e as React.MouseEvent).clientX - rect.left;
-                  const w = rect.width;
-                  if (x < w * 0.3) {
-                    setViewerIndex((prev) => (prev - 1 + images.length) % images.length);
-                  } else if (x > w * 0.7) {
-                    setViewerIndex((prev) => (prev + 1) % images.length);
-                  }
-                }}
-              >
-                {currentImage && (
-                  <div className="flex items-center justify-center w-full h-full">
-                    <img
-                      src={`/api/containerimages/file?path=${encodeURIComponent(currentImage.relative_path)}`}
-                      alt={currentImage.name}
-                      className="w-full h-full object-contain mx-auto"
-                      style={{ display: 'block' }}
-                    />
-                  </div>
-                )}
-
-                {/* Left/Right overlay icons centered vertically */}
-                {imageItems.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        setViewerIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
-                      }}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
-                      aria-label="Previous"
-                    >
-                      <ChevronLeft className="w-5 h-5 text-black" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        setViewerIndex((prev) => (prev + 1) % imageItems.length);
-                      }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow"
-                      aria-label="Next"
-                    >
-                      <ChevronRight className="w-5 h-5 text-black" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div style={{ width: viewerFrameWidth }}>
-              <div ref={thumbContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto py-1 px-1 sm:px-2">
-                {imageItems.map((imgItem, idx) => (
-                  <button
-                    key={imgItem.relative_path}
-                    data-index={idx}
-                    onClick={() => setViewerIndex(idx)}
-                    className={`flex-none p-1 rounded ${idx === viewerIndex ? 'ring-2 ring-offset-2 ring-indigo-500' : ''}`}
-                  >
-                    <img
-                      src={`/api/containerimages/file?path=${encodeURIComponent(imgItem.relative_path)}`}
-                      alt={imgItem.name}
-                      className="w-24 sm:w-28 aspect-[4/3] object-cover rounded"
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ImageViewerModal
+        open={imageViewerOpen}
+        onOpenChange={setImageViewerOpen}
+        images={imageItems.map((image) => ({
+          src: `/api/containerimages/file?path=${encodeURIComponent(image.relative_path)}`,
+          name: image.name,
+          key: image.relative_path,
+        }))}
+        currentIndex={viewerIndex}
+        onIndexChange={setViewerIndex}
+      />
 
       <ModernConfirmDialog
         open={confirmDelete}
