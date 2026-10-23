@@ -1374,7 +1374,7 @@ class ReportExportService
                 $dateValue($item->date_added), $timeValue($item->date_added), $item->bill_of_lading ?? '', $item->hauler ?? '',
             ], null, 'A' . $row);
             $sheet->setCellValue('M' . $row, '=IF(' . $dateCell . '="","",TODAY()-' . $dateCell . '+1)');
-            $sheet->setCellValue('N' . $row, in_array($status, ['AVL', 'WSH'], true) ? 'WASHING' : ($status === 'DMG' ? 'DAMAGED' : ''));
+            $sheet->setCellValue('N' . $row, $status === 'REPO' ? 'REPO' : ($status === 'ASIS' ? 'ASIS' : (in_array($status, ['AVL', 'WSH'], true) ? 'WASHING' : ($status === 'DMG' ? 'DAMAGED' : ''))));
             $row++;
         }
         $sheet->getStyle('A1:N1')->applyFromArray($headerStyle);
