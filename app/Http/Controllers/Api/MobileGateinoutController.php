@@ -44,6 +44,7 @@ class MobileGateinoutController extends Controller
                     p.gate_status,
                     CASE WHEN p.status = 0 THEN 'pending' ELSE 'processed' END AS status,
                     p.date_added,
+                    p.date_completed,
                     TIMESTAMPDIFF(MINUTE, p.date_added, COALESCE(p.date_completed, CONVERT_TZ(NOW(), @@session.time_zone, '+08:00'))) AS runtime,
                     p.client_id,
                     p.user_id
@@ -835,6 +836,7 @@ class MobileGateinoutController extends Controller
                         i.approval_notes,
                         i.remarks,
                         p.remarks as pre_inventory_remarks,
+                        p.date_completed,
                         i.shipper,
                         p.checker_id,
                         u.full_name as checker_name
@@ -859,6 +861,7 @@ class MobileGateinoutController extends Controller
                     SELECT
                         p.p_id,
                         p.container_no,
+                        p.date_completed,
                         p.client_id,
                         c.client_name,
                         CAST(COALESCE(p.size_type, 0) AS UNSIGNED) as sizetype_id,
