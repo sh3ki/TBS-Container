@@ -2204,11 +2204,11 @@ const Index: React.FC = () => {
                                         <p className="mt-1 text-gray-900">{viewRecord.client}</p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs uppercase text-gray-600">Gate In Date</Label>
+                                        <Label className="text-xs uppercase text-gray-600">{viewRecord.gate === 'OUT' ? 'Gate Out Date' : 'Gate In Date'}</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.date}</p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs uppercase text-gray-600">Gate In Time</Label>
+                                        <Label className="text-xs uppercase text-gray-600">{viewRecord.gate === 'OUT' ? 'Gate Out Time' : 'Gate In Time'}</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.time}</p>
                                     </div>
                                     <div>
@@ -2223,18 +2223,28 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Size/Type</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.size}</p>
                                     </div>
+                                    {viewRecord.gate !== 'OUT' && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">ISO Code</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.iso_code || 'N/A'}</p>
                                     </div>
+                                    )}
+                                    {viewRecord.gate === 'OUT' && (
+                                        <div>
+                                            <Label className="text-xs uppercase text-gray-600">Load</Label>
+                                            <p className="mt-1 text-gray-900">{viewRecord.load || 'N/A'}</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Column 2 */}
                                 <div className="space-y-3">
+                                    {viewRecord.gate !== 'OUT' && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Class</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.class}</p>
                                     </div>
+                                    )}
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Vessel</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.vessel || 'N/A'}</p>
@@ -2247,14 +2257,18 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Checker</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.checker || 'N/A'}</p>
                                     </div>
-                                    <div>
-                                        <Label className="text-xs uppercase text-gray-600">Consignee</Label>
-                                        <p className="mt-1 text-gray-900">{viewRecord.ex_consignee || 'N/A'}</p>
-                                    </div>
+                                    {viewRecord.gate !== 'OUT' && (
+                                        <div>
+                                            <Label className="text-xs uppercase text-gray-600">Consignee</Label>
+                                            <p className="mt-1 text-gray-900">{viewRecord.ex_consignee || 'N/A'}</p>
+                                        </div>
+                                    )}
+                                    {viewRecord.gate !== 'OUT' && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Load</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.load || 'N/A'}</p>
                                     </div>
+                                    )}
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Plate No.</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.plate_no || 'N/A'}</p>
@@ -2263,18 +2277,44 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Hauler</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.hauler || 'N/A'}</p>
                                     </div>
+                                    {viewRecord.gate === 'OUT' && (
+                                        <div>
+                                            <Label className="text-xs uppercase text-gray-600">Hauler Driver</Label>
+                                            <p className="mt-1 text-gray-900">{viewRecord.hauler_driver || 'N/A'}</p>
+                                        </div>
+                                    )}
+                                    {viewRecord.gate === 'OUT' && (
+                                        <>
+                                            <div>
+                                                <Label className="text-xs uppercase text-gray-600">Booking</Label>
+                                                <p className="mt-1 text-gray-900">{viewRecord.booking || 'N/A'}</p>
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs uppercase text-gray-600">Shipper</Label>
+                                                <p className="mt-1 text-gray-900">{viewRecord.shipper || 'N/A'}</p>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
 
                                 {/* Column 3 */}
                                 <div className="space-y-3">
+                                    {viewRecord.gate !== 'OUT' && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Hauler Driver</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.hauler_driver || 'N/A'}</p>
                                     </div>
+                                    )}
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">License No.</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.license_no || 'N/A'}</p>
                                     </div>
+                                    {viewRecord.gate === 'OUT' && (
+                                        <div>
+                                            <Label className="text-xs uppercase text-gray-600">Seal No.</Label>
+                                            <p className="mt-1 text-gray-900">{viewRecord.seal_no || 'N/A'}</p>
+                                        </div>
+                                    )}
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Location</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.location}</p>
@@ -2287,10 +2327,12 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Contact No.</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.contact_no || 'N/A'}</p>
                                     </div>
+                                    {viewRecord.gate !== 'OUT' && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Bill of Lading</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.bill_of_lading || 'N/A'}</p>
                                     </div>
+                                    )}
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Days in Yard</Label>
                                         <p className="mt-1 text-gray-900">{formatDurationFrom(viewRecord.date as string, viewRecord.time as string, viewRecord.days)}</p>
@@ -2307,10 +2349,12 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Remarks (EIR Notes)</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.eir_notes || 'N/A'}</p>
                                     </div>
+                                    {viewRecord.gate !== 'OUT' && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Approval Notes</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.app_notes || 'N/A'}</p>
                                     </div>
+                                    )}
                                     {viewRecord.is_hold && viewRecord.hold_notes ? (
                                         <div>
                                             <Label className="text-xs uppercase text-gray-600">Hold Notes</Label>
@@ -2373,7 +2417,7 @@ const Index: React.FC = () => {
                                 </div>
                                 <div>
                                     <Label className="text-gray-900">Client</Label>
-                                    <Select 
+                                    <Select
                                         value={editFormData.client_id?.toString() || ''} 
                                         onValueChange={(value) => {
                                             const selectedClient = clients.find(c => c.c_id.toString() === value);
@@ -2405,18 +2449,8 @@ const Index: React.FC = () => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                {isOutEdit && (
-                                    <div>
-                                        <Label className="text-gray-900">Booking</Label>
-                                        <Input
-                                            data-history-key="inventory.booking"
-                                            value={editFormData.booking || ''}
-                                            onChange={(e) => setEditFormData({...editFormData, booking: e.target.value.toUpperCase()})}
-                                        />
-                                    </div>
-                                )}
                                 <div>
-                                    <Label className="text-gray-900">Gate In Date</Label>
+                                    <Label className="text-gray-900">{isOutEdit ? 'Gate Out Date' : 'Gate In Date'}</Label>
                                     <Input 
                                         type="date"
                                         value={editFormData.date} 
@@ -2424,7 +2458,7 @@ const Index: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-gray-900">Gate In Time</Label>
+                                    <Label className="text-gray-900">{isOutEdit ? 'Gate Out Time' : 'Gate In Time'}</Label>
                                     <Input 
                                         type="time"
                                         value={editFormData.time} 
@@ -2463,6 +2497,22 @@ const Index: React.FC = () => {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                {!isOutEdit && (
+                                    <div>
+                                        <Label className="text-gray-900">Class</Label>
+                                        <Select
+                                            value={editFormData.class}
+                                            onValueChange={(value) => setEditFormData({...editFormData, class: value})}
+                                        >
+                                            <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="A">A</SelectItem>
+                                                <SelectItem value="B">B</SelectItem>
+                                                <SelectItem value="C">C</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Size/Type</Label>
                                     <Select 
@@ -2499,24 +2549,51 @@ const Index: React.FC = () => {
                                         />
                                     </div>
                                 )}
+                                {isOutEdit && (
+                                    <div>
+                                        <Label className="text-gray-900">Checker</Label>
+                                        <Input
+                                            data-history-key="inventory.checker"
+                                            value={editFormData.checker || ''}
+                                            onChange={(e) => setEditFormData({...editFormData, checker: e.target.value.toUpperCase()})}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Column 2 */}
                             <div className="space-y-3">
-                                {!isOutEdit && (
                                 <div>
-                                    <Label className="text-gray-900">Class</Label>
+                                    <Label className="text-gray-900">Load</Label>
                                     <Select 
-                                        value={editFormData.class} 
-                                        onValueChange={(value) => setEditFormData({...editFormData, class: value})}
+                                        value={editFormData.load_id?.toString() || ''}
+                                        onValueChange={(value) => {
+                                            const selectedLoad = loadOptions.find(l => l.l_id.toString() === value);
+                                            setEditFormData({
+                                                ...editFormData,
+                                                load_id: value,
+                                                load: selectedLoad?.type || ''
+                                            });
+                                        }}
                                     >
-                                        <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Select load" /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="A">A</SelectItem>
-                                            <SelectItem value="B">B</SelectItem>
-                                            <SelectItem value="C">C</SelectItem>
+                                            {loadOptions.map((load) => (
+                                                <SelectItem key={load.l_id} value={load.l_id.toString()}>
+                                                    {load.type}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
+                                </div>
+                                {!isOutEdit && (
+                                <div>
+                                    <Label className="text-gray-900">Checker</Label>
+                                    <Input
+                                        data-history-key="inventory.checker"
+                                        value={editFormData.checker || ''}
+                                        onChange={(e) => setEditFormData({...editFormData, checker: e.target.value.toUpperCase()})}
+                                    />
                                 </div>
                                 )}
                                 <div>
@@ -2535,24 +2612,6 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, voyage: e.target.value.toUpperCase()})}
                                     />
                                 </div>
-                                {isOutEdit && (
-                                    <div>
-                                        <Label className="text-gray-900">Shipper</Label>
-                                        <Input
-                                            data-history-key="inventory.shipper"
-                                            value={editFormData.shipper || ''}
-                                            onChange={(e) => setEditFormData({...editFormData, shipper: e.target.value.toUpperCase()})}
-                                        />
-                                    </div>
-                                )}
-                                <div>
-                                    <Label className="text-gray-900">Checker</Label>
-                                    <Input 
-                                        data-history-key="inventory.checker"
-                                        value={editFormData.checker || ''} 
-                                        onChange={(e) => setEditFormData({...editFormData, checker: e.target.value.toUpperCase()})}
-                                    />
-                                </div>
                                 {!isOutEdit && (
                                 <div>
                                     <Label className="text-gray-900">Consignee</Label>
@@ -2563,29 +2622,6 @@ const Index: React.FC = () => {
                                     />
                                 </div>
                                 )}
-                                <div>
-                                    <Label className="text-gray-900">Load</Label>
-                                    <Select 
-                                        value={editFormData.load_id?.toString() || ''} 
-                                        onValueChange={(value) => {
-                                            const selectedLoad = loadOptions.find(l => l.l_id.toString() === value);
-                                            setEditFormData({
-                                                ...editFormData, 
-                                                load_id: value,
-                                                load: selectedLoad?.type || ''
-                                            });
-                                        }}
-                                    >
-                                        <SelectTrigger><SelectValue placeholder="Select load" /></SelectTrigger>
-                                        <SelectContent>
-                                            {loadOptions.map((load) => (
-                                                <SelectItem key={load.l_id} value={load.l_id.toString()}>
-                                                    {load.type}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
                                 <div>
                                     <Label className="text-gray-900">Plate No.</Label>
                                     <Input 
@@ -2602,26 +2638,78 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, hauler: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                {!isOutEdit && (
+                                    <>
+                                        <div>
+                                            <Label className="text-gray-900">Hauler Driver</Label>
+                                            <Input
+                                                data-history-key="inventory.hauler_driver"
+                                                value={editFormData.hauler_driver || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, hauler_driver: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-gray-900">License No.</Label>
+                                            <Input
+                                                data-history-key="inventory.license_no"
+                                                value={editFormData.license_no || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, license_no: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                                {isOutEdit && (
+                                    <>
+                                        <div>
+                                            <Label className="text-gray-900">Hauler Driver</Label>
+                                            <Input
+                                                data-history-key="inventory.hauler_driver"
+                                                value={editFormData.hauler_driver || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, hauler_driver: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-gray-900">License No.</Label>
+                                            <Input
+                                                data-history-key="inventory.license_no"
+                                                value={editFormData.license_no || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, license_no: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-gray-900">Chasis</Label>
+                                            <Input
+                                                data-history-key="inventory.chasis"
+                                                value={editFormData.chasis || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, chasis: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Column 3 */}
                             <div className="space-y-3">
-                                <div>
-                                    <Label className="text-gray-900">Hauler Driver</Label>
-                                    <Input 
-                                        data-history-key="inventory.hauler_driver"
-                                        value={editFormData.hauler_driver || ''} 
-                                        onChange={(e) => setEditFormData({...editFormData, hauler_driver: e.target.value.toUpperCase()})}
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="text-gray-900">License No.</Label>
-                                    <Input 
-                                        data-history-key="inventory.license_no"
-                                        value={editFormData.license_no || ''} 
-                                        onChange={(e) => setEditFormData({...editFormData, license_no: e.target.value.toUpperCase()})}
-                                    />
-                                </div>
+                                {isOutEdit && (
+                                    <>
+                                        <div>
+                                            <Label className="text-gray-900">Booking</Label>
+                                            <Input
+                                                data-history-key="inventory.booking"
+                                                value={editFormData.booking || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, booking: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-gray-900">Seal No.</Label>
+                                            <Input
+                                                data-history-key="inventory.seal_no"
+                                                value={editFormData.seal_no || ''}
+                                                onChange={(e) => setEditFormData({...editFormData, seal_no: e.target.value.toUpperCase()})}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Location</Label>
                                     <Input 
@@ -2631,23 +2719,16 @@ const Index: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-gray-900">Chasis</Label>
-                                    <Input 
-                                        data-history-key="inventory.chasis"
-                                        value={editFormData.chasis || ''} 
-                                        onChange={(e) => setEditFormData({...editFormData, chasis: e.target.value.toUpperCase()})}
+                                    <Label className="text-gray-900">{isOutEdit ? 'Shipper' : 'Chasis'}</Label>
+                                    <Input
+                                        data-history-key={isOutEdit ? 'inventory.shipper' : 'inventory.chasis'}
+                                        value={isOutEdit ? (editFormData.shipper || '') : (editFormData.chasis || '')}
+                                        onChange={(e) => setEditFormData({
+                                            ...editFormData,
+                                            [isOutEdit ? 'shipper' : 'chasis']: e.target.value.toUpperCase(),
+                                        })}
                                     />
                                 </div>
-                                {isOutEdit && (
-                                    <div>
-                                        <Label className="text-gray-900">Seal No.</Label>
-                                        <Input
-                                            data-history-key="inventory.seal_no"
-                                            value={editFormData.seal_no || ''}
-                                            onChange={(e) => setEditFormData({...editFormData, seal_no: e.target.value.toUpperCase()})}
-                                        />
-                                    </div>
-                                )}
                                 <div>
                                     <Label className="text-gray-900">Contact No.</Label>
                                     <Input 
