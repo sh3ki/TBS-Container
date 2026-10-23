@@ -43,6 +43,9 @@ interface ModernTableProps<T = unknown> {
   contentKey?: string;
   /** Scroll the window to this row when using window-scroll virtualization. */
   scrollToIndex?: number;
+  /** Optional tabular clipboard representation for copying the table. */
+  copyHeaders?: string[];
+  copyRow?: (item: T) => Array<string | number | null | undefined>;
 }
 
 const ModernTableBase = <T extends Record<string, unknown>>({
@@ -64,6 +67,8 @@ const ModernTableBase = <T extends Record<string, unknown>>({
   useWindowScroll = false,
   contentKey,
   scrollToIndex,
+  copyHeaders,
+  copyRow,
 }: ModernTableProps<T>) => {
   const [scrollTop, setScrollTop] = React.useState(0);
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -128,6 +133,25 @@ const ModernTableBase = <T extends Record<string, unknown>>({
           if (onReachEnd && element.scrollTop + element.clientHeight >= element.scrollHeight - 500) {
             onReachEnd();
           }
+        }}
+        onCopy={(event) => {
+          if (!copyRow || !copyHeaders) return;
+          const selection = window.getSelection();
+          if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+          if (!selection.anchorNode || !event.currentTarget.contains(selection.anchorNode)) return;
+
+          const cleanCell = (value: string | number | null | undefined) => String(value ?? '')
+            .replace(/[\t\r\n]+/g, ' ')
+            .trim();
+          const clipboardText = [
+            copyHeaders,
+            ...data.map((item) => copyRow(item)),
+          ]
+            .map((row) => row.map(cleanCell).join('\t'))
+            .join('\n');
+
+          event.preventDefault();
+          event.clipboardData.setData('text/plain', clipboardText);
         }}
         style={{ 
           borderColor: colors.table.border,
