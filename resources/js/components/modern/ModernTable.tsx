@@ -39,6 +39,10 @@ interface ModernTableProps<T = unknown> {
   virtualized?: boolean;
   rowHeight?: number;
   useWindowScroll?: boolean;
+  /** Optional render key for content that changes without changing the rows. */
+  contentKey?: string;
+  /** Scroll the window to this row when using window-scroll virtualization. */
+  scrollToIndex?: number;
 }
 
 const ModernTableBase = <T extends Record<string, unknown>>({
@@ -58,6 +62,8 @@ const ModernTableBase = <T extends Record<string, unknown>>({
   virtualized = false,
   rowHeight = 128,
   useWindowScroll = false,
+  contentKey,
+  scrollToIndex,
 }: ModernTableProps<T>) => {
   const [scrollTop, setScrollTop] = React.useState(0);
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -83,6 +89,18 @@ const ModernTableBase = <T extends Record<string, unknown>>({
       window.removeEventListener('resize', updateWindowScroll);
     };
   }, [virtualized, useWindowScroll, onReachEnd]);
+
+  React.useEffect(() => {
+    if (!virtualized || !useWindowScroll || scrollToIndex === undefined || scrollToIndex < 0) return;
+    const element = viewportRef.current;
+    if (!element) return;
+
+    const tableTop = element.getBoundingClientRect().top + window.scrollY;
+    window.scrollTo({
+      top: Math.max(0, tableTop + scrollToIndex * rowHeight),
+      behavior: 'smooth',
+    });
+  }, [scrollToIndex, rowHeight, virtualized, useWindowScroll]);
   const virtualStart = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - 5) : 0;
   const virtualEnd = virtualized
     ? Math.min(data.length, virtualStart + Math.ceil(700 / rowHeight) + 10)
@@ -319,5 +337,7 @@ export const ModernTable = React.memo(
     previous.onReachEnd === next.onReachEnd &&
     previous.pagination === next.pagination &&
     previous.sortColumn === next.sortColumn &&
-    previous.sortDirection === next.sortDirection,
+    previous.sortDirection === next.sortDirection &&
+    previous.contentKey === next.contentKey &&
+    previous.scrollToIndex === next.scrollToIndex,
 ) as typeof ModernTableBase;
