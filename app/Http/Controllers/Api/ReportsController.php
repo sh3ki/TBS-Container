@@ -1210,6 +1210,56 @@ class ReportsController extends Controller
             $clientName = $client ? $client->client_name : 'ALL';
             $dmrTablePrefix = DB::getTablePrefix();
 
+            // COSCO/client 18 uses the six-sheet DMR workbook layout.
+            if ((string) $clientId === '18') {
+                $movement = function (string $gateStatus, array $sizes, string $from, string $to) use ($date, $dmrTablePrefix) {
+                    return DB::table('inventory as inv')
+                        ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+                        ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+                        ->leftJoin('inventory as in_inv', function ($join) {
+                            $join->on('in_inv.out_id', '=', 'inv.i_id')->where('in_inv.gate_status', '=', 'IN');
+                        })
+                        ->where('inv.client_id', 18)->where('inv.gate_status', $gateStatus)
+                        ->whereIn('st.size', $sizes)
+                        ->whereBetween('inv.date_added', [$date . ' ' . $from, $date . ' ' . $to])
+                        ->select('inv.i_id', 'inv.container_no', 'inv.date_added', 'inv.date_manufactured',
+                            'inv.vessel', 'inv.voyage', 'inv.class', 'inv.ex_consignee', 'inv.shipper',
+                            'inv.hauler', 'inv.booking', 'inv.location', 'inv.plate_no', 'inv.chasis', 'inv.seal_no',
+                            DB::raw("CONCAT({$dmrTablePrefix}st.size, {$dmrTablePrefix}st.type) as size_type"), 'cs.status', 'in_inv.date_added as date_in')
+                        ->orderBy('inv.date_added')->get();
+                };
+                $coscoData = [
+                    'incoming_day' => $movement('IN', [20], '00:00:01', '16:00:00'),
+                    'incoming_evening' => $movement('IN', [20], '16:00:01', '23:59:59'),
+                    'outgoing_day' => $movement('OUT', [20], '00:00:01', '16:00:00'),
+                    'outgoing_evening' => $movement('OUT', [20], '16:00:01', '23:59:59'),
+                ];
+                $coscoData['incoming40_day'] = $movement('IN', [40, 45], '00:00:01', '16:00:00');
+                $coscoData['incoming40_evening'] = $movement('IN', [40, 45], '16:00:01', '23:59:59');
+                $coscoData['outgoing40_day'] = $movement('OUT', [40, 45], '00:00:01', '16:00:00');
+                $coscoData['outgoing40_evening'] = $movement('OUT', [40, 45], '16:00:01', '23:59:59');
+
+                $inventory = DB::table('inventory as inv')
+                    ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+                    ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
+                    ->where('inv.client_id', 18)->where('inv.gate_status', 'IN')->where('inv.complete', 0)
+                    ->whereDate('inv.date_added', '<=', $date)->whereIn('st.size', [20, 40, 45])
+                    ->select('inv.i_id', 'inv.container_no', 'inv.date_added', 'inv.date_manufactured', 'inv.class',
+                        'inv.remarks as eir_notes', 'inv.approval_notes', 'inv.approval_date', 'cs.status',
+                        DB::raw("CONCAT({$dmrTablePrefix}st.size, {$dmrTablePrefix}st.type) as size_type"))
+                    ->orderBy('st.size')->orderBy('st.type')->orderBy('inv.date_added')->get();
+
+                $filePath = (new ReportExportService())->exportCoscoDmr($coscoData, $inventory, $date);
+                DB::table('audit_logs')->insert([
+                    'action' => 'REPORTS',
+                    'description' => '[REPORTS] COSCO DMR exported ' . $inventory->count() . ' inventory record(s) to XLS file',
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+                return response()->download($filePath, 'COSCO DMR (' . \Carbon\Carbon::parse($date)->format('F d, Y') . ').xlsx')->deleteFileAfterSend(true);
+            }
+
             // MSC/client 67 uses the client-specific four-sheet DMR layout.
             if ((string) $clientId === '67') {
                 $inData = DB::table('inventory as inv')
