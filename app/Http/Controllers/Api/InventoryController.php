@@ -99,13 +99,13 @@ class InventoryController extends Controller
             $data = [];
             foreach ($results as $item) {
                 $daysInYard = 0;
-                if ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
-                    $dateIn = Carbon::parse($item->date_in);
-                    $dateOut = Carbon::parse($item->date_out);
-                    $daysInYard = $dateIn->diffInDays($dateOut) + 1;
-                } elseif ($item->gate_status === 'IN' && !empty($item->date_in)) {
-                    $dateIn = Carbon::parse($item->date_in);
-                    $daysInYard = $dateIn->diffInDays(Carbon::now()) + 1;
+                if ($item->gate_status === 'IN' && (int) $item->complete === 0 && !empty($item->date_in)) {
+                    $dateIn = Carbon::parse($item->date_in . ' ' . ($item->time_in ?: '00:00:00'));
+                    $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds(Carbon::now(), false)) / 86400));
+                } elseif ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
+                    $dateIn = Carbon::parse($item->date_in . ' ' . ($item->time_in ?: '00:00:00'));
+                    $dateOut = Carbon::parse($item->date_out . ' ' . ($item->time_out ?: '00:00:00'));
+                    $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds($dateOut, false)) / 86400));
                 }
 
                 $data[] = [
@@ -461,13 +461,13 @@ class InventoryController extends Controller
 
             // Calculate days in yard
             $daysInYard = 0;
-            if ($inventory->date_out_full) {
+            if ($inventory->gate_status === 'IN' && (int) $inventory->complete === 0) {
+                $dateIn = Carbon::parse($inventory->date_added);
+                $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds(Carbon::now(), false)) / 86400));
+            } elseif ($inventory->date_out_full) {
                 $dateIn = Carbon::parse($inventory->date_added);
                 $dateOut = Carbon::parse($inventory->date_out_full);
-                $daysInYard = $dateIn->diffInDays($dateOut) + 1;
-            } elseif ($inventory->gate_status === 'IN') {
-                $dateIn = Carbon::parse($inventory->date_added);
-                $daysInYard = $dateIn->diffInDays(Carbon::now()) + 1;
+                $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds($dateOut, false)) / 86400));
             }
 
             // Get hold details if on hold
@@ -1302,6 +1302,7 @@ class InventoryController extends Controller
             $prefix = DB::getTablePrefix();
 
             $safeInDate = $this->sanitizeDateExpression('i.date_added');
+            $safeOutDate = $this->sanitizeDateExpression('o.date_added');
             $safeManufacturedDate = $this->sanitizeDateExpression('i.date_manufactured', '%Y-%m-%d');
             
             $query = "SELECT 
@@ -1319,9 +1320,13 @@ class InventoryController extends Controller
                             WHEN {$safeInDate} IS NOT NULL THEN TIME({$safeInDate})
                             ELSE NULL 
                         END as time,
-                        CASE 
-                            WHEN {$safeInDate} IS NOT NULL THEN DATEDIFF(NOW(), {$safeInDate})
-                            ELSE 0 
+                        CASE
+                            WHEN {$safeInDate} IS NULL THEN 0
+                            WHEN i.gate_status = 'IN' AND i.complete = 0 THEN
+                                GREATEST(1, CEIL(GREATEST(0, TIMESTAMPDIFF(SECOND, {$safeInDate}, NOW())) / 86400))
+                            WHEN {$safeOutDate} IS NOT NULL THEN
+                                GREATEST(1, CEIL(GREATEST(0, TIMESTAMPDIFF(SECOND, {$safeInDate}, {$safeOutDate})) / 86400))
+                            ELSE 0
                         END as days,
                         cs.status,
                         i.class,
@@ -1339,6 +1344,7 @@ class InventoryController extends Controller
                             THEN 1 ELSE 0 
                         END as is_hold
                     FROM {$prefix}inventory i
+                    LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
                     LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                     LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
                     LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
@@ -1347,15 +1353,20 @@ class InventoryController extends Controller
             $params = [];
 
             // Search is intentionally explicit: the UI submits this only when the
-            // user presses Search. Keep the search scope narrow so this does not
-            // turn into a broad client/name scan over the inventory table.
+            // user presses Search. Include partial matches in the container number,
+            // EIR number, EIR notes, and approval notes.
             if (!empty($filters['search'])) {
-                $query .= " AND (LOWER(i.container_no) LIKE :container_search OR LOWER(CONCAT(i.i_id, CASE WHEN i.gate_status = 'IN' THEN 'I' ELSE 'O' END)) LIKE :eir_search)";
+                $query .= " AND (
+                    LOWER(i.container_no) LIKE :container_search
+                    OR LOWER(CONCAT(i.i_id, CASE WHEN i.gate_status = 'IN' THEN 'I' ELSE 'O' END)) LIKE :eir_search
+                    OR LOWER(COALESCE(i.remarks, '')) LIKE :eir_notes_search
+                    OR LOWER(COALESCE(i.approval_notes, '')) LIKE :approval_notes_search
+                )";
                 $searchValue = '%' . strtolower(trim((string) $filters['search'])) . '%';
-                // PDO MySQL does not safely support reusing one named placeholder
-                // twice when native prepares are enabled.
                 $params[':container_search'] = $searchValue;
                 $params[':eir_search'] = $searchValue;
+                $params[':eir_notes_search'] = $searchValue;
+                $params[':approval_notes_search'] = $searchValue;
             }
 
             // Handle gate status filter (default to CURRENTLY for Real Time Inventory)
