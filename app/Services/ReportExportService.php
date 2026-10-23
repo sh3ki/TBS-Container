@@ -1221,6 +1221,106 @@ class ReportExportService
     /**
      * Export the MSC/client 67 DMR workbook.
      */
+    /**
+     * Export the COSCO/client 18 six-sheet DMR workbook.
+     */
+    public function exportCoscoDmr(array $movement, Collection $inventory, string $date): string
+    {
+        $this->spreadsheet = new Spreadsheet();
+        $this->spreadsheet->removeSheetByIndex(0);
+        $bold = ['font' => ['name' => 'Calibri', 'size' => 10, 'bold' => true]];
+        $header = ['font' => ['name' => 'Calibri', 'size' => 10, 'bold' => true], 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true], 'borders' => ['allBorders' => ['style' => Border::BORDER_THIN]]];
+        $cell = ['font' => ['name' => 'Calibri', 'size' => 10], 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER], 'borders' => ['allBorders' => ['style' => Border::BORDER_THIN]]];
+        $yellow = ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFFF00']], 'font' => ['bold' => true], 'borders' => ['allBorders' => ['style' => Border::BORDER_THIN]]];
+        $orange = ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F8CBAD']], 'borders' => ['allBorders' => ['style' => Border::BORDER_THIN]]];
+        $blue = ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '9DC3E6']], 'borders' => ['allBorders' => ['style' => Border::BORDER_THIN]]];
+        $dateLabel = Carbon::parse($date)->format('m/d/Y') . ' - ' . Carbon::parse($date)->format('m/d/Y');
+        $value = static fn ($row, string $key, $default = '') => $row->{$key} ?? $default;
+        $writeTable = static function ($sheet, int &$row, string $title, array $headers, Collection $rows, callable $values) use ($bold, $header, $cell) {
+            if ($title !== '') {
+                $sheet->setCellValue('A' . $row, $title);
+                $sheet->getStyle('A' . $row)->applyFromArray($bold);
+                $row += 2;
+            } else {
+                $row++;
+            }
+            $sheet->fromArray($headers, null, 'A' . $row);
+            $sheet->getStyle('A' . $row . ':' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers)) . $row)->applyFromArray($header);
+            $row++;
+            if ($rows->isEmpty()) $sheet->setCellValue('D' . $row, 'NO MOVEMENT');
+            foreach ($rows as $item) {
+                $sheet->fromArray($values($item), null, 'A' . $row);
+                $sheet->getStyle('A' . $row . ':' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers)) . $row)->applyFromArray($cell);
+                $row++;
+            }
+            $row += 2;
+        };
+        $setWidths = static function ($sheet, int $max = 15) {
+            for ($i = 1; $i <= $max; $i++) $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i))->setWidth(15);
+            $sheet->getColumnDimension('D')->setWidth(18);
+        };
+        $writeRow = static function ($sheet, array $values, int $row, int $startColumn = 1) {
+            foreach (array_values($values) as $offset => $value) {
+                $sheet->setCellValueByColumnAndRow($startColumn + $offset, $row, $value === null ? '' : $value);
+            }
+        };
+        $inHeaders = ['EIR No.', 'Date', 'Time', 'Container No.', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Class', 'DMF', 'Consignee', 'Hauler', 'Plate No.'];
+        $outHeaders = ['EIR No.', 'Date', 'Time', 'Container No.', 'Size/Type', 'Status', 'Vessel', 'Voyage', 'Shipper', 'Hauler', 'Booking', 'Destination', 'Plate No.', 'Chassis No.', 'Seal No.'];
+        $inValues = static function ($r) use ($value) { return [$value($r, 'i_id'), Carbon::parse($r->date_added)->format('Y-m-d'), Carbon::parse($r->date_added)->format('H:i:s'), $value($r, 'container_no'), $value($r, 'size_type'), $value($r, 'status'), $value($r, 'vessel', '-'), $value($r, 'voyage', '-'), $value($r, 'class'), $value($r, 'date_manufactured'), $value($r, 'ex_consignee', '-'), $value($r, 'hauler', '-'), $value($r, 'plate_no', '-')]; };
+        $outValues = static function ($r) use ($value) { return [$value($r, 'i_id'), Carbon::parse($r->date_added)->format('Y-m-d'), Carbon::parse($r->date_added)->format('H:i:s'), $value($r, 'container_no'), $value($r, 'size_type'), $value($r, 'status'), $value($r, 'vessel', '-'), $value($r, 'voyage', '-'), $value($r, 'shipper', '-'), $value($r, 'hauler', '-'), $value($r, 'booking', '-'), $value($r, 'location', '-'), $value($r, 'plate_no', '-'), $value($r, 'chasis', '-'), $value($r, 'seal_no', '-')]; };
+
+        foreach ([['DMR 20', false], ['DMR 40', true]] as [$name, $large]) {
+            $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, $name);
+            $this->spreadsheet->addSheet($sheet); $row = 1;
+            $sheet->setCellValue('A' . $row++, 'TBS CONTAINER YARD OPC'); $sheet->getStyle('A1')->getFont()->setBold(true)->getColor()->setRGB('FF0000'); $sheet->setCellValue('A' . $row++, 'COSCO');
+            $sheet->setCellValue('A' . $row++, 'INCOMING CONTAINER REPORT'); $sheet->setCellValue('A' . $row++, 'FOR ' . $dateLabel); $row++;
+            $prefix = $large ? 'incoming40' : 'incoming';
+            $writeTable($sheet, $row, '', $inHeaders, $movement[$prefix . '_day'], $inValues);
+            $sheet->setCellValue('A' . $row, 'Additional Report 4:01pm to 12:00mn'); $row += 2;
+            $writeTable($sheet, $row, '', $inHeaders, $movement[$prefix . '_evening'], $inValues);
+            $sheet->setCellValue('A' . $row++, 'COSCO'); $sheet->setCellValue('A' . $row++, 'OUTGOING CONTAINER REPORT'); $sheet->setCellValue('A' . $row++, 'FOR ' . $dateLabel); $row++;
+            $prefix = $large ? 'outgoing40' : 'outgoing';
+            $writeTable($sheet, $row, '', $outHeaders, $movement[$prefix . '_day'], $outValues);
+            $sheet->setCellValue('A' . $row, 'Additional Report 4:01pm to 12:00mn'); $row += 2;
+            $writeTable($sheet, $row, '', $outHeaders, $movement[$prefix . '_evening'], $outValues);
+            $sheet->setCellValue('A' . $row++, 'Summary Inventory as of ' . Carbon::parse($date)->format('F j, Y')); $row += 1;
+            $summaryTypes = $large ? ['40DC', '40HC', '40RH', '40OT', '40FR', '45HC'] : ['20DC', '20RF', '20OT', '20FR', '20RH'];
+            $sheet->fromArray(['', 'FOR SHIPPER', 'DISPOSAL', 'TOTAL UNITS'], null, 'A' . $row++);
+            $sheet->getStyle('A' . ($row - 1) . ':D' . ($row - 1))->applyFromArray($header);
+            foreach ($summaryTypes as $type) { $count = $inventory->where('size_type', $type)->count(); $writeRow($sheet, [$type, $count, '', $count], $row++); }
+            $sheet->setShowGridlines(true); $sheet->getColumnDimension('A')->setWidth(18); $sheet->getColumnDimension('B')->setWidth(14); $sheet->getColumnDimension('C')->setWidth(12); $setWidths($sheet, 15);
+        }
+
+        // Aging
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Aging'); $this->spreadsheet->addSheet($sheet);
+        $sheet->setCellValue('A1', 'TBS CONTAINER YARD OPC. INC'); $sheet->setCellValue('A2', 'INVENTORY REPORT AS OF ' . $date . ' FOR COSCO SHIPPING LINES CO., LTD.');
+        $agingHeaders = ['NO.', 'CONTAINER NO', 'SIZE/TYPE', 'DATE IN', 'AGE', 'STATUS', 'CLASS', 'DMF', 'EIR NOTES', 'APPROVAL NOTES', 'APPROVAL DATE'];
+        $sheet->fromArray($agingHeaders, null, 'A5'); $sheet->getStyle('A5:K5')->applyFromArray($header); $row = 6; $number = 1; $now = Carbon::now('Asia/Manila');
+        foreach ($inventory->groupBy('size_type') as $items) {
+            foreach ($items->sortBy('date_added') as $item) {
+                $days = (int) ceil(max(0, $now->timestamp - Carbon::parse($item->date_added)->timestamp) / 86400);
+                $sheet->fromArray([$number++, $item->container_no, $item->size_type, Carbon::parse($item->date_added)->format('Y-m-d'), $days, $item->status, $item->class, $item->date_manufactured, $item->eir_notes, $item->approval_notes, $item->approval_date], null, 'A' . $row);
+                $sheet->getStyle('A' . $row . ':K' . $row)->applyFromArray($cell); $row++;
+            }
+            $sheet->setCellValue('C' . $row, $items->count() . ' UNITS'); $sheet->getStyle('C' . $row)->applyFromArray($bold); $row += 2;
+        }
+        $sheet->setCellValue('B' . $row, 'TOTAL NO. OF UNITS:'); $sheet->setCellValue('D' . $row, $inventory->count()); $sheet->getStyle('B' . $row . ':D' . $row)->applyFromArray($bold); $setWidths($sheet, 11);
+
+        // Inventory matrix
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Inventory'); $this->spreadsheet->addSheet($sheet); $sheet->setCellValue('A2', 'TBS CONTAINER YARD OPC'); $sheet->getStyle('A2')->getFont()->setBold(true)->getColor()->setRGB('FF0000');
+        $sheet->fromArray(['TYPE', '20 A', '20 B', '20 C', '20 Total', '40 A', '40 B', '40 C', '40 Total', '45 A', '45 B', '45 C', '45 Total', 'Total stock'], null, 'A8'); $sheet->getStyle('A8:N8')->applyFromArray($header); $row = 9;
+        foreach (['DC' => 'DV', 'HC' => 'HC', 'RF' => 'RF', 'FR' => 'FR', 'OT' => 'OT', 'RH' => 'RH'] as $sourceType => $displayType) { $vals = [$displayType]; foreach ([20, 40, 45] as $size) { foreach (['A', 'B', 'C'] as $className) $vals[] = $inventory->filter(fn ($i) => $i->size_type === $size . $sourceType && $i->class === $className)->count(); $vals[] = array_sum(array_slice($vals, -3)); } $vals[] = array_sum(array_slice($vals, 1)); $writeRow($sheet, $vals, $row++); }
+        $sheet->setCellValue('A' . $row, 'TOTAL'); for ($col = 2; $col <= 14; $col++) $sheet->setCellValueByColumnAndRow($col, $row, '=SUM(' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . '9:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . ($row - 1) . ')'); $sheet->getStyle('A8:N' . $row)->applyFromArray($cell); $sheet->getStyle('A8:N8')->applyFromArray($header); $sheet->getStyle('A' . $row . ':N' . $row)->getFont()->setBold(true); $sheet->setShowGridlines(true); $setWidths($sheet, 14);
+
+        // Outgoing Units
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Outgoing Units'); $this->spreadsheet->addSheet($sheet); $sheet->setCellValue('B2', 'OUTGOING CONTAINERS'); $sheet->fromArray(['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'DAYS', 'DATE OUT'], null, 'A5'); $sheet->getStyle('A5:F5')->applyFromArray($header); $row = 6; $number = 1; $outs = collect(array_merge($movement['outgoing_day']->all(), $movement['outgoing_evening']->all(), $movement['outgoing40_day']->all(), $movement['outgoing40_evening']->all()))->sortBy('date_added'); foreach ($outs as $item) { $dateIn = $item->date_in ? Carbon::parse($item->date_in) : null; $dateOut = Carbon::parse($item->date_added); $days = $dateIn ? (int) ceil(max(0, $dateOut->timestamp - $dateIn->timestamp) / 86400) : ''; $sheet->fromArray([$number++, $item->container_no, $item->size_type, $dateIn?->format('Y-m-d'), $days, $dateOut->format('Y-m-d')], null, 'A' . $row++); } $setWidths($sheet, 6);
+
+        // Current Inventory summary
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Current Inventory'); $this->spreadsheet->addSheet($sheet); $sheet->setCellValue('A2', 'SUMMARY'); $summary = static function ($items, $needle) { return $items->filter(fn ($i) => $i->size_type === $needle)->count(); }; $types = ['20DC', '20RF', '20OT', '20FR', '20RH', '40HC', '40FR', '40DC', '40OT', '40RH', '45HC']; $row = 3; $overdue = $inventory->filter(fn ($i) => (int) ceil(max(0, Carbon::parse($date)->timestamp - Carbon::parse($i->date_added)->timestamp) / 86400) > 13); foreach ([['', $inventory], ['NUMBER OF OVERDUE UNITS', $overdue], ['DOE INVENTORY', $inventory->filter(fn ($i) => stripos((string) $i->approval_notes, 'DOE') !== false)], ['NRP INVENTORY', $inventory->filter(fn ($i) => stripos((string) $i->approval_notes, 'NRP') !== false)]] as [$title, $items]) { $sectionStart = $row; if ($title) $sheet->setCellValue('A' . $row++, $title); foreach ($types as $type) { $label = str_replace('DC', 'GP', $type); $writeRow($sheet, [$label, '=', $summary($items, $type)], $row++); } $writeRow($sheet, ['TOTAL', '=', $items->count()], $row++); $sectionEnd = $row - 1; if ($title === '') { $sheet->getStyle('B3:C7')->applyFromArray($yellow); $sheet->getStyle('B8:C13')->applyFromArray($orange); } else { $sheet->getStyle('A' . $sectionStart . ':C' . $sectionStart)->applyFromArray($yellow); $sheet->getStyle('A' . ($sectionStart + 1) . ':C' . $sectionEnd)->applyFromArray($blue); } $row += 2; } $sheet->setCellValue('A' . $row, "TOTAL TEU'S"); $sheet->setCellValue('C' . $row, $inventory->sum(fn ($i) => str_starts_with($i->size_type, '20') ? 1 : 2)); $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray($yellow); $row += 2; $sheet->setCellValue('A' . $row, 'TOTAL CY UTILIZATION PERCENTAGE'); $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray($yellow); $sheet->setShowGridlines(true); $sheet->getColumnDimension('A')->setWidth(28); $sheet->getColumnDimension('B')->setWidth(12); $sheet->getColumnDimension('C')->setWidth(12);
+
+        $this->spreadsheet->setActiveSheetIndex(0); $filename = 'COSCO DMR (' . Carbon::parse($date)->format('F d, Y') . ').xlsx'; $filepath = storage_path('app/public/exports/' . $filename); if (!file_exists(dirname($filepath))) mkdir(dirname($filepath), 0755, true); (new Xlsx($this->spreadsheet))->save($filepath); return $filepath;
+    }
+
     public function exportMscDmr(Collection $inData, Collection $outData, Collection $sealData, string $date): string
     {
         $this->spreadsheet = new Spreadsheet();
