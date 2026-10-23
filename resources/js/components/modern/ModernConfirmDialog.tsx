@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ModernButton } from './ModernButton';
-import { AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, LoaderCircle, XCircle } from 'lucide-react';
 
 export type ConfirmType = 'danger' | 'warning' | 'info' | 'success';
 
@@ -13,7 +13,7 @@ interface ModernConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   type?: ConfirmType;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
 }
 
@@ -51,12 +51,20 @@ export const ModernConfirmDialog: React.FC<ModernConfirmDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const [isConfirming, setIsConfirming] = React.useState(false);
   const config = confirmConfig[type];
   const Icon = config.icon;
 
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
+  const handleConfirm = async () => {
+    if (isConfirming) return;
+
+    setIsConfirming(true);
+    try {
+      await onConfirm();
+      onOpenChange(false);
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleCancel = () => {
@@ -95,8 +103,10 @@ export const ModernConfirmDialog: React.FC<ModernConfirmDialogProps> = ({
             type="button"
             variant={config.variant}
             onClick={handleConfirm}
+            disabled={isConfirming}
           >
-            {confirmText}
+            {isConfirming && <LoaderCircle className="w-4 h-4 animate-spin" />}
+            {isConfirming ? 'Saving...' : confirmText}
           </ModernButton>
         </DialogFooter>
       </DialogContent>
