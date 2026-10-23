@@ -1303,6 +1303,7 @@ class InventoryController extends Controller
 
             $safeInDate = $this->sanitizeDateExpression('i.date_added');
             $safeOutDate = $this->sanitizeDateExpression('o.date_added');
+            $safeLinkedInDate = $this->sanitizeDateExpression('in_ref.date_added');
             $safeManufacturedDate = $this->sanitizeDateExpression('i.date_manufactured', '%Y-%m-%d');
             
             $query = "SELECT 
@@ -1324,8 +1325,10 @@ class InventoryController extends Controller
                             WHEN {$safeInDate} IS NULL THEN 0
                             WHEN i.gate_status = 'IN' AND i.complete = 0 THEN
                                 GREATEST(1, CEIL(GREATEST(0, TIMESTAMPDIFF(SECOND, {$safeInDate}, NOW())) / 86400))
-                            WHEN {$safeOutDate} IS NOT NULL THEN
+                            WHEN i.gate_status = 'IN' AND i.complete = 1 AND {$safeOutDate} IS NOT NULL THEN
                                 GREATEST(1, CEIL(GREATEST(0, TIMESTAMPDIFF(SECOND, {$safeInDate}, {$safeOutDate})) / 86400))
+                            WHEN i.gate_status = 'OUT' AND {$safeLinkedInDate} IS NOT NULL THEN
+                                GREATEST(1, CEIL(GREATEST(0, TIMESTAMPDIFF(SECOND, {$safeLinkedInDate}, {$safeInDate})) / 86400))
                             ELSE 0
                         END as days,
                         cs.status,
@@ -1345,6 +1348,7 @@ class InventoryController extends Controller
                         END as is_hold
                     FROM {$prefix}inventory i
                     LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
+                    LEFT JOIN {$prefix}inventory in_ref ON in_ref.out_id = i.i_id AND in_ref.gate_status = 'IN'
                     LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                     LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
                     LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
@@ -1399,17 +1403,38 @@ class InventoryController extends Controller
                 $params[':iso_code'] = '%' . strtolower($filters['iso_code']) . '%';
             }
             
-            // Date filters
-            if (!empty($filters['date_in_from']) && !empty($filters['date_in_to'])) {
-                $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to AND i.gate_status = 'IN'";
+            // Gate IN dates apply only to IN records. Gate OUT dates apply only
+            // to OUT records. When BOTH is selected, either matching direction
+            // is allowed instead of AND-ing the two mutually exclusive statuses.
+            $hasInDateRange = !empty($filters['date_in_from']) && !empty($filters['date_in_to']);
+            $hasOutDateRange = !empty($filters['date_out_from']) && !empty($filters['date_out_to']);
+
+            if ($hasInDateRange) {
                 $params[':date_in_from'] = Carbon::parse($filters['date_in_from'], 'Asia/Manila')->startOfDay()->format('Y-m-d H:i:s');
                 $params[':date_in_to'] = Carbon::parse($filters['date_in_to'], 'Asia/Manila')->endOfDay()->format('Y-m-d H:i:s');
             }
-            
-            if (!empty($filters['date_out_from']) && !empty($filters['date_out_to'])) {
-                $query .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to AND i.gate_status = 'OUT'";
+            if ($hasOutDateRange) {
                 $params[':date_out_from'] = Carbon::parse($filters['date_out_from'], 'Asia/Manila')->startOfDay()->format('Y-m-d H:i:s');
                 $params[':date_out_to'] = Carbon::parse($filters['date_out_to'], 'Asia/Manila')->endOfDay()->format('Y-m-d H:i:s');
+            }
+
+            if ($gateStatus === 'BOTH') {
+                if ($hasInDateRange && $hasOutDateRange) {
+                    $query .= " AND ((i.gate_status = 'IN' AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to)
+                        OR (i.gate_status = 'OUT' AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to))";
+                } elseif ($hasInDateRange) {
+                    // No OUT dates were supplied, so all OUT records remain included.
+                    $query .= " AND ((i.gate_status = 'IN' AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to)
+                        OR i.gate_status = 'OUT')";
+                } elseif ($hasOutDateRange) {
+                    // No IN dates were supplied, so all IN records remain included.
+                    $query .= " AND (i.gate_status = 'IN'
+                        OR (i.gate_status = 'OUT' AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to))";
+                }
+            } elseif (($gateStatus === 'IN' || $gateStatus === 'CURRENTLY') && $hasInDateRange) {
+                $query .= " AND {$safeInDate} BETWEEN :date_in_from AND :date_in_to";
+            } elseif ($gateStatus === 'OUT' && $hasOutDateRange) {
+                $query .= " AND {$safeInDate} BETWEEN :date_out_from AND :date_out_to";
             }
             
             // Text filters
