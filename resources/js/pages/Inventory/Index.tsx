@@ -91,6 +91,64 @@ interface ViewerImage {
     relativePath?: string;
 }
 
+const INVENTORY_FILTER_STORAGE_KEY = 'inventory.filters.v1';
+
+const defaultFilters = {
+    client: 'all',
+    iso_code: '',
+    container_no: '',
+    date_out_from: '',
+    date_in_from: '',
+    date_out_to: '',
+    date_in_to: '',
+    checker: '',
+    consignee: '',
+    shipper: '',
+    hauler_in: '',
+    destination: '',
+    vessel_in: '',
+    booking_number: '',
+    plate_no_in: '',
+    seal_no: '',
+    status_in: 'all',
+    contact_no: '',
+    size_type: 'all',
+    bill_of_lading: '',
+    gate_status: 'CURRENTLY',
+};
+
+const getCachedInventoryState = () => {
+    const emptyState = {
+        filters: defaultFilters,
+        appliedFilters: defaultFilters,
+        searchTerm: '',
+        appliedSearchTerm: '',
+    };
+
+    if (typeof window === 'undefined') return emptyState;
+
+    try {
+        const cached = window.localStorage.getItem(INVENTORY_FILTER_STORAGE_KEY);
+        if (!cached) return emptyState;
+
+        const parsed = JSON.parse(cached) as {
+            filters?: Partial<typeof defaultFilters>;
+            appliedFilters?: Partial<typeof defaultFilters>;
+            searchTerm?: string;
+            appliedSearchTerm?: string;
+        };
+
+        return {
+            filters: { ...defaultFilters, ...(parsed.filters || {}) },
+            appliedFilters: { ...defaultFilters, ...(parsed.appliedFilters || parsed.filters || {}) },
+            searchTerm: parsed.searchTerm || '',
+            appliedSearchTerm: parsed.appliedSearchTerm || parsed.searchTerm || '',
+        };
+    } catch {
+        return emptyState;
+    }
+};
+
 const Index: React.FC = () => {
     const { toasts, removeToast, success, error } = useModernToast();
     
@@ -159,10 +217,12 @@ const Index: React.FC = () => {
 
     // Filter modal state
     const [showFiltersModal, setShowFiltersModal] = useState(false);
+
+    const cachedInventoryState = getCachedInventoryState();
     
     // Search state
-    const [searchTerm, setSearchTerm] = useState('');
-    const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => cachedInventoryState.searchTerm);
+    const [appliedSearchTerm, setAppliedSearchTerm] = useState(() => cachedInventoryState.appliedSearchTerm);
     const [sortColumn, setSortColumn] = useState('');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const canResetSearch = Boolean(searchTerm.trim() || appliedSearchTerm || sortColumn);
@@ -172,33 +232,9 @@ const Index: React.FC = () => {
         JSON.stringify(editFormData) !== JSON.stringify(initialEditFormData)
     );
 
-    const defaultFilters = {
-        client: 'all',
-        iso_code: '',
-        container_no: '',
-        date_out_from: '',
-        date_in_from: '',
-        date_out_to: '',
-        date_in_to: '',
-        checker: '',
-        consignee: '',
-        shipper: '',
-        hauler_in: '',
-        destination: '',
-        vessel_in: '',
-        booking_number: '',
-        plate_no_in: '',
-        seal_no: '',
-        status_in: 'all',
-        contact_no: '',
-        size_type: 'all',
-        bill_of_lading: '',
-        gate_status: 'CURRENTLY',
-    };
-
     // Filter states
-    const [filters, setFilters] = useState(defaultFilters);
-    const [appliedFilters, setAppliedFilters] = useState(defaultFilters);
+    const [filters, setFilters] = useState(() => cachedInventoryState.filters);
+    const [appliedFilters, setAppliedFilters] = useState(() => cachedInventoryState.appliedFilters);
     const hasFilterValues = (filterValues: typeof defaultFilters) => Object.entries(filterValues).some(([key, value]) => {
         if (typeof value !== 'string') return false;
         const normalizedValue = value.trim().toLowerCase();
@@ -211,6 +247,19 @@ const Index: React.FC = () => {
     const canResetFilters = hasActiveFilters || hasAppliedFilters;
     const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
     const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(INVENTORY_FILTER_STORAGE_KEY, JSON.stringify({
+                filters,
+                appliedFilters,
+                searchTerm,
+                appliedSearchTerm,
+            }));
+        } catch {
+            // Ignore unavailable or restricted browser storage.
+        }
+    }, [filters, appliedFilters, searchTerm, appliedSearchTerm]);
 
     useEffect(() => {
         loadDropdownData();
@@ -438,7 +487,7 @@ const Index: React.FC = () => {
     };
 
     const loadAllInventory = async () => {
-        await fetchInventory({ page: 1, perPage: itemsPerPage, search: '', showToast: false });
+        await fetchInventory({ page: 1, perPage: itemsPerPage, search: appliedSearchTerm, showToast: false });
     };
 
     const updateInventoryRow = (inventoryId: number, updates: Partial<InventoryRecord>) => {
@@ -568,6 +617,10 @@ const Index: React.FC = () => {
     // Table Days display uses whole-day ceiling: 2h => 1d, 1d 1h => 2d.
     const formatDurationCompactFrom = (dateString?: string, timeString?: string, fallback?: number) => {
         try {
+            if (fallback !== undefined && Number.isFinite(Number(fallback))) {
+                return `${Math.max(0, Math.ceil(Number(fallback)))}d`;
+            }
+
             if (!dateString) return fallback !== undefined ? `${fallback}d` : '-';
 
             let inDate: Date | null = null;
