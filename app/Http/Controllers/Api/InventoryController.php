@@ -628,15 +628,20 @@ class InventoryController extends Controller
 
     /**
      * Update inventory record
-     * PUT /api/inventory/{hashedId}
+     * PUT /api/inventory/{id}
      */
-    public function update(Request $request, $hashedId)
+    public function update(Request $request, $id)
     {
         try {
             $prefix = DB::getTablePrefix();
             
-            // Get full old record for change tracking
-            $oldInventory = DB::selectOne("SELECT * FROM {$prefix}inventory WHERE MD5(i_id) = ?", [$hashedId]);
+            // Prefer the indexed numeric primary key. Keep the hash fallback for
+            // older callers, but do not apply MD5() when a numeric ID is supplied.
+            $isNumeric = is_numeric($id);
+            $oldInventory = DB::selectOne(
+                "SELECT * FROM {$prefix}inventory WHERE " . ($isNumeric ? "i_id = ?" : "MD5(i_id) = ?"),
+                [$id]
+            );
             
             if (!$oldInventory) {
                 return response()->json([
