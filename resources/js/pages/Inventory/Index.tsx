@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy, Highlighter, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -226,6 +226,10 @@ const Index: React.FC = () => {
     // Search state
     const [searchTerm, setSearchTerm] = useState(() => cachedInventoryState.searchTerm);
     const [appliedSearchTerm, setAppliedSearchTerm] = useState(() => cachedInventoryState.appliedSearchTerm);
+    const [highlightMode, setHighlightMode] = useState(false);
+    const [highlightSearchTerm, setHighlightSearchTerm] = useState('');
+    const [highlightMatchCursor, setHighlightMatchCursor] = useState(0);
+    const highlightInputRef = useRef<HTMLInputElement>(null);
     const [sortColumn, setSortColumn] = useState('');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const canResetSearch = Boolean(searchTerm.trim() || appliedSearchTerm || sortColumn);
@@ -235,6 +239,24 @@ const Index: React.FC = () => {
         JSON.stringify(editFormData) !== JSON.stringify(initialEditFormData)
     );
     const isOutEdit = editFormData?.gate === 'OUT';
+
+    const highlightText = (value: unknown): React.ReactNode => {
+        const text = String(value ?? '');
+        const query = highlightSearchTerm.trim();
+        if (!highlightMode || !query || !text) return text;
+
+        const terms = [...new Set(query.split(/\s+/).filter(Boolean))]
+            .sort((left, right) => right.length - left.length)
+        const escapedTerms = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        if (escapedTerms.length === 0) return text;
+
+        const matcher = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+        return text.split(matcher).map((part, index) => (
+            terms.some((term) => part.toLowerCase() === term.toLowerCase()) ? (
+                <mark key={`${part}-${index}`} className="rounded bg-yellow-300 px-0.5 text-gray-900">{part}</mark>
+            ) : part
+        ));
+    };
 
     // Filter states
     const [filters, setFilters] = useState(() => cachedInventoryState.filters);
@@ -546,6 +568,32 @@ const Index: React.FC = () => {
             return direction === 'asc' ? comparison : -comparison;
         });
     };
+
+    const inventoryTableData = sortedReportData(filteredReportData, sortColumn, sortDirection);
+    const highlightTerms = highlightSearchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const highlightMatchIndexes = highlightMode && highlightTerms.length > 0
+        ? inventoryTableData.reduce<number[]>((matches, row, index) => {
+            const searchableText = [row.eir_no, row.container_no, row.eir_notes, row.app_notes]
+                .map((value) => String(value ?? '').toLowerCase())
+                .join(' ');
+            if (highlightTerms.some((term) => searchableText.includes(term))) matches.push(index);
+            return matches;
+        }, [])
+        : [];
+    const activeHighlightCursor = highlightMatchIndexes.length > 0
+        ? Math.min(highlightMatchCursor, highlightMatchIndexes.length - 1)
+        : 0;
+    const activeHighlightRowIndex = highlightMatchIndexes[activeHighlightCursor];
+
+    useEffect(() => {
+        setHighlightMatchCursor(0);
+    }, [highlightSearchTerm, highlightMode]);
+
+    useEffect(() => {
+        if (highlightMode) {
+            window.setTimeout(() => highlightInputRef.current?.focus(), 0);
+        }
+    }, [highlightMode]);
 
     // Format date to "Jan 01, 2025"
     const formatDate = (dateString: string) => {
@@ -1226,6 +1274,25 @@ const Index: React.FC = () => {
         setAppliedSearchTerm(searchTerm.trim());
     };
 
+    const openHighlightMode = () => {
+        setHighlightSearchTerm('');
+        setHighlightMatchCursor(0);
+        setHighlightMode(true);
+    };
+
+    const closeHighlightMode = () => {
+        setHighlightMode(false);
+        setHighlightSearchTerm('');
+        setHighlightMatchCursor(0);
+    };
+
+    const moveHighlightMatch = (direction: 1 | -1) => {
+        if (highlightMatchIndexes.length === 0) return;
+        setHighlightMatchCursor((current) => (
+            (current + direction + highlightMatchIndexes.length) % highlightMatchIndexes.length
+        ));
+    };
+
     const handleApplyFilters = async () => {
         if (!hasActiveFilters) return;
         await handleSearch(true);
@@ -1371,6 +1438,19 @@ const Index: React.FC = () => {
                                         </ModernButton>
                                         <button
                                             type="button"
+                                            onClick={() => highlightMode ? closeHighlightMode() : openHighlightMode()}
+                                            aria-pressed={highlightMode}
+                                            aria-label={highlightMode ? 'Highlight ON' : 'Highlight OFF'}
+                                            title={highlightMode ? 'Turn text highlighting off' : 'Turn text highlighting on'}
+                                            className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border text-sm font-medium shadow-xs transition-colors ${highlightMode
+                                                ? 'border-yellow-400 bg-yellow-100 text-yellow-900 hover:bg-yellow-200'
+                                                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <Highlighter className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => {
                                                 setSearchTerm('');
                                                 setAppliedSearchTerm('');
@@ -1437,7 +1517,61 @@ const Index: React.FC = () => {
                 </div>
 
                 {/* Results Table */}
-                <div className="w-full max-w-full overflow-x-auto">
+                <div className="relative w-full max-w-full overflow-x-auto">
+                    {highlightMode && (
+                        <div className="fixed right-4 top-4 z-40 flex h-14 w-[440px] items-center gap-2 rounded-xl bg-gray-800 px-3 shadow-xl ring-1 ring-black/20">
+                            <Highlighter className="h-4 w-4 shrink-0 text-yellow-300" />
+                            <Input
+                                ref={highlightInputRef}
+                                type="text"
+                                value={highlightSearchTerm}
+                                onChange={(event) => setHighlightSearchTerm(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        moveHighlightMatch(event.shiftKey ? -1 : 1);
+                                    }
+                                }}
+                                placeholder="Find in current rows..."
+                                aria-label="Find text to highlight"
+                                className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-white placeholder:text-gray-400 focus-visible:ring-0"
+                            />
+                            <span className="shrink-0 border-l border-gray-600 pl-3 text-xs text-gray-300" aria-live="polite">
+                                {highlightMatchIndexes.length > 0
+                                    ? `${activeHighlightCursor + 1} of ${highlightMatchIndexes.length}`
+                                    : '0 of 0'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => moveHighlightMatch(-1)}
+                                disabled={highlightMatchIndexes.length === 0}
+                                className="rounded p-1.5 text-gray-300 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Previous highlighted container"
+                                aria-label="Previous highlighted container"
+                            >
+                                <ChevronUp className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => moveHighlightMatch(1)}
+                                disabled={highlightMatchIndexes.length === 0}
+                                className="rounded p-1.5 text-gray-300 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Next highlighted container"
+                                aria-label="Next highlighted container"
+                            >
+                                <ChevronDown className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={closeHighlightMode}
+                                className="rounded p-1.5 text-gray-300 hover:bg-gray-700"
+                                title="Close highlighting"
+                                aria-label="Close highlighting"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    )}
                     {loading ? (
                         <div className="text-center py-12">
                             <p style={{ color: colors.text.secondary }}>Loading inventory...</p>
@@ -1454,7 +1588,7 @@ const Index: React.FC = () => {
                                         <div 
                                             className="font-semibold text-gray-900 min-w-[40px]"
                                         >
-                                            {row.eir_no}
+                                            {highlightText(row.eir_no)}
                                         </div>
                                     )
                                 },
@@ -1486,7 +1620,7 @@ const Index: React.FC = () => {
                                                 className="font-medium text-gray-900 underline underline-offset-2"
                                                 title="Print IN/OUT legacy template"
                                             >
-                                                {row.container_no}
+                                                {highlightText(row.container_no)}
                                             </button>
                                         </div>
                                     )
@@ -1605,7 +1739,7 @@ const Index: React.FC = () => {
                                                     >
                                                         <Copy className="h-3.5 w-3.5" />
                                                     </button>
-                                                    <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{row.eir_notes}</span>
+                                                    <span className="text-sm text-gray-600 break-words" title={row.eir_notes}>{highlightText(row.eir_notes)}</span>
                                                 </div>
                                             ) : (
                                                 <span className="text-sm text-gray-600">-</span>
@@ -1633,7 +1767,7 @@ const Index: React.FC = () => {
                                                     >
                                                         <Copy className="h-3.5 w-3.5" />
                                                     </button>
-                                                    <span className="text-sm text-gray-600">{row.app_notes}</span>
+                                                    <span className="text-sm text-gray-600">{highlightText(row.app_notes)}</span>
                                                 </div>
                                             ) : (
                                                 <ModernButton
@@ -1734,7 +1868,9 @@ const Index: React.FC = () => {
                             onSort={handleSort}
                             sortColumn={sortColumn === 'date_time' ? 'date_days' : sortColumn}
                             sortDirection={sortDirection}
-                            data={sortedReportData(filteredReportData, sortColumn, sortDirection)}
+                            data={inventoryTableData}
+                            contentKey={highlightMode ? highlightSearchTerm : ''}
+                            scrollToIndex={activeHighlightRowIndex}
                             virtualized
                             rowHeight={128}
                             useWindowScroll
