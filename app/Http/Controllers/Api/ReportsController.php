@@ -1212,7 +1212,9 @@ class ReportsController extends Controller
 
             // COSCO/client 18 uses the six-sheet DMR workbook layout.
             if ((string) $clientId === '18') {
-                $movement = function (string $gateStatus, array $sizes, string $from, string $to) use ($date, $dmrTablePrefix) {
+                $movement = function (string $gateStatus, array $sizes, string $from, string $to, ?string $rangeStart = null, ?string $rangeEnd = null) use ($date, $dmrTablePrefix) {
+                    $queryDateStart = $rangeStart ?: $date;
+                    $queryDateEnd = $rangeEnd ?: $date;
                     return DB::table('inventory as inv')
                         ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
                         ->leftJoin('container_status as cs', 'inv.container_status', '=', 'cs.s_id')
@@ -1221,7 +1223,7 @@ class ReportsController extends Controller
                         })
                         ->where('inv.client_id', 18)->where('inv.gate_status', $gateStatus)
                         ->whereIn('st.size', $sizes)
-                        ->whereBetween('inv.date_added', [$date . ' ' . $from, $date . ' ' . $to])
+                        ->whereBetween('inv.date_added', [$queryDateStart . ' ' . $from, $queryDateEnd . ' ' . $to])
                         ->select('inv.i_id', 'inv.container_no', 'inv.date_added', 'inv.date_manufactured',
                             'inv.vessel', 'inv.voyage', 'inv.class', 'inv.ex_consignee', 'inv.shipper',
                             'inv.hauler', 'inv.booking', 'inv.location', 'inv.plate_no', 'inv.chasis', 'inv.seal_no',
@@ -1238,6 +1240,10 @@ class ReportsController extends Controller
                 $coscoData['incoming40_evening'] = $movement('IN', [40, 45], '16:00:01', '23:59:59');
                 $coscoData['outgoing40_day'] = $movement('OUT', [40, 45], '00:00:01', '16:00:00');
                 $coscoData['outgoing40_evening'] = $movement('OUT', [40, 45], '16:00:01', '23:59:59');
+                $coscoData['outgoing_units'] = $movement(
+                    'OUT', [20, 40, 45], '00:00:00', '23:59:59',
+                    \Carbon\Carbon::parse($date)->startOfMonth()->format('Y-m-d'), $date
+                );
 
                 $inventory = DB::table('inventory as inv')
                     ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
