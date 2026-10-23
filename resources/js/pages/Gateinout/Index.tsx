@@ -255,8 +255,20 @@ export default function Index() {
 
   const handleSort = (table: 'in' | 'out', column: string) => {
     if (table === 'in') {
+      if (sortColumnIn === column && sortDirectionIn === 'desc') {
+        setSortColumnIn('');
+        setSortDirectionIn('asc');
+        return;
+      }
+
       setSortDirectionIn((currentDirection) => sortColumnIn === column && currentDirection === 'asc' ? 'desc' : 'asc');
       setSortColumnIn(column);
+      return;
+    }
+
+    if (sortColumnOut === column && sortDirectionOut === 'desc') {
+      setSortColumnOut('');
+      setSortDirectionOut('asc');
       return;
     }
 
