@@ -1932,6 +1932,36 @@ const Index: React.FC = () => {
                             data={inventoryTableData}
                             contentKey={highlightMode ? `${highlightSearchTerm}:${highlightColor}` : ''}
                             scrollToIndex={activeHighlightRowIndex}
+                            copyHeaders={[
+                                'EIR NO.',
+                                'CONT. NO.',
+                                'CLIENT',
+                                'SIZE',
+                                'STATUS',
+                                'CLASS',
+                                'DATE',
+                                'TIME',
+                                'DAYS',
+                                'DATE MFD',
+                                'LOC',
+                                'EIR NOTES',
+                                'APP NOTES',
+                            ]}
+                            copyRow={(row: InventoryRecord) => [
+                                row.eir_no,
+                                row.container_no,
+                                row.client_code ? `${row.client_code} - ${row.client}` : row.client,
+                                row.size,
+                                row.status,
+                                row.class,
+                                formatDate(row.date),
+                                formatTime(row.time),
+                                formatDurationCompactFrom(row.date, row.time, row.days),
+                                formatMonthYear(row.dmf as string),
+                                row.location,
+                                row.eir_notes,
+                                row.app_notes,
+                            ]}
                             virtualized
                             rowHeight={128}
                             useWindowScroll
