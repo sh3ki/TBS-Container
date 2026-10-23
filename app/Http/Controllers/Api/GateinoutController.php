@@ -115,18 +115,31 @@ class GateinoutController extends Controller
                     'message' => ['danger', '<strong>Error!</strong> There\'s an error with your connection!']
                 ]);
             }
-            
-            // Validate container can gate in
-            $validation = PreInventory::checkContainerCanGateIn($containerNo, $client->c_id);
-            
-            if (!$validation['valid']) {
+
+            // Serialize requests for the same container/client so rapid or
+            // concurrent submissions cannot both pass the duplicate check.
+            $lock = Cache::lock('gateinout:pre-in:' . md5($containerNo . '|' . $client->c_id), 10);
+            if (!$lock->get()) {
                 return response()->json([
-                    'message' => ['danger', $validation['message']]
+                    'message' => ['danger', '<strong>Alert!</strong> This Pre-In is already being added.']
                 ]);
             }
+
+            try {
+                DB::beginTransaction();
             
-            // Insert Pre-IN record
-            DB::insert(
+                // Validate container can gate in while holding the lock.
+                $validation = PreInventory::checkContainerCanGateIn($containerNo, $client->c_id);
+            
+                if (!$validation['valid']) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => ['danger', $validation['message']]
+                    ]);
+                }
+            
+                // Insert Pre-IN record
+                DB::insert(
                 "INSERT INTO {$this->prefix}pre_inventory 
                 (container_no, client_id, plate_no, gate_status, user_id, status, inv_id, date_added, remarks, size_type, cnt_class, cnt_status, iso_code, date_mnfg, checker_id)
                 VALUES (:cno, :cid, :pno, :gate, :uid, :stats, :iid, :date, :remarks, :size_type, :cnt_class, :cnt_status, :iso_code, :date_mnfg, :checker_id)",
@@ -147,22 +160,30 @@ class GateinoutController extends Controller
                     'date_mnfg' => '0000-00-00',
                     'checker_id' => 0
                 ]
-            );
+                );
             
-            // Log audit - ADD action for pre-in
-            $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
+                // Log audit - ADD action for pre-in
+                $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
             
-            DB::table('audit_logs')->insert([
+                DB::table('audit_logs')->insert([
                 'action' => 'ADD',
                 'description' => '[GATE IN/OUT] Added Pre-In record for container "' . $containerNo . '", Client: "' . $clientName . '"',
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
-            ]);
+                ]);
+
+                DB::commit();
             
-            return response()->json([
-                'message' => ['success', '<strong>Success!</strong> Pre-In has been added!']
-            ]);
+                return response()->json([
+                    'message' => ['success', '<strong>Success!</strong> Pre-In has been added!']
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            } finally {
+                $lock->release();
+            }
             
         } catch (\Exception $e) {
             return response()->json([
@@ -187,9 +208,35 @@ class GateinoutController extends Controller
                     'message' => ['danger', '<strong>Error!</strong> Invalid plate number input!']
                 ]);
             }
+
+            // Serialize identical Pre-Out submissions and re-check for an
+            // existing pending record while the lock is held.
+            $lock = Cache::lock('gateinout:pre-out:' . md5(strtoupper($plateNo) . '|' . strtoupper($hauler)), 10);
+            if (!$lock->get()) {
+                return response()->json([
+                    'message' => ['danger', '<strong>Alert!</strong> This Pre-Out is already being added.']
+                ]);
+            }
+
+            try {
+                DB::beginTransaction();
+
+                $existingPreOut = DB::selectOne(
+                    "SELECT p_id FROM {$this->prefix}pre_inventory
+                     WHERE gate_status = 'OUT' AND status = 0 AND plate_no = ? AND hauler = ?
+                     LIMIT 1 FOR UPDATE",
+                    [$plateNo, $hauler]
+                );
+
+                if ($existingPreOut) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => ['danger', '<strong>Alert!</strong> This Pre-Out already exists.']
+                    ]);
+                }
             
-            // Insert Pre-OUT record
-            DB::insert(
+                // Insert Pre-OUT record
+                DB::insert(
                 "INSERT INTO {$this->prefix}pre_inventory 
                 (container_no, plate_no, hauler, gate_status, user_id, status, inv_id, date_added, remarks, size_type, cnt_class, cnt_status, iso_code, date_mnfg, checker_id)
                 VALUES (:cno, :pno, :hau, :gate, :uid, :stats, :iid, :date, :remarks, :size_type, :cnt_class, :cnt_status, :iso_code, :date_mnfg, :checker_id)",
@@ -210,20 +257,28 @@ class GateinoutController extends Controller
                     'date_mnfg' => '0000-00-00',
                     'checker_id' => 0
                 ]
-            );
+                );
             
-            // Log audit - ADD action for pre-out
-            DB::table('audit_logs')->insert([
+                // Log audit - ADD action for pre-out
+                DB::table('audit_logs')->insert([
                 'action' => 'ADD',
                 'description' => '[GATE IN/OUT] Added Pre-Out record for Plate No: "' . $plateNo . '", Hauler: "' . $hauler . '"',
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
-            ]);
+                ]);
+
+                DB::commit();
             
-            return response()->json([
-                'message' => ['success', '<strong>Success!</strong> Pre-Out has been added!']
-            ]);
+                return response()->json([
+                    'message' => ['success', '<strong>Success!</strong> Pre-Out has been added!']
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            } finally {
+                $lock->release();
+            }
             
         } catch (\Exception $e) {
             return response()->json([
@@ -842,6 +897,25 @@ class GateinoutController extends Controller
             DB::beginTransaction();
 
             try {
+                // Lock the pre-in record so two concurrent Save & Print requests
+                // cannot both create an inventory record for the same gate-in.
+                $preRecord = DB::selectOne(
+                    "SELECT p_id, container_no, status, inv_id
+                     FROM {$this->prefix}pre_inventory
+                     WHERE p_id = ? AND container_no = ? AND gate_status = 'IN'
+                     LIMIT 1 FOR UPDATE",
+                    [$validated['p_id'], $validated['container_no']]
+                );
+
+                if (!$preRecord || (int) $preRecord->status !== 0 || $preRecord->inv_id !== null) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'This Gate IN has already been processed.'
+                    ], 409);
+                }
+
                 // Insert into inventory table
                 DB::insert(
                     "INSERT INTO {$this->prefix}inventory 
@@ -983,27 +1057,29 @@ class GateinoutController extends Controller
                 ], 422);
             }
 
-            // The IN row is the source event. Gate OUT must not overwrite it;
-            // inventory history uses a separate OUT row linked through out_id.
-            $inRecord = DB::selectOne(
-                "SELECT * FROM {$this->prefix}inventory
-                 WHERE container_no = ? AND client_id = ? AND gate_status = 'IN' AND complete = 0
-                 ORDER BY i_id DESC LIMIT 1",
-                [$validated['container_no'], $validated['client_id']]
-            );
-
-            if (!$inRecord) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Container not found in yard or already gated out'
-                ], 422);
-            }
-
-            $inventoryId = $inRecord->i_id;
-
             DB::beginTransaction();
 
             try {
+                // The IN row is the source event. Lock it before checking so
+                // concurrent Save & Print requests cannot create two OUT rows.
+                $inRecord = DB::selectOne(
+                    "SELECT * FROM {$this->prefix}inventory
+                     WHERE container_no = ? AND client_id = ? AND gate_status = 'IN' AND complete = 0
+                     ORDER BY i_id DESC LIMIT 1 FOR UPDATE",
+                    [$validated['container_no'], $validated['client_id']]
+                );
+
+                if (!$inRecord) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Container not found in yard or already gated out'
+                    ], 409);
+                }
+
+                $inventoryId = $inRecord->i_id;
+
                 // Create a separate OUT event using the IN event's immutable
                 // container metadata and the values captured at Gate OUT.
                 $outInventoryId = DB::table('inventory')->insertGetId([
