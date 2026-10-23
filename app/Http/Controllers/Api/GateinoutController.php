@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -901,7 +902,7 @@ class GateinoutController extends Controller
                 // Lock the pre-in record so two concurrent Save & Print requests
                 // cannot both create an inventory record for the same gate-in.
                 $preRecord = DB::selectOne(
-                    "SELECT p_id, container_no, status, inv_id
+                    "SELECT p_id, container_no, status, inv_id, date_completed
                      FROM {$this->prefix}pre_inventory
                      WHERE p_id = ? AND container_no = ? AND gate_status = 'IN'
                      LIMIT 1 FOR UPDATE",
@@ -958,10 +959,20 @@ class GateinoutController extends Controller
                 // Get the last inserted inventory ID
                 $inventoryId = DB::getPdo()->lastInsertId();
 
+                $completionTime = now();
+
                 // Update pre_inventory status to finished
                 DB::update(
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
-                    [$inventoryId, now(), $validated['p_id']]
+                    [$inventoryId, $completionTime, $validated['p_id']]
+                );
+
+                $this->moveContainerPicturesToCompletionDate(
+                    oldDateCompleted: $preRecord->date_completed,
+                    completionTime: $completionTime,
+                    gateStatus: 'in',
+                    oldContainerNo: $preRecord->container_no,
+                    containerNo: $validated['container_no'],
                 );
 
                 // Log audit - APPROVE action with ALL fields
@@ -1083,6 +1094,23 @@ class GateinoutController extends Controller
 
                 $inventoryId = $inRecord->i_id;
 
+                $preRecord = DB::selectOne(
+                    "SELECT p_id, container_no, date_completed
+                     FROM {$this->prefix}pre_inventory
+                     WHERE p_id = ? AND gate_status = 'OUT'
+                     LIMIT 1 FOR UPDATE",
+                    [$validated['p_id']]
+                );
+
+                if (!$preRecord) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gate OUT pre-inventory record not found.'
+                    ], 409);
+                }
+
                 // Create a separate OUT event using the IN event's immutable
                 // container metadata and the values captured at Gate OUT.
                 $outInventoryId = DB::table('inventory')->insertGetId([
@@ -1124,10 +1152,20 @@ class GateinoutController extends Controller
                     [$outInventoryId, $inventoryId]
                 );
 
+                $completionTime = now();
+
                 // Finish the pre-OUT record and link it to the OUT inventory event.
                 DB::update(
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
-                    [$outInventoryId, now(), $validated['p_id']]
+                    [$outInventoryId, $completionTime, $validated['p_id']]
+                );
+
+                $this->moveContainerPicturesToCompletionDate(
+                    oldDateCompleted: $preRecord->date_completed,
+                    completionTime: $completionTime,
+                    gateStatus: 'out',
+                    oldContainerNo: $preRecord->container_no,
+                    containerNo: $validated['container_no'],
                 );
 
                 // BOOKING SLOT DEDUCTION - Decrement booking slots based on container size
@@ -1222,6 +1260,79 @@ class GateinoutController extends Controller
                 'success' => false,
                 'message' => 'Failed to process Gate OUT: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Align container pictures with the latest pre_inventory completion date.
+     * Existing destination files are preserved and renamed when necessary.
+     */
+    private function moveContainerPicturesToCompletionDate(
+        $oldDateCompleted,
+        $completionTime,
+        string $gateStatus,
+        ?string $oldContainerNo,
+        string $containerNo
+    ): void {
+        if (!$oldDateCompleted || trim($oldContainerNo ?? '') === '') {
+            return;
+        }
+
+        try {
+            $oldDate = \Carbon\Carbon::parse($oldDateCompleted)->format('m-d-Y');
+            $newDate = $completionTime->format('m-d-Y');
+        } catch (\Throwable $e) {
+            Log::warning('Unable to determine image date migration paths', [
+                'old_date_completed' => $oldDateCompleted,
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
+
+        if ($oldDate === $newDate) {
+            return;
+        }
+
+        $baseDirectory = '/var/www/tbscontainermnl/public/container_pics';
+        $statusFolder = strtolower($gateStatus) === 'out' ? 'out' : 'in';
+        $oldContainer = strtoupper(trim($oldContainerNo));
+        $newContainer = strtoupper(trim($containerNo));
+        $sourceDirectory = $baseDirectory . '/' . $oldDate . '/' . $statusFolder . '/' . $oldContainer;
+        $targetDirectory = $baseDirectory . '/' . $newDate . '/' . $statusFolder . '/' . $newContainer;
+
+        if (!File::isDirectory($sourceDirectory)) {
+            return;
+        }
+
+        if (!File::isDirectory($targetDirectory)) {
+            File::makeDirectory($targetDirectory, 0755, true);
+        }
+
+        foreach (File::files($sourceDirectory) as $file) {
+            $extension = strtolower($file->getExtension());
+            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+                continue;
+            }
+
+            $fileName = $file->getFilename();
+            if (str_starts_with(strtoupper($fileName), $oldContainer)) {
+                $fileName = $newContainer . substr($fileName, strlen($oldContainer));
+            }
+
+            $targetPath = $targetDirectory . '/' . $fileName;
+            if (File::exists($targetPath)) {
+                $nextIndex = 1;
+                do {
+                    $fileName = $newContainer . '(' . $nextIndex++ . ').' . $extension;
+                    $targetPath = $targetDirectory . '/' . $fileName;
+                } while (File::exists($targetPath));
+            }
+
+            File::move($file->getPathname(), $targetPath);
+        }
+
+        if (File::isDirectory($sourceDirectory)) {
+            File::deleteDirectory($sourceDirectory);
         }
     }
 
