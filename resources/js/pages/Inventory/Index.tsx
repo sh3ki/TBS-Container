@@ -73,6 +73,9 @@ interface InventoryRecord {
     ex_consignee?: string;
     load?: string;
     load_id?: string;
+    booking?: string;
+    shipper?: string;
+    seal_no?: string;
     plate_no?: string;
     hauler?: string;
     hauler_driver?: string;
@@ -231,6 +234,7 @@ const Index: React.FC = () => {
         initialEditFormData &&
         JSON.stringify(editFormData) !== JSON.stringify(initialEditFormData)
     );
+    const isOutEdit = editFormData?.gate === 'OUT';
 
     // Filter states
     const [filters, setFilters] = useState(() => cachedInventoryState.filters);
@@ -245,8 +249,10 @@ const Index: React.FC = () => {
     const hasActiveFilters = hasFilterValues(filters);
     const hasAppliedFilters = hasFilterValues(appliedFilters);
     const canResetFilters = hasActiveFilters || hasAppliedFilters;
-    const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
-    const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
+    // Both date filter groups remain usable regardless of the selected view.
+    // Each group limits only its corresponding gate direction on the server.
+    const gateInDateFiltersEnabled = true;
+    const gateOutDateFiltersEnabled = true;
 
     useEffect(() => {
         try {
@@ -437,29 +443,15 @@ const Index: React.FC = () => {
     }, [filters.gate_status, loading, loadingMoreHistorical, reportData.length, searchTerm, totalCount]);
 
     const handleSort = (column: string) => {
-        const backendColumn = column === 'date_days' ? 'date_time' : column;
-
         if (sortColumn === column && sortDirection === 'desc') {
             setSortColumn('');
             setSortDirection('asc');
-            void fetchInventory({
-                search: searchTerm,
-                sortBy: '',
-                sortDir: 'asc',
-                showToast: false,
-            });
             return;
         }
 
         const nextDirection: 'asc' | 'desc' = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
         setSortColumn(column);
         setSortDirection(nextDirection);
-        void fetchInventory({
-            search: searchTerm,
-            sortBy: backendColumn,
-            sortDir: nextDirection,
-            showToast: false,
-        });
     };
 
     const fetchSummaryData = async () => {
@@ -504,11 +496,6 @@ const Index: React.FC = () => {
         setFilters((previous) => ({
             ...previous,
             gate_status: value,
-            ...(value === 'OUT'
-                ? { date_in_from: '', date_in_to: '' }
-                : value !== 'BOTH'
-                    ? { date_out_from: '', date_out_to: '' }
-                    : {}),
         }));
     };
 
@@ -528,6 +515,37 @@ const Index: React.FC = () => {
     };
 
     const filteredReportData = reportData;
+
+    // Header sorting only reorders rows already loaded in the table. It does
+    // not re-run the active filtered inventory query.
+    const sortedReportData = (records: InventoryRecord[], column: string, direction: 'asc' | 'desc') => {
+        if (!column) return records;
+
+        return [...records].sort((a, b) => {
+            let left: string | number = '';
+            let right: string | number = '';
+
+            if (column === 'date_days' || column === 'date_time') {
+                left = new Date(`${a.date || ''}T${a.time || '00:00:00'}`).getTime() || 0;
+                right = new Date(`${b.date || ''}T${b.time || '00:00:00'}`).getTime() || 0;
+            } else if (column === 'client') {
+                left = a.client || '';
+                right = b.client || '';
+            } else if (column === 'dmf') {
+                left = new Date(a.dmf || '').getTime() || 0;
+                right = new Date(b.dmf || '').getTime() || 0;
+            } else {
+                left = String(a[column] ?? '');
+                right = String(b[column] ?? '');
+            }
+
+            const comparison = typeof left === 'number' && typeof right === 'number'
+                ? left - right
+                : String(left).localeCompare(String(right), undefined, { sensitivity: 'base', numeric: true });
+
+            return direction === 'asc' ? comparison : -comparison;
+        });
+    };
 
     // Format date to "Jan 01, 2025"
     const formatDate = (dateString: string) => {
@@ -947,6 +965,9 @@ const Index: React.FC = () => {
                     ex_consignee: data.ex_consignee,
                     load: data.load_type,
                     load_id: data.load_type_id,
+                    booking: data.booking,
+                    shipper: data.shipper,
+                    seal_no: data.seal_no,
                     plate_no: data.plate_no,
                     hauler: data.hauler,
                     hauler_driver: data.hauler_driver,
@@ -1067,24 +1088,26 @@ const Index: React.FC = () => {
                 client_id: editFormData.client_id,
                 size_type: editFormData.size_type_id,
                 container_status: editFormData.status_id,
-                class: editFormData.class,
+                ...(isOutEdit ? {} : { class: editFormData.class }),
+                booking: editFormData.booking?.toUpperCase(),
+                shipper: editFormData.shipper?.toUpperCase(),
                 vessel: editFormData.vessel?.toUpperCase(),
                 voyage: editFormData.voyage?.toUpperCase(),
                 location: editFormData.location?.toUpperCase(),
                 remarks: editFormData.eir_notes?.toUpperCase(),
                 plate_no: editFormData.plate_no?.toUpperCase(),
                 hauler: editFormData.hauler?.toUpperCase(),
-                iso_code: editFormData.iso_code?.toUpperCase(),
+                ...(isOutEdit ? {} : { iso_code: editFormData.iso_code?.toUpperCase() }),
                 origin: editFormData.checker?.toUpperCase(),
-                ex_consignee: editFormData.ex_consignee?.toUpperCase(),
+                ...(isOutEdit ? {} : { ex_consignee: editFormData.ex_consignee?.toUpperCase() }),
                 hauler_driver: editFormData.hauler_driver?.toUpperCase(),
                 license_no: editFormData.license_no?.toUpperCase(),
                 chasis: editFormData.chasis?.toUpperCase(),
                 seal_no: editFormData.seal_no,
                 date_manufactured: editFormData.dmf,
                 contact_no: editFormData.contact_no?.toUpperCase(),
-                bill_of_lading: editFormData.bill_of_lading?.toUpperCase(),
-                approval_notes: editFormData.app_notes?.toUpperCase(),
+                ...(isOutEdit ? {} : { bill_of_lading: editFormData.bill_of_lading?.toUpperCase() }),
+                ...(isOutEdit ? {} : { approval_notes: editFormData.app_notes?.toUpperCase() }),
             };
 
             const response = await axios.put(`/api/inventory/${identifier}`, payload);
@@ -1711,7 +1734,7 @@ const Index: React.FC = () => {
                             onSort={handleSort}
                             sortColumn={sortColumn === 'date_time' ? 'date_days' : sortColumn}
                             sortDirection={sortDirection}
-                            data={filteredReportData}
+                            data={sortedReportData(filteredReportData, sortColumn, sortDirection)}
                             virtualized
                             rowHeight={128}
                             useWindowScroll
@@ -2382,6 +2405,16 @@ const Index: React.FC = () => {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                {isOutEdit && (
+                                    <div>
+                                        <Label className="text-gray-900">Booking</Label>
+                                        <Input
+                                            data-history-key="inventory.booking"
+                                            value={editFormData.booking || ''}
+                                            onChange={(e) => setEditFormData({...editFormData, booking: e.target.value.toUpperCase()})}
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Gate In Date</Label>
                                     <Input 
@@ -2456,18 +2489,21 @@ const Index: React.FC = () => {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div>
-                                    <Label className="text-gray-900">ISO Code</Label>
-                                    <Input 
-                                        data-history-key="inventory.iso_code"
-                                        value={editFormData.iso_code || ''} 
-                                        onChange={(e) => setEditFormData({...editFormData, iso_code: e.target.value.toUpperCase()})}
-                                    />
-                                </div>
+                                {!isOutEdit && (
+                                    <div>
+                                        <Label className="text-gray-900">ISO Code</Label>
+                                        <Input 
+                                            data-history-key="inventory.iso_code"
+                                            value={editFormData.iso_code || ''} 
+                                            onChange={(e) => setEditFormData({...editFormData, iso_code: e.target.value.toUpperCase()})}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             {/* Column 2 */}
                             <div className="space-y-3">
+                                {!isOutEdit && (
                                 <div>
                                     <Label className="text-gray-900">Class</Label>
                                     <Select 
@@ -2482,6 +2518,7 @@ const Index: React.FC = () => {
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Vessel</Label>
                                     <Input 
@@ -2498,6 +2535,16 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, voyage: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                {isOutEdit && (
+                                    <div>
+                                        <Label className="text-gray-900">Shipper</Label>
+                                        <Input
+                                            data-history-key="inventory.shipper"
+                                            value={editFormData.shipper || ''}
+                                            onChange={(e) => setEditFormData({...editFormData, shipper: e.target.value.toUpperCase()})}
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Checker</Label>
                                     <Input 
@@ -2506,6 +2553,7 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, checker: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                {!isOutEdit && (
                                 <div>
                                     <Label className="text-gray-900">Consignee</Label>
                                     <Input 
@@ -2514,6 +2562,7 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, ex_consignee: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Load</Label>
                                     <Select 
@@ -2589,6 +2638,16 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, chasis: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                {isOutEdit && (
+                                    <div>
+                                        <Label className="text-gray-900">Seal No.</Label>
+                                        <Input
+                                            data-history-key="inventory.seal_no"
+                                            value={editFormData.seal_no || ''}
+                                            onChange={(e) => setEditFormData({...editFormData, seal_no: e.target.value.toUpperCase()})}
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Contact No.</Label>
                                     <Input 
@@ -2597,6 +2656,7 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, contact_no: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                {!isOutEdit && (
                                 <div>
                                     <Label className="text-gray-900">Bill of Lading</Label>
                                     <Input 
@@ -2605,6 +2665,7 @@ const Index: React.FC = () => {
                                         onChange={(e) => setEditFormData({...editFormData, bill_of_lading: e.target.value.toUpperCase()})}
                                     />
                                 </div>
+                                )}
                                 <div>
                                     <Label className="text-gray-900">Remarks (EIR Notes)</Label>
                                     <Textarea 
@@ -2614,6 +2675,7 @@ const Index: React.FC = () => {
                                         className="min-h-[80px]"
                                     />
                                 </div>
+                                {!isOutEdit && (
                                 <div>
                                     <Label className="text-gray-900">Approval Notes (Max 300 characters)</Label>
                                     <Textarea 
@@ -2628,6 +2690,7 @@ const Index: React.FC = () => {
                                         {(editFormData.app_notes || '').length}/300
                                     </div>
                                 </div>
+                                )}
                             </div>
                         </div>
                     )}
