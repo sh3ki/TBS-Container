@@ -34,9 +34,9 @@ class GateinoutController extends Controller
         try {
             // Get only pending records (status = 0) - optimized for speed
             $prefix = env('DB_PREFIX', 'fjp_');
-            
+
             $startTime = microtime(true);
-            
+
             $results = DB::select("
                 SELECT
                     p.p_id,
@@ -57,7 +57,7 @@ class GateinoutController extends Controller
                 ORDER BY p.date_added DESC
                 LIMIT 1000
             ");
-            
+
             $queryTime = round((microtime(true) - $startTime) * 1000, 2);
             
             // Add hashed_id and runtime_color - minimal processing
@@ -907,7 +907,9 @@ class GateinoutController extends Controller
                     [$validated['p_id'], $validated['container_no']]
                 );
 
-                if (!$preRecord || (int) $preRecord->status !== 0 || $preRecord->inv_id !== null) {
+                // New pre-gate rows use inv_id = 0, so only a positive linked
+                // inventory ID means this record has already been processed.
+                if (!$preRecord || (int) $preRecord->status !== 0 || (int) $preRecord->inv_id > 0) {
                     DB::rollBack();
 
                     return response()->json([
