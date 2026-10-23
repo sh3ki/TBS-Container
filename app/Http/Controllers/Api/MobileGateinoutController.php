@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -429,8 +430,9 @@ class MobileGateinoutController extends Controller
             ", [$pId]);
 
             // Prepare update data for pre_inventory
+            $completionTime = now();
             $updateData = [
-                'date_completed' => now(),
+                'date_completed' => $completionTime,
                 'container_no' => $containerNo,
                 'client_id' => $request->input('client_id'),
                 'size_type' => $request->input('size_type'),
@@ -450,6 +452,14 @@ class MobileGateinoutController extends Controller
             DB::table('pre_inventory')
                 ->where('p_id', $pId)
                 ->update($updateData);
+
+            $this->moveContainerPicturesToCompletionDate(
+                oldDateCompleted: $existingRecord?->date_completed,
+                completionTime: $completionTime,
+                gateStatus: 'in',
+                oldContainerNo: $existingRecord?->container_no,
+                containerNo: $containerNo,
+            );
 
             // Fetch lookup data for display names
             $clientId = $request->input('client_id');
@@ -630,8 +640,11 @@ class MobileGateinoutController extends Controller
                 FROM {$prefix}pre_inventory WHERE p_id = ?
             ", [$pId]);
 
+            $completionTime = now();
+
             // Prepare update data for pre_inventory with container details
             $updateData = [
+                'date_completed' => $completionTime,
                 'container_no' => $containerNo,
                 'client_id' => $request->input('client_id'),
                 'size_type' => $request->input('size_type'),
@@ -646,6 +659,14 @@ class MobileGateinoutController extends Controller
             DB::table('pre_inventory')
                 ->where('p_id', $pId)
                 ->update($updateData);
+
+            $this->moveContainerPicturesToCompletionDate(
+                oldDateCompleted: $existingRecord?->date_completed,
+                completionTime: $completionTime,
+                gateStatus: 'out',
+                oldContainerNo: $existingRecord?->container_no,
+                containerNo: $containerNo,
+            );
 
             // Get plate_no and hauler from pre_inventory record for display
             $plateNo = $existingRecord->plate_no ?? 'N/A';
@@ -716,6 +737,85 @@ class MobileGateinoutController extends Controller
                 'success' => false,
                 'message' => 'Error processing gate OUT: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Keep container pictures aligned with the calendar date of the latest
+     * completed submission. If the completion date crosses midnight, merge
+     * the previous date folder into the new date folder without overwriting
+     * images that were uploaded during the current submission.
+     */
+    private function moveContainerPicturesToCompletionDate(
+        $oldDateCompleted,
+        $completionTime,
+        string $gateStatus,
+        ?string $oldContainerNo,
+        string $containerNo
+    ): void {
+        if (!$oldDateCompleted || trim($oldContainerNo ?? '') === '') {
+            return;
+        }
+
+        try {
+            $oldDate = \Carbon\Carbon::parse($oldDateCompleted)->format('m-d-Y');
+            $newDate = $completionTime->format('m-d-Y');
+        } catch (\Throwable $e) {
+            Log::warning('Unable to determine image date migration paths', [
+                'old_date_completed' => $oldDateCompleted,
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
+
+        // Same calendar date means the existing folder is already correct.
+        if ($oldDate === $newDate) {
+            return;
+        }
+
+        $baseDirectory = '/var/www/tbscontainermnl/public/container_pics';
+        $statusFolder = strtolower($gateStatus) === 'out' ? 'out' : 'in';
+        $oldContainer = strtoupper(trim($oldContainerNo));
+        $newContainer = strtoupper(trim($containerNo));
+        $sourceDirectory = $baseDirectory . '/' . $oldDate . '/' . $statusFolder . '/' . $oldContainer;
+        $targetDirectory = $baseDirectory . '/' . $newDate . '/' . $statusFolder . '/' . $newContainer;
+
+        if (!File::isDirectory($sourceDirectory)) {
+            return;
+        }
+
+        if (!File::isDirectory($targetDirectory)) {
+            File::makeDirectory($targetDirectory, 0755, true);
+        }
+
+        foreach (File::files($sourceDirectory) as $file) {
+            $extension = strtolower($file->getExtension());
+            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+                continue;
+            }
+
+            $fileName = $file->getFilename();
+            $prefix = $oldContainer;
+            if (str_starts_with(strtoupper($fileName), $prefix)) {
+                $fileName = $newContainer . substr($fileName, strlen($prefix));
+            }
+
+            $targetPath = $targetDirectory . '/' . $fileName;
+            if (File::exists($targetPath)) {
+                $nextIndex = 1;
+                do {
+                    $fileName = $newContainer . '(' . $nextIndex++ . ').' . $extension;
+                    $targetPath = $targetDirectory . '/' . $fileName;
+                } while (File::exists($targetPath));
+            }
+
+            File::move($file->getPathname(), $targetPath);
+        }
+
+        // The container folder must no longer remain under the previous date.
+        // The date folder itself is preserved for any other containers.
+        if (File::isDirectory($sourceDirectory)) {
+            File::deleteDirectory($sourceDirectory);
         }
     }
 
