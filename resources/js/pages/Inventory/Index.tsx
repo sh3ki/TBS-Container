@@ -246,6 +246,7 @@ const Index: React.FC = () => {
 
     // Filter modal state
     const [showFiltersModal, setShowFiltersModal] = useState(false);
+    const filterModalApplyRef = useRef(false);
 
     const cachedInventoryState = getCachedInventoryState();
     
@@ -305,7 +306,9 @@ const Index: React.FC = () => {
     });
     const hasActiveFilters = hasFilterValues(filters);
     const hasAppliedFilters = hasFilterValues(appliedFilters);
-    const canResetFilters = hasActiveFilters || hasAppliedFilters;
+    // Only applied filters are active. Changes currently being edited in the
+    // modal remain a draft until the user presses Apply.
+    const canResetFilters = hasAppliedFilters;
     const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
     const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
 
@@ -477,7 +480,7 @@ const Index: React.FC = () => {
         limit = 100,
         sortBy = sortColumn,
         sortDir = sortDirection,
-        filterValues = filters,
+        filterValues = appliedFilters,
     }: {
         page?: number;
         perPage?: number;
@@ -541,7 +544,7 @@ const Index: React.FC = () => {
     };
 
     const loadMoreHistorical = useCallback(() => {
-        if (filters.gate_status !== 'BOTH' || loading || loadingMoreHistorical || reportData.length >= totalCount) {
+        if (appliedFilters.gate_status !== 'BOTH' || loading || loadingMoreHistorical || reportData.length >= totalCount) {
             return;
         }
 
@@ -551,7 +554,7 @@ const Index: React.FC = () => {
             offset: reportData.length,
             limit: 100,
         });
-    }, [filters.gate_status, loading, loadingMoreHistorical, reportData.length, searchTerm, totalCount]);
+    }, [appliedFilters.gate_status, loading, loadingMoreHistorical, reportData.length, searchTerm, totalCount]);
 
     const handleSort = (column: string) => {
         if (sortColumn === column && sortDirection === 'desc') {
@@ -571,8 +574,8 @@ const Index: React.FC = () => {
             // fetchInventory here because that replaces reportData and toggles
             // the table loading state.
             const response = await axios.post('/api/inventory/search', {
-                ...buildFilterPayload(),
-                gate_status: (filters.gate_status || 'CURRENTLY') as string,
+                ...buildFilterPayload(appliedFilters),
+                gate_status: (appliedFilters.gate_status || 'CURRENTLY') as string,
                 search: searchTerm.trim(),
                 include_summary: true,
                 virtualized: false,
@@ -675,7 +678,32 @@ const Index: React.FC = () => {
     const highlightTerms = highlightSearchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const highlightMatchIndexes = highlightMode && highlightTerms.length > 0
         ? inventoryTableData.reduce<number[]>((matches, row, index) => {
-            const searchableText = [row.eir_no, row.container_no, row.eir_notes, row.app_notes]
+            const parsedDate = row.date ? new Date(row.date) : null;
+            const parsedManufacturedDate = row.dmf ? new Date(row.dmf) : null;
+            const displayDate = parsedDate && !isNaN(parsedDate.getTime())
+                ? parsedDate.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+                : '';
+            const displayManufacturedDate = parsedManufacturedDate && !isNaN(parsedManufacturedDate.getTime())
+                ? parsedManufacturedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                : '';
+            const searchableText = [
+                row.eir_no,
+                row.container_no,
+                row.client,
+                row.client_code,
+                row.size,
+                row.status,
+                row.class,
+                row.date,
+                displayDate,
+                row.time,
+                row.days,
+                row.dmf,
+                displayManufacturedDate,
+                row.location,
+                row.eir_notes,
+                row.app_notes,
+            ]
                 .map((value) => String(value ?? '').toLowerCase())
                 .join(' ');
             if (highlightTerms.some((term) => searchableText.includes(term))) matches.push(index);
@@ -1376,6 +1404,15 @@ const Index: React.FC = () => {
         setAppliedSearchTerm(searchTerm.trim());
     };
 
+    const handleFilterModalOpenChange = (open: boolean) => {
+        if (!open && !filterModalApplyRef.current) {
+            // Discard unsubmitted edits and keep the previously applied filter active.
+            setFilters(appliedFilters);
+        }
+        filterModalApplyRef.current = false;
+        setShowFiltersModal(open);
+    };
+
     const openHighlightMode = () => {
         setHighlightSearchTerm('');
         setHighlightMatchCursor(0);
@@ -1399,8 +1436,17 @@ const Index: React.FC = () => {
     const handleApplyFilters = async () => {
         // Changing only the In/Out view must not apply a filter by itself.
         if (!hasAdditionalFilterValues(filters)) return;
-        await handleSearch(true);
+        await fetchInventory({
+            page: 1,
+            perPage: itemsPerPage,
+            search: searchTerm,
+            showToast: true,
+            filterValues: filters,
+        });
+        setCurrentPage(1);
+        setAppliedSearchTerm(searchTerm.trim());
         setAppliedFilters(filters);
+        filterModalApplyRef.current = true;
         setShowFiltersModal(false);
     };
 
@@ -1766,8 +1812,8 @@ const Index: React.FC = () => {
                                     sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-900 min-w-[120px] max-w-[150px]">
-                                            <div className="font-medium">{row.client}</div>
-                                            <div className="text-xs text-gray-500">{row.client_code}</div>
+                                            <div className="font-medium">{highlightText(row.client)}</div>
+                                            <div className="text-xs text-gray-500">{highlightText(row.client_code)}</div>
                                         </div>
                                     )
                                 },
@@ -1812,13 +1858,13 @@ const Index: React.FC = () => {
                                         return (
                                             <div className="flex flex-col gap-1 min-w-[110px]">
                                                 <div>
-                                                    <ModernBadge variant={statusVariant}>{row.status || '-'}</ModernBadge>
+                                                    <ModernBadge variant={statusVariant}>{highlightText(row.status || '-')}</ModernBadge>
                                                 </div>
                                                 <div>
-                                                    <ModernBadge variant={sizeVariant}>{row.size || '-'}</ModernBadge>
+                                                    <ModernBadge variant={sizeVariant}>{highlightText(row.size || '-')}</ModernBadge>
                                                 </div>
                                                 <div>
-                                                    <ModernBadge variant={classVariant}>{row.class || '-'}</ModernBadge>
+                                                    <ModernBadge variant={classVariant}>{highlightText(row.class || '-')}</ModernBadge>
                                                 </div>
                                             </div>
                                         );
@@ -1830,10 +1876,10 @@ const Index: React.FC = () => {
                                     sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[130px]">
-                                            <div className="font-medium">{formatDate(row.date)}</div>
-                                            <div className="text-sm font-medium text-gray-600 mt-1">{formatTime(row.time)}</div>
+                                            <div className="font-medium">{highlightText(formatDate(row.date))}</div>
+                                            <div className="text-sm font-medium text-gray-600 mt-1">{highlightText(formatTime(row.time))}</div>
                                             <div className="mt-1">
-                                                <span className="font-bold text-gray-900 text-sm">DAYS: {formatDurationCompactFrom(row.date, row.time, row.days)}</span>
+                                                <span className="font-bold text-gray-900 text-sm">DAYS: {highlightText(formatDurationCompactFrom(row.date, row.time, row.days))}</span>
                                             </div>
                                         </div>
                                     )
@@ -1843,7 +1889,7 @@ const Index: React.FC = () => {
                                     label: 'Date mfd',
                                     sortable: true,
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[80px]">{formatMonthYear(row.dmf as string)}</div>
+                                        <div className="text-sm text-gray-600 min-w-[80px]">{highlightText(formatMonthYear(row.dmf as string))}</div>
                                     )
                                 },
                                 { 
@@ -1851,7 +1897,7 @@ const Index: React.FC = () => {
                                     label: 'Loc',
                                     sortable: true,
                                     render: (row: InventoryRecord) => (
-                                        <div className="text-sm text-gray-600 min-w-[40px]">{row.location}</div>
+                                        <div className="text-sm text-gray-600 min-w-[40px]">{highlightText(row.location)}</div>
                                     )
                                 },
                                 { 
@@ -2050,7 +2096,7 @@ const Index: React.FC = () => {
             </div>
 
             {/* Filters Modal */}
-            <Dialog open={showFiltersModal} onOpenChange={setShowFiltersModal}>
+            <Dialog open={showFiltersModal} onOpenChange={handleFilterModalOpenChange}>
                 <DialogContent className="!max-w-6xl !w-[90vw] !max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
