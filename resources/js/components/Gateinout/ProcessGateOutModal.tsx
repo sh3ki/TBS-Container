@@ -74,6 +74,8 @@ export default function ProcessGateOutModal({
     const suppressContainerResultsRef = useRef(false);
     const [isContainerSelected, setIsContainerSelected] = useState(false);
     const [checkerName, setCheckerName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const submitInProgressRef = useRef(false);
     
     const initialFormData = {
         container_no: '',
@@ -678,6 +680,11 @@ export default function ProcessGateOutModal({
             return;
         }
 
+        // Prevent rapid double-clicks before React has a chance to re-render.
+        if (submitInProgressRef.current) return;
+        submitInProgressRef.current = true;
+        setIsSubmitting(true);
+
         try {
             // Determine checker: prefer checkerName (from inventory/mobile), fallback to current user's full name
             const checkerToSave = checkerName && checkerName.trim() ? checkerName : currentUserFullName;
@@ -741,6 +748,9 @@ export default function ProcessGateOutModal({
             }
         } catch (error: any) {
             (showError ? showError(error.response?.data?.message || 'Failed to process Gate OUT') : alert(error.response?.data?.message || 'Failed to process Gate OUT'));
+        } finally {
+            submitInProgressRef.current = false;
+            setIsSubmitting(false);
         }
     };
 
@@ -1099,11 +1109,13 @@ export default function ProcessGateOutModal({
                             Cancel
                         </ModernButton>
                         <ModernButton
+                            type="button"
                             variant="add"
                             onClick={handleConfirm}
+                            disabled={isSubmitting}
                         >
                             <Printer className="h-4 w-4" />
-                            Save & Print
+                            {isSubmitting ? 'Saving...' : 'Save & Print'}
                         </ModernButton>
                     </DialogFooter>
                 </DialogContent>
