@@ -296,13 +296,73 @@ const Index: React.FC = () => {
             && normalizedValue !== 'all'
             && !(key === 'gate_status' && normalizedValue === 'currently');
     });
+    const hasAdditionalFilterValues = (filterValues: typeof defaultFilters) => Object.entries(filterValues).some(([key, value]) => {
+        if (key === 'gate_status' || typeof value !== 'string') return false;
+        if (key === 'date_in_from' || key === 'date_in_to' || key === 'date_out_from' || key === 'date_out_to') {
+            return Boolean(dateFilterToApiValue(value.trim()));
+        }
+        return value.trim() !== '' && value.trim().toLowerCase() !== 'all';
+    });
     const hasActiveFilters = hasFilterValues(filters);
     const hasAppliedFilters = hasFilterValues(appliedFilters);
     const canResetFilters = hasActiveFilters || hasAppliedFilters;
-    // Both date filter groups remain usable regardless of the selected view.
-    // Each group limits only its corresponding gate direction on the server.
-    const gateInDateFiltersEnabled = true;
-    const gateOutDateFiltersEnabled = true;
+    const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
+    const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
+
+    const formatDateFilterInput = (value: string) => {
+        const digits = value.replace(/\D/g, '').slice(0, 8);
+        if (digits.length <= 2) return digits;
+        if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+        return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    };
+
+    const dateFilterToApiValue = (value: string) => {
+        const isoMatch = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (isoMatch) return value.trim();
+
+        const formatted = formatDateFilterInput(value);
+        const match = formatted.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!match) return '';
+
+        const [, month, day, year] = match;
+        const date = new Date(Number(year), Number(month) - 1, Number(day));
+        if (
+            date.getFullYear() !== Number(year)
+            || date.getMonth() !== Number(month) - 1
+            || date.getDate() !== Number(day)
+        ) return '';
+
+        return `${year}-${month}-${day}`;
+    };
+
+    const dateFilterDisplayValue = (value: string) => {
+        const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return isoMatch
+            ? `${isoMatch[2]}/${isoMatch[3]}/${isoMatch[1]}`
+            : formatDateFilterInput(value);
+    };
+
+    const handleDateFilterInput = (field: string, rawValue: string) => {
+        const value = formatDateFilterInput(rawValue);
+        setFilters((previous) => {
+            const next = { ...previous, [field]: value } as typeof defaultFilters;
+            const isFromField = field.endsWith('_from');
+            const toField = field.replace('_from', '_to');
+            const fromField = field.replace('_to', '_from');
+
+            if (isFromField) {
+                const fromDate = dateFilterToApiValue(value);
+                const toDate = dateFilterToApiValue(String(previous[toField as keyof typeof previous] || ''));
+                if (fromDate && toDate && toDate < fromDate) next[toField as keyof typeof defaultFilters] = '';
+            } else {
+                const fromDate = dateFilterToApiValue(String(previous[fromField as keyof typeof previous] || ''));
+                const toDate = dateFilterToApiValue(value);
+                if (fromDate && toDate && toDate < fromDate) return previous;
+            }
+
+            return next;
+        });
+    };
 
     useEffect(() => {
         try {
@@ -547,6 +607,14 @@ const Index: React.FC = () => {
         setFilters((previous) => ({
             ...previous,
             gate_status: value,
+            ...( ['CURRENTLY', 'IN', 'BOTH'].includes(value) ? {} : {
+                date_in_from: '',
+                date_in_to: '',
+            }),
+            ...( ['OUT', 'BOTH'].includes(value) ? {} : {
+                date_out_from: '',
+                date_out_to: '',
+            }),
         }));
     };
 
@@ -557,7 +625,12 @@ const Index: React.FC = () => {
             if (typeof value === 'string') {
                 const trimmed = value.trim();
                 if (trimmed && trimmed.toLowerCase() !== 'all') {
-                    payload[key] = trimmed;
+                    if (key === 'date_in_from' || key === 'date_in_to' || key === 'date_out_from' || key === 'date_out_to') {
+                        const apiDate = dateFilterToApiValue(trimmed);
+                        if (apiDate) payload[key] = apiDate;
+                    } else {
+                        payload[key] = trimmed;
+                    }
                 }
             }
         });
@@ -1324,7 +1397,8 @@ const Index: React.FC = () => {
     };
 
     const handleApplyFilters = async () => {
-        if (!hasActiveFilters) return;
+        // Changing only the In/Out view must not apply a filter by itself.
+        if (!hasAdditionalFilterValues(filters)) return;
         await handleSearch(true);
         setAppliedFilters(filters);
         setShowFiltersModal(false);
@@ -2095,37 +2169,28 @@ const Index: React.FC = () => {
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate IN (Date From)</Label>
                                 <Input
-                                    type="date"
-                                    value={filters.date_in_from}
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={10}
+                                    value={dateFilterDisplayValue(filters.date_in_from)}
                                     disabled={!gateInDateFiltersEnabled}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        setFilters((previous) => ({
-                                            ...previous,
-                                            date_in_from: value,
-                                            date_in_to: previous.date_in_to && previous.date_in_to < value ? '' : previous.date_in_to,
-                                        }));
-                                    }}
+                                    onChange={(e) => handleDateFilterInput('date_in_from', e.target.value)}
                                     className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
+                                    placeholder="mm/dd/yyyy"
                                 />
                             </div>
 
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate IN (Date To)</Label>
                                 <Input
-                                    type="date"
-                                    value={filters.date_in_to}
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={10}
+                                    value={dateFilterDisplayValue(filters.date_in_to)}
                                     disabled={!gateInDateFiltersEnabled}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        if (!filters.date_in_from || value >= filters.date_in_from) {
-                                            handleFilterChange('date_in_to', value);
-                                        }
-                                    }}
-                                    min={filters.date_in_from || undefined}
+                                    onChange={(e) => handleDateFilterInput('date_in_to', e.target.value)}
                                     className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
+                                    placeholder="mm/dd/yyyy"
                                 />
                             </div>
 
@@ -2192,37 +2257,28 @@ const Index: React.FC = () => {
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate OUT (Date From)</Label>
                                 <Input
-                                    type="date"
-                                    value={filters.date_out_from}
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={10}
+                                    value={dateFilterDisplayValue(filters.date_out_from)}
                                     disabled={!gateOutDateFiltersEnabled}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        setFilters((previous) => ({
-                                            ...previous,
-                                            date_out_from: value,
-                                            date_out_to: previous.date_out_to && previous.date_out_to < value ? '' : previous.date_out_to,
-                                        }));
-                                    }}
+                                    onChange={(e) => handleDateFilterInput('date_out_from', e.target.value)}
                                     className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
+                                    placeholder="mm/dd/yyyy"
                                 />
                             </div>
 
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate OUT (Date To)</Label>
                                 <Input
-                                    type="date"
-                                    value={filters.date_out_to}
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={10}
+                                    value={dateFilterDisplayValue(filters.date_out_to)}
                                     disabled={!gateOutDateFiltersEnabled}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        if (!filters.date_out_from || value >= filters.date_out_from) {
-                                            handleFilterChange('date_out_to', value);
-                                        }
-                                    }}
-                                    min={filters.date_out_from || undefined}
+                                    onChange={(e) => handleDateFilterInput('date_out_to', e.target.value)}
                                     className="mt-1.5"
-                                    placeholder="yyyy-mm-dd"
+                                    placeholder="mm/dd/yyyy"
                                 />
                             </div>
 
@@ -2280,7 +2336,7 @@ const Index: React.FC = () => {
                         <ModernButton
                             variant="primary"
                             onClick={handleApplyFilters}
-                            disabled={loading || !hasActiveFilters}
+                            disabled={loading || !hasAdditionalFilterValues(filters)}
                         >
                             <FileText className="w-4 h-4" />
                             {loading ? 'Applying...' : 'Apply'}
