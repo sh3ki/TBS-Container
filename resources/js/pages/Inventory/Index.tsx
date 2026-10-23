@@ -150,6 +150,7 @@ const Index: React.FC = () => {
     // Edit modal states
     const [showEditModal, setShowEditModal] = useState(false);
     const [editFormData, setEditFormData] = useState<InventoryRecord | null>(null);
+    const [initialEditFormData, setInitialEditFormData] = useState<InventoryRecord | null>(null);
 
     // Dropdown options for edit modal
     const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
@@ -165,6 +166,11 @@ const Index: React.FC = () => {
     const [sortColumn, setSortColumn] = useState('');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
     const canResetSearch = Boolean(searchTerm.trim() || appliedSearchTerm || sortColumn);
+    const hasEditChanges = Boolean(
+        editFormData &&
+        initialEditFormData &&
+        JSON.stringify(editFormData) !== JSON.stringify(initialEditFormData)
+    );
 
     const defaultFilters = {
         client: 'all',
@@ -973,6 +979,7 @@ const Index: React.FC = () => {
                     bill_of_lading: data.bill_of_lading,
                 };
                 setEditFormData(mappedRecord);
+                setInitialEditFormData(mappedRecord);
                 setShowEditModal(true);
             } else {
                 error(response.data.message || 'Failed to load container details');
@@ -984,6 +991,8 @@ const Index: React.FC = () => {
     };
 
     const handleSubmitEdit = () => {
+        if (!editFormData || !hasEditChanges) return;
+
         setShowEditModal(false);
         setShowEditConfirm(true);
     };
@@ -994,6 +1003,10 @@ const Index: React.FC = () => {
         try {
             // Use the indexed numeric primary key for the update lookup.
             const identifier = editFormData.i_id;
+            const approvalNotesAdded = Boolean(
+                !(initialEditFormData?.app_notes || '').trim() &&
+                (editFormData.app_notes || '').trim()
+            );
             
             // Prepare update payload
             const payload: Record<string, unknown> = {
@@ -1060,6 +1073,9 @@ const Index: React.FC = () => {
                         size: selectedSizeType ? `${selectedSizeType.size}${selectedSizeType.type}` : row.size,
                         size_type_id: editFormData.size_type_id,
                         iso_code: editFormData.iso_code,
+                        approval_date: approvalNotesAdded
+                            ? response.data.data?.approval_date || new Date().toISOString()
+                            : row.approval_date,
                         status: editFormData.status,
                         status_id: editFormData.status_id,
                         container_status_id: Number(editFormData.status_id),
@@ -1071,6 +1087,7 @@ const Index: React.FC = () => {
                     };
                 }));
                 setEditFormData(null);
+                setInitialEditFormData(null);
             } else {
                 error(response.data.message || 'Failed to update container');
             }
@@ -2545,13 +2562,18 @@ const Index: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-gray-900">Approval Notes</Label>
+                                    <Label className="text-gray-900">Approval Notes (Max 300 characters)</Label>
                                     <Textarea 
                                         data-history-key="inventory.approval_notes"
                                         value={editFormData.app_notes} 
                                         onChange={(e) => setEditFormData({...editFormData, app_notes: e.target.value.toUpperCase()})}
+                                        maxLength={300}
+                                        rows={4}
                                         className="min-h-[80px]"
                                     />
+                                    <div className="text-xs text-gray-600 text-right">
+                                        {(editFormData.app_notes || '').length}/300
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2566,6 +2588,7 @@ const Index: React.FC = () => {
                         <ModernButton
                             variant="edit"
                             onClick={handleSubmitEdit}
+                            disabled={!hasEditChanges}
                         >
                             <Pencil className="w-4 h-4" />
                             Update Container
