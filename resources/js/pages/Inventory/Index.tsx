@@ -926,8 +926,8 @@ const Index: React.FC = () => {
         }
 
         try {
-            // Use hashed_id if available, otherwise use i_id directly
-            const identifier = record.hashed_id || record.i_id;
+            // Use the indexed numeric primary key for fast detail lookup.
+            const identifier = record.i_id;
             const response = await axios.get(`/api/inventory/${identifier}`);
             
             if (response.data.success) {
@@ -992,7 +992,8 @@ const Index: React.FC = () => {
         if (!editFormData) return;
 
         try {
-            const identifier = editFormData.hashed_id || editFormData.i_id;
+            // Use the indexed numeric primary key for the update lookup.
+            const identifier = editFormData.i_id;
             
             // Prepare update payload
             const payload: Record<string, unknown> = {
