@@ -48,6 +48,7 @@ class GateinoutController extends Controller
                     p.gate_status,
                     CASE WHEN p.status = 0 THEN 'pending' ELSE 'processed' END AS status,
                     p.date_added,
+                    p.date_completed,
                     TIMESTAMPDIFF(MINUTE, p.date_added, COALESCE(p.date_completed, CONVERT_TZ(NOW(), @@session.time_zone, '+08:00'))) AS runtime,
                     p.client_id,
                     p.user_id
