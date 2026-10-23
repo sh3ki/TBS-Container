@@ -363,8 +363,21 @@ const Index: React.FC = () => {
     }, [filters.gate_status, loading, loadingMoreHistorical, reportData.length, searchTerm, totalCount]);
 
     const handleSort = (column: string) => {
-        const nextDirection: 'asc' | 'desc' = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
         const backendColumn = column === 'date_days' ? 'date_time' : column;
+
+        if (sortColumn === column && sortDirection === 'desc') {
+            setSortColumn('');
+            setSortDirection('asc');
+            void fetchInventory({
+                search: searchTerm,
+                sortBy: '',
+                sortDir: 'asc',
+                showToast: false,
+            });
+            return;
+        }
+
+        const nextDirection: 'asc' | 'desc' = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
         setSortColumn(column);
         setSortDirection(nextDirection);
         void fetchInventory({
