@@ -28,6 +28,7 @@ interface PreInventoryRecord extends Record<string, unknown> {
   runtime: number;
   runtime_color: 'green' | 'orange' | 'red';
   date_added: string;
+  date_completed: string | null;
 }
 
 interface Client {
@@ -842,7 +843,8 @@ export default function Index() {
                 label: 'Container No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[70px]" title={record.container_no}>
+                  <div className="font-mono font-semibold text-gray-900 min-w-[70px] flex items-center gap-2" title={record.container_no}>
+                    {record.date_completed && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
                     {record.container_no}
                   </div>
                 ),
@@ -855,26 +857,6 @@ export default function Index() {
                   <div className="min-w-[120px] max-w-[120px]">
                     <div className="font-medium text-gray-900 " title={record.client_name}>{record.client_name}</div>
                     <div className="text-xs text-gray-500 ">{record.client_code}</div>
-                  </div>
-                ),
-              },
-              {
-                key: 'plate_no',
-                label: 'Plate No',
-                sortable: true,
-                render: (record: PreInventoryRecord) => (
-                  <div className="text-sm text-gray-600 min-w-[70px] " title={record.plate_no || '-'}>
-                    {record.plate_no || '-'}
-                  </div>
-                ),
-              },
-              {
-                key: 'hauler',
-                label: 'Hauler',
-                sortable: true,
-                render: (record: PreInventoryRecord) => (
-                  <div className="text-sm text-gray-600 min-w-[70px]" title={record.hauler || '-'}>
-                    {record.hauler || '-'}
                   </div>
                 ),
               },
@@ -1023,7 +1005,8 @@ export default function Index() {
                 label: 'Container No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[70px]" title={record.container_no}>
+                  <div className="font-mono font-semibold text-gray-900 min-w-[70px] flex items-center gap-2" title={record.container_no}>
+                    {record.date_completed && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
                     {record.container_no}
                   </div>
                 ),
