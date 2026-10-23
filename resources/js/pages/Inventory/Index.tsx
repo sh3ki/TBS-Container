@@ -95,6 +95,29 @@ interface ViewerImage {
 }
 
 const INVENTORY_FILTER_STORAGE_KEY = 'inventory.filters.v1';
+type HighlightColor = 'yellow' | 'green' | 'cyan' | 'pink' | 'orange' | 'blue' | 'red' | 'purple';
+
+const highlightColorClasses: Record<HighlightColor, string> = {
+    yellow: 'bg-yellow-300',
+    green: 'bg-lime-300',
+    cyan: 'bg-cyan-300',
+    pink: 'bg-pink-300',
+    orange: 'bg-orange-300',
+    blue: 'bg-sky-300',
+    red: 'bg-red-300',
+    purple: 'bg-purple-300',
+};
+
+const highlightColorSwatchClasses: Record<HighlightColor, string> = {
+    yellow: 'bg-yellow-300',
+    green: 'bg-lime-300',
+    cyan: 'bg-cyan-300',
+    pink: 'bg-pink-300',
+    orange: 'bg-orange-300',
+    blue: 'bg-sky-300',
+    red: 'bg-red-300',
+    purple: 'bg-purple-300',
+};
 
 const defaultFilters = {
     client: 'all',
@@ -126,6 +149,7 @@ const getCachedInventoryState = () => {
         appliedFilters: defaultFilters,
         searchTerm: '',
         appliedSearchTerm: '',
+        highlightColor: 'yellow' as HighlightColor,
     };
 
     if (typeof window === 'undefined') return emptyState;
@@ -139,6 +163,7 @@ const getCachedInventoryState = () => {
             appliedFilters?: Partial<typeof defaultFilters>;
             searchTerm?: string;
             appliedSearchTerm?: string;
+            highlightColor?: HighlightColor;
         };
 
         return {
@@ -146,6 +171,7 @@ const getCachedInventoryState = () => {
             appliedFilters: { ...defaultFilters, ...(parsed.appliedFilters || parsed.filters || {}) },
             searchTerm: parsed.searchTerm || '',
             appliedSearchTerm: parsed.appliedSearchTerm || parsed.searchTerm || '',
+            highlightColor: parsed.highlightColor || 'yellow',
         };
     } catch {
         return emptyState;
@@ -228,6 +254,8 @@ const Index: React.FC = () => {
     const [appliedSearchTerm, setAppliedSearchTerm] = useState(() => cachedInventoryState.appliedSearchTerm);
     const [highlightMode, setHighlightMode] = useState(false);
     const [highlightSearchTerm, setHighlightSearchTerm] = useState('');
+    const [highlightColor, setHighlightColor] = useState<HighlightColor>(() => cachedInventoryState.highlightColor);
+    const [highlightColorMenuOpen, setHighlightColorMenuOpen] = useState(false);
     const [highlightMatchCursor, setHighlightMatchCursor] = useState(0);
     const highlightInputRef = useRef<HTMLInputElement>(null);
     const [sortColumn, setSortColumn] = useState('');
@@ -253,7 +281,7 @@ const Index: React.FC = () => {
         const matcher = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
         return text.split(matcher).map((part, index) => (
             terms.some((term) => part.toLowerCase() === term.toLowerCase()) ? (
-                <mark key={`${part}-${index}`} className="rounded bg-yellow-300 px-0.5 text-gray-900">{part}</mark>
+                <mark key={`${part}-${index}`} className={`rounded ${highlightColorClasses[highlightColor]} px-0.5 text-gray-900`}>{part}</mark>
             ) : part
         ));
     };
@@ -283,11 +311,12 @@ const Index: React.FC = () => {
                 appliedFilters,
                 searchTerm,
                 appliedSearchTerm,
+                highlightColor,
             }));
         } catch {
             // Ignore unavailable or restricted browser storage.
         }
-    }, [filters, appliedFilters, searchTerm, appliedSearchTerm]);
+    }, [filters, appliedFilters, searchTerm, appliedSearchTerm, highlightColor]);
 
     useEffect(() => {
         loadDropdownData();
@@ -1284,6 +1313,7 @@ const Index: React.FC = () => {
         setHighlightMode(false);
         setHighlightSearchTerm('');
         setHighlightMatchCursor(0);
+        setHighlightColorMenuOpen(false);
     };
 
     const moveHighlightMatch = (direction: 1 | -1) => {
@@ -1536,6 +1566,37 @@ const Index: React.FC = () => {
                                 aria-label="Find text to highlight"
                                 className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-white placeholder:text-gray-400 focus-visible:ring-0"
                             />
+                            <div className="relative shrink-0 border-l border-gray-600 pl-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setHighlightColorMenuOpen((open) => !open)}
+                                    aria-label="Choose highlight color"
+                                    aria-expanded={highlightColorMenuOpen}
+                                    title="Choose highlight color"
+                                    className={`h-4 w-4 rounded-full ${highlightColorSwatchClasses[highlightColor]} ring-2 ring-white ring-offset-1 ring-offset-gray-800 transition-transform hover:scale-110`}
+                                />
+                                {highlightColorMenuOpen && (
+                                    <div className="absolute right-0 top-8 z-50 flex gap-2 rounded-lg bg-gray-800 p-2 shadow-xl ring-1 ring-black/30">
+                                        {(Object.keys(highlightColorSwatchClasses) as HighlightColor[]).map((color) => (
+                                            <button
+                                                key={color}
+                                                type="button"
+                                                onClick={() => {
+                                                    setHighlightColor(color);
+                                                    setHighlightColorMenuOpen(false);
+                                                }}
+                                                aria-label={`${color} highlight`}
+                                                aria-pressed={highlightColor === color}
+                                                title={`${color.charAt(0).toUpperCase()}${color.slice(1)} highlight`}
+                                                className={`h-4 w-4 rounded-full ${highlightColorSwatchClasses[color]} transition-transform hover:scale-125 ${highlightColor === color
+                                                    ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-800'
+                                                    : 'opacity-75 hover:opacity-100'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             <span className="shrink-0 border-l border-gray-600 pl-3 text-xs text-gray-300" aria-live="polite">
                                 {highlightMatchIndexes.length > 0
                                     ? `${activeHighlightCursor + 1} of ${highlightMatchIndexes.length}`
@@ -1869,7 +1930,7 @@ const Index: React.FC = () => {
                             sortColumn={sortColumn === 'date_time' ? 'date_days' : sortColumn}
                             sortDirection={sortDirection}
                             data={inventoryTableData}
-                            contentKey={highlightMode ? highlightSearchTerm : ''}
+                            contentKey={highlightMode ? `${highlightSearchTerm}:${highlightColor}` : ''}
                             scrollToIndex={activeHighlightRowIndex}
                             virtualized
                             rowHeight={128}
