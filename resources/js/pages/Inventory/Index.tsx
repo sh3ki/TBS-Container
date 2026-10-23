@@ -23,6 +23,25 @@ interface Client {
     text: string;
 }
 
+const legacySizeToIso: Record<string, string> = {
+    '20DC': '22G1',
+    '20FR': '22P1',
+    '20OT': '22U1',
+    '20RF': '22R1',
+    '20RH': '25R1',
+    '40DC': '42G1',
+    '40FR': '42P1',
+    '40HC': '45G1',
+    '40OT': '42U1',
+    '40RH': '45R1',
+    '45HC': 'L5G1',
+};
+
+const getIsoCodeForSizeType = (size: string, type: string): string => {
+    const sizeType = `${size}${type}`.trim().toUpperCase();
+    return legacySizeToIso[sizeType] || sizeType;
+};
+
 interface InventoryRecord {
     i_id: number;
     hashed_id?: string;
@@ -1039,6 +1058,7 @@ const Index: React.FC = () => {
                         client_code: selectedClient?.code || row.client_code,
                         size: selectedSizeType ? `${selectedSizeType.size}${selectedSizeType.type}` : row.size,
                         size_type_id: editFormData.size_type_id,
+                        iso_code: editFormData.iso_code,
                         status: editFormData.status,
                         status_id: editFormData.status_id,
                         container_status_id: Number(editFormData.status_id),
@@ -2270,11 +2290,22 @@ const Index: React.FC = () => {
                                             });
                                         }}
                                     >
-                                        <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                                        <SelectTrigger className="min-w-0">
+                                            <SelectValue
+                                                placeholder="Select client"
+                                                className="min-w-0 flex-1 truncate whitespace-nowrap"
+                                            />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             {clients.map((client) => (
-                                                <SelectItem key={client.c_id} value={client.c_id.toString()}>
-                                                    {client.name}
+                                                <SelectItem
+                                                    key={client.c_id}
+                                                    value={client.c_id.toString()}
+                                                    className="min-w-0"
+                                                >
+                                                    <span className="block max-w-full truncate whitespace-nowrap">
+                                                        {client.text}
+                                                    </span>
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -2337,7 +2368,10 @@ const Index: React.FC = () => {
                                             setEditFormData({
                                                 ...editFormData, 
                                                 size_type_id: parseInt(value),
-                                                size: selectedSize ? `${selectedSize.size}${selectedSize.type}` : ''
+                                                size: selectedSize ? `${selectedSize.size}${selectedSize.type}` : '',
+                                                iso_code: selectedSize
+                                                    ? getIsoCodeForSizeType(selectedSize.size, selectedSize.type)
+                                                    : ''
                                             });
                                         }}
                                     >
