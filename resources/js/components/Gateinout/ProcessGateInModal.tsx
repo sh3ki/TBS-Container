@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
 import {
     Dialog,
@@ -53,6 +53,8 @@ export default function ProcessGateInModal({
     showError,
 }: ProcessGateInModalProps) {
     const [checkerName, setCheckerName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const submitInProgressRef = useRef(false);
     const [autoFillIsoCode, setAutoFillIsoCode] = useState(false);
     const initialFormData = {
         date_manufactured: '',
@@ -226,6 +228,10 @@ export default function ProcessGateInModal({
 
     const handleConfirm = async () => {
         if (!record) return;
+        // Prevent rapid double-clicks before React has a chance to re-render.
+        if (submitInProgressRef.current) return;
+        submitInProgressRef.current = true;
+        setIsSubmitting(true);
         
         try {
             // Convert mm/yyyy to yyyy-mm-01 format for database
@@ -293,6 +299,9 @@ export default function ProcessGateInModal({
         } catch (error: unknown) {
             const axiosError = error as { response?: { data?: { message?: string } } };
             (showError ? showError(axiosError.response?.data?.message || 'Failed to process Gate IN') : alert(axiosError.response?.data?.message || 'Failed to process Gate IN'));
+        } finally {
+            submitInProgressRef.current = false;
+            setIsSubmitting(false);
         }
     };
 
@@ -519,9 +528,9 @@ export default function ProcessGateInModal({
                             <ModernButton type="button" variant="toggle" onClick={onClose}>
                                 Cancel
                             </ModernButton>
-                            <ModernButton type="submit" variant="add">
+                            <ModernButton type="submit" variant="add" disabled={isSubmitting}>
                                 <Printer className="w-4 h-4" />
-                                Save & Print
+                                {isSubmitting ? 'Saving...' : 'Save & Print'}
                             </ModernButton>
                         </DialogFooter>
                     </form>
