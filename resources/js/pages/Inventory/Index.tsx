@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy, Highlighter, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy, Highlighter, ChevronUp, ChevronDown, X, Calendar } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -366,6 +366,31 @@ const Index: React.FC = () => {
             return next;
         });
     };
+
+    const renderDateFilterInput = (field: keyof typeof defaultFilters, enabled: boolean) => (
+        <div className="relative mt-1.5">
+            <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={dateFilterDisplayValue(filters[field])}
+                disabled={!enabled}
+                onChange={(e) => handleDateFilterInput(field, e.target.value)}
+                className="pr-10"
+                placeholder="mm/dd/yyyy"
+            />
+            <Calendar className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${enabled ? 'text-gray-500' : 'text-gray-300'}`} />
+            <input
+                type="date"
+                tabIndex={-1}
+                aria-label={`Choose ${field.replaceAll('_', ' ')}`}
+                value={dateFilterToApiValue(filters[field])}
+                disabled={!enabled}
+                onChange={(e) => handleDateFilterInput(field, dateFilterDisplayValue(e.target.value))}
+                className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+            />
+        </div>
+    );
 
     useEffect(() => {
         try {
@@ -2214,30 +2239,12 @@ const Index: React.FC = () => {
                             
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate IN (Date From)</Label>
-                                <Input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={10}
-                                    value={dateFilterDisplayValue(filters.date_in_from)}
-                                    disabled={!gateInDateFiltersEnabled}
-                                    onChange={(e) => handleDateFilterInput('date_in_from', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="mm/dd/yyyy"
-                                />
+                                {renderDateFilterInput('date_in_from', gateInDateFiltersEnabled)}
                             </div>
 
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate IN (Date To)</Label>
-                                <Input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={10}
-                                    value={dateFilterDisplayValue(filters.date_in_to)}
-                                    disabled={!gateInDateFiltersEnabled}
-                                    onChange={(e) => handleDateFilterInput('date_in_to', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="mm/dd/yyyy"
-                                />
+                                {renderDateFilterInput('date_in_to', gateInDateFiltersEnabled)}
                             </div>
 
                             <div>
@@ -2302,30 +2309,12 @@ const Index: React.FC = () => {
 
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate OUT (Date From)</Label>
-                                <Input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={10}
-                                    value={dateFilterDisplayValue(filters.date_out_from)}
-                                    disabled={!gateOutDateFiltersEnabled}
-                                    onChange={(e) => handleDateFilterInput('date_out_from', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="mm/dd/yyyy"
-                                />
+                                {renderDateFilterInput('date_out_from', gateOutDateFiltersEnabled)}
                             </div>
 
                             <div>
                                 <Label className="text-sm font-semibold mb-2">Gate OUT (Date To)</Label>
-                                <Input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={10}
-                                    value={dateFilterDisplayValue(filters.date_out_to)}
-                                    disabled={!gateOutDateFiltersEnabled}
-                                    onChange={(e) => handleDateFilterInput('date_out_to', e.target.value)}
-                                    className="mt-1.5"
-                                    placeholder="mm/dd/yyyy"
-                                />
+                                {renderDateFilterInput('date_out_to', gateOutDateFiltersEnabled)}
                             </div>
 
                             <div>
