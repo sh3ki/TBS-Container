@@ -633,6 +633,10 @@ class InventoryController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $request->validate([
+                'approval_notes' => ['nullable', 'string', 'max:300'],
+            ]);
+
             $prefix = DB::getTablePrefix();
             
             // Prefer the indexed numeric primary key. Keep the hash fallback for
@@ -676,6 +680,18 @@ class InventoryController extends Controller
                 }
             }
 
+            // Editing an unapproved container with approval notes is equivalent
+            // to approving it. Record the approval timestamp automatically.
+            $oldApprovalNotes = trim((string) ($oldInventory->approval_notes ?? ''));
+            $newApprovalNotes = trim((string) ($request->input('approval_notes') ?? ''));
+            $approvalDate = $oldInventory->approval_date;
+            if ($oldApprovalNotes === '' && $newApprovalNotes !== '') {
+                $approvalDate = now();
+                $updateFields[] = 'approval_date = :approval_date';
+                $params[':approval_date'] = $approvalDate;
+                $changes[] = 'approval date set to "' . $approvalDate . '"';
+            }
+
             if (count($updateFields) === 0) {
                 return response()->json([
                     'success' => false,
@@ -705,6 +721,9 @@ class InventoryController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Container updated successfully',
+                'data' => [
+                    'approval_date' => $approvalDate,
+                ],
             ]);
 
         } catch (\Exception $e) {
