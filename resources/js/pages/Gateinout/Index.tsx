@@ -1,6 +1,6 @@
 ﻿import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { ModernButton, ModernCard, ModernTable, ModernBadge, ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from "@/components/ui/input";
@@ -93,6 +93,10 @@ export default function Index() {
   const [showEditPreOutModal, setShowEditPreOutModal] = useState(false);
   const [showProcessGateInModal, setShowProcessGateInModal] = useState(false);
   const [showProcessGateOutModal, setShowProcessGateOutModal] = useState(false);
+  const [isAddingPreIn, setIsAddingPreIn] = useState(false);
+  const [isAddingPreOut, setIsAddingPreOut] = useState(false);
+  const addPreInInProgressRef = useRef(false);
+  const addPreOutInProgressRef = useRef(false);
   const hasActiveFilters = Boolean(searchTerm.trim()) || selectedClient !== 'all';
 
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -385,6 +389,10 @@ export default function Index() {
   };
 
   const handleAddPreIn = async () => {
+    if (addPreInInProgressRef.current) return;
+    addPreInInProgressRef.current = true;
+    setIsAddingPreIn(true);
+
     try {
       const response = await axios.post('/api/gateinout/check-container-in', {
         cno: preInForm.container_no.toUpperCase(),
@@ -405,6 +413,9 @@ export default function Index() {
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
       error(e.response?.data?.message || 'Failed to add Pre-In');
+    } finally {
+      addPreInInProgressRef.current = false;
+      setIsAddingPreIn(false);
     }
   };
 
@@ -422,6 +433,10 @@ export default function Index() {
   };
 
   const handleAddPreOut = async () => {
+    if (addPreOutInProgressRef.current) return;
+    addPreOutInProgressRef.current = true;
+    setIsAddingPreOut(true);
+
     try {
       const response = await axios.post('/api/gateinout/check-container-out', {
         pno: preOutForm.plate_no,
@@ -443,6 +458,9 @@ export default function Index() {
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } };
       error(e.response?.data?.message || 'Failed to add Pre-Out');
+    } finally {
+      addPreOutInProgressRef.current = false;
+      setIsAddingPreOut(false);
     }
   };
 
@@ -1263,9 +1281,9 @@ export default function Index() {
               >
                 Cancel
               </ModernButton>
-              <ModernButton type="submit" variant="add">
+              <ModernButton type="submit" variant="add" disabled={isAddingPreIn}>
                 <Plus className="w-4 h-4" />
-                Add Pre In
+                {isAddingPreIn ? 'Adding...' : 'Add Pre In'}
               </ModernButton>
             </DialogFooter>
           </form>
@@ -1322,9 +1340,9 @@ export default function Index() {
               >
                 Cancel
               </ModernButton>
-              <ModernButton type="submit" variant="delete">
+              <ModernButton type="submit" variant="delete" disabled={isAddingPreOut}>
                 <Plus className="w-4 h-4" />
-                Add Pre Out
+                {isAddingPreOut ? 'Adding...' : 'Add Pre Out'}
               </ModernButton>
             </DialogFooter>
           </form>
