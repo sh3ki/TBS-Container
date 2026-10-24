@@ -271,8 +271,8 @@ export default function ProcessGateOutModal({
                     plate_no: record?.plate_no || pre.plate_no || '',
                     hauler: record?.hauler || pre.hauler || '',
                     approval_remarks: pre.approval_notes || '',
-                    gate_in_remarks: pre.remarks || '',
-                    remarks: pre.pre_inventory_remarks || '',
+                    gate_in_remarks: pre.inventory_remarks || '',
+                    remarks: pre.remarks || '',
                     status: pre.cnt_status ? String(pre.cnt_status) : defaultStatusId,
                     load: defaultLoadId,
                 }));
@@ -328,8 +328,8 @@ export default function ProcessGateOutModal({
                     plate_no: record?.plate_no || pre.plate_no || '',
                     hauler: record?.hauler || pre.hauler || '',
                     approval_remarks: pre.approval_notes || '',
-                    gate_in_remarks: pre.remarks || '',
-                    remarks: pre.pre_inventory_remarks || '',
+                    gate_in_remarks: pre.inventory_remarks || '',
+                    remarks: pre.remarks || '',
                     // Use resolved status (pre-inventory cnt_status or inventory.table container_status)
                     status: resolvedStatus,
                     load: defaultLoadId,
@@ -501,8 +501,8 @@ export default function ProcessGateOutModal({
                     booking: '',
                     seal_no: '',
                     approval_remarks: (inventoryData && inventoryData.approval_notes) || (pre && pre.approval_notes) || '',
-                    gate_in_remarks: (inventoryData && inventoryData.remarks) || (pre && pre.remarks) || '',
-                    remarks: (inventoryData && inventoryData.pre_inventory_remarks) || (pre && pre.pre_inventory_remarks) || '',
+                    gate_in_remarks: (inventoryData && inventoryData.remarks) || (pre && pre.inventory_remarks) || '',
+                    remarks: (pre && pre.remarks) || (inventoryData && inventoryData.pre_inventory_remarks) || '',
                     save_and_book: 'NO',
                 });
 
