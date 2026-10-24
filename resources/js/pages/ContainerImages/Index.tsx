@@ -52,6 +52,10 @@ export default function Index() {
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const headerCheckboxRef = useRef<HTMLInputElement | null>(null);
 
 
   useEffect(() => {
@@ -113,6 +117,22 @@ export default function Index() {
   // Use all items in the current folder (not search-filtered) for the image carousel
   const imageItems = useMemo(() => items.filter((i) => i.is_image), [items]);
 
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedPaths.includes(item.relative_path)),
+    [items, selectedPaths],
+  );
+
+  const displayedSelectedCount = displayItems.filter((item) => selectedPaths.includes(item.relative_path)).length;
+  const allDisplayedSelected = displayItems.length > 0 && displayedSelectedCount === displayItems.length;
+  const someDisplayedSelected = displayedSelectedCount > 0 && !allDisplayedSelected;
+  const selectionCheckmark = (color: string) => `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='${color.replace('#', '%23')}' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m3 8 3 3 7-7'/%3E%3C/svg%3E")`;
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = someDisplayedSelected;
+    }
+  }, [someDisplayedSelected]);
+
   
 
   const fetchPageAccess = async () => {
@@ -139,6 +159,7 @@ export default function Index() {
 
       if (response.data.success) {
         setItems(response.data.data.items || []);
+        setSelectedPaths([]);
         setCurrentPath(response.data.data.current_path || '');
         setPageAccess((prev) => ({
           ...prev,
@@ -287,6 +308,67 @@ export default function Index() {
     }
   };
 
+  const toggleSelected = (path: string) => {
+    setSelectedPaths((current) => current.includes(path)
+      ? current.filter((selectedPath) => selectedPath !== path)
+      : [...current, path]);
+  };
+
+  const toggleAllDisplayed = () => {
+    const displayedPaths = displayItems.map((item) => item.relative_path);
+    setSelectedPaths((current) => {
+      if (allDisplayedSelected) {
+        return current.filter((path) => !displayedPaths.includes(path));
+      }
+
+      return Array.from(new Set([...current, ...displayedPaths]));
+    });
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedItems.length === 0) return;
+
+    setBulkDownloading(true);
+    try {
+      const response = await axios.post('/api/containerimages/download-bulk', {
+        paths: selectedItems.map((item) => item.relative_path),
+      }, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'container-images.zip';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      success(`Download started for ${selectedItems.length} selected item(s)`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      error(e.response?.data?.message || 'Bulk download failed');
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) return;
+
+    try {
+      const response = await axios.post('/api/containerimages/delete-bulk', {
+        paths: selectedItems.map((item) => item.relative_path),
+      });
+      if (response.data.success) {
+        success(response.data.message || 'Selected items deleted successfully');
+        setBulkDeleteConfirm(false);
+        setSelectedPaths([]);
+        fetchItems(currentPath);
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } } };
+      error(e.response?.data?.message || 'Bulk delete failed');
+    }
+  };
+
   const openRenameModal = (item: ExplorerItem) => {
     setRenameTarget(item);
     setRenameName(item.name);
@@ -367,6 +449,42 @@ export default function Index() {
   };
 
   const columns = [
+    {
+      key: 'selection',
+      label: '',
+      width: '110px',
+      headerRender: () => (
+        <div className="flex items-center gap-2 normal-case tracking-normal">
+          <input
+            ref={headerCheckboxRef}
+            type="checkbox"
+            checked={allDisplayedSelected}
+            onChange={toggleAllDisplayed}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Select all displayed items"
+            className="h-4 w-4 appearance-none rounded border border-gray-600 bg-gray-100 bg-center bg-no-repeat checked:bg-white"
+            style={{
+              backgroundColor: allDisplayedSelected || someDisplayedSelected ? '#ffffff' : '#f3f4f6',
+              backgroundImage: allDisplayedSelected || someDisplayedSelected ? selectionCheckmark('#2563eb') : 'none',
+            }}
+          />
+          <span className="text-xs font-semibold whitespace-nowrap">{displayedSelectedCount}/{displayItems.length}</span>
+        </div>
+      ),
+      render: (item: ExplorerItem) => (
+        <input
+          type="checkbox"
+          checked={selectedPaths.includes(item.relative_path)}
+          onChange={() => toggleSelected(item.relative_path)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${item.name}`}
+          className="h-4 w-4 appearance-none rounded border border-gray-600 bg-gray-100 bg-center bg-no-repeat checked:bg-blue-600"
+          style={{
+            backgroundImage: selectedPaths.includes(item.relative_path) ? selectionCheckmark('#ffffff') : 'none',
+          }}
+        />
+      ),
+    },
     {
       key: 'name',
       label: 'Item Name',
@@ -595,6 +713,10 @@ export default function Index() {
                   <div className="flex items-center gap-2">
                     {/* Folder name input moved into modal */}
 
+                    <span className="text-sm whitespace-nowrap" style={{ color: colors.text.secondary }}>
+                      {items.length} {items.length === 1 ? 'item' : 'items'}
+                    </span>
+
                     <div className="relative">
                       <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.text.secondary }} />
                       <Input
@@ -624,6 +746,33 @@ export default function Index() {
                   </div>
                 </div>
 
+                {selectedItems.length > 0 && (
+                  <div className="flex items-center gap-2 rounded-lg border bg-blue-50 px-3 py-2" style={{ borderColor: colors.brand.primary }}>
+                    <span className="mr-2 text-sm font-medium" style={{ color: colors.text.primary }}>
+                      {selectedItems.length} selected
+                    </span>
+                    <ModernButton
+                      variant="secondary"
+                      size="sm"
+                      icon={<Download className="h-4 w-4" />}
+                      onClick={handleBulkDownload}
+                      loading={bulkDownloading}
+                    >
+                      Download
+                    </ModernButton>
+                    {pageAccess.module_delete && (
+                      <ModernButton
+                        variant="delete"
+                        size="sm"
+                        icon={<Trash2 className="h-4 w-4" />}
+                        onClick={() => setBulkDeleteConfirm(true)}
+                      >
+                        Delete
+                      </ModernButton>
+                    )}
+                  </div>
+                )}
+
                 {viewMode === 'list' ? (
                   <ModernTable
                     columns={columns}
@@ -631,6 +780,7 @@ export default function Index() {
                     loading={loading}
                     emptyMessage="No files or folders found"
                     onRowClick={openItem}
+                    contentKey={`${displayedSelectedCount}-${displayItems.length}-${selectedItems.length}`}
                   />
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -648,6 +798,17 @@ export default function Index() {
                           openItem(item);
                         }}
                       >
+                        <input
+                          type="checkbox"
+                          checked={selectedPaths.includes(item.relative_path)}
+                          onChange={() => toggleSelected(item.relative_path)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Select ${item.name}`}
+                          className="absolute left-3 top-3 z-10 h-4 w-4 appearance-none rounded border border-gray-600 bg-gray-100 bg-center bg-no-repeat checked:bg-blue-600"
+                          style={{
+                            backgroundImage: selectedPaths.includes(item.relative_path) ? selectionCheckmark('#ffffff') : 'none',
+                          }}
+                        />
                         <div className="w-36 h-36 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
                           {item.is_image ? (
                             <img
@@ -802,6 +963,17 @@ export default function Index() {
         onConfirm={handleDeleteItem}
         title="Delete Item"
         description={`Delete ${itemToDelete?.type === 'directory' ? 'folder' : 'file'} "${itemToDelete?.name || ''}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
+
+      <ModernConfirmDialog
+        open={bulkDeleteConfirm}
+        onOpenChange={setBulkDeleteConfirm}
+        onConfirm={handleBulkDelete}
+        title="Delete Selected Items"
+        description={`Delete ${selectedItems.length} selected item(s)? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
         type="danger"
