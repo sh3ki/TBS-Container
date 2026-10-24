@@ -4,12 +4,13 @@ import { ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Column<T = unknown> {
   key: string;
-  label: string;
+  label: React.ReactNode;
   align?: 'left' | 'center' | 'right';
   width?: string;
   sortable?: boolean;
   disableRowClick?: boolean;
   render?: (item: T) => React.ReactNode;
+  headerRender?: () => React.ReactNode;
 }
 
 interface Pagination {
@@ -194,7 +195,7 @@ const ModernTableBase = <T extends Record<string, unknown>>({
                   onClick={() => column.sortable && onSort && onSort(column.key)}
                 >
                   <div className="flex items-center gap-2">
-                    {column.label}
+                    {column.headerRender ? column.headerRender() : column.label}
                     {column.sortable && sortColumn === column.key && (
                       <span className="text-white">
                         {sortDirection === 'asc' ? '↑' : '↓'}
