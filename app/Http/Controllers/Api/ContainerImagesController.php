@@ -264,6 +264,44 @@ class ContainerImagesController extends Controller
         ]);
     }
 
+    public function deleteBulk(Request $request)
+    {
+        $access = $this->getPageRecordAccessData();
+        if (!$access['module_delete']) {
+            return response()->json(['success' => false, 'message' => 'You do not have delete permission.'], 403);
+        }
+
+        $validated = $request->validate([
+            'paths' => ['required', 'array', 'min:1'],
+            'paths.*' => ['required', 'string'],
+        ]);
+
+        $deleted = 0;
+        foreach (array_unique($validated['paths']) as $path) {
+            $relativePath = $this->normalizeRelativePath($path);
+            if ($relativePath === '') {
+                continue;
+            }
+
+            $fullPath = $this->toFullPath($relativePath);
+            if (File::isFile($fullPath)) {
+                File::delete($fullPath);
+                $deleted++;
+            } elseif (File::isDirectory($fullPath)) {
+                File::deleteDirectory($fullPath);
+                $deleted++;
+            }
+        }
+
+        $this->logAudit('DELETE', '[CONTAINER IMAGES] Bulk deleted ' . $deleted . ' item(s)');
+
+        return response()->json([
+            'success' => true,
+            'message' => "Deleted {$deleted} item(s) successfully.",
+            'deleted' => $deleted,
+        ]);
+    }
+
     public function viewFile(Request $request)
     {
         $access = $this->getPageRecordAccessData();
@@ -346,6 +384,62 @@ class ContainerImagesController extends Controller
         $zip->close();
 
         return response()->download($zipPath, basename($relativePath) . '.zip')->deleteFileAfterSend(true);
+    }
+
+    public function downloadBulk(Request $request)
+    {
+        $access = $this->getPageRecordAccessData();
+        if (!$access['can_view']) {
+            return response()->json(['success' => false, 'message' => 'You do not have access to this page.'], 403);
+        }
+
+        $validated = $request->validate([
+            'paths' => ['required', 'array', 'min:1'],
+            'paths.*' => ['required', 'string'],
+        ]);
+
+        if (!class_exists('\\ZipArchive')) {
+            return response()->json(['success' => false, 'message' => 'ZipArchive is not available on the server. Please enable the php-zip extension.'], 500);
+        }
+
+        $base = rtrim(self::BASE_DIRECTORY, '/');
+        $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'containerimages_bulk_' . md5(implode('|', $validated['paths']) . microtime(true)) . '.zip';
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            return response()->json(['success' => false, 'message' => 'Failed to create archive.'], 500);
+        }
+
+        $added = 0;
+        foreach (array_unique($validated['paths']) as $path) {
+            $relativePath = $this->normalizeRelativePath($path);
+            if ($relativePath === '') continue;
+
+            $fullPath = $this->toFullPath($relativePath);
+            if (File::isFile($fullPath)) {
+                $zip->addFile($fullPath, $relativePath);
+                $added++;
+                continue;
+            }
+
+            if (!File::isDirectory($fullPath)) continue;
+            $directoryIterator = new \RecursiveDirectoryIterator($fullPath, \FilesystemIterator::SKIP_DOTS);
+            $files = new \RecursiveIteratorIterator($directoryIterator);
+            foreach ($files as $file) {
+                if (!$file->isFile()) continue;
+                $filePath = $file->getRealPath();
+                $archivePath = ltrim(substr($filePath, strlen($base)), DIRECTORY_SEPARATOR);
+                $zip->addFile($filePath, $archivePath);
+                $added++;
+            }
+        }
+
+        $zip->close();
+        if ($added === 0) {
+            @unlink($zipPath);
+            return response()->json(['success' => false, 'message' => 'No selected files were found.'], 404);
+        }
+
+        return response()->download($zipPath, 'container-images.zip')->deleteFileAfterSend(true);
     }
 
     public function rename(Request $request)
