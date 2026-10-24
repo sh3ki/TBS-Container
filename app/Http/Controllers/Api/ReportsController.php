@@ -1368,22 +1368,21 @@ class ReportsController extends Controller
                 ->orderBy('inventory.date_added', 'asc')
                 ->get();
 
-            // 2. OUTGOING - Containers approved for gate OUT on this date
+            // 2. OUTGOING - Actual gate OUT containers on the selected date
             $outgoingData = DB::table('inventory')
                 ->leftJoin('clients', 'inventory.client_id', '=', 'clients.c_id')
                 ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
                 ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
-                ->whereBetween('inventory.approval_date', [$dateStart, $dateEnd])
-                ->where('inventory.gate_status', 'IN')
-                ->where('inventory.complete', 1)
+                ->whereBetween('inventory.date_added', [$dateStart, $dateEnd])
+                ->where('inventory.gate_status', 'OUT')
                 ->whereNotNull('container_size_type.size')
                 ->when($clientId && $clientId !== 'all' && $clientId !== '', function ($q) use ($clientId) {
                     return $q->where('inventory.client_id', $clientId);
                 })
                 ->select(
                     DB::raw("CONCAT({$invTable}.i_id, 'O') as eir_no"),
-                    DB::raw("DATE({$invTable}.approval_date) as date"),
-                    DB::raw("TIME({$invTable}.approval_date) as time"),
+                    DB::raw("DATE({$invTable}.date_added) as date"),
+                    DB::raw("TIME({$invTable}.date_added) as time"),
                     'inventory.container_no',
                     DB::raw("CONCAT({$sizeTypeTable}.size, {$sizeTypeTable}.type) as size_type"),
                     'container_status.status',
@@ -1399,7 +1398,7 @@ class ReportsController extends Controller
                 )
                 ->orderBy('container_size_type.size', 'asc')
                 ->orderBy('container_size_type.type', 'asc')
-                ->orderBy('inventory.approval_date', 'asc')
+                ->orderBy('inventory.date_added', 'asc')
                 ->get();
 
             // 3. INVENTORY - Aging report (containers in yard as of this date)
