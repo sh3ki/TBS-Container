@@ -321,8 +321,10 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::post('/upload', [ContainerImagesController::class, 'upload']);
         Route::post('/folders', [ContainerImagesController::class, 'createFolder']);
         Route::get('/download', [ContainerImagesController::class, 'download']);
+        Route::post('/download-bulk', [ContainerImagesController::class, 'downloadBulk']);
         Route::post('/rename', [ContainerImagesController::class, 'rename']);
         Route::post('/delete-item', [ContainerImagesController::class, 'deleteItem']);
+        Route::post('/delete-bulk', [ContainerImagesController::class, 'deleteBulk']);
     });
 
     // Audit Logs
