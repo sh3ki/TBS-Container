@@ -1897,7 +1897,7 @@ const Index: React.FC = () => {
                                 },
                                 {
                                     key: 'date_days',
-                                    label: 'DATE/TIME / Days',
+                                    label: 'DATE / TIME / DAYS',
                                     sortable: true,
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[130px]">
