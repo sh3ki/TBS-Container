@@ -211,8 +211,9 @@ class GateinoutController extends Controller
                 ]);
             }
 
-            // Serialize identical Pre-Out submissions and re-check for an
-            // existing pending record while the lock is held.
+            // Serialize identical Pre-Out submissions while the insert is
+            // performed. Multiple pending Pre-Out records may use the same
+            // plate number and hauler.
             $lock = Cache::lock('gateinout:pre-out:' . md5(strtoupper($plateNo) . '|' . strtoupper($hauler)), 10);
             if (!$lock->get()) {
                 return response()->json([
@@ -222,20 +223,6 @@ class GateinoutController extends Controller
 
             try {
                 DB::beginTransaction();
-
-                $existingPreOut = DB::selectOne(
-                    "SELECT p_id FROM {$this->prefix}pre_inventory
-                     WHERE gate_status = 'OUT' AND status = 0 AND plate_no = ? AND hauler = ?
-                     LIMIT 1 FOR UPDATE",
-                    [$plateNo, $hauler]
-                );
-
-                if ($existingPreOut) {
-                    DB::rollBack();
-                    return response()->json([
-                        'message' => ['danger', '<strong>Alert!</strong> This Pre-Out already exists.']
-                    ]);
-                }
             
                 // Insert Pre-OUT record
                 DB::insert(
