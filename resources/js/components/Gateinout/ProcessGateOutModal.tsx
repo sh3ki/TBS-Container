@@ -1059,7 +1059,7 @@ export default function ProcessGateOutModal({
 
                             <div>
                                 <Label>Shipper *</Label>
-                                <Input value={formData.shipper} disabled className="bg-gray-50" />
+                                <Input value={formData.shipper} maxLength={75} disabled className="bg-gray-50" />
                             </div>
 
                             <div>
