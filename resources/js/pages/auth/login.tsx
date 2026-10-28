@@ -272,7 +272,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         <InputError message={errors.username} />
 
                                         {showSuggestions && rememberedAccounts.length > 0 && (
-                                            <div className="absolute z-20 left-0 right-0 mt-2 bg-white border rounded-md shadow-md max-h-48 overflow-auto">
+                                            <div className="absolute z-20 left-0 right-0 mt-2 max-h-48 overflow-auto rounded-md border border-gray-200 bg-white text-gray-900 shadow-md">
                                                 {rememberedAccounts
                                                     .filter(a => a.username.toLowerCase().includes(username.toLowerCase()))
                                                     .map((a, idx) => (
@@ -280,9 +280,9 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                                             key={idx}
                                                             type="button"
                                                             onMouseDown={() => handleSuggestionPick(a.username, a.password)}
-                                                            className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                                                            className="w-full px-4 py-2 text-left text-gray-900 hover:bg-gray-100 hover:text-gray-900 focus:bg-gray-100 focus:text-gray-900 focus:outline-none"
                                                         >
-                                                            <div className="font-medium">{a.username}</div>
+                                                            <div className="font-medium text-gray-900">{a.username}</div>
                                                         </button>
                                                     ))}
                                             </div>
