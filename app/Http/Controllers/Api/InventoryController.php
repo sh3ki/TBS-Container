@@ -635,6 +635,7 @@ class InventoryController extends Controller
         try {
             $request->validate([
                 'approval_notes' => ['nullable', 'string', 'max:300'],
+                'shipper' => ['sometimes', 'nullable', 'string', 'max:75'],
             ]);
 
             $prefix = DB::getTablePrefix();
