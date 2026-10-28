@@ -181,6 +181,49 @@
         animation: float-delay 8s ease-in-out infinite;
     }
 
+    @keyframes login-water {
+        from { transform: translate3d(0, 0, 0) scaleX(1.05); }
+        to { transform: translate3d(-7%, 0, 0) scaleX(1.05); }
+    }
+
+    @keyframes login-ship {
+        0%, 100% { transform: translate3d(-3%, 0, 0); }
+        50% { transform: translate3d(3%, -4px, 0); }
+    }
+
+    @keyframes login-light {
+        0%, 100% { opacity: .3; }
+        50% { opacity: .9; }
+    }
+
+    @keyframes login-scan {
+        from { transform: translateX(-120%); }
+        to { transform: translateX(240%); }
+    }
+
+    @keyframes login-background-drift {
+        0%, 100% { transform: scale(1.02) translate3d(0, 0, 0); }
+        50% { transform: scale(1.045) translate3d(-.35%, -.15%, 0); }
+    }
+
+    @keyframes login-water-shimmer {
+        from { transform: translateX(-8%); opacity: .12; }
+        to { transform: translateX(8%); opacity: .22; }
+    }
+
+    .login-water { animation: login-water 18s linear infinite alternate; }
+    .login-ship { animation: login-ship 9s ease-in-out infinite; }
+    .login-light { animation: login-light 3s ease-in-out infinite; }
+    .login-scan { animation: login-scan 8s ease-in-out infinite; }
+    .login-background-drift { animation: login-background-drift 24s ease-in-out infinite; }
+    .login-water-shimmer { animation: login-water-shimmer 13s ease-in-out infinite alternate; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .login-water, .login-ship, .login-light, .login-scan,
+        .login-background-drift, .login-water-shimmer,
+        .animate-float, .animate-float-delay { animation: none !important; }
+    }
+
     /* Force light mode for date picker calendar */
     input[type="date"] {
         color-scheme: light;
