@@ -312,6 +312,7 @@ export default function EditInventoryModal({ open, record, onClose, onSuccess }:
                                 <Label htmlFor="shipper">Shipper</Label>
                                 <Input
                                     id="shipper"
+                                    maxLength={75}
                                     value={formData.shipper}
                                     onChange={(e) => handleChange('shipper', e.target.value)}
                                     placeholder="Shipper name"
