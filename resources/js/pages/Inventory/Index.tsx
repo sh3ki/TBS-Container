@@ -3040,6 +3040,7 @@ const Index: React.FC = () => {
                                     <Label className="text-gray-900">{isOutEdit ? 'Shipper' : 'Chasis'}</Label>
                                     <Input
                                         data-history-key={isOutEdit ? 'inventory.shipper' : 'inventory.chasis'}
+                                        maxLength={isOutEdit ? 75 : undefined}
                                         value={isOutEdit ? (editFormData.shipper || '') : (editFormData.chasis || '')}
                                         onChange={(e) => setEditFormData({
                                             ...editFormData,
