@@ -1043,7 +1043,7 @@ class GateinoutController extends Controller
                 'load_type' => 'required|integer',
                 'chasis' => 'required|string',
                 'contact_no' => 'required|string',
-                'shipper' => 'required|string',
+                'shipper' => 'required|string|max:75',
                 'booking_no' => 'required|string',
                 'seal_no' => 'required|string',
                 'remarks' => 'required|string',
