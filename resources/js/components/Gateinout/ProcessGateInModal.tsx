@@ -349,7 +349,11 @@ export default function ProcessGateInModal({
     return (
         <>
             <Dialog open={open} onOpenChange={onClose}>
-                <DialogContent className="min-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent
+                    className="min-w-4xl max-h-[90vh] overflow-y-auto"
+                    onInteractOutside={(event) => event.preventDefault()}
+                    onEscapeKeyDown={(event) => event.preventDefault()}
+                >
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
                             Process Gate IN
@@ -517,7 +521,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Bill of Lading <span className="text-red-500">*</span></Label>
-                                    <Input data-history-key="gateinout.bill_of_lading" data-field="bill_of_lading" value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.bill_of_lading" data-field="bill_of_lading" data-history-enter-next="true" value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Remarks <span className="text-red-500">*</span></Label>
