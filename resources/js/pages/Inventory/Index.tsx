@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { ModernConfirmDialog } from '@/components/modern';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy, Highlighter, ChevronUp, ChevronDown, X, Calendar } from 'lucide-react';
+import { Package, FileText, Download, CheckCircle, Lock, Unlock, Truck, Eye, Pencil, Trash2, Search, Printer, Filter, RotateCcw, Copy, Highlighter, ChevronUp, ChevronDown, X, Calendar, Loader2, ArrowUpDown } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -40,6 +40,48 @@ const legacySizeToIso: Record<string, string> = {
 const getIsoCodeForSizeType = (size: string, type: string): string => {
     const sizeType = `${size}${type}`.trim().toUpperCase();
     return legacySizeToIso[sizeType] || sizeType;
+};
+
+const currentManufacturedYear = () => new Date().getFullYear();
+
+const formatManufacturedMonthYear = (value: unknown): string => {
+    const raw = String(value ?? '').trim();
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[2]}/${isoMatch[1]}`;
+
+    const legacyMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (legacyMatch) return `${legacyMatch[1]}/${legacyMatch[3]}`;
+
+    return raw;
+};
+
+const formatManufacturedInput = (value: string, previousValue: string): string => {
+    const digits = value.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return '';
+
+    const monthDigits = digits.slice(0, 2);
+    if (monthDigits.length === 2) {
+        const month = Number(monthDigits);
+        if (month < 1 || month > 12) return previousValue;
+    }
+
+    const yearDigits = digits.slice(2);
+    if (yearDigits.length === 4) {
+        const year = Number(yearDigits);
+        if (year < 1900 || year > currentManufacturedYear()) return previousValue;
+    }
+
+    return yearDigits ? `${monthDigits}/${yearDigits}` : monthDigits;
+};
+
+const normalizeManufacturedDate = (value: string): string | null => {
+    const match = value.trim().match(/^(0[1-9]|1[0-2])\/(\d{4})$/);
+    if (!match) return null;
+
+    const year = Number(match[2]);
+    if (year < 1900 || year > currentManufacturedYear()) return null;
+
+    return `${match[2]}-${match[1]}-01`;
 };
 
 interface InventoryRecord {
@@ -198,6 +240,7 @@ const Index: React.FC = () => {
         by_client: Record<string, Record<string, number>>;
         size_types: string[];
     } | null>(null);
+    const [summaryLoading, setSummaryLoading] = useState(false);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
 
     // Approval modal states
@@ -268,6 +311,10 @@ const Index: React.FC = () => {
         JSON.stringify(editFormData) !== JSON.stringify(initialEditFormData)
     );
     const isOutEdit = editFormData?.gate === 'OUT';
+    const canUseInventoryToggles = (row: InventoryRecord) => (
+        String(row.gate_status || row.gate || '').toUpperCase() === 'IN'
+        && Number(row.complete) === 0
+    );
 
     const highlightText = (value: unknown): React.ReactNode => {
         const text = String(value ?? '');
@@ -337,6 +384,18 @@ const Index: React.FC = () => {
 
         return `${year}-${month}-${day}`;
     };
+
+    const requiredGateDateFields: Array<keyof typeof defaultFilters> = filters.gate_status === 'IN'
+        ? ['date_in_from', 'date_in_to']
+        : filters.gate_status === 'OUT'
+            ? ['date_out_from', 'date_out_to']
+            : filters.gate_status === 'BOTH'
+                ? ['date_in_from', 'date_in_to', 'date_out_from', 'date_out_to']
+                : [];
+    const hasRequiredGateDateFilters = requiredGateDateFields.every((field) => (
+        Boolean(dateFilterToApiValue(String(filters[field] || '')))
+    ));
+    const canApplyFilters = hasAdditionalFilterValues(filters) && hasRequiredGateDateFilters;
 
     const dateFilterDisplayValue = (value: string) => {
         const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -499,7 +558,9 @@ const Index: React.FC = () => {
         perPage = itemsPerPage,
         search = searchTerm,
         showToast = false,
-        includeSummary = false,
+        // Load the summary with the table request so opening the summary modal
+        // does not trigger a second network request.
+        includeSummary = true,
         append = false,
         offset = 0,
         limit = 100,
@@ -617,6 +678,24 @@ const Index: React.FC = () => {
         }
     };
 
+    const handleViewSummary = async () => {
+        if (summaryLoading) return;
+        if (reportData.length === 0) {
+            error('Please generate a report first to view the summary');
+            return;
+        }
+
+        setSummaryLoading(true);
+        try {
+            if (!summaryData) {
+                await fetchSummaryData();
+            }
+            setShowSummaryModal(true);
+        } finally {
+            setSummaryLoading(false);
+        }
+    };
+
     const loadAllInventory = async () => {
         await fetchInventory({ page: 1, perPage: itemsPerPage, search: appliedSearchTerm, showToast: false });
     };
@@ -680,6 +759,9 @@ const Index: React.FC = () => {
             if (column === 'date_days' || column === 'date_time') {
                 left = new Date(`${a.date || ''}T${a.time || '00:00:00'}`).getTime() || 0;
                 right = new Date(`${b.date || ''}T${b.time || '00:00:00'}`).getTime() || 0;
+            } else if (column === 'days') {
+                left = Number(a.days) || 0;
+                right = Number(b.days) || 0;
             } else if (column === 'client') {
                 left = a.client || '';
                 right = b.client || '';
@@ -700,6 +782,13 @@ const Index: React.FC = () => {
     };
 
     const inventoryTableData = sortedReportData(filteredReportData, sortColumn, sortDirection);
+    const sortIconFor = (column: string) => sortColumn === column
+        ? <span className="text-white">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+        : (
+            <span className="inline-flex text-white" aria-hidden="true">
+                <ArrowUpDown className="h-4 w-4 opacity-90" />
+            </span>
+        );
     const highlightTerms = highlightSearchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const highlightMatchIndexes = highlightMode && highlightTerms.length > 0
         ? inventoryTableData.reduce<number[]>((matches, row, index) => {
@@ -1155,7 +1244,7 @@ const Index: React.FC = () => {
                     status: data.container_status || '',
                     status_id: data.container_status_id,
                     class: data.condition || '',
-                    dmf: data.date_manufactured || '',
+                    dmf: formatManufacturedMonthYear(data.date_manufactured),
                     location: data.location || '',
                     eir_notes: data.remarks || '',
                     app_notes: data.approval_notes || '',
@@ -1234,7 +1323,7 @@ const Index: React.FC = () => {
                     status: data.container_status || '',
                     status_id: data.container_status_id,
                     class: data.condition || '',
-                    dmf: data.date_manufactured || '',
+                    dmf: formatManufacturedMonthYear(data.date_manufactured),
                     location: data.location || '',
                     eir_notes: data.remarks || '',
                     app_notes: data.approval_notes || '',
@@ -1273,6 +1362,11 @@ const Index: React.FC = () => {
     const handleSubmitEdit = () => {
         if (!editFormData || !hasEditChanges) return;
 
+        if (normalizeManufacturedDate(editFormData.dmf) === null) {
+            error('Date Manufactured must use MM/YYYY with a year from 1900 to the current year.');
+            return;
+        }
+
         setShowEditModal(false);
         setShowEditConfirm(true);
     };
@@ -1310,7 +1404,7 @@ const Index: React.FC = () => {
                 license_no: editFormData.license_no?.toUpperCase(),
                 chasis: editFormData.chasis?.toUpperCase(),
                 seal_no: editFormData.seal_no,
-                date_manufactured: editFormData.dmf,
+                date_manufactured: normalizeManufacturedDate(editFormData.dmf),
                 contact_no: editFormData.contact_no?.toUpperCase(),
                 ...(isOutEdit ? {} : { bill_of_lading: editFormData.bill_of_lading?.toUpperCase() }),
                 ...(isOutEdit ? {} : { approval_notes: editFormData.app_notes?.toUpperCase() }),
@@ -1424,12 +1518,13 @@ const Index: React.FC = () => {
     };
 
     const handleSearch = async (allowEmpty = false) => {
-        if (!allowEmpty && !searchTerm.trim()) {
+        const trimmedSearch = searchTerm.trim();
+        if (!allowEmpty && !trimmedSearch && !appliedSearchTerm) {
             return;
         }
         setCurrentPage(1);
         await fetchInventory({ page: 1, perPage: itemsPerPage, search: searchTerm, showToast: true });
-        setAppliedSearchTerm(searchTerm.trim());
+        setAppliedSearchTerm(trimmedSearch);
     };
 
     const handleFilterModalOpenChange = (open: boolean) => {
@@ -1463,7 +1558,7 @@ const Index: React.FC = () => {
 
     const handleApplyFilters = async () => {
         // Changing only the In/Out view must not apply a filter by itself.
-        if (!hasAdditionalFilterValues(filters)) return;
+        if (!canApplyFilters) return;
         await fetchInventory({
             page: 1,
             perPage: itemsPerPage,
@@ -1551,21 +1646,12 @@ const Index: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <ModernButton 
                             variant="edit" 
-                            onClick={async () => {
-                                if (reportData.length === 0) {
-                                    error('Please generate a report first to view the summary');
-                                    return;
-                                }
-                                if (!summaryData) {
-                                    await fetchSummaryData();
-                                }
-                                setShowSummaryModal(true);
-                            }} 
-                            disabled={loading}
+                            onClick={() => void handleViewSummary()} 
+                            disabled={loading || summaryLoading || reportData.length === 0}
                             className="px-6 py-3"
                         >
-                            <Eye className="w-5 h-5" />
-                            View Summary Report
+                            {summaryLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                            {summaryLoading ? 'Generating...' : 'View Summary Report'}
                         </ModernButton>
                         <ModernButton 
                             variant="add" 
@@ -1609,7 +1695,7 @@ const Index: React.FC = () => {
                                             type="button"
                                             variant="primary"
                                             onClick={() => void handleSearch()}
-                                            disabled={loading}
+                                            disabled={loading || (!searchTerm.trim() && !appliedSearchTerm)}
                                             className="h-11 px-5 shrink-0"
                                         >
                                             Search
@@ -1848,6 +1934,23 @@ const Index: React.FC = () => {
                                 {
                                     key: 'info',
                                     label: 'Size / Status / Class',
+                                    disableRowClick: true,
+                                    headerRender: () => (
+                                        <div className="flex flex-col items-start gap-0.5 text-xs uppercase leading-tight">
+                                            {(['size', 'status', 'class'] as const).map((column) => (
+                                                <button
+                                                    key={column}
+                                                    type="button"
+                                                    className="inline-flex items-center gap-1 font-semibold hover:text-white/80"
+                                                    onClick={(event) => { event.stopPropagation(); handleSort(column); }}
+                                                    title={`Sort by ${column}`}
+                                                >
+                                                    {column === 'size' ? 'SIZE' : column === 'status' ? 'STATUS' : 'CLASS'}
+                                                    {sortIconFor(column)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ),
                                     render: (row: InventoryRecord) => {
                                         // size variant
                                         let sizeVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
@@ -1901,7 +2004,28 @@ const Index: React.FC = () => {
                                 {
                                     key: 'date_days',
                                     label: 'DATE / TIME / DAYS',
-                                    sortable: true,
+                                    headerRender: () => (
+                                        <div className="flex flex-col items-start gap-0.5 text-xs uppercase leading-tight">
+                                            <button
+                                                type="button"
+                                                className="inline-flex items-center gap-1 font-semibold hover:text-white/80"
+                                                onClick={(event) => { event.stopPropagation(); handleSort('date_days'); }}
+                                                title="Sort by date and time"
+                                            >
+                                                DATE / TIME
+                                                {sortIconFor('date_days')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="inline-flex items-center gap-1 font-semibold hover:text-white/80"
+                                                onClick={(event) => { event.stopPropagation(); handleSort('days'); }}
+                                                title="Sort by days"
+                                            >
+                                                DAYS
+                                                {sortIconFor('days')}
+                                            </button>
+                                        </div>
+                                    ),
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[130px]">
                                             <div className="font-medium">{highlightText(formatDate(row.date))}</div>
@@ -2006,6 +2130,15 @@ const Index: React.FC = () => {
                                                     <Eye className="w-3.5 h-3.5" />
                                                 </ModernButton>
 
+                                                <ModernButton
+                                                    variant="print"
+                                                    size="sm"
+                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
+                                                    title="Print"
+                                                >
+                                                    <Printer className="w-3.5 h-3.5" />
+                                                </ModernButton>
+
                                                 <ModernButton 
                                                     variant="edit" 
                                                     size="sm" 
@@ -2015,22 +2148,13 @@ const Index: React.FC = () => {
                                                     <Pencil className="w-3.5 h-3.5" />
                                                 </ModernButton>
 
-                                                <ModernButton
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); openLegacyPrintSingle(row); }}
-                                                    title="Print"
-                                                >
-                                                    <Printer className="w-3.5 h-3.5" />
-                                                </ModernButton>
-
                                                 {row.is_hold ? (
                                                     <ModernButton
                                                         variant="secondary"
                                                         size="sm"
                                                         onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenUnholdConfirm(row); }}
                                                         title="Remove from Hold"
-                                                        disabled={updatingStatus}
+                                                        disabled={updatingStatus || !canUseInventoryToggles(row)}
                                                     >
                                                         <Unlock className="w-3.5 h-3.5" />
                                                     </ModernButton>
@@ -2040,18 +2164,18 @@ const Index: React.FC = () => {
                                                         size="sm"
                                                         onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenHoldModal(row); }}
                                                         title="Place on Hold"
-                                                        disabled={updatingStatus}
+                                                        disabled={updatingStatus || !canUseInventoryToggles(row)}
                                                     >
                                                         <Lock className="w-3.5 h-3.5" />
                                                     </ModernButton>
                                                 )}
 
                                                 <ModernButton
-                                                    variant={row.container_status_id === 8 ? "add" : "edit"}
+                                                    variant={row.container_status_id === 8 ? "add" : "repo"}
                                                     size="sm"
                                                     onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
                                                     title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
-                                                    disabled={updatingStatus}
+                                                    disabled={updatingStatus || !canUseInventoryToggles(row)}
                                                 >
                                                     <Truck className="w-3.5 h-3.5" />
                                                 </ModernButton>
@@ -2241,12 +2365,18 @@ const Index: React.FC = () => {
                             </div>
                             
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Gate IN (Date From)</Label>
+                                <Label className="text-sm font-semibold mb-2">
+                                    Gate IN (Date From)
+                                    {['IN', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                </Label>
                                 {renderDateFilterInput('date_in_from', gateInDateFiltersEnabled)}
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Gate IN (Date To)</Label>
+                                <Label className="text-sm font-semibold mb-2">
+                                    Gate IN (Date To)
+                                    {['IN', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                </Label>
                                 {renderDateFilterInput('date_in_to', gateInDateFiltersEnabled)}
                             </div>
 
@@ -2311,12 +2441,18 @@ const Index: React.FC = () => {
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Gate OUT (Date From)</Label>
+                                <Label className="text-sm font-semibold mb-2">
+                                    Gate OUT (Date From)
+                                    {['OUT', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                </Label>
                                 {renderDateFilterInput('date_out_from', gateOutDateFiltersEnabled)}
                             </div>
 
                             <div>
-                                <Label className="text-sm font-semibold mb-2">Gate OUT (Date To)</Label>
+                                <Label className="text-sm font-semibold mb-2">
+                                    Gate OUT (Date To)
+                                    {['OUT', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                </Label>
                                 {renderDateFilterInput('date_out_to', gateOutDateFiltersEnabled)}
                             </div>
 
@@ -2374,9 +2510,9 @@ const Index: React.FC = () => {
                         <ModernButton
                             variant="primary"
                             onClick={handleApplyFilters}
-                            disabled={loading || !hasAdditionalFilterValues(filters)}
+                            disabled={loading || !canApplyFilters}
                         >
-                            <FileText className="w-4 h-4" />
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                             {loading ? 'Applying...' : 'Apply'}
                         </ModernButton>
                     </DialogFooter>
@@ -2789,10 +2925,16 @@ const Index: React.FC = () => {
                                 </div>
                                 <div>
                                     <Label className="text-gray-900">Date Manufactured</Label>
-                                    <Input 
-                                        type="date"
-                                        value={editFormData.dmf} 
-                                        onChange={(e) => setEditFormData({...editFormData, dmf: e.target.value})}
+                                    <Input
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={7}
+                                        placeholder="mm/yyyy"
+                                        value={editFormData.dmf}
+                                        onChange={(e) => setEditFormData({
+                                            ...editFormData,
+                                            dmf: formatManufacturedInput(e.target.value, editFormData.dmf),
+                                        })}
                                     />
                                 </div>
                                 <div>
