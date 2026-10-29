@@ -136,6 +136,12 @@ export default function CachedFieldHistory() {
                 setActiveHistoryField(null);
                 setHistorySuggestions([]);
                 setHistoryHighlightedIndex(-1);
+            } else if (event.key === 'Tab' || event.key === 'Enter') {
+                // Close the history dropdown when leaving the field. Enter is
+                // allowed to continue to the form's own focus/navigation handler.
+                setActiveHistoryField(null);
+                setHistorySuggestions([]);
+                setHistoryHighlightedIndex(-1);
             } else if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
