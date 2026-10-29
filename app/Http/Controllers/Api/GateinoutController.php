@@ -54,7 +54,11 @@ class GateinoutController extends Controller
                     COALESCE(CONCAT(st.size, st.type), '-') AS size_type_display,
                     p.date_added,
                     p.date_completed,
-                    TIMESTAMPDIFF(MINUTE, p.date_added, COALESCE(p.date_completed, CONVERT_TZ(NOW(), @@session.time_zone, '+08:00'))) AS runtime,
+                    TIMESTAMPDIFF(
+                        MINUTE,
+                        CASE WHEN p.date_completed IS NOT NULL THEN p.date_completed ELSE p.date_added END,
+                        CONVERT_TZ(NOW(), @@session.time_zone, '+08:00')
+                    ) AS runtime,
                     p.client_id,
                     p.user_id
                 FROM {$prefix}pre_inventory p
@@ -834,26 +838,35 @@ class GateinoutController extends Controller
             $validated = $request->validate([
                 'p_id' => 'required|integer',
                 'container_no' => 'required|string|size:11',
-                'date_mnfg' => 'required|string',
+                'date_mnfg' => 'required|string|regex:/^\d{4}-\d{2}-\d{2}$/',
                 'cnt_status' => 'required|integer',
                 'size_type' => 'required|integer',
-                'iso_code' => 'required|string',
+                'iso_code' => 'required|string|max:20',
                 'cnt_class' => 'required|string|in:A,B,C',
-                'vessel' => 'required|string',
-                'voyage' => 'required|string',
-                'checker' => 'required|string',
-                'ex_consignee' => 'required|string',
+                'vessel' => 'required|string|max:100',
+                'voyage' => 'required|string|max:100',
+                'checker' => 'required|string|max:100',
+                'ex_consignee' => 'required|string|max:255',
                 'load_type' => 'required|integer',
-                'plate_no' => 'required|string',
-                'hauler' => 'required|string',
-                'hauler_driver' => 'required|string',
-                'license_no' => 'required|string',
-                'location' => 'required|string',
-                'chasis' => 'required|string',
-                'contact_no' => 'required|string',
-                'bol' => 'required|string',
-                'remarks' => 'required|string'
+                'plate_no' => 'required|string|max:50',
+                'hauler' => 'required|string|max:100',
+                'hauler_driver' => 'required|string|max:100',
+                'license_no' => 'required|string|max:50',
+                'location' => 'required|string|max:100',
+                'chasis' => 'required|string|max:50',
+                'contact_no' => 'required|string|max:30',
+                'bol' => 'required|string|max:255',
+                'remarks' => 'required|string|max:255'
             ]);
+
+            $manufacturedDate = $validated['date_mnfg'];
+            $currentYear = (int) date('Y');
+            $manufacturedYear = (int) substr($manufacturedDate, 0, 4);
+            $manufacturedMonth = (int) substr($manufacturedDate, 5, 2);
+            $manufacturedDay = substr($manufacturedDate, 8, 2);
+            if ($manufacturedYear < 1900 || $manufacturedYear > $currentYear || $manufacturedMonth < 1 || $manufacturedMonth > 12 || $manufacturedDay !== '01') {
+                return response()->json(['success' => false, 'message' => 'Date Manufactured must be a valid month/year from 1900 to the current year.'], 422);
+            }
 
             // Validate container number is exactly 11 characters
             if (strlen($validated['container_no']) !== 11) {
@@ -1037,22 +1050,22 @@ class GateinoutController extends Controller
                 'client_id' => 'required|integer',
                 'container_status' => 'required|integer',
                 'size_type' => 'required|integer',
-                'iso_code' => 'required|string',
-                'vessel' => 'required|string',
-                'voyage' => 'required|string',
-                'plate_no' => 'required|string',
-                'hauler' => 'required|string',
-                'hauler_driver' => 'required|string',
-                'license_no' => 'required|string',
-                'checker' => 'required|string',
-                'location' => 'required|string',
+                'iso_code' => 'required|string|max:20',
+                'vessel' => 'required|string|max:100',
+                'voyage' => 'required|string|max:100',
+                'plate_no' => 'required|string|max:50',
+                'hauler' => 'required|string|max:100',
+                'hauler_driver' => 'required|string|max:100',
+                'license_no' => 'required|string|max:50',
+                'checker' => 'required|string|max:100',
+                'location' => 'required|string|max:100',
                 'load_type' => 'required|integer',
-                'chasis' => 'required|string',
-                'contact_no' => 'required|string',
+                'chasis' => 'required|string|max:50',
+                'contact_no' => 'required|string|max:30',
                 'shipper' => 'required|string|max:75',
-                'booking_no' => 'required|string',
-                'seal_no' => 'required|string',
-                'remarks' => 'required|string',
+                'booking_no' => 'required|string|max:100',
+                'seal_no' => 'required|string|max:100',
+                'remarks' => 'required|string|max:255',
                 'save_and_book' => 'required|string|in:YES,NO'
             ]);
 
@@ -1083,6 +1096,18 @@ class GateinoutController extends Controller
                         'success' => false,
                         'message' => 'Container not found in yard or already gated out'
                     ], 409);
+                }
+
+                $manufacturedDate = (string) ($inRecord->date_manufactured ?? '');
+                $currentYear = (int) date('Y');
+                $manufacturedDateIsValid = preg_match('/^(\d{4})-(\d{2})-01$/', $manufacturedDate, $dateParts)
+                    && (int) $dateParts[1] >= 1900
+                    && (int) $dateParts[1] <= $currentYear
+                    && (int) $dateParts[2] >= 1
+                    && (int) $dateParts[2] <= 12;
+                if (!$manufacturedDateIsValid) {
+                    DB::rollBack();
+                    return response()->json(['success' => false, 'message' => 'The Gate IN record has an invalid Date Manufactured. Correct it before processing Gate OUT.'], 422);
                 }
 
                 $inventoryId = $inRecord->i_id;
