@@ -754,8 +754,17 @@ export default function ProcessGateOutModal({
     };
 
     const handleEnterToNextField = (e: React.KeyboardEvent<HTMLElement>) => {
-        if (e.key !== 'Enter' || e.defaultPrevented || e.target instanceof HTMLTextAreaElement) return;
+        if (e.defaultPrevented || e.target instanceof HTMLTextAreaElement) return;
         if (e.target instanceof HTMLButtonElement) return;
+
+        const target = e.target as HTMLElement;
+        if ((e.key === 'Enter' || e.key === 'Tab') && target.dataset.field === 'seal_no') {
+            e.preventDefault();
+            (e.currentTarget.querySelector('[data-field="remarks"]') as HTMLElement | null)?.focus();
+            return;
+        }
+
+        if (e.key !== 'Enter') return;
 
         e.preventDefault();
         const currentField = (e.target as HTMLElement).closest<HTMLElement>('input, select, button, [tabindex]');
@@ -771,7 +780,12 @@ export default function ProcessGateOutModal({
     return (
         <>
             <Dialog open={open} onOpenChange={onClose}>
-                <DialogContent className="min-w-4xl max-h-[90vh] overflow-y-auto" onKeyDown={handleEnterToNextField}>
+                <DialogContent
+                    className="min-w-4xl max-h-[90vh] overflow-y-auto"
+                    onKeyDown={handleEnterToNextField}
+                    onInteractOutside={(event) => event.preventDefault()}
+                    onEscapeKeyDown={(event) => event.preventDefault()}
+                >
                     <DialogHeader>
                         <DialogTitle>Process Gate OUT</DialogTitle>
                         <DialogDescription>
@@ -784,7 +798,7 @@ export default function ProcessGateOutModal({
                         <div className="space-y-4">
                             {/* Container Number with Autocomplete */}
                             <div className="relative">
-                                <Label>Container Number *</Label>
+                                <Label>Container Number <span className="text-red-500">*</span></Label>
                                 <div className="relative">
                                     <Input
                                         value={searchTerm}
@@ -862,7 +876,7 @@ export default function ProcessGateOutModal({
                             </div>
                             
                             <div>
-                                <Label>Status *</Label>
+                                <Label>Status <span className="text-red-500">*</span></Label>
                                 <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)} disabled={!isContainerSelected}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select status" />
@@ -891,7 +905,7 @@ export default function ProcessGateOutModal({
                         <div className="space-y-4">
 
                             <div>
-                                <Label>Vessel *</Label>
+                                <Label>Vessel <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.vessel"
                                     value={formData.vessel}
@@ -901,7 +915,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Voyage *</Label>
+                                <Label>Voyage <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.voyage"
                                     value={formData.voyage}
@@ -911,7 +925,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Hauler Driver *</Label>
+                                <Label>Hauler Driver <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.hauler_driver"
                                     value={formData.hauler_driver}
@@ -921,7 +935,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>License Number *</Label>
+                                <Label>License Number <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.license_no"
                                     value={formData.license_no}
@@ -931,7 +945,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Location *</Label>
+                                <Label>Location <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.location"
                                     value={formData.location}
@@ -941,7 +955,7 @@ export default function ProcessGateOutModal({
                             </div>
                             
                             <div>
-                                <Label>Load *</Label>
+                                <Label>Load <span className="text-red-500">*</span></Label>
                                 <Select value={formData.load} onValueChange={(value) => handleInputChange('load', value)} disabled={!isContainerSelected}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select load" />
@@ -956,7 +970,7 @@ export default function ProcessGateOutModal({
                                 </Select>
                             </div>
                             <div>
-                                <Label>Chasis *</Label>
+                                <Label>Chasis <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.chasis"
                                     value={formData.chasis}
@@ -966,7 +980,7 @@ export default function ProcessGateOutModal({
                             </div>
                             
                             <div>
-                                <Label>Save and Book *</Label>
+                                <Label>Save and Book <span className="text-red-500">*</span></Label>
                                 <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)} disabled={!isContainerSelected}>
                                     <SelectTrigger>
                                         <SelectValue />
@@ -984,7 +998,7 @@ export default function ProcessGateOutModal({
 
 
                             <div>
-                                <Label>Contact No. *</Label>
+                                <Label>Contact No. <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.contact_no"
                                     value={formData.contact_no}
@@ -994,7 +1008,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Booking *</Label>
+                                <Label>Booking <span className="text-red-500">*</span></Label>
                                 <div className="relative">
                                     <Input
                                         value={bookingSearchTerm}
@@ -1058,14 +1072,16 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Shipper *</Label>
+                                <Label>Shipper <span className="text-red-500">*</span></Label>
                                 <Input value={formData.shipper} maxLength={75} disabled className="bg-gray-50" />
                             </div>
 
                             <div>
-                                <Label>Seal No. *</Label>
+                                <Label>Seal No. <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.seal_no"
+                                    data-field="seal_no"
+                                    data-history-enter-next="true"
                                     value={formData.seal_no}
                                     onChange={(e) => handleInputChange('seal_no', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -1091,8 +1107,9 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Remarks *</Label>
+                                <Label>Remarks <span className="text-red-500">*</span></Label>
                                 <Textarea
+                                    data-field="remarks"
                                     value={formData.remarks}
                                     onChange={(e) => handleInputChange('remarks', e.target.value)}
                                     className="min-h-[80px]"
