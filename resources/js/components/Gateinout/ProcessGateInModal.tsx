@@ -24,6 +24,27 @@ import { Printer, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
 
+const currentManufacturedYear = () => new Date().getFullYear();
+
+const formatManufacturedInput = (value: string, previousValue: string): string => {
+    const digits = value.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return '';
+
+    const monthDigits = digits.slice(0, 2);
+    if (monthDigits.length === 2) {
+        const month = Number(monthDigits);
+        if (month < 1 || month > 12) return previousValue;
+    }
+
+    const yearDigits = digits.slice(2);
+    if (yearDigits.length === 4) {
+        const year = Number(yearDigits);
+        if (year < 1900 || year > currentManufacturedYear()) return previousValue;
+    }
+
+    return yearDigits ? `${monthDigits}/${yearDigits}` : monthDigits;
+};
+
 interface ProcessGateInModalProps {
     open: boolean;
     onClose: () => void;
@@ -193,8 +214,11 @@ export default function ProcessGateInModal({
             return;
         }
 
-        if (!/^((0[1-9])|(1[0-2]))\/\d{4}$/.test(formData.date_manufactured)) {
-            (showError ? showError('Date Manufactured must use a valid MM/YYYY format with a month from 01 to 12') : alert('Date Manufactured must use a valid MM/YYYY format with a month from 01 to 12'));
+        const manufacturedDateMatch = /^(0[1-9]|1[0-2])\/(\d{4})$/.exec(formData.date_manufactured);
+        const currentYear = new Date().getFullYear();
+        const manufacturedYear = manufacturedDateMatch ? Number(manufacturedDateMatch[2]) : NaN;
+        if (!manufacturedDateMatch || manufacturedYear < 1900 || manufacturedYear > currentYear) {
+            (showError ? showError(`Date Manufactured must use MM/YYYY with a month from 01 to 12 and a year from 1900 to ${currentYear}`) : alert(`Date Manufactured must use MM/YYYY with a month from 01 to 12 and a year from 1900 to ${currentYear}`));
             return;
         }
         
@@ -287,7 +311,6 @@ export default function ProcessGateInModal({
                     'gateinout.chasis': formData.chasis,
                     'gateinout.contact_no': formData.contact_no,
                     'gateinout.bill_of_lading': formData.bill_of_lading,
-                    'gateinout.remarks': formData.remarks,
                 });
                 const inventoryId = response.data.inventory_id;
                 const printUrl = `/api/gateinout/print-gate-pass/${inventoryId}?status=IN`;
@@ -307,8 +330,14 @@ export default function ProcessGateInModal({
 
     const handleEnterToNextField = (e: React.KeyboardEvent<HTMLElement>) => {
         if (e.key !== 'Enter' || e.defaultPrevented || e.target instanceof HTMLTextAreaElement) return;
+        if (e.target instanceof HTMLButtonElement) return;
 
         e.preventDefault();
+        if ((e.target as HTMLElement).getAttribute('data-field') === 'bill_of_lading') {
+            (e.currentTarget.querySelector('[data-field="remarks"]') as HTMLElement | null)?.focus();
+            return;
+        }
+
         const currentField = (e.target as HTMLElement).closest<HTMLElement>('input, select, button, [tabindex]');
         const fields = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(
             'input:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -347,32 +376,10 @@ export default function ProcessGateInModal({
                                         <Input
                                             type="text"
                                             value={formData.date_manufactured}
-                                            onChange={(e) => {
-                                                let value = e.target.value;
-                                                
-                                                // Allow user to type mm/yyyy naturally
-                                                // Remove any invalid characters, keep only digits and slash
-                                                value = value.replace(/[^\d\/]/g, '');
-
-                                                const monthDigits = value.replace(/\D/g, '').slice(0, 2);
-                                                if (monthDigits.length === 2 && (Number(monthDigits) < 1 || Number(monthDigits) > 12)) {
-                                                    value = value.slice(0, 1);
-                                                }
-                                                
-                                                // Limit to mm/yyyy format (7 chars max)
-                                                if (value.length > 7) {
-                                                    value = value.slice(0, 7);
-                                                }
-                                                
-                                                // Auto-insert slash after 2 digits if not present
-                                                if (value.length === 2 && !value.includes('/')) {
-                                                    value = value + '/';
-                                                } else if (value.length > 2 && value[2] !== '/') {
-                                                    value = value.slice(0, 2) + '/' + value.slice(2);
-                                                }
-                                                
-                                                setFormData({ ...formData, date_manufactured: value });
-                                            }}
+                                            onChange={(e) => setFormData(prev => ({
+                                                ...prev,
+                                                date_manufactured: formatManufacturedInput(e.target.value, prev.date_manufactured),
+                                            }))}
                                             className="pr-10"
                                             placeholder="mm/yyyy"
                                             maxLength="7"
@@ -510,12 +517,12 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Bill of Lading <span className="text-red-500">*</span></Label>
-                                    <Input data-history-key="gateinout.bill_of_lading" value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.bill_of_lading" data-field="bill_of_lading" value={formData.bill_of_lading} onChange={(e) => setFormData({ ...formData, bill_of_lading: e.target.value.toUpperCase() })} />
                                 </div>
                                 <div>
                                     <Label>Remarks <span className="text-red-500">*</span></Label>
                                     <Textarea
-                                        data-history-key="gateinout.remarks"
+                                        data-field="remarks"
                                         value={formData.remarks}
                                         onChange={(e) => setFormData({ ...formData, remarks: e.target.value.toUpperCase() })}
                                         className="min-h-[80px]"
