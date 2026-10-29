@@ -48,6 +48,10 @@ class GateinoutController extends Controller
                     COALESCE(NULLIF(p.plate_no, ''), '-') AS plate_no,
                     p.gate_status,
                     CASE WHEN p.status = 0 THEN 'pending' ELSE 'processed' END AS status,
+                    CAST(COALESCE(p.cnt_status, 0) AS UNSIGNED) AS container_status_id,
+                    COALESCE(cs.status, '-') AS container_status,
+                    CAST(COALESCE(p.size_type, 0) AS UNSIGNED) AS size_type_id,
+                    COALESCE(CONCAT(st.size, st.type), '-') AS size_type_display,
                     p.date_added,
                     p.date_completed,
                     TIMESTAMPDIFF(MINUTE, p.date_added, COALESCE(p.date_completed, CONVERT_TZ(NOW(), @@session.time_zone, '+08:00'))) AS runtime,
@@ -55,6 +59,8 @@ class GateinoutController extends Controller
                     p.user_id
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                LEFT JOIN {$prefix}container_status cs ON cs.s_id = p.cnt_status
+                LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
                 WHERE p.status = 0
                 ORDER BY p.date_added DESC
                 LIMIT 1000
