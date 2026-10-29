@@ -1,7 +1,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
-type ButtonVariant = 'add' | 'edit' | 'delete' | 'toggle' | 'primary' | 'secondary';
+type ButtonVariant = 'add' | 'edit' | 'repo' | 'delete' | 'toggle' | 'primary' | 'secondary' | 'print';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ModernButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,10 +15,12 @@ interface ModernButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
 const variantStyles: Record<ButtonVariant, string> = {
   add: 'bg-[#10B981] hover:bg-[#059669] text-white',
   edit: 'bg-[#F59E0B] hover:bg-[#D97706] text-white',
+  repo: 'bg-[#F97316] hover:bg-[#EA580C] text-white',
   delete: 'bg-[#EF4444] hover:bg-[#DC2626] text-white',
   toggle: 'bg-[#6B7280] hover:bg-[#4B5563] text-white',
   primary: 'bg-[#3E9AF4] hover:bg-[#2563EB] text-white',
   secondary: 'bg-white hover:bg-gray-50 text-gray-900 border border-gray-300',
+  print: 'bg-[#8B5CF6] hover:bg-[#7C3AED] text-white',
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
