@@ -25,6 +25,10 @@ interface PreInventoryRecord extends Record<string, unknown> {
   hauler: string;
   gate_status: 'IN' | 'OUT';
   status: 'pending' | 'processed';
+  container_status_id?: number;
+  container_status?: string;
+  size_type_id?: number;
+  size_type_display?: string;
   runtime: number;
   runtime_color: 'green' | 'orange' | 'red';
   date_added: string;
@@ -62,6 +66,24 @@ interface EditPreOutFormData {
   plate_no: string;
   hauler: string;
 }
+
+type BadgeVariant = 'success' | 'error' | 'warning' | 'info' | 'default';
+
+const getContainerStatusVariant = (status: string): BadgeVariant => {
+  if (status === 'AVL' || status === 'RPR') return 'success';
+  if (status === 'DMG' || status === 'HLD') return 'error';
+  if (status === 'ASIS' || status === 'REPO') return 'warning';
+  if (status === 'FSV' || status === 'WSH') return 'info';
+  return 'default';
+};
+
+const getSizeTypeVariant = (sizeType: string): BadgeVariant => {
+  if (sizeType === '10DJH' || sizeType === '20RF' || sizeType === '40HC') return 'success';
+  if (sizeType === '20FR' || sizeType === '20RH' || sizeType === '40OT') return 'error';
+  if (sizeType === '20HR' || sizeType === '40DC' || sizeType === '40RH') return 'warning';
+  if (sizeType === '20OT' || sizeType === '40FR') return 'info';
+  return 'default';
+};
 
 export default function Index() {
   const { toasts, removeToast, success, error } = useModernToast();
@@ -861,6 +883,26 @@ export default function Index() {
                 ),
               },
               {
+                key: 'container_status',
+                label: 'Status',
+                sortable: true,
+                render: (record: PreInventoryRecord) => (
+                  <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>
+                    {(record.container_status || '-').toUpperCase()}
+                  </ModernBadge>
+                ),
+              },
+              {
+                key: 'size_type_display',
+                label: 'Size / Type',
+                sortable: true,
+                render: (record: PreInventoryRecord) => (
+                  <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>
+                    {(record.size_type_display || '-').toUpperCase()}
+                  </ModernBadge>
+                ),
+              },
+              {
                 key: 'gate_status',
                 label: 'Gate Status',
                 render: (record: PreInventoryRecord) => (
@@ -873,7 +915,7 @@ export default function Index() {
               },
               {
                 key: 'status',
-                label: 'Status',
+                label: 'Process',
                 render: (record: PreInventoryRecord) => (
                   <div className="min-w-[70px] ">
                     <ModernBadge
@@ -1055,7 +1097,7 @@ export default function Index() {
               },
               {
                 key: 'status',
-                label: 'Status',
+                label: 'Process',
                 render: (record: PreInventoryRecord) => (
                   <div className="min-w-[70px] ">
                     <ModernBadge
