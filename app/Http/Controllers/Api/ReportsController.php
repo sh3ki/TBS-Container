@@ -1390,6 +1390,7 @@ class ReportsController extends Controller
                     'inventory.voyage',
                     'inventory.shipper',
                     'inventory.hauler',
+                    'inventory.seal_no',
                     'inventory.booking',
                     'inventory.location',
                     'inventory.plate_no',
