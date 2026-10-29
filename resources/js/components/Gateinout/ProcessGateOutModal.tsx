@@ -726,7 +726,6 @@ export default function ProcessGateOutModal({
                     'gateinout.chasis': formData.chasis,
                     'gateinout.contact_no': formData.contact_no,
                     'gateinout.seal_no': formData.seal_no,
-                    'gateinout.remarks': formData.remarks,
                 });
                 // Open print window
                 window.open(
@@ -756,6 +755,7 @@ export default function ProcessGateOutModal({
 
     const handleEnterToNextField = (e: React.KeyboardEvent<HTMLElement>) => {
         if (e.key !== 'Enter' || e.defaultPrevented || e.target instanceof HTMLTextAreaElement) return;
+        if (e.target instanceof HTMLButtonElement) return;
 
         e.preventDefault();
         const currentField = (e.target as HTMLElement).closest<HTMLElement>('input, select, button, [tabindex]');
@@ -1093,7 +1093,6 @@ export default function ProcessGateOutModal({
                             <div>
                                 <Label>Remarks *</Label>
                                 <Textarea
-                                    data-history-key="gateinout.remarks"
                                     value={formData.remarks}
                                     onChange={(e) => handleInputChange('remarks', e.target.value)}
                                     className="min-h-[80px]"
