@@ -943,7 +943,7 @@ export default function Index() {
               },
               {
                 key: 'date_added',
-                label: 'Date Created',
+                label: 'Date Added',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[80px] max-w-[110px]">
@@ -1125,7 +1125,7 @@ export default function Index() {
               },
               {
                 key: 'date_added',
-                label: 'Date Created',
+                label: 'Date Added',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
                   <div className="text-sm text-gray-600 min-w-[80px] max-w-[110px]">
