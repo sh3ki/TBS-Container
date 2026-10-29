@@ -24,6 +24,16 @@ import { Printer, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
 
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+    const data = (error as { response?: { data?: { message?: unknown; errors?: Record<string, unknown> } } })?.response?.data;
+    const firstValidationError = data?.errors && Object.values(data.errors)[0];
+    if (Array.isArray(firstValidationError) && typeof firstValidationError[0] === 'string') return firstValidationError[0];
+    if (typeof firstValidationError === 'string') return firstValidationError;
+    if (Array.isArray(data?.message)) return typeof data.message[1] === 'string' ? data.message[1] : fallback;
+    if (typeof data?.message === 'string') return data.message;
+    return fallback;
+};
+
 const currentManufacturedYear = () => new Date().getFullYear();
 
 const formatManufacturedInput = (value: string, previousValue: string): string => {
@@ -320,8 +330,8 @@ export default function ProcessGateInModal({
                 onClose();
             }
         } catch (error: unknown) {
-            const axiosError = error as { response?: { data?: { message?: string } } };
-            (showError ? showError(axiosError.response?.data?.message || 'Failed to process Gate IN') : alert(axiosError.response?.data?.message || 'Failed to process Gate IN'));
+            const message = getApiErrorMessage(error, 'Failed to process Gate IN');
+            (showError ? showError(message) : alert(message));
         } finally {
             submitInProgressRef.current = false;
             setIsSubmitting(false);
