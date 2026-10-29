@@ -339,7 +339,7 @@ class MobileGateinoutController extends Controller
     public function searchAvailableContainers(Request $request)
     {
         try {
-            $searchTerm = $request->input('search', '');
+            $searchTerm = trim((string) $request->input('search', ''));
             $username = $request->input('username', 'mobile-user');
 
             if (empty($searchTerm) || strlen($searchTerm) < 3) {
@@ -376,7 +376,7 @@ class MobileGateinoutController extends Controller
                       SELECT 1 FROM {$prefix}hold_containers hc 
                       WHERE hc.container_no = i.container_no
                   )
-                  AND i.container_no LIKE ?
+                  AND LOWER(i.container_no) LIKE LOWER(?)
                 ORDER BY i.date_added DESC
             ", [
                 '%' . $searchTerm . '%'
