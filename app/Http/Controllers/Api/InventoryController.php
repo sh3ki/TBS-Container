@@ -1314,6 +1314,7 @@ class InventoryController extends Controller
                         c.client_code as client_code,
                         CONCAT(st.size, st.type) as size,
                         i.gate_status as gate,
+                        i.complete,
                         CASE 
                             WHEN {$safeInDate} IS NOT NULL THEN DATE({$safeInDate})
                             ELSE NULL 
