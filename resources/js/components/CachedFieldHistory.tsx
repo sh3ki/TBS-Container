@@ -129,6 +129,10 @@ export default function CachedFieldHistory() {
                 event.preventDefault();
                 event.stopPropagation();
                 setHistoryHighlightedIndex(highlightedIndexRef.current <= 0 ? currentSuggestions.length - 1 : highlightedIndexRef.current - 1);
+            } else if (event.key === 'Enter' && currentField.dataset.historyEnterNext === 'true') {
+                setActiveHistoryField(null);
+                setHistorySuggestions([]);
+                setHistoryHighlightedIndex(-1);
             } else if (event.key === 'Enter' && highlightedIndexRef.current >= 0) {
                 event.preventDefault();
                 event.stopPropagation();
