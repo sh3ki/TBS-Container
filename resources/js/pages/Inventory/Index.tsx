@@ -1602,10 +1602,12 @@ const Index: React.FC = () => {
             };
             const response = await axios.post('/api/inventory/export', payload, { responseType: 'blob' });
 
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }));
+            const url = window.URL.createObjectURL(new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            }));
             const link = document.createElement('a');
             link.href = url;
-            const filename = `Inventory_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            const filename = `Inventory_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
             link.setAttribute('download', filename);
             document.body.appendChild(link);
             link.click();
