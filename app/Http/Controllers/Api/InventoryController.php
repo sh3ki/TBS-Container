@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class InventoryController extends Controller
 {
@@ -1633,21 +1638,60 @@ class InventoryController extends Controller
                 return response()->json(['success' => false, 'message' => 'Failed to export'], 500);
             }
             
-            $filename = 'inventory_export_' . now()->format('Y-m-d_H-i-s') . '.csv';
+            $filename = 'inventory_export_' . now()->format('Y-m-d_H-i-s') . '.xlsx';
             $filePath = storage_path('app/public/exports/' . $filename);
             
             if (!file_exists(dirname($filePath))) {
                 mkdir(dirname($filePath), 0755, true);
             }
             
-            $file = fopen($filePath, 'w');
-            fputcsv($file, ['EIR No.', 'Container No.', 'Client', 'Size', 'Gate', 'Date', 'Time', 'Days', 'Status', 'Class', 'DMF', 'Location', 'EIR Notes', 'App Notes']);
-            
-            foreach ($data['data'] as $row) {
-                fputcsv($file, (array) $row);
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $headers = ['EIR No.', 'Container No.', 'Client', 'Size', 'Gate', 'Date', 'Time', 'Days', 'Status', 'Class', 'DMF', 'Location', 'EIR Notes', 'App Notes'];
+            $sheet->fromArray($headers, null, 'A1');
+
+            foreach ($data['data'] as $index => $row) {
+                $row = (array) $row;
+                $sheet->fromArray([
+                    $row['eir_no'] ?? '',
+                    $row['container_no'] ?? '',
+                    $row['client'] ?? '',
+                    $row['size'] ?? '',
+                    $row['gate'] ?? '',
+                    $row['date'] ?? '',
+                    $row['time'] ?? '',
+                    $row['days'] ?? '',
+                    $row['status'] ?? '',
+                    $row['class'] ?? '',
+                    $row['dmf'] ?? '',
+                    $row['location'] ?? '',
+                    // Keep notes in one logical line; Excel wraps at the cell boundary.
+                    preg_replace('/\s+/u', ' ', trim((string) ($row['eir_notes'] ?? ''))),
+                    $row['app_notes'] ?? '',
+                ], null, 'A' . ($index + 2));
             }
-            
-            fclose($file);
+
+            $lastRow = max(1, count($data['data']) + 1);
+            $sheet->getStyle('A1:N1')->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1F4E78']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            ]);
+            $sheet->getStyle('A1:N' . $lastRow)->getAlignment()
+                ->setWrapText(true)
+                ->setVertical(Alignment::VERTICAL_TOP);
+            $sheet->getStyle('A1:N' . $lastRow)->getBorders()->getAllBorders()
+                ->setBorderStyle(Border::BORDER_THIN)
+                ->getColor()->setRGB('D9E2F3');
+
+            foreach (['A' => 12, 'B' => 18, 'C' => 24, 'D' => 10, 'E' => 8, 'F' => 12, 'G' => 10, 'H' => 8, 'I' => 18, 'J' => 10, 'K' => 12, 'L' => 12, 'M' => 60, 'N' => 40] as $column => $width) {
+                $sheet->getColumnDimension($column)->setWidth($width);
+            }
+            $sheet->getRowDimension(1)->setRowHeight(22);
+            $sheet->freezePane('A2');
+            $sheet->setAutoFilter('A1:N' . $lastRow);
+
+            (new Xlsx($spreadsheet))->save($filePath);
             
             // Log audit - REPORTS action for exporting report
             DB::table('audit_logs')->insert([
@@ -1658,7 +1702,9 @@ class InventoryController extends Controller
                 'ip_address' => $request->ip(),
             ]);
             
-            return response()->download($filePath)->deleteFileAfterSend(true);
+            return response()->download($filePath, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
             
         } catch (\Exception $e) {
             Log::error('Inventory export error:', ['error' => $e->getMessage()]);
