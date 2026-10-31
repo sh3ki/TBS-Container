@@ -362,7 +362,7 @@ export default function ProcessGateInModal({
         <>
             <Dialog open={open} onOpenChange={onClose}>
                 <DialogContent
-                    className="min-w-4xl max-h-[90vh] min-w-0 overflow-x-hidden overflow-y-auto"
+                    className="min-w-4xl max-h-[90vh] overflow-x-hidden overflow-y-auto"
                     onInteractOutside={(event) => event.preventDefault()}
                     onEscapeKeyDown={(event) => event.preventDefault()}
                 >
