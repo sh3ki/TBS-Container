@@ -362,7 +362,7 @@ export default function ProcessGateInModal({
         <>
             <Dialog open={open} onOpenChange={onClose}>
                 <DialogContent
-                    className="min-w-4xl max-h-[90vh] overflow-y-auto"
+                    className="min-w-4xl max-h-[90vh] min-w-0 overflow-x-hidden overflow-y-auto"
                     onInteractOutside={(event) => event.preventDefault()}
                     onEscapeKeyDown={(event) => event.preventDefault()}
                 >
@@ -374,7 +374,7 @@ export default function ProcessGateInModal({
                             Complete all required fields to process gate-in for {record?.container_no}
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleSubmit} onKeyDown={handleEnterToNextField}>
+                    <form className="w-full min-w-0" onSubmit={handleSubmit} onKeyDown={handleEnterToNextField}>
                         <div className="grid grid-cols-3 gap-6 py-4">
                             {/* Column 1 */}
                             <div className="space-y-3">
