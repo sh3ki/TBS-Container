@@ -248,7 +248,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     <nav className="app-sidebar-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-4">
                         <ul className="space-y-1 px-2">
                             {/* Dashboard */}
-                            <li>
+                            {auth.permissions?.some((permission) => permission.page.toLowerCase() === 'dashboard') && <li>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Link
@@ -280,7 +280,7 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                         </TooltipContent>
                                     )}
                                 </Tooltip>
-                            </li>
+                            </li>}
 
                             {/* Dynamic Menu Items by Category */}
                             {groupedPermissions.map((category, categoryIndex) => (
