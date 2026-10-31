@@ -23,6 +23,7 @@ import { ModernButton } from '@/components/modern';
 import { Printer, Search } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
+import ContainerImagesStrip from '@/components/Gateinout/ContainerImagesStrip';
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
     const data = (error as { response?: { data?: { message?: unknown; errors?: Record<string, unknown> } } })?.response?.data;
@@ -44,6 +45,7 @@ interface ProcessGateOutModalProps {
         client_name: string;
         plate_no?: string;
         hauler?: string;
+        date_added?: string | null;
     } | null;
     statusOptions: Array<{ s_id: number; status: string }>;
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
@@ -1130,6 +1132,13 @@ export default function ProcessGateOutModal({
 
                         </div>
                     </div>
+
+                    <ContainerImagesStrip
+                        open={open}
+                        containerNo={formData.container_no || record?.container_no}
+                        dateAdded={record?.date_added}
+                        gateStatus="OUT"
+                    />
 
                     <DialogFooter>
                         <ModernButton type="button" variant="toggle" onClick={onClose}>
