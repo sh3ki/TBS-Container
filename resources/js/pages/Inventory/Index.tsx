@@ -2829,7 +2829,14 @@ const Index: React.FC = () => {
                                     {containerImages.length > 0 && (
                                         <div>
                                             <Label className="text-xs uppercase text-gray-600">Images ({containerImages.length})</Label>
-                                            <div className="flex gap-2 overflow-x-auto py-2">
+                                            <div
+                                                className="flex gap-2 overflow-x-auto py-2"
+                                                onWheel={(event) => {
+                                                    if (!event.shiftKey) return;
+                                                    event.preventDefault();
+                                                    event.currentTarget.scrollLeft += event.deltaY || event.deltaX;
+                                                }}
+                                            >
                                                 {containerImages.map((imageItem, idx) => (
                                                     <div key={`${imageItem.src}-${idx}`} className="relative h-20 w-28 shrink-0">
                                                         <img
