@@ -2828,16 +2828,20 @@ const Index: React.FC = () => {
                                     ) : null}
                                     {containerImages.length > 0 && (
                                         <div>
-                                            <Label className="text-xs uppercase text-gray-600">Images</Label>
+                                            <Label className="text-xs uppercase text-gray-600">Images ({containerImages.length})</Label>
                                             <div className="flex gap-2 overflow-x-auto py-2">
                                                 {containerImages.map((imageItem, idx) => (
-                                                    <img
-                                                        key={`${imageItem.src}-${idx}`}
-                                                        src={imageItem.src}
-                                                        alt={imageItem.name}
-                                                        className="w-28 h-20 object-cover rounded cursor-pointer border"
-                                                        onClick={() => { setCurrentImageIndex(idx); setShowImageViewer(true); }}
-                                                    />
+                                                    <div key={`${imageItem.src}-${idx}`} className="relative h-20 w-28 shrink-0">
+                                                        <img
+                                                            src={imageItem.src}
+                                                            alt={imageItem.name}
+                                                            className="h-full w-full cursor-pointer rounded border object-cover"
+                                                            onClick={() => { setCurrentImageIndex(idx); setShowImageViewer(true); }}
+                                                        />
+                                                        <span className="pointer-events-none absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+                                                            {idx + 1}
+                                                        </span>
+                                                    </div>
                                                 ))}
                                             </div>
                                         </div>
