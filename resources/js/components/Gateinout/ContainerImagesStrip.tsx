@@ -45,9 +45,9 @@ export default function ContainerImagesStrip({ open, containerNo, dateAdded, gat
     if (images.length === 0) return null;
 
     return (
-        <div className="mt-4 space-y-1">
+        <div className="mt-4 w-full min-w-0 max-w-full space-y-1 overflow-hidden">
             <Label className="text-xs uppercase text-gray-600">Images ({images.length})</Label>
-            <div className="flex gap-2 overflow-x-auto py-2">
+            <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto py-2">
                 {images.map((image, index) => (
                     <div key={`${image.src}-${index}`} className="relative h-20 w-28 shrink-0">
                         <img src={image.src} alt={image.name} className="h-full w-full rounded border object-cover" />
