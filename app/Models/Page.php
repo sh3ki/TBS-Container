@@ -31,6 +31,7 @@ class Page extends Model
         'page',
         'page_name',
         'page_icon',
+        'category',
         'arrange_no',
         'is_active',
     ];
