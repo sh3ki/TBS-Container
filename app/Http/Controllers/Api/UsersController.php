@@ -445,7 +445,7 @@ class UsersController extends Controller
     {
         $prefix = env('DB_PREFIX', 'fjp_');
         
-        $pages = DB::select("SELECT p_id, page, page_name, page_icon FROM {$prefix}pages ORDER BY arrange_no ASC, page_name ASC");
+        $pages = DB::select("SELECT p_id, page, page_name, page_icon, category, arrange_no FROM {$prefix}pages ORDER BY arrange_no ASC, page_name ASC");
         
         return response()->json([
             'success' => true,
@@ -466,6 +466,8 @@ class UsersController extends Controller
                 p.page,
                 p.page_name,
                 p.page_icon,
+                p.category,
+                p.arrange_no,
                 COALESCE(pa.acs_edit, 0) as acs_edit,
                 COALESCE(pa.acs_delete, 0) as acs_delete
             FROM {$prefix}pages p
@@ -761,6 +763,8 @@ class UsersController extends Controller
                 'page' => $page->page,
                 'page_name' => $page->page_name,
                 'page_icon' => $page->page_icon,
+                'category' => $page->category,
+                'arrange_no' => $page->arrange_no,
                 'has_access' => isset($access),
                 'can_edit' => $access->acs_edit ?? 0,
                 'can_delete' => $access->acs_delete ?? 0,
