@@ -129,7 +129,11 @@ export default function ImageViewerModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="!w-fit !max-w-[96vw] max-h-[94vh] p-4 sm:p-5 flex items-center justify-center overflow-hidden">
                 <div className="flex w-fit max-h-[90vh] flex-col items-center gap-3 overflow-hidden">
-                    {currentImage && <div className="pt-2 text-center font-medium">{currentImage.name}</div>}
+                    {currentImage && (
+                        <div className="pt-2 text-center font-medium !text-black" style={{ color: '#000000' }}>
+                            {currentImage.name} <span className="font-normal">· Images ({images.length})</span>
+                        </div>
+                    )}
 
                     <div className="flex items-center justify-center">
                         <div
@@ -159,6 +163,12 @@ export default function ImageViewerModal({
                                 </div>
                             )}
 
+                            {currentImage && (
+                                <span className="absolute left-3 top-3 rounded bg-black/70 px-2 py-1 text-sm font-semibold leading-none text-white">
+                                    {currentIndex + 1}
+                                </span>
+                            )}
+
                             {images.length > 1 && (
                                 <>
                                     <button type="button" onClick={() => onIndexChange((currentIndex - 1 + images.length) % images.length)} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow hover:bg-white" aria-label="Previous image">
@@ -182,8 +192,11 @@ export default function ImageViewerModal({
                     <div style={{ width: viewerFrameWidth }}>
                         <div ref={thumbnailContainerRef} className="flex items-center justify-start gap-2 overflow-x-auto px-1 py-1 sm:px-2">
                             {images.map((image, index) => (
-                                <button key={image.key || `${image.src}-${index}`} type="button" data-index={index} onClick={() => onIndexChange(index)} className={`flex-none rounded p-1 ${index === currentIndex ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}>
+                                <button key={image.key || `${image.src}-${index}`} type="button" data-index={index} onClick={() => onIndexChange(index)} className={`relative flex-none rounded p-1 ${index === currentIndex ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}>
                                     <img src={image.src} alt={image.name} className="aspect-[4/3] w-24 rounded object-cover sm:w-28" />
+                                    <span className="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
+                                        {index + 1}
+                                    </span>
                                 </button>
                             ))}
                         </div>
