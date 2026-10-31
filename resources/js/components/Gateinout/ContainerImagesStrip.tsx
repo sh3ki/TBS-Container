@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Label } from '@/components/ui/label';
+import ImageViewerModal from '@/components/ImageViewerModal';
 
 interface ContainerImage { src: string; name: string; }
 
@@ -19,6 +20,8 @@ const formatImageDate = (value: string): string => {
 
 export default function ContainerImagesStrip({ open, containerNo, dateAdded, gateStatus }: ContainerImagesStripProps) {
     const [images, setImages] = useState<ContainerImage[]>([]);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [showImageViewer, setShowImageViewer] = useState(false);
 
     const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
         if (!event.shiftKey) return;
@@ -29,6 +32,8 @@ export default function ContainerImagesStrip({ open, containerNo, dateAdded, gat
     useEffect(() => {
         let cancelled = false;
         setImages([]);
+        setCurrentImageIndex(0);
+        setShowImageViewer(false);
         const date = dateAdded ? formatImageDate(dateAdded) : '';
         if (!open || !containerNo || !date) return;
 
@@ -55,14 +60,30 @@ export default function ContainerImagesStrip({ open, containerNo, dateAdded, gat
             <Label className="text-xs uppercase text-gray-600">Images ({images.length})</Label>
             <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto py-2" onWheel={handleWheel}>
                 {images.map((image, index) => (
-                    <div key={`${image.src}-${index}`} className="relative h-20 w-28 shrink-0">
+                    <button
+                        key={`${image.src}-${index}`}
+                        type="button"
+                        tabIndex={-1}
+                        className="relative h-20 w-28 shrink-0 cursor-pointer text-left"
+                        onClick={() => {
+                            setCurrentImageIndex(index);
+                            setShowImageViewer(true);
+                        }}
+                    >
                         <img src={image.src} alt={image.name} className="h-full w-full rounded border object-cover" />
                         <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
                             {index + 1}
                         </span>
-                    </div>
+                    </button>
                 ))}
             </div>
+            <ImageViewerModal
+                open={showImageViewer}
+                onOpenChange={setShowImageViewer}
+                images={images}
+                currentIndex={currentImageIndex}
+                onIndexChange={setCurrentImageIndex}
+            />
         </div>
     );
 }
