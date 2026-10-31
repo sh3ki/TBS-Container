@@ -358,6 +358,7 @@ const Index: React.FC = () => {
     const canResetFilters = hasAppliedFilters;
     const gateInDateFiltersEnabled = ['CURRENTLY', 'IN', 'BOTH'].includes(filters.gate_status);
     const gateOutDateFiltersEnabled = ['OUT', 'BOTH'].includes(filters.gate_status);
+    const hasContainerNumber = filters.container_no.trim() !== '';
 
     const formatDateFilterInput = (value: string) => {
         const digits = value.replace(/\D/g, '').slice(0, 8);
@@ -385,13 +386,15 @@ const Index: React.FC = () => {
         return `${year}-${month}-${day}`;
     };
 
-    const requiredGateDateFields: Array<keyof typeof defaultFilters> = filters.gate_status === 'IN'
-        ? ['date_in_from', 'date_in_to']
-        : filters.gate_status === 'OUT'
-            ? ['date_out_from', 'date_out_to']
-            : filters.gate_status === 'BOTH'
-                ? ['date_in_from', 'date_in_to', 'date_out_from', 'date_out_to']
-                : [];
+    const requiredGateDateFields: Array<keyof typeof defaultFilters> = hasContainerNumber
+        ? []
+        : filters.gate_status === 'IN'
+            ? ['date_in_from', 'date_in_to']
+            : filters.gate_status === 'OUT'
+                ? ['date_out_from', 'date_out_to']
+                : filters.gate_status === 'BOTH'
+                    ? ['date_in_from', 'date_in_to', 'date_out_from', 'date_out_to']
+                    : [];
     const hasRequiredGateDateFilters = requiredGateDateFields.every((field) => (
         Boolean(dateFilterToApiValue(String(filters[field] || '')))
     ));
@@ -2369,7 +2372,7 @@ const Index: React.FC = () => {
                             <div>
                                 <Label className="text-sm font-semibold mb-2">
                                     Gate IN (Date From)
-                                    {['IN', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                    {!hasContainerNumber && ['IN', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
                                 </Label>
                                 {renderDateFilterInput('date_in_from', gateInDateFiltersEnabled)}
                             </div>
@@ -2377,7 +2380,7 @@ const Index: React.FC = () => {
                             <div>
                                 <Label className="text-sm font-semibold mb-2">
                                     Gate IN (Date To)
-                                    {['IN', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                    {!hasContainerNumber && ['IN', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
                                 </Label>
                                 {renderDateFilterInput('date_in_to', gateInDateFiltersEnabled)}
                             </div>
@@ -2445,7 +2448,7 @@ const Index: React.FC = () => {
                             <div>
                                 <Label className="text-sm font-semibold mb-2">
                                     Gate OUT (Date From)
-                                    {['OUT', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                    {!hasContainerNumber && ['OUT', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
                                 </Label>
                                 {renderDateFilterInput('date_out_from', gateOutDateFiltersEnabled)}
                             </div>
@@ -2453,7 +2456,7 @@ const Index: React.FC = () => {
                             <div>
                                 <Label className="text-sm font-semibold mb-2">
                                     Gate OUT (Date To)
-                                    {['OUT', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
+                                    {!hasContainerNumber && ['OUT', 'BOTH'].includes(filters.gate_status) && <span className="ml-1 text-xs font-normal text-red-600">required *</span>}
                                 </Label>
                                 {renderDateFilterInput('date_out_to', gateOutDateFiltersEnabled)}
                             </div>
