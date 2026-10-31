@@ -85,10 +85,12 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::post('/refresh', [AuthController::class, 'refresh']);
 
     // Dashboard
-    Route::get('/dashboard/statistics', [DashboardController::class, 'statistics']);
-    Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
-    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
-    Route::get('/dashboard/email-automation-status', [DashboardController::class, 'emailAutomationStatus']);
+    Route::middleware('page.access:dashboard,1')->prefix('dashboard')->group(function () {
+        Route::get('/statistics', [DashboardController::class, 'statistics']);
+        Route::get('/recent-activities', [DashboardController::class, 'recentActivities']);
+        Route::get('/stats', [DashboardController::class, 'getStats']);
+        Route::get('/email-automation-status', [DashboardController::class, 'emailAutomationStatus']);
+    });
 
     // Clients - Full API with all 18 actions
     Route::prefix('clients')->group(function () {
