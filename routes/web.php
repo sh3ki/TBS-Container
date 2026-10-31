@@ -26,11 +26,11 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard/Index');
-    })->middleware('page.access:dashboard,1')->name('dashboard');
+    })->middleware('page.access:dashboard,1,first-accessible')->name('dashboard');
 
     Route::get('/dashboard/email-automation', function () {
         return Inertia::render('Dashboard/EmailAutomationStatus');
-    })->middleware('page.access:dashboard,1')->name('dashboard.email-automation');
+    })->middleware('page.access:dashboard,1,first-accessible')->name('dashboard.email-automation');
 
     // Clients
     Route::get('/clients', function () {
