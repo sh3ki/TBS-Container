@@ -152,7 +152,7 @@ export default function ImageViewerModal({
                                         src={currentImage.src}
                                         alt={currentImage.name}
                                         onLoad={() => setIsLoading(false)}
-                                        className={`max-h-full max-w-full select-none object-contain ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                                        className={`h-full w-full select-none object-contain ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                                         style={{
                                             display: 'block',
                                             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
