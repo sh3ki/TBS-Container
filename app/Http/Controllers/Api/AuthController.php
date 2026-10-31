@@ -86,6 +86,8 @@ class AuthController extends Controller
                     'pages.page',
                     'pages.page_name',
                     'pages.page_icon',
+                    'pages.category',
+                    'pages.arrange_no',
                     'pages_access.acs_edit',
                     'pages_access.acs_delete'
                 )
@@ -237,6 +239,8 @@ class AuthController extends Controller
                 'fjp_pages.page',
                 'fjp_pages.page_name',
                 'fjp_pages.page_icon',
+                'fjp_pages.category',
+                'fjp_pages.arrange_no',
                 'fjp_pages_access.acs_edit',
                 'fjp_pages_access.acs_delete'
             )
