@@ -15,11 +15,11 @@ class EnsurePageAccess
      * An optional user ID can be supplied while a page is being rolled out
      * to a specific account (for example: page.access:dashboard,1).
      */
-    public function handle(Request $request, Closure $next, string $page, ?int $allowedUserId = null): Response
+    public function handle(Request $request, Closure $next, string $page, ?int $allowedUserId = null, ?string $fallback = null): Response
     {
         $user = $request->user();
 
-        if (!$user || ($allowedUserId !== null && (int) $user->user_id !== $allowedUserId)) {
+        if (!$user) {
             abort(403);
         }
 
@@ -29,7 +29,28 @@ class EnsurePageAccess
             ->where('pages_access.privilege', $user->priv_id)
             ->exists();
 
-        abort_unless($hasAccess, 403);
+        $isAllowedUser = $allowedUserId === null || (int) $user->user_id === $allowedUserId;
+        if (!$hasAccess || !$isAllowedUser) {
+            if ($fallback === 'first-accessible' && $request->isMethod('GET') && !$request->expectsJson()) {
+                $nextPage = DB::table('pages_access')
+                    ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+                    ->where('pages_access.privilege', $user->priv_id)
+                    ->where('pages.page', '<>', $page)
+                    ->orderBy('pages.arrange_no')
+                    ->value('pages.page');
+
+                $pagePaths = [
+                    'bancontainers' => 'bancon',
+                    'containerimages' => 'containerimages',
+                ];
+
+                if ($nextPage !== null) {
+                    return redirect('/' . ($pagePaths[$nextPage] ?? $nextPage));
+                }
+            }
+
+            abort(403);
+        }
 
         return $next($request);
     }
