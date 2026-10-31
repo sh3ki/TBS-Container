@@ -332,6 +332,26 @@ export default function Index() {
     });
   };
 
+  const sortGateRecords = (records: PreInventoryRecord[]) => {
+    const timestamp = (value: string | null | undefined) => {
+      if (!value) return Number.MAX_SAFE_INTEGER;
+      const parsed = new Date(value).getTime();
+      return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
+    };
+
+    return [...records].sort((a, b) => {
+      const aCompleted = Boolean(a.date_completed);
+      const bCompleted = Boolean(b.date_completed);
+
+      // Completed/checkmarked records always come first.
+      if (aCompleted !== bCompleted) return aCompleted ? -1 : 1;
+
+      // Completed records use completion time; pending records use added time.
+      return timestamp(aCompleted ? a.date_completed : a.date_added)
+        - timestamp(bCompleted ? b.date_completed : b.date_added);
+    });
+  };
+
   // Refresh only IN rows (does not touch header counts/titles)
   const fetchInRows = async () => {
     try {
@@ -1005,7 +1025,7 @@ export default function Index() {
             onRowClick={(record: PreInventoryRecord) => {
               if (record.status.toLowerCase() === 'pending') handleProcessClick(record);
             }}
-            data={sortRecords(paginatedInRecords, sortColumnIn, sortDirectionIn)}
+            data={sortRecords(sortGateRecords(paginatedInRecords), sortColumnIn, sortDirectionIn)}
             onSort={(column) => handleSort('in', column)}
             sortColumn={sortColumnIn}
             sortDirection={sortDirectionIn}
@@ -1184,7 +1204,7 @@ export default function Index() {
             onRowClick={(record: PreInventoryRecord) => {
               if (record.status.toLowerCase() === 'pending') handleProcessClick(record);
             }}
-            data={sortRecords(paginatedOutRecords, sortColumnOut, sortDirectionOut)}
+            data={sortRecords(sortGateRecords(paginatedOutRecords), sortColumnOut, sortDirectionOut)}
             onSort={(column) => handleSort('out', column)}
             sortColumn={sortColumnOut}
             sortDirection={sortDirectionOut}
