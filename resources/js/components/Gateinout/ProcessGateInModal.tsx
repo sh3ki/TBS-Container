@@ -23,6 +23,7 @@ import { ModernButton } from '@/components/modern';
 import { Printer, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
+import ContainerImagesStrip from '@/components/Gateinout/ContainerImagesStrip';
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
     const data = (error as { response?: { data?: { message?: unknown; errors?: Record<string, unknown> } } })?.response?.data;
@@ -65,6 +66,7 @@ interface ProcessGateInModalProps {
         client_name: string;
         plate_no?: string;
         hauler?: string;
+        date_added?: string | null;
     } | null;
     statusOptions: Array<{ s_id: number; status: string }>;
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
@@ -545,7 +547,14 @@ export default function ProcessGateInModal({
                             </div>
                         </div>
 
-                        <DialogFooter className="gap-2">
+                    <ContainerImagesStrip
+                        open={open}
+                        containerNo={record?.container_no}
+                        dateAdded={record?.date_added}
+                        gateStatus="IN"
+                    />
+
+                    <DialogFooter className="gap-2">
                             <ModernButton type="button" variant="toggle" onClick={onClose}>
                                 Cancel
                             </ModernButton>
