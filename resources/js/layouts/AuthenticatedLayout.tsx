@@ -39,6 +39,8 @@ interface Permission {
     page: string;
     page_name: string;
     page_icon: string;
+    category: string;
+    arrange_no: number;
     acs_edit: number;
     acs_delete: number;
 }
@@ -86,43 +88,39 @@ export default function Authenticated({ children }: PropsWithChildren) {
         setMobileMenuOpen(false);
     }, [currentPath]);
 
-    // Define categories with grouped menu items
+    // Category membership comes from the pages.category database column.
     const categories = [
         {
             name: 'Container Operations',
-            items: ['gateinout', 'inventory', 'booking', 'containerimages']
         },
         {
             name: 'Finance & Analytics',
-            items: ['billing', 'reports']
         },
         {
             name: 'App Configuration',
-            items: ['bancon', 'bancontainers', 'sizetype', 'clients', 'edi']
         },
         {
             name: 'Administration',
-            items: ['users', 'audit']
         }
     ];
+
+    // Keep the existing category sections, but use the database page order
+    // inside each section. Deduplicate records in case a privilege has more
+    // than one access row for the same page.
+    const uniquePermissions = Array.from(
+        new Map((auth.permissions || []).map((permission) => [permission.p_id, permission])).values()
+    );
 
     // Group permissions by category
     const groupedPermissions = categories.map(category => ({
         ...category,
-        permissions: (auth.permissions || [])
-            .filter(p =>
-                category.items.some(item => {
-                    if (item === 'containerimages') {
-                        return p.page.toLowerCase() === 'containerimages' && Number(p.acs_edit) > 0;
-                    }
-
-                    return p.page.toLowerCase().includes(item);
-                })
-            )
+        permissions: uniquePermissions
+            .filter(p => (
+                p.category?.trim().toLowerCase() === category.name.toLowerCase()
+                && (p.page.toLowerCase() !== 'containerimages' || Number(p.acs_edit) > 0)
+            ))
             .sort((a, b) => {
-                const indexA = category.items.findIndex(item => a.page.toLowerCase().includes(item));
-                const indexB = category.items.findIndex(item => b.page.toLowerCase().includes(item));
-                return indexA - indexB;
+                return Number(a.arrange_no) - Number(b.arrange_no);
             })
     })).filter(cat => cat.permissions.length > 0);
 
@@ -248,7 +246,11 @@ export default function Authenticated({ children }: PropsWithChildren) {
                     <nav className="app-sidebar-scrollbar flex-1 overflow-y-auto overflow-x-hidden py-4">
                         <ul className="space-y-1 px-2">
                             {/* Dashboard */}
-                            {auth.permissions?.some((permission) => permission.page.toLowerCase() === 'dashboard') && <li>
+                            {uniquePermissions.some((permission) => (
+                                permission.page.toLowerCase() === 'dashboard'
+                                && permission.category?.trim().toLowerCase() === 'dashboard'
+                                && Number(permission.arrange_no) === 0
+                            )) && <li>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Link
