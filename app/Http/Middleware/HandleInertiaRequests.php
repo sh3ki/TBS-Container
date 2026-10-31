@@ -48,6 +48,8 @@ class HandleInertiaRequests extends Middleware
                     fjp_pages.page,
                     fjp_pages.page_name,
                     fjp_pages.page_icon,
+                    fjp_pages.category,
+                    fjp_pages.arrange_no,
                     fjp_pages_access.acs_edit,
                     fjp_pages_access.acs_delete
                 FROM fjp_pages_access
