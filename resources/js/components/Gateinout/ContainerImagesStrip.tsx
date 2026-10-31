@@ -20,6 +20,12 @@ const formatImageDate = (value: string): string => {
 export default function ContainerImagesStrip({ open, containerNo, dateAdded, gateStatus }: ContainerImagesStripProps) {
     const [images, setImages] = useState<ContainerImage[]>([]);
 
+    const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+        if (!event.shiftKey) return;
+        event.preventDefault();
+        event.currentTarget.scrollLeft += event.deltaY || event.deltaX;
+    };
+
     useEffect(() => {
         let cancelled = false;
         setImages([]);
@@ -47,7 +53,7 @@ export default function ContainerImagesStrip({ open, containerNo, dateAdded, gat
     return (
         <div className="mt-4 w-full min-w-0 max-w-full space-y-1 overflow-hidden">
             <Label className="text-xs uppercase text-gray-600">Images ({images.length})</Label>
-            <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto py-2">
+            <div className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto py-2" onWheel={handleWheel}>
                 {images.map((image, index) => (
                     <div key={`${image.src}-${index}`} className="relative h-20 w-28 shrink-0">
                         <img src={image.src} alt={image.name} className="h-full w-full rounded border object-cover" />
