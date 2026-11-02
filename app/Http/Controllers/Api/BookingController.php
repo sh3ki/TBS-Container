@@ -322,6 +322,16 @@ class BookingController extends Controller
             $newFourty = $request->four ?? 0;
             $newFourtyFive = $request->fourf ?? 0;
 
+            // A booking cannot be edited below its current remaining quantities.
+            if ($newTwenty < $booking->twenty_rem ||
+                $newFourty < $booking->fourty_rem ||
+                $newFourtyFive < $booking->fourty_five_rem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container quantities cannot be lower than the remaining quantities.',
+                ], 422);
+            }
+
             // Calculate new remaining values
             $twentyDiff = $newTwenty - $oldTwenty;
             $fourtyDiff = $newFourty - $oldFourty;
