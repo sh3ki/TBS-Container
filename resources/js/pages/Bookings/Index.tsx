@@ -54,6 +54,15 @@ interface FormData {
   exp: string;
 }
 
+interface EditFormData extends Omit<FormData, 'two' | 'four' | 'fourf'> {
+  id: string;
+  clientid: string;
+  ship: string;
+  two: string;
+  four: string;
+  fourf: string;
+}
+
 export default function Index() {
   const { toasts, removeToast, success, error } = useModernToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -88,19 +97,20 @@ export default function Index() {
     exp: '',
   });
   
-  const [editFormData, setEditFormData] = useState<FormData & { id: string; clientid: string; ship: string }>({
+  const [editFormData, setEditFormData] = useState<EditFormData>({
     id: '',
     bnum: '',
     cid: '',
     shipper: '',
-    two: 0,
-    four: 0,
-    fourf: 0,
+    two: '',
+    four: '',
+    fourf: '',
     cnums: '',
     exp: '',
     clientid: '',
     ship: '',
   });
+  const [editMinimums, setEditMinimums] = useState({ two: 0, four: 0, fourf: 0 });
   
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -370,27 +380,29 @@ export default function Index() {
     // Use already-loaded booking data - no API call needed!
     const client = clients.find(c => c.code === booking.client.client_code);
     
-    // Format expiration date properly for date input (YYYY-MM-DD)
-    let formattedExp = '';
-    if (booking.expiration_date) {
-      const expDate = new Date(booking.expiration_date);
-      if (!isNaN(expDate.getTime())) {
-        formattedExp = expDate.toISOString().split('T')[0];
-      }
-    }
+    // Match the expiration date rendered in the table.
+    const expDate = new Date(booking.expiration_date);
+    const formattedExp = isNaN(expDate.getTime())
+      ? ''
+      : `${expDate.getFullYear()}-${String(expDate.getMonth() + 1).padStart(2, '0')}-${String(expDate.getDate()).padStart(2, '0')}`;
     
     setEditFormData({
       id: booking.hashed_id,
       bnum: booking.book_no,
       cid: client?.id || '',
       shipper: booking.shipper,
-      two: booking.twenty,
-      four: booking.fourty,
-      fourf: booking.fourty_five,
+      two: String(booking.twenty),
+      four: String(booking.fourty),
+      fourf: String(booking.fourty_five),
       cnums: '',
       exp: formattedExp,
       clientid: client?.id || '',
       ship: booking.shipper,
+    });
+    setEditMinimums({
+      two: booking.twenty_rem,
+      four: booking.fourty_rem,
+      fourf: booking.fourty_five_rem,
     });
     
     setBookingType(booking.cont_list && booking.cont_list.trim() !== '' ? 'with' : 'without');
@@ -400,6 +412,25 @@ export default function Index() {
   const submitUpdateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+
+    const quantityChecks = [
+      { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
+      { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
+      { value: editFormData.fourf, minimum: editMinimums.fourf, label: "45'" },
+    ];
+
+    for (const quantity of quantityChecks) {
+      if (!/^\d+$/.test(quantity.value)) {
+        error(`Enter a whole number for ${quantity.label} containers`);
+        return;
+      }
+
+      if (Number(quantity.value) < quantity.minimum) {
+        error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
+        return;
+      }
+    }
+
     setConfirmUpdateBooking(true);
   };
 
@@ -412,9 +443,9 @@ export default function Index() {
         bnum: editFormData.bnum.toUpperCase(),
         ship: editFormData.ship.toUpperCase(),
         exp: editFormData.exp,
-        two: editFormData.two,
-        four: editFormData.four,
-        fourf: editFormData.fourf,
+        two: Number(editFormData.two),
+        four: Number(editFormData.four),
+        fourf: Number(editFormData.fourf),
         clientid: editFormData.clientid,
         isc: bookingType === 'with' ? '1' : '0',
       });
@@ -493,23 +524,32 @@ export default function Index() {
       },
       {
         key: 'containers_info',
-        label: 'Containers',
+        label: (
+          <div className="w-full min-w-[190px]">
+            <div>Containers</div>
+            <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-2 mt-2 text-center text-xs normal-case">
+              <div>x20</div>
+              <div>x40</div>
+              <div>x45</div>
+            </div>
+          </div>
+        ),
         render: (booking: Booking) => (
-          <div className="space-y-2 min-w-[65px]">
+          <div className="w-full min-w-[190px] space-y-2">
             <div>
               <div className="text-xs font-semibold text-gray-700 mb-0.5">Allocated:</div>
-              <div className="space-y-0.5">
-                <div className="text-sm text-gray-900">x20: {booking.twenty}</div>
-                <div className="text-sm text-gray-900">x40: {booking.fourty}</div>
-                <div className="text-sm text-gray-900">x45: {booking.fourty_five}</div>
+              <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-2 text-center text-sm text-gray-900">
+                <div>{booking.twenty}</div>
+                <div>{booking.fourty}</div>
+                <div>{booking.fourty_five}</div>
               </div>
             </div>
             <div>
               <div className="text-xs font-semibold text-gray-700 mb-0.5">Remaining:</div>
-              <div className="space-y-0.5">
-                <div className="text-sm text-gray-900">x20 rem: {booking.twenty_rem}</div>
-                <div className="text-sm text-gray-900">x40 rem: {booking.fourty_rem}</div>
-                <div className="text-sm text-gray-900">x45 rem: {booking.fourty_five_rem}</div>
+              <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-2 text-center text-sm font-semibold text-blue-600">
+                <div>{booking.twenty_rem}</div>
+                <div>{booking.fourty_rem}</div>
+                <div>{booking.fourty_five_rem}</div>
               </div>
             </div>
           </div>
@@ -962,15 +1002,15 @@ export default function Index() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-gray-900">20' Containers</Label>
-                  <Input type="number" min="0" value={editFormData.two} onChange={(e) => setEditFormData({ ...editFormData, two: parseInt(e.target.value) || 0 })} />
+                  <Input type="number" value={editFormData.two} onChange={(e) => setEditFormData({ ...editFormData, two: e.target.value })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">40' Containers</Label>
-                  <Input type="number" min="0" value={editFormData.four} onChange={(e) => setEditFormData({ ...editFormData, four: parseInt(e.target.value) || 0 })} />
+                  <Input type="number" value={editFormData.four} onChange={(e) => setEditFormData({ ...editFormData, four: e.target.value })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">45' Containers</Label>
-                  <Input type="number" min="0" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: parseInt(e.target.value) || 0 })} />
+                  <Input type="number" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: e.target.value })} />
                 </div>
               </div>
             </div>
@@ -1002,23 +1042,30 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-6">
                 {/* Left Column - CONTAINERS */}
                 <div className="space-y-4">
-                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Containers</div>
+                  <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                    <div>Containers</div>
+                    <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-3 mt-2 text-center text-xs normal-case">
+                      <div>x20</div>
+                      <div>x40</div>
+                      <div>x45</div>
+                    </div>
+                  </div>
                   
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Allocated</div>
-                    <div className="space-y-1">
-                      <div className="text-gray-900">x20: {selectedBooking.twenty}</div>
-                      <div className="text-gray-900">x40: {selectedBooking.fourty}</div>
-                      <div className="text-gray-900">x45: {selectedBooking.fourty_five}</div>
+                    <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-3 text-center text-gray-900">
+                      <div>{selectedBooking.twenty}</div>
+                      <div>{selectedBooking.fourty}</div>
+                      <div>{selectedBooking.fourty_five}</div>
                     </div>
                   </div>
                   
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Remaining</div>
-                    <div className="space-y-1">
-                      <div className="text-gray-900">x20 rem: <span className={selectedBooking.twenty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.twenty_rem}</span></div>
-                      <div className="text-gray-900">x40 rem: <span className={selectedBooking.fourty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_rem}</span></div>
-                      <div className="text-gray-900">x45 rem: <span className={selectedBooking.fourty_five_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_five_rem}</span></div>
+                    <div className="grid w-full grid-cols-[repeat(3,minmax(0,1fr))] gap-3 text-center text-gray-900">
+                      <div><span className={selectedBooking.twenty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.twenty_rem}</span></div>
+                      <div><span className={selectedBooking.fourty_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_rem}</span></div>
+                      <div><span className={selectedBooking.fourty_five_rem > 0 ? 'text-blue-600 font-semibold' : ''}>{selectedBooking.fourty_five_rem}</span></div>
                     </div>
                   </div>
                 </div>
