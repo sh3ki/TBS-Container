@@ -645,16 +645,19 @@ class BookingController extends Controller
             $containers = array_values(array_filter($containers, static fn ($container) => !isset($heldLookup[$container])));
             $remainingContainers = array_values(array_filter($remainingContainers, static fn ($container) => !isset($heldLookup[$container])));
 
-            $gateOutContainers = DB::table('inventory')
-                ->select(['container_no', 'date_added'])
-                ->where('booking', $booking->book_no)
-                ->where('gate_status', 'OUT')
-                ->where('complete', 1)
-                ->orderByDesc('date_added')
+            $gateOutContainers = DB::table('inventory as i')
+                ->leftJoin('container_size_type as st', 'st.s_id', '=', 'i.size_type')
+                ->select(['i.container_no', 'i.date_added', 'st.size', 'st.type'])
+                ->where('i.booking', $booking->book_no)
+                ->where('i.gate_status', 'OUT')
+                ->where('i.complete', 1)
+                ->orderBy('i.date_added')
                 ->get()
                 ->map(static fn ($container) => [
                     'container_no' => strtoupper(trim((string) $container->container_no)),
                     'date_added' => $container->date_added,
+                    'size' => $container->size,
+                    'type' => $container->type,
                 ])
                 ->values()
                 ->all();
