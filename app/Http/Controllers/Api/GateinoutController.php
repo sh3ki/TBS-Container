@@ -1066,7 +1066,7 @@ class GateinoutController extends Controller
                 'booking_no' => 'required|string|max:100',
                 'seal_no' => 'required|string|max:100',
                 'remarks' => 'required|string|max:255',
-                'save_and_book' => 'required|string|in:YES,NO'
+                'save_and_book' => 'required|string|in:YES_COUNT,YES_LIST,NO'
             ]);
 
             // Validate container number is exactly 11 characters
@@ -1199,13 +1199,13 @@ class GateinoutController extends Controller
                     
                     // Verify booking belongs to same client
                     $bookingInfo = DB::selectOne(
-                        "SELECT b.b_id, b.client_id FROM {$this->prefix}bookings b
-                         WHERE b.book_no = ? AND b.client_id = ?",
+                        "SELECT b.b_id, b.client_id, b.cont_list_rem FROM {$this->prefix}bookings b
+                         WHERE b.book_no = ? AND b.client_id = ? FOR UPDATE",
                         [$validated['booking_no'], $validated['client_id']]
                     );
 
-                    if ($bookingInfo) {
-                        // Decrement slots based on container size
+                    if ($bookingInfo && $validated['save_and_book'] === 'YES_COUNT') {
+                        // Decrement only the matching numeric remainder for YES - container count.
                         if ($containerSize == 20 || $containerSize == 22) {
                             DB::update(
                                 "UPDATE {$this->prefix}bookings SET twenty_rem = (twenty_rem - 1) WHERE b_id = ? AND twenty_rem > 0",
@@ -1222,6 +1222,22 @@ class GateinoutController extends Controller
                                 [$bookingInfo->b_id]
                             );
                         }
+                    } elseif ($bookingInfo && $validated['save_and_book'] === 'YES_LIST') {
+                        // Remove only the selected container from the remaining list for YES - container list.
+                        $selectedContainer = strtoupper(preg_replace('/\s+/', '', $validated['container_no']));
+                        $remainingContainers = array_values(array_filter(array_map(
+                            static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                            preg_split('/\s*,\s*/', (string) $bookingInfo->cont_list_rem)
+                        )));
+                        $remainingContainers = array_values(array_filter(
+                            $remainingContainers,
+                            static fn ($container) => $container !== $selectedContainer
+                        ));
+
+                        DB::update(
+                            "UPDATE {$this->prefix}bookings SET cont_list_rem = ? WHERE b_id = ?",
+                            [implode(', ', $remainingContainers), $bookingInfo->b_id]
+                        );
                     }
                 }
 
@@ -1605,11 +1621,27 @@ class GateinoutController extends Controller
         try {
             $key = $request->input('key', '');
             $clientId = $request->input('client_id');
+            $containerSize = (string) $request->input('container_size', '');
+            $containerNo = strtoupper(preg_replace('/\s+/', '', (string) $request->input('container_no', '')));
 
             if (empty($clientId)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Client ID is required'
+                ], 422);
+            }
+
+            $remainingColumn = match ($containerSize) {
+                '20' => 'b.twenty_rem',
+                '40' => 'b.fourty_rem',
+                '45' => 'b.fourty_five_rem',
+                default => null,
+            };
+
+            if (!$remainingColumn) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container size is required to find eligible bookings.'
                 ], 422);
             }
 
@@ -1635,14 +1667,12 @@ class GateinoutController extends Controller
                 WHERE b.client_id = ?
                   AND b.expiration_date >= ?
                   AND (
-                      COALESCE(b.twenty_rem, 0) > 0
-                      OR COALESCE(b.fourty_rem, 0) > 0
-                      OR COALESCE(b.fourty_five_rem, 0) > 0
-                      OR (b.cont_list_rem IS NOT NULL AND b.cont_list_rem <> '')
+                      COALESCE({$remainingColumn}, 0) > 0
+                      OR FIND_IN_SET(?, REPLACE(COALESCE(b.cont_list_rem, ''), ' ', '')) > 0
                   )
             ";
 
-            $params = [$clientId, $today];
+            $params = [$clientId, $today, $containerNo];
 
             if (!empty($key)) {
                 $query .= " AND b.book_no LIKE ?";
@@ -1679,11 +1709,26 @@ class GateinoutController extends Controller
             $bookingNo = $request->input('booking_no');
             $containerNo = $request->input('container_no');
             $clientId = $request->input('client_id');
+            $containerSize = (string) $request->input('container_size', '');
 
             if (empty($bookingNo) || empty($containerNo) || empty($clientId)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Booking No, Container No, and Client ID are required'
+                ], 422);
+            }
+
+            $remainingColumn = match ($containerSize) {
+                '20' => 'available_20',
+                '40' => 'available_40',
+                '45' => 'available_45',
+                default => null,
+            };
+
+            if (!$remainingColumn) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Container size is required to validate the booking.'
                 ], 422);
             }
 
@@ -1699,6 +1744,7 @@ class GateinoutController extends Controller
                     COALESCE(b.twenty_rem, 0) AS available_20,
                     COALESCE(b.fourty_rem, 0) AS available_40,
                     COALESCE(b.fourty_five_rem, 0) AS available_45
+                    , b.cont_list_rem
                 FROM {$this->prefix}bookings b
                 LEFT JOIN {$this->prefix}clients c ON c.c_id = b.client_id
                 WHERE b.book_no = ? AND b.client_id = ?
@@ -1709,6 +1755,21 @@ class GateinoutController extends Controller
                     'success' => false,
                     'message' => 'Booking not found or CLIENT MISMATCH - you can only use bookings for the selected client'
                 ], 404);
+            }
+
+            if ((int) $booking->{$remainingColumn} <= 0) {
+                $normalizedContainerNo = strtoupper(preg_replace('/\s+/', '', $containerNo));
+                $remainingList = array_values(array_filter(array_map(
+                    static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                    preg_split('/\s*,\s*/', (string) $booking->cont_list_rem)
+                )));
+
+                if (!in_array($normalizedContainerNo, $remainingList, true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Booking has no remaining allocation for this container size or container list.'
+                    ], 422);
+                }
             }
 
             // Check if booking is expired
@@ -1751,7 +1812,8 @@ class GateinoutController extends Controller
                     '20' => $booking->available_20,
                     '40' => $booking->available_40,
                     '45' => $booking->available_45
-                ]
+                ],
+                'remaining_container_list' => $booking->cont_list_rem,
             ]);
 
         } catch (\Exception $e) {
