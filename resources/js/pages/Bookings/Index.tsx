@@ -824,8 +824,16 @@ export default function Index() {
       },
     ];
 
-    // Show all bookings (no pagination)
-    const paginatedBookings = sortBookings(filteredBookings);
+    const hasRemaining = (booking: Booking) => (
+      (booking.twenty_rem ?? 0) > 0 ||
+      (booking.fourty_rem ?? 0) > 0 ||
+      (booking.fourty_five_rem ?? 0) > 0 ||
+      getContainerListArray(booking.cont_list_rem).some((container) => container.trim() !== '')
+    );
+
+    // Keep separate tables while using the same active sort and default date order.
+    const bookingsWithRemaining = sortBookings(filteredBookings.filter(hasRemaining));
+    const bookingsWithoutRemaining = sortBookings(filteredBookings.filter((booking) => !hasRemaining(booking)));
     const totalPages = 1;
 
   return (
@@ -940,17 +948,40 @@ export default function Index() {
         </div>
 
         <div className="w-full">
+          <div className="mb-3">
+            <h2 className="text-base font-semibold text-gray-900">Bookings with Remaining</h2>
+            <p className="text-sm text-gray-600">{bookingsWithRemaining.length} booking{bookingsWithRemaining.length === 1 ? '' : 's'}</p>
+          </div>
           <ModernTable
             columns={tableColumns}
-            data={paginatedBookings}
+            data={bookingsWithRemaining}
             loading={loading}
-            emptyMessage="No bookings found. Click 'Book Containers' to get started."
+            emptyMessage="No bookings with remaining containers found."
             pagination={false}
             onSort={handleSort}
             sortColumn={sortColumn}
             sortDirection={sortDirection}
             onRowClick={handleViewContainers}
           />
+          {bookingsWithoutRemaining.length > 0 && (
+            <div className="mt-6">
+              <div className="mb-3">
+                <h2 className="text-base font-semibold text-gray-900">Bookings with No Remaining</h2>
+                <p className="text-sm text-gray-600">{bookingsWithoutRemaining.length} booking{bookingsWithoutRemaining.length === 1 ? '' : 's'}</p>
+              </div>
+              <ModernTable
+                columns={tableColumns}
+                data={bookingsWithoutRemaining}
+                loading={false}
+                emptyMessage="No bookings without remaining containers found."
+                pagination={false}
+                onSort={handleSort}
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onRowClick={handleViewContainers}
+              />
+            </div>
+          )}
           {expiredResults && expiredResults.length > 0 && (
             <div className="mt-6">
               <div className="flex items-start gap-3">
