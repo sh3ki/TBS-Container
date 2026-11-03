@@ -114,12 +114,14 @@ export default function ProcessGateOutModal({
         approval_remarks: '', // Readonly remarks from inventory approval_notes
         gate_in_remarks: '', // Readonly remarks from inventory
         remarks: '', // Editable remarks for user input
-        save_and_book: 'NO',
+        save_and_book: 'YES_COUNT',
     } as const;
     const [formData, setFormData] = useState(() => ({ ...initialFormData }));
     // showError will be provided by parent page to ensure toast uses page-level container
 
     const [bookingOptions, setBookingOptions] = useState<Array<{ book_no: string }>>([]);
+    const [selectedBookingSlots, setSelectedBookingSlots] = useState<Record<string, number>>({});
+    const [selectedBookingRemainingList, setSelectedBookingRemainingList] = useState<string[]>([]);
     const [showBookingDropdown, setShowBookingDropdown] = useState(false);
     const [bookingSearchTerm, setBookingSearchTerm] = useState('');
     const [bookingHighlightIndex, setBookingHighlightIndex] = useState(-1);
@@ -444,6 +446,8 @@ export default function ProcessGateOutModal({
         suppressContainerResultsRef.current = true;
         setShowDropdown(false);
         setContainerHighlightIndex(-1);
+        setSelectedBookingSlots({});
+        setSelectedBookingRemainingList([]);
         // Validate the container first
         try {
             const response = await axios.post('/api/gateinout/validate-container', {
@@ -515,7 +519,7 @@ export default function ProcessGateOutModal({
                     approval_remarks: (inventoryData && inventoryData.approval_notes) || (pre && pre.approval_notes) || '',
                     gate_in_remarks: (inventoryData && inventoryData.remarks) || (pre && pre.inventory_remarks) || '',
                     remarks: (pre && pre.remarks) || (inventoryData && inventoryData.pre_inventory_remarks) || '',
-                    save_and_book: 'NO',
+        save_and_book: 'YES_COUNT',
                 });
 
                 // Set checker name preference: pre_inventory -> inventoryData -> current user
@@ -574,11 +578,17 @@ export default function ProcessGateOutModal({
         if (!isContainerSelected || !formData.client_id) {
             return;
         }
+
+        const selectedSize = sizeTypeOptions.find(
+            (sizeType) => String(sizeType.s_id) === String(formData.size_type)
+        )?.size;
         
         try {
             const response = await axios.post('/api/gateinout/get-bookings-list', {
                 key: search,
                 client_id: formData.client_id,
+                container_size: selectedSize,
+                container_no: formData.container_no,
             });
             
             if (response.data.success) {
@@ -603,14 +613,30 @@ export default function ProcessGateOutModal({
                 booking_no: bookingNo,
                 container_no: formData.container_no,
                 client_id: formData.client_id,
+                container_size: sizeTypeOptions.find(
+                    (sizeType) => String(sizeType.s_id) === String(formData.size_type)
+                )?.size,
             });
             
             if (response.data.success) {
+                const selectedSize = sizeTypeOptions.find(
+                    (sizeType) => String(sizeType.s_id) === String(formData.size_type)
+                )?.size;
+                const countAvailable = Number(response.data.available_slots?.[String(selectedSize)]) > 0;
+                const remainingList = String(response.data.remaining_container_list || '')
+                    .split(',')
+                    .map((container: string) => container.replace(/\s+/g, '').toUpperCase())
+                    .filter(Boolean);
+                const listAvailable = remainingList.includes(formData.container_no.replace(/\s+/g, '').toUpperCase());
+
                 setFormData((prev) => ({
                     ...prev,
                     booking: bookingNo,
                     shipper: response.data.shipper || '',
+                    save_and_book: countAvailable ? 'YES_COUNT' : listAvailable ? 'YES_LIST' : 'NO',
                 }));
+                setSelectedBookingSlots(response.data.available_slots || {});
+                setSelectedBookingRemainingList(remainingList);
                 setShowBookingDropdown(false);
                 setBookingSearchTerm(bookingNo);
             } else {
@@ -688,7 +714,7 @@ export default function ProcessGateOutModal({
             return;
         }
         if (!formData.save_and_book || formData.save_and_book === '') {
-            (showError ? showError('Please select Save and Book option') : alert('Please select Save and Book option'));
+            (showError ? showError('Please select Deduct in Booking option') : alert('Please select Deduct in Booking option'));
             return;
         }
 
@@ -746,14 +772,6 @@ export default function ProcessGateOutModal({
                     'width=1280,height=800'
                 );
 
-                // Handle Save and Book - Open external CSP portal like old system
-                if (formData.save_and_book === 'YES') {
-                    window.open(
-                        `http://cdap.ph/csp/acyop-booking/admin/fjp/PreCNTBooking.csp?a=FJP||${formData.plate_no}||${formData.container_no}`,
-                        '_blank'
-                    );
-                }
-                
                 onSuccess();
                 onClose();
             }
@@ -993,16 +1011,15 @@ export default function ProcessGateOutModal({
                             </div>
                             
                             <div>
-                                <Label>Save and Book <span className="text-red-500">*</span></Label>
-                                <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)} disabled={!isContainerSelected}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="NO">NO</SelectItem>
-                                        <SelectItem value="YES">YES</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Label>Seal No. <span className="text-red-500">*</span></Label>
+                                <Input
+                                    data-history-key="gateinout.seal_no"
+                                    data-field="seal_no"
+                                    data-history-enter-next="true"
+                                    value={formData.seal_no}
+                                    onChange={(e) => handleInputChange('seal_no', e.target.value)}
+                                    disabled={!isContainerSelected}
+                                />
                             </div>
                         </div>
 
@@ -1090,15 +1107,23 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <Label>Seal No. <span className="text-red-500">*</span></Label>
-                                <Input
-                                    data-history-key="gateinout.seal_no"
-                                    data-field="seal_no"
-                                    data-history-enter-next="true"
-                                    value={formData.seal_no}
-                                    onChange={(e) => handleInputChange('seal_no', e.target.value)}
-                                    disabled={!isContainerSelected}
-                                />
+                                <Label>Deduct in Booking <span className="text-red-500">*</span></Label>
+                                <Select value={formData.save_and_book} onValueChange={(value) => handleInputChange('save_and_book', value)} disabled={!isContainerSelected || !formData.booking}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Number(selectedBookingSlots[String(sizeTypeOptions.find(
+                                            (sizeType) => String(sizeType.s_id) === String(formData.size_type)
+                                        )?.size)] || 0) > 0 && (
+                                            <SelectItem value="YES_COUNT">YES - container count</SelectItem>
+                                        )}
+                                        {selectedBookingRemainingList.includes(formData.container_no.replace(/\s+/g, '').toUpperCase()) && (
+                                            <SelectItem value="YES_LIST">YES - container list</SelectItem>
+                                        )}
+                                        <SelectItem value="NO">NO</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div>
