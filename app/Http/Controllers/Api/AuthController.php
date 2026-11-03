@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\AuditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -12,13 +11,6 @@ use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
-    protected $audit;
-
-    public function __construct(AuditService $audit)
-    {
-        $this->audit = $audit;
-    }
-
     /**
      * Handle user login.
      */
@@ -64,19 +56,6 @@ class AuthController extends Controller
                 ], 403);
             }
             
-            // Log successful login with detailed info - wrap in try-catch to ensure it doesn't fail silently
-            try {
-                DB::table('audit_logs')->insert([
-                    'action' => 'LOGIN',
-                    'description' => '[AUTH] User logged in: Username: "' . $user->username . '", Full Name: "' . $user->full_name . '"',
-                    'user_id' => $user->user_id,
-                    'date_added' => now(),
-                    'ip_address' => $request->ip(),
-                ]);
-            } catch (\Exception $e) {
-                Log::error('Failed to log login audit: ' . $e->getMessage());
-            }
-            
             // Get user permissions with page details
             $permissions = DB::table('pages_access')
                 ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
@@ -118,19 +97,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // Log failed login attempt with username - wrap in try-catch
-        try {
-            DB::table('audit_logs')->insert([
-                'action' => 'LOGIN',
-                'description' => '[AUTH] Failed login attempt for username: "' . $credentials['username'] . '"',
-                'user_id' => null,
-                'date_added' => now(),
-                'ip_address' => $request->ip(),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to log failed login audit: ' . $e->getMessage());
-        }
-
         // If this is an Inertia/web request, redirect back with error
         if ($request->header('X-Inertia')) {
             return back()->withErrors([
@@ -150,19 +116,6 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $user = Auth::user();
-        
-        if ($user) {
-            // Log logout with detailed info
-            DB::table('audit_logs')->insert([
-                'action' => 'LOGOUT',
-                'description' => '[AUTH] User logged out: Username: "' . $user->username . '", Full Name: "' . $user->full_name . '"',
-                'user_id' => $user->user_id,
-                'date_added' => now(),
-                'ip_address' => $request->ip(),
-            ]);
-        }
-        
         // Use web guard for session-based logout
         Auth::guard('web')->logout();
         
