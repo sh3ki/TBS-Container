@@ -43,6 +43,11 @@ interface Booking extends Record<string, unknown> {
   date_added: string;
 }
 
+interface GateOutContainer {
+  container_no: string;
+  date_added: string;
+}
+
 interface FormData {
   bnum: string;
   cid: string;
@@ -128,6 +133,7 @@ export default function Index() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedContainerList, setSelectedContainerList] = useState<string[]>([]);
   const [selectedRemainingContainerList, setSelectedRemainingContainerList] = useState<string[]>([]);
+  const [selectedGateOutContainers, setSelectedGateOutContainers] = useState<GateOutContainer[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
 
@@ -439,23 +445,21 @@ export default function Index() {
       return;
     }
 
-    if (editBookingType === 'without') {
-      const quantityChecks = [
-        { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
-        { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
-        { value: editFormData.fourf, minimum: editMinimums.fourf, label: "45'" },
-      ];
+    const quantityChecks = [
+      { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
+      { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
+      { value: editFormData.fourf, minimum: editMinimums.fourf, label: "45'" },
+    ];
 
-      for (const quantity of quantityChecks) {
-        if (!/^\d+$/.test(quantity.value)) {
-          error(`Enter a whole number for ${quantity.label} containers`);
-          return;
-        }
+    for (const quantity of quantityChecks) {
+      if (!/^\d+$/.test(quantity.value)) {
+        error(`Enter a whole number for ${quantity.label} containers`);
+        return;
+      }
 
-        if (Number(quantity.value) < quantity.minimum) {
-          error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
-          return;
-        }
+      if (Number(quantity.value) < quantity.minimum) {
+        error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
+        return;
       }
     }
 
@@ -543,6 +547,7 @@ export default function Index() {
     const fallbackRemainingList = getContainerListArray(booking.cont_list_rem).map((container) => container.trim());
     setSelectedContainerList(fallbackList);
     setSelectedRemainingContainerList(fallbackRemainingList);
+    setSelectedGateOutContainers([]);
     setSelectedBooking(booking);
     setShowViewModal(true);
 
@@ -551,6 +556,7 @@ export default function Index() {
       if (response.data.success) {
         setSelectedContainerList(response.data.data || []);
         setSelectedRemainingContainerList(response.data.remaining || []);
+        setSelectedGateOutContainers(response.data.gate_out_containers || []);
       }
     } catch {
       // Keep the booking's stored lists if the filtered lookup is unavailable.
@@ -680,6 +686,7 @@ export default function Index() {
                 <div>{booking.fourty}</div>
                 <div>{booking.fourty_five}</div>
               </div>
+
             </div>
             <div>
               <div className="text-xs font-semibold text-gray-700 mb-0.5">Remaining:</div>
@@ -1086,7 +1093,6 @@ export default function Index() {
                     type="button"
                     onClick={() => {
                       setBookingType('without');
-                      setFormData({ ...formData, two: 0, four: 0, fourf: 0 });
                     }}
                     className={`px-6 py-3 text-sm font-medium border transition-all ${
                       bookingType === 'without'
@@ -1101,7 +1107,6 @@ export default function Index() {
                     type="button"
                     onClick={() => {
                       setBookingType('with');
-                      setFormData({ ...formData, two: 0, four: 0, fourf: 0 });
                     }}
                     className={`px-6 py-3 text-sm font-medium border border-l-0 transition-all ${
                       bookingType === 'with'
@@ -1164,9 +1169,9 @@ export default function Index() {
                   {errors.exp && <p className="text-red-500 text-xs mt-1">{errors.exp[0]}</p>}
                 </div>
               </div>
-              {bookingType === 'with' ? (
+              {bookingType === 'with' && (
                 <div>
-                  <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
+                  <Label className="text-gray-900">Container Numbers</Label>
                   <Textarea
                     value={formData.cnums}
                       onChange={(e) => setFormData({ ...formData, cnums: formatContainerListInput(e.target.value) })}
@@ -1177,37 +1182,21 @@ export default function Index() {
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
                   <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-gray-900">20' Containers</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={formData.two}
-                      onChange={(e) => setFormData({ ...formData, two: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-900">40' Containers</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={formData.four}
-                      onChange={(e) => setFormData({ ...formData, four: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-900">45' Containers</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={formData.fourf}
-                      onChange={(e) => setFormData({ ...formData, fourf: e.target.value })}
-                    />
-                  </div>
-                </div>
               )}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-gray-900">20' Containers</Label>
+                  <Input type="number" min="0" value={formData.two} onChange={(e) => setFormData({ ...formData, two: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-gray-900">40' Containers</Label>
+                  <Input type="number" min="0" value={formData.four} onChange={(e) => setFormData({ ...formData, four: e.target.value })} />
+                </div>
+                <div>
+                  <Label className="text-gray-900">45' Containers</Label>
+                  <Input type="number" min="0" value={formData.fourf} onChange={(e) => setFormData({ ...formData, fourf: e.target.value })} />
+                </div>
+              </div>
             </div>
             <DialogFooter className="gap-2">
               <ModernButton type="button" variant="toggle" onClick={() => setShowAddModal(false)}>Cancel</ModernButton>
@@ -1231,13 +1220,11 @@ export default function Index() {
                 <div className="grid grid-cols-2 gap-0 w-full rounded-lg shadow-sm overflow-hidden" role="group">
                   <button type="button" onClick={() => {
                     setEditBookingType('without');
-                    setEditFormData({ ...editFormData, two: editFormData.two || '0', four: editFormData.four || '0', fourf: editFormData.fourf || '0' });
                   }} className={`px-6 py-3 text-sm font-medium border transition-all ${editBookingType === 'without' ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`} style={editBookingType === 'without' ? { backgroundColor: colors.brand.primary } : {}}>
                     Without Container List
                   </button>
                   <button type="button" onClick={() => {
                     setEditBookingType('with');
-                    setEditFormData({ ...editFormData, cnums: formatContainerListInput(editFormData.cnums) });
                   }} className={`px-6 py-3 text-sm font-medium border border-l-0 transition-all ${editBookingType === 'with' ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`} style={editBookingType === 'with' ? { backgroundColor: colors.brand.primary } : {}}>
                     With Container List
                   </button>
@@ -1286,14 +1273,14 @@ export default function Index() {
                   </div>
                 </div>
               </div>
-              {editBookingType === 'with' ? (
+              {editBookingType === 'with' && (
                 <div>
-                  <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
+                  <Label className="text-gray-900">Container Numbers</Label>
                   <Textarea value={editFormData.cnums} onChange={(e) => setEditFormData({ ...editFormData, cnums: formatContainerListInput(e.target.value) })} rows={4} placeholder="Enter container numbers (comma-separated, 11 chars each)" className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`} />
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
                   <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
-              ) : (
+              )}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-gray-900">20' Containers</Label>
@@ -1308,7 +1295,6 @@ export default function Index() {
                   <Input type="number" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: e.target.value })} />
                 </div>
               </div>
-              )}
             </div>
             <DialogFooter className="gap-2">
               <ModernButton type="button" variant="toggle" onClick={() => setShowEditModal(false)}>Cancel</ModernButton>
@@ -1396,6 +1382,36 @@ export default function Index() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Gate Out Containers</div>
+                {selectedGateOutContainers.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedGateOutContainers.map((container, idx) => {
+                      const dateAdded = new Date(container.date_added);
+                      const formattedDate = Number.isNaN(dateAdded.getTime())
+                        ? container.date_added
+                        : dateAdded.toLocaleString('en-PH', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          });
+
+                      return (
+                        <div key={`gate-out-${idx}`} className="flex items-center justify-between gap-4 rounded-md bg-gray-50 px-3 py-2 text-sm">
+                          <span className="font-mono text-gray-900">{container.container_no}</span>
+                          <span className="text-gray-600">{formattedDate}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">-</div>
+                )}
               </div>
               </div>
             </div>
