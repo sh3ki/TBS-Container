@@ -368,8 +368,8 @@ class BookingController extends Controller
             'expiration_date' => $request->exp,
         ];
 
-        // Update quantities if not container list based (isc=0 means no container list)
-        if ($request->isc == '0') {
+        // Quantities and a container list are independent allocations. Both may
+        // be saved on the same booking.
             $oldTwenty = $booking->twenty;
             $oldFourty = $booking->fourty;
             $oldFourtyFive = $booking->fourty_five;
@@ -415,17 +415,14 @@ class BookingController extends Controller
             $data['twenty_rem'] = $newTwentyRem;
             $data['fourty_rem'] = $newFourtyRem;
             $data['fourty_five_rem'] = $newFourtyFiveRem;
-            $data['cont_list'] = '';
-            $data['cont_list_rem'] = '';
-        } else {
+        $data['cont_list'] = '';
+        $data['cont_list_rem'] = '';
+
+        if (!empty($request->cnums)) {
             $containers = array_values(array_unique(array_filter(array_map(
                 static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
                 preg_split('/[,\r\n]+/', (string) $request->cnums)
             ))));
-
-            if (!$containers) {
-                return response()->json(['success' => false, 'message' => 'Enter at least one container number.'], 422);
-            }
 
             $normalizeList = static function (?string $value): array {
                 return array_values(array_unique(array_filter(array_map(
@@ -450,12 +447,26 @@ class BookingController extends Controller
             $validContainers = array_values(array_filter($addedContainers, static fn ($container) => strlen($container) === 11));
             $heldLookup = array_fill_keys(DB::table('hold_containers')->whereIn('container_no', $validContainers)->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
             $inventoryLookup = array_fill_keys(DB::table('inventory')->whereIn('container_no', $validContainers)->where('gate_status', 'IN')->where('complete', 0)->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
+            $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
+            $activeReservedContainers = Booking::whereDate('expiration_date', '>=', $today)
+                ->where('b_id', '!=', $booking->b_id)
+                ->whereNotNull('cont_list')
+                ->get(['cont_list'])
+                ->flatMap(static function ($activeBooking) use ($normalizeList) {
+                    return $normalizeList($activeBooking->cont_list);
+                })
+                ->flip();
             $containerErrors = array_map(static fn ($container) => "{$container} container is not in inventory", $invalidContainers);
             foreach ($validContainers as $container) {
                 if (isset($heldLookup[$container])) {
                     $containerErrors[] = "{$container} container is on hold";
                 } elseif (!isset($inventoryLookup[$container])) {
                     $containerErrors[] = "{$container} container is not in inventory";
+                }
+            }
+            foreach ($containers as $container) {
+                if (strlen($container) === 11 && isset($activeReservedContainers[$container])) {
+                    $containerErrors[] = "{$container} container has already been reserved in another booking";
                 }
             }
 
@@ -465,13 +476,7 @@ class BookingController extends Controller
 
             $data['cont_list'] = implode(', ', $containers);
             $newRemaining = array_values(array_diff($oldRemaining, $removedContainers));
-            $data['cont_list_rem'] = implode(', ', array_values(array_unique(array_merge($newRemaining, $addedContainers))));
-            $data['twenty'] = 0;
-            $data['fourty'] = 0;
-            $data['fourty_five'] = 0;
-            $data['twenty_rem'] = 0;
-            $data['fourty_rem'] = 0;
-            $data['fourty_five_rem'] = 0;
+            $data['cont_list_rem'] = implode(', ', array_values(array_unique(array_merge($newRemaining, $containers))));
         }
 
         // Get old client name
@@ -519,22 +524,18 @@ class BookingController extends Controller
             $changes[] = 'Expiration: "' . $oldExpirationDate . '" -> "' . $request->exp . '"';
         }
         
-        // Track quantity changes if not container list based
-        if ($request->isc == '0') {
-            if (isset($oldTwenty) && $oldTwenty !== ($request->two ?? 0)) {
-                $changes[] = '20ft: ' . $oldTwenty . ' -> ' . ($request->two ?? 0);
-            }
-            if (isset($oldFourty) && $oldFourty !== ($request->four ?? 0)) {
-                $changes[] = '40ft: ' . $oldFourty . ' -> ' . ($request->four ?? 0);
-            }
-            if (isset($oldFourtyFive) && $oldFourtyFive !== ($request->fourf ?? 0)) {
-                $changes[] = '45ft: ' . $oldFourtyFive . ' -> ' . ($request->fourf ?? 0);
-            }
-        } else {
-            $newContainerList = (string) ($data['cont_list'] ?? '');
-            if ($oldContainerList !== $newContainerList) {
-                $changes[] = 'Container List: "' . $oldContainerList . '" -> "' . $newContainerList . '"';
-            }
+        if (isset($oldTwenty) && $oldTwenty !== ($request->two ?? 0)) {
+            $changes[] = '20ft: ' . $oldTwenty . ' -> ' . ($request->two ?? 0);
+        }
+        if (isset($oldFourty) && $oldFourty !== ($request->four ?? 0)) {
+            $changes[] = '40ft: ' . $oldFourty . ' -> ' . ($request->four ?? 0);
+        }
+        if (isset($oldFourtyFive) && $oldFourtyFive !== ($request->fourf ?? 0)) {
+            $changes[] = '45ft: ' . $oldFourtyFive . ' -> ' . ($request->fourf ?? 0);
+        }
+        $newContainerList = (string) ($data['cont_list'] ?? '');
+        if ($oldContainerList !== $newContainerList) {
+            $changes[] = 'Container List: "' . $oldContainerList . '" -> "' . $newContainerList . '"';
         }
         
         if (count($changes) > 0) {
