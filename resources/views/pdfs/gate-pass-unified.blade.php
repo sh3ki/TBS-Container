@@ -294,7 +294,7 @@
         
         <!-- HAULER WITH LICENSE NO. AND USER FULLNAME -->
         <div class="print-field hauler-license">{{ $data['hauler_driver'] ?? $data['haud'] ?? '' }}/{{ $data['license_no'] ?? $data['lno'] ?? '' }}</div>
-        <div class="print-field username-fullname">{{ $data['logged_in_user_fullname'] ?? '' }}</div>
+        <div class="print-field username-fullname">{{ strtoupper((string) ($data['logged_in_user_fullname'] ?? 'UNKNOWN')) }}</div>
     </div>
     
     <script type="text/javascript">
