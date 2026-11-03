@@ -1133,7 +1133,7 @@ export default function ProcessGateOutModal({
                                 <Textarea
                                     value={formData.approval_remarks}
                                     disabled
-                                    className="min-h-[60px] bg-gray-50"
+                                    className="min-h-[60px] resize-y overflow-auto bg-gray-50"
                                 />
                             </div>
 
@@ -1142,7 +1142,7 @@ export default function ProcessGateOutModal({
                                 <Textarea
                                     value={formData.gate_in_remarks}
                                     disabled
-                                    className="min-h-[60px] bg-gray-50"
+                                    className="min-h-[60px] resize-y overflow-auto bg-gray-50"
                                 />
                             </div>
 
