@@ -633,7 +633,9 @@ export default function ProcessGateOutModal({
                     ...prev,
                     booking: bookingNo,
                     shipper: response.data.shipper || '',
-                    save_and_book: countAvailable ? 'YES_COUNT' : listAvailable ? 'YES_LIST' : 'NO',
+                    // An active container-list match always takes priority over
+                    // numeric REM, so the container-list deduction is forced.
+                    save_and_book: listAvailable ? 'YES_LIST' : countAvailable ? 'YES_COUNT' : 'NO',
                 }));
                 setSelectedBookingSlots(response.data.available_slots || {});
                 setSelectedBookingRemainingList(remainingList);
@@ -1113,7 +1115,7 @@ export default function ProcessGateOutModal({
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {Number(selectedBookingSlots[String(sizeTypeOptions.find(
+                                        {!selectedBookingRemainingList.includes(formData.container_no.replace(/\s+/g, '').toUpperCase()) && Number(selectedBookingSlots[String(sizeTypeOptions.find(
                                             (sizeType) => String(sizeType.s_id) === String(formData.size_type)
                                         )?.size)] || 0) > 0 && (
                                             <SelectItem value="YES_COUNT">YES - container count</SelectItem>
