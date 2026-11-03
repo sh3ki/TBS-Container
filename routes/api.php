@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileGateinoutController;
@@ -38,6 +39,16 @@ Route::post('/login', [AuthController::class, 'login']);
 
 // Mobile App API Routes (Plain text login - separate from main auth)
 Route::prefix('mobile')->group(function () {
+    Route::get('/app-update', function () {
+        $settings = DB::table('mobile_settings')->where('setting_id', 1)->first();
+
+        return response()->json([
+            'success' => true,
+            'app_version' => $settings?->app_version ?? '',
+            'apk_url' => $settings?->apk_url ?? '',
+            'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
+        ]);
+    });
     Route::post('/login', [MobileAuthController::class, 'login']);
     Route::post('/logout', [MobileAuthController::class, 'logout']);
     // Mobile Gate In/Out Routes
