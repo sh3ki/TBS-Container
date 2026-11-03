@@ -46,6 +46,8 @@ interface Booking extends Record<string, unknown> {
 interface GateOutContainer {
   container_no: string;
   date_added: string;
+  size?: string | number;
+  type?: string;
 }
 
 interface FormData {
@@ -1387,27 +1389,42 @@ export default function Index() {
               <div className="border-t pt-4">
                 <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Gate Out Containers</div>
                 {selectedGateOutContainers.length > 0 ? (
-                  <div className="space-y-2">
-                    {selectedGateOutContainers.map((container, idx) => {
-                      const dateAdded = new Date(container.date_added);
-                      const formattedDate = Number.isNaN(dateAdded.getTime())
-                        ? container.date_added
-                        : dateAdded.toLocaleString('en-PH', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          });
+                  <div className="max-h-56 overflow-y-auto rounded-md border border-gray-200">
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 text-[11px] uppercase tracking-wide text-white" style={{ backgroundColor: colors.table.header }}>
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">Container</th>
+                          <th className="px-3 py-2 font-semibold">Size/Type</th>
+                          <th className="px-3 py-2 font-semibold">Date</th>
+                          <th className="px-3 py-2 font-semibold">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {selectedGateOutContainers.map((container, idx) => {
+                          const dateAdded = new Date(container.date_added);
+                          const validDate = !Number.isNaN(dateAdded.getTime());
+                          const sizeType = `${container.size ?? ''}${container.type ?? ''}` || '-';
+                          let sizeVariant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                          if (sizeType === '10DJH' || sizeType === '20RF' || sizeType === '40HC') sizeVariant = 'success';
+                          else if (sizeType === '20FR' || sizeType === '20RH' || sizeType === '40OT') sizeVariant = 'error';
+                          else if (sizeType === '20HR' || sizeType === '40DC' || sizeType === '40RH') sizeVariant = 'warning';
+                          else if (sizeType === '20OT' || sizeType === '40FR') sizeVariant = 'info';
 
-                      return (
-                        <div key={`gate-out-${idx}`} className="flex items-center justify-between gap-4 rounded-md bg-gray-50 px-3 py-2 text-sm">
-                          <span className="font-mono text-gray-900">{container.container_no}</span>
-                          <span className="text-gray-600">{formattedDate}</span>
-                        </div>
-                      );
-                    })}
+                          return (
+                            <tr key={`gate-out-${idx}`} className="bg-white hover:bg-gray-50">
+                              <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-900">{container.container_no}</td>
+                              <td className="px-3 py-2"><ModernBadge variant={sizeVariant}>{sizeType}</ModernBadge></td>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-700">
+                                {validDate ? dateAdded.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-'}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-700">
+                                {validDate ? dateAdded.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="text-sm text-gray-500">-</div>
