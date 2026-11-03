@@ -364,6 +364,8 @@ export default function Index() {
         two: Number(formData.two || 0),
         four: Number(formData.four || 0),
         fourf: Number(formData.fourf || 0),
+        // The tabs are navigation only; save both the quantities and list.
+        cnums: formData.cnums,
         isc: bookingType === 'with' ? '1' : '0'
       };
       
@@ -440,11 +442,6 @@ export default function Index() {
     e.preventDefault();
     setErrors({});
 
-    if (editBookingType === 'with' && !editFormData.cnums.trim()) {
-      error('Enter at least one container number');
-      return;
-    }
-
     const quantityChecks = [
       { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
       { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
@@ -478,7 +475,8 @@ export default function Index() {
         two: Number(editFormData.two),
         four: Number(editFormData.four),
         fourf: Number(editFormData.fourf),
-        cnums: editBookingType === 'with' ? editFormData.cnums : '',
+        // The tabs are navigation only; save both the quantities and list.
+        cnums: editFormData.cnums,
         clientid: editFormData.clientid,
         isc: editBookingType === 'with' ? '1' : '0',
       });
@@ -1169,7 +1167,7 @@ export default function Index() {
                   {errors.exp && <p className="text-red-500 text-xs mt-1">{errors.exp[0]}</p>}
                 </div>
               </div>
-              {bookingType === 'with' && (
+              {bookingType === 'with' ? (
                 <div>
                   <Label className="text-gray-900">Container Numbers</Label>
                   <Textarea
@@ -1182,8 +1180,8 @@ export default function Index() {
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
                   <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
-              )}
-              <div className="grid grid-cols-3 gap-4">
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-gray-900">20' Containers</Label>
                   <Input type="number" min="0" value={formData.two} onChange={(e) => setFormData({ ...formData, two: e.target.value })} />
@@ -1196,7 +1194,8 @@ export default function Index() {
                   <Label className="text-gray-900">45' Containers</Label>
                   <Input type="number" min="0" value={formData.fourf} onChange={(e) => setFormData({ ...formData, fourf: e.target.value })} />
                 </div>
-              </div>
+                </div>
+              )}
             </div>
             <DialogFooter className="gap-2">
               <ModernButton type="button" variant="toggle" onClick={() => setShowAddModal(false)}>Cancel</ModernButton>
@@ -1273,15 +1272,15 @@ export default function Index() {
                   </div>
                 </div>
               </div>
-              {editBookingType === 'with' && (
+              {editBookingType === 'with' ? (
                 <div>
                   <Label className="text-gray-900">Container Numbers</Label>
                   <Textarea value={editFormData.cnums} onChange={(e) => setEditFormData({ ...editFormData, cnums: formatContainerListInput(e.target.value) })} rows={4} placeholder="Enter container numbers (comma-separated, 11 chars each)" className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`} />
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
                   <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
-              )}
-              <div className="grid grid-cols-3 gap-4">
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-gray-900">20' Containers</Label>
                   <Input type="number" value={editFormData.two} onChange={(e) => setEditFormData({ ...editFormData, two: e.target.value })} />
@@ -1294,7 +1293,8 @@ export default function Index() {
                   <Label className="text-gray-900">45' Containers</Label>
                   <Input type="number" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: e.target.value })} />
                 </div>
-              </div>
+                </div>
+              )}
             </div>
             <DialogFooter className="gap-2">
               <ModernButton type="button" variant="toggle" onClick={() => setShowEditModal(false)}>Cancel</ModernButton>
