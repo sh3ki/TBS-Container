@@ -468,6 +468,7 @@ class BookingController extends Controller
         // after the update has already happened.
         $oldClientId = $booking->client_id;
         $oldExpirationDate = $booking->expiration_date?->toDateString() ?? (string) $booking->expiration_date;
+        $oldContainerList = (string) ($booking->cont_list ?? '');
         
         $booking->update($data);
 
@@ -513,6 +514,11 @@ class BookingController extends Controller
             }
             if (isset($oldFourtyFive) && $oldFourtyFive !== ($request->fourf ?? 0)) {
                 $changes[] = '45ft: ' . $oldFourtyFive . ' -> ' . ($request->fourf ?? 0);
+            }
+        } else {
+            $newContainerList = (string) ($data['cont_list'] ?? '');
+            if ($oldContainerList !== $newContainerList) {
+                $changes[] = 'Container List: "' . $oldContainerList . '" -> "' . $newContainerList . '"';
             }
         }
         
