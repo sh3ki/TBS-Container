@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { ModernButton, ModernCard, ModernTable, ModernBadge, ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
 import { Input } from "@/components/ui/input";
@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, RotateCcw, Filter, ArrowUpDown } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
-import { saveFieldHistory } from '@/components/CachedFieldHistory';
+import { removeFieldHistory, saveFieldHistory } from '@/components/CachedFieldHistory';
 
 interface Client {
   id: string;
@@ -28,7 +28,7 @@ interface Booking extends Record<string, unknown> {
     c_id: number;
     client_name: string;
     client_code: string;
-  };
+  } | null;
   shipper: string;
   twenty: number;
   fourty: number;
@@ -47,9 +47,9 @@ interface FormData {
   bnum: string;
   cid: string;
   shipper: string;
-  two: number;
-  four: number;
-  fourf: number;
+  two: number | string;
+  four: number | string;
+  fourf: number | string;
   cnums: string;
   exp: string;
 }
@@ -63,16 +63,28 @@ interface EditFormData extends Omit<FormData, 'two' | 'four' | 'fourf'> {
   fourf: string;
 }
 
+const formatContainerListInput = (value: string) => {
+  const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const containers = normalized.match(/.{1,11}/g) || [];
+  return containers.join(', ');
+};
+
 export default function Index() {
   const { toasts, removeToast, success, error } = useModernToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [expirationFilter, setExpirationFilter] = useState<string>('');
+  const [draftClientFilter, setDraftClientFilter] = useState<string>('all');
+  const [draftExpirationFilter, setDraftExpirationFilter] = useState<string>('');
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
+  const filterModalApplyRef = useRef(false);
   const [expiredResults, setExpiredResults] = useState<Booking[]>([]);
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(999999);
   
@@ -80,6 +92,7 @@ export default function Index() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [bookingType, setBookingType] = useState<'with' | 'without'>('without');
+  const [editBookingType, setEditBookingType] = useState<'with' | 'without'>('without');
   
   const [confirmAddBooking, setConfirmAddBooking] = useState(false);
   const [confirmUpdateBooking, setConfirmUpdateBooking] = useState(false);
@@ -113,12 +126,13 @@ export default function Index() {
   const [editMinimums, setEditMinimums] = useState({ two: 0, four: 0, fourf: 0 });
   
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedContainerList, setSelectedContainerList] = useState<string[]>([]);
+  const [selectedRemainingContainerList, setSelectedRemainingContainerList] = useState<string[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [shipperSuggestions, setShipperSuggestions] = useState<string[]>([]);
-  const [showShipperSuggestions, setShowShipperSuggestions] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
+    removeFieldHistory('booking.container_numbers');
     fetchBookings();
     fetchClients();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,13 +141,7 @@ export default function Index() {
   useEffect(() => {
     applyFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings, debouncedSearchTerm, clientFilter, expirationFilter]);
-
-  // Debounce search input
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
-    return () => clearTimeout(t);
-  }, [searchTerm]);
+  }, [bookings, appliedSearchTerm, clientFilter, expirationFilter]);
 
   // Back to Top button visibility based on scroll position
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -158,7 +166,7 @@ export default function Index() {
     };
   }, []);
 
-  // Check for pending booking from Gate OUT "Save and Book = YES"
+  // Check for pending booking from Gate OUT "Deduct in Booking = YES"
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('action') === 'create' && clients.length > 0) {
@@ -207,11 +215,11 @@ export default function Index() {
     // Start with current bookings array
     let working = [...bookings];
 
-    const search = (debouncedSearchTerm || '').toLowerCase();
+    const search = appliedSearchTerm.toLowerCase();
 
     // Apply client filter if set
     if (clientFilter !== 'all') {
-      working = working.filter(booking => booking.client.c_id.toString() === clientFilter);
+      working = working.filter(booking => booking.client?.c_id?.toString() === clientFilter);
     }
 
     // Apply expiration date filter (exact date)
@@ -232,10 +240,8 @@ export default function Index() {
     // Apply search to current bookings
     if (search) {
       currentFiltered = currentFiltered.filter(booking => 
-        booking.book_no.toLowerCase().includes(search) ||
-        booking.shipper.toLowerCase().includes(search) ||
-        booking.client.client_name.toLowerCase().includes(search) ||
-        booking.client.client_code.toLowerCase().includes(search)
+        (booking.book_no || '').toLowerCase().includes(search) ||
+        (booking.shipper || '').toLowerCase().includes(search)
       );
     }
 
@@ -244,7 +250,7 @@ export default function Index() {
     // For expired results (only used when searching): apply same filters but for expired bookings
     let expired = [...bookings];
     if (clientFilter !== 'all') {
-      expired = expired.filter(booking => booking.client.c_id.toString() === clientFilter);
+      expired = expired.filter(booking => booking.client?.c_id?.toString() === clientFilter);
     }
     if (expirationFilter) {
       expired = expired.filter(booking => {
@@ -259,22 +265,20 @@ export default function Index() {
     expired = expired.filter(b => isExpired(b));
     if (search) {
       expired = expired.filter(booking => 
-        booking.book_no.toLowerCase().includes(search) ||
-        booking.shipper.toLowerCase().includes(search) ||
-        booking.client.client_name.toLowerCase().includes(search) ||
-        booking.client.client_code.toLowerCase().includes(search)
+        (booking.book_no || '').toLowerCase().includes(search) ||
+        (booking.shipper || '').toLowerCase().includes(search)
       );
     }
     setExpiredResults(expired);
   };
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (search = '') => {
     setLoading(true);
     try {
       const response = await axios.get('/api/bookings', {
         params: { 
           per_page: 1000,
-          ...(debouncedSearchTerm ? { show_all: 1 } : {}),
+          ...(search ? { search, show_all: 1 } : {}),
         }
       });
       if (response.data.success) {
@@ -287,11 +291,48 @@ export default function Index() {
     }
   };
 
-  // Re-fetch bookings when debounced search term changes so we can include expired matches
-  useEffect(() => {
-    fetchBookings();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm]);
+  const handleSearch = async (allowEmpty = false) => {
+    const trimmedSearch = searchTerm.trim();
+    if (!allowEmpty && !trimmedSearch && !appliedSearchTerm) return;
+
+    setAppliedSearchTerm(trimmedSearch);
+    await fetchBookings(trimmedSearch);
+  };
+
+  const handleResetSearch = async () => {
+    setSearchTerm('');
+    setAppliedSearchTerm('');
+    setSortColumn('');
+    setSortDirection('asc');
+    await fetchBookings();
+  };
+
+  const canResetSearch = Boolean(searchTerm.trim() || appliedSearchTerm || sortColumn);
+
+  const canResetFilters = clientFilter !== 'all' || Boolean(expirationFilter);
+
+  const handleFilterModalOpenChange = (open: boolean) => {
+    if (!open && !filterModalApplyRef.current) {
+      setDraftClientFilter(clientFilter);
+      setDraftExpirationFilter(expirationFilter);
+    }
+    filterModalApplyRef.current = false;
+    setShowFiltersModal(open);
+  };
+
+  const handleApplyFilters = () => {
+    setClientFilter(draftClientFilter);
+    setExpirationFilter(draftExpirationFilter);
+    filterModalApplyRef.current = true;
+    setShowFiltersModal(false);
+  };
+
+  const handleResetFilters = () => {
+    setClientFilter('all');
+    setExpirationFilter('');
+    setDraftClientFilter('all');
+    setDraftExpirationFilter('');
+  };
 
   const fetchClients = async () => {
     try {
@@ -301,27 +342,6 @@ export default function Index() {
       }
     } catch {
       console.error('Failed to fetch clients');
-    }
-  };
-
-  const handleShipperInput = async (value: string) => {
-    value = value.toUpperCase();
-    setFormData({ ...formData, shipper: value });
-    
-    if (value.length > 1) {
-      try {
-        const response = await axios.get('/api/bookings/helpers/shipper-autocomplete', {
-          params: { key: value }
-        });
-        if (response.data.success) {
-          setShipperSuggestions(response.data.data);
-          setShowShipperSuggestions(true);
-        }
-      } catch {
-        console.error('Failed to fetch shipper suggestions');
-      }
-    } else {
-      setShowShipperSuggestions(false);
     }
   };
 
@@ -335,6 +355,9 @@ export default function Index() {
     try {
       const payload = {
         ...formData,
+        two: Number(formData.two || 0),
+        four: Number(formData.four || 0),
+        fourf: Number(formData.fourf || 0),
         isc: bookingType === 'with' ? '1' : '0'
       };
       
@@ -344,9 +367,7 @@ export default function Index() {
       const response = await axios.post('/api/bookings', payload);
       if (response.data.success) {
         saveFieldHistory({
-          'booking.booking_no': formData.bnum,
           'booking.shipper': formData.shipper,
-          'booking.container_numbers': bookingType === 'with' ? formData.cnums : undefined,
         });
         success('Booking created successfully');
         setShowAddModal(false);
@@ -378,7 +399,7 @@ export default function Index() {
 
   const handleEditBooking = useCallback((booking: Booking) => {
     // Use already-loaded booking data - no API call needed!
-    const client = clients.find(c => c.code === booking.client.client_code);
+    const client = clients.find(c => c.code === booking.client?.client_code);
     
     // Match the expiration date rendered in the table.
     const expDate = new Date(booking.expiration_date);
@@ -394,18 +415,18 @@ export default function Index() {
       two: String(booking.twenty),
       four: String(booking.fourty),
       fourf: String(booking.fourty_five),
-      cnums: '',
+      cnums: formatContainerListInput(booking.cont_list || ''),
       exp: formattedExp,
       clientid: client?.id || '',
       ship: booking.shipper,
     });
     setEditMinimums({
-      two: booking.twenty_rem,
-      four: booking.fourty_rem,
-      fourf: booking.fourty_five_rem,
+      two: Math.max(0, booking.twenty - booking.twenty_rem),
+      four: Math.max(0, booking.fourty - booking.fourty_rem),
+      fourf: Math.max(0, booking.fourty_five - booking.fourty_five_rem),
     });
     
-    setBookingType(booking.cont_list && booking.cont_list.trim() !== '' ? 'with' : 'without');
+    setEditBookingType(booking.cont_list && booking.cont_list.trim() !== '' ? 'with' : 'without');
     setShowEditModal(true);
   }, [clients]);
 
@@ -413,21 +434,28 @@ export default function Index() {
     e.preventDefault();
     setErrors({});
 
-    const quantityChecks = [
-      { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
-      { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
-      { value: editFormData.fourf, minimum: editMinimums.fourf, label: "45'" },
-    ];
+    if (editBookingType === 'with' && !editFormData.cnums.trim()) {
+      error('Enter at least one container number');
+      return;
+    }
 
-    for (const quantity of quantityChecks) {
-      if (!/^\d+$/.test(quantity.value)) {
-        error(`Enter a whole number for ${quantity.label} containers`);
-        return;
-      }
+    if (editBookingType === 'without') {
+      const quantityChecks = [
+        { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
+        { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
+        { value: editFormData.fourf, minimum: editMinimums.fourf, label: "45'" },
+      ];
 
-      if (Number(quantity.value) < quantity.minimum) {
-        error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
-        return;
+      for (const quantity of quantityChecks) {
+        if (!/^\d+$/.test(quantity.value)) {
+          error(`Enter a whole number for ${quantity.label} containers`);
+          return;
+        }
+
+        if (Number(quantity.value) < quantity.minimum) {
+          error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
+          return;
+        }
       }
     }
 
@@ -446,14 +474,38 @@ export default function Index() {
         two: Number(editFormData.two),
         four: Number(editFormData.four),
         fourf: Number(editFormData.fourf),
+        cnums: editBookingType === 'with' ? editFormData.cnums : '',
         clientid: editFormData.clientid,
-        isc: bookingType === 'with' ? '1' : '0',
+        isc: editBookingType === 'with' ? '1' : '0',
       });
       if (response.data.success) {
-        saveFieldHistory({ 'booking.booking_no': editFormData.bnum, 'booking.shipper': editFormData.ship });
+        saveFieldHistory({
+          'booking.shipper': editFormData.ship,
+        });
         success('Booking updated successfully');
         setShowEditModal(false);
-        fetchBookings();
+
+        // Update only the edited row so the table does not reload or reset
+        // the user's current scroll position.
+        const updatedFromServer = response.data.data as Partial<Booking> | undefined;
+        setBookings((currentBookings) => currentBookings.map((booking) => {
+          if (booking.hashed_id !== editFormData.id) return booking;
+
+          const selectedClient = clients.find((client) => client.id === editFormData.clientid);
+          return {
+            ...booking,
+            ...updatedFromServer,
+            hashed_id: booking.hashed_id,
+            book_no: editFormData.bnum.toUpperCase().replace(/\s/g, ''),
+            shipper: editFormData.ship.toUpperCase(),
+            expiration_date: editFormData.exp,
+            client: updatedFromServer?.client || booking.client || (selectedClient ? {
+              c_id: Number(selectedClient.id),
+              client_name: selectedClient.name || selectedClient.text,
+              client_code: selectedClient.code,
+            } : booking.client),
+          };
+        }));
       }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } };
@@ -475,7 +527,10 @@ export default function Index() {
         success('Booking deleted successfully');
         setBookingToDelete(null);
         setConfirmDeleteBooking(false);
-        fetchBookings();
+        // Remove only the deleted row to preserve table position and scroll.
+        setBookings((currentBookings) => currentBookings.filter(
+          (booking) => booking.hashed_id !== bookingToDelete.hashed_id
+        ));
       }
     } catch {
       setConfirmDeleteBooking(false);
@@ -483,10 +538,23 @@ export default function Index() {
     }
   };
 
-  const handleViewContainers = useCallback((booking: Booking) => {
-    // Set booking data immediately from local state - all data is already in booking object
+  const handleViewContainers = useCallback(async (booking: Booking) => {
+    const fallbackList = getContainerListArray(booking.cont_list).map((container) => container.trim());
+    const fallbackRemainingList = getContainerListArray(booking.cont_list_rem).map((container) => container.trim());
+    setSelectedContainerList(fallbackList);
+    setSelectedRemainingContainerList(fallbackRemainingList);
     setSelectedBooking(booking);
     setShowViewModal(true);
+
+    try {
+      const response = await axios.get(`/api/bookings/${booking.hashed_id}/containers`);
+      if (response.data.success) {
+        setSelectedContainerList(response.data.data || []);
+        setSelectedRemainingContainerList(response.data.remaining || []);
+      }
+    } catch {
+      // Keep the booking's stored lists if the filtered lookup is unavailable.
+    }
   }, []);
 
   const getContainerListArray = (contList: string) => {
@@ -494,11 +562,56 @@ export default function Index() {
     return contList.split(',').filter(c => c.trim());
   };
 
+  const handleSort = (column: string) => {
+    if (sortColumn === column && sortDirection === 'desc') {
+      setSortColumn('');
+      setSortDirection('asc');
+      return;
+    }
+
+    const nextDirection: 'asc' | 'desc' = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortColumn(column);
+    setSortDirection(nextDirection);
+  };
+
+  const sortIconFor = (column: string) => sortColumn === column
+    ? <span className="text-white">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+    : <ArrowUpDown className="h-4 w-4 opacity-90" />;
+
+  const sortBookings = (rows: Booking[]) => {
+    const effectiveColumn = sortColumn || 'date_added';
+    const getSortValue = (booking: Booking): string | number => {
+      switch (effectiveColumn) {
+        case 'book_no': return (booking.book_no || '').toLowerCase();
+        case 'client': return (booking.client?.client_name || '').toLowerCase();
+        case 'shipper': return (booking.shipper || '').toLowerCase();
+        case 'twenty_rem': return booking.twenty_rem ?? 0;
+        case 'fourty_rem': return booking.fourty_rem ?? 0;
+        case 'fourty_five_rem': return booking.fourty_five_rem ?? 0;
+        case 'expiration': return booking.expiration_date ? new Date(booking.expiration_date).getTime() : 0;
+        case 'container_list': return getContainerListArray(booking.cont_list).length;
+        case 'container_list_rem': return getContainerListArray(booking.cont_list_rem).length;
+        case 'date_added': return booking.date_added ? new Date(booking.date_added).getTime() : 0;
+        default: return '';
+      }
+    };
+
+    return [...rows].sort((a, b) => {
+      const aValue = getSortValue(a);
+      const bValue = getSortValue(b);
+      const result = typeof aValue === 'number' && typeof bValue === 'number'
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue), undefined, { numeric: true, sensitivity: 'base' });
+      return sortColumn && sortDirection === 'desc' ? -result : result;
+    });
+  };
+
     // Define table columns once so we can reuse for expired results
     const tableColumns = [
       {
         key: 'book_no',
         label: 'Book No.',
+        sortable: true,
         render: (booking: Booking) => (
           <div className="font-semibold text-gray-900 max-w-[70px]">{booking.book_no}</div>
         ),
@@ -506,16 +619,18 @@ export default function Index() {
       {
         key: 'client',
         label: 'Client Name',
+        sortable: true,
         render: (booking: Booking) => (
           <div className="text-sm text-gray-900 min-w-[70px] max-w-[75px]">
-            <div className="font-medium">{booking.client.client_name}</div>
-            <div className="text-xs text-gray-500">{booking.client.client_code}</div>
+            <div className="font-medium">{booking.client?.client_name || 'Unknown client'}</div>
+            <div className="text-xs text-gray-500">{booking.client?.client_code || '-'}</div>
           </div>
         ),
       },
       {
         key: 'shipper',
         label: 'Shipper',
+        sortable: true,
         render: (booking: Booking) => (
           <div className="min-w-[70px] max-w-[90px]">
             <span className="text-sm text-gray-900">{booking.shipper}</span>
@@ -531,6 +646,28 @@ export default function Index() {
               <div>x20</div>
               <div>x40</div>
               <div>x45</div>
+            </div>
+          </div>
+        ),
+        headerRender: () => (
+          <div className="flex w-full min-w-[190px] flex-col items-start gap-1 text-xs uppercase leading-tight">
+            <span>Containers</span>
+            <div className="grid w-full min-w-0 grid-cols-3 gap-2 text-center">
+              {([
+                ['x20', 'twenty_rem'],
+                ['x40', 'fourty_rem'],
+                ['x45', 'fourty_five_rem'],
+              ] as const).map(([label, column]) => (
+                <button
+                  key={column}
+                  type="button"
+                  className="inline-flex w-full min-w-0 items-center justify-center gap-1 font-semibold hover:text-white/80"
+                  onClick={(event) => { event.stopPropagation(); handleSort(column); }}
+                  title={`Sort by remaining ${label}`}
+                >
+                  {label} {sortIconFor(column)}
+                </button>
+              ))}
             </div>
           </div>
         ),
@@ -558,12 +695,33 @@ export default function Index() {
       {
         key: 'container_lists',
         label: 'Container Lists',
+        headerRender: () => (
+          <div className="flex w-full min-w-[180px] flex-col items-start gap-1 whitespace-nowrap text-xs uppercase leading-tight">
+            <span>Container Lists</span>
+            <div className="grid w-full grid-cols-2 gap-3 text-center">
+              {([
+                ['List', 'container_list'],
+                ['Remaining', 'container_list_rem'],
+              ] as const).map(([label, column]) => (
+                <button
+                  key={column}
+                  type="button"
+                  className="inline-flex w-full items-center justify-start gap-1 font-semibold hover:text-white/80"
+                  onClick={(event) => { event.stopPropagation(); handleSort(column); }}
+                  title={`Sort by ${label.toLowerCase()} container count`}
+                >
+                  {label} {sortIconFor(column)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ),
         render: (booking: Booking) => {
           const containers = getContainerListArray(booking.cont_list);
           const containersRem = getContainerListArray(booking.cont_list_rem);
           return (
-            <div className="space-y-1.5 min-w-[65px]">
-              <div>
+            <div className="grid w-full min-w-[180px] grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <div className="text-xs font-semibold text-gray-700 mb-0.5">List:</div>
                 <div className="text-xs font-mono text-gray-600">
                   {containers.length > 0 ? (
@@ -575,7 +733,7 @@ export default function Index() {
                   ) : '-'}
                 </div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-xs font-semibold text-gray-700 mb-0.5">Rem:</div>
                 <div className="text-xs font-mono text-gray-600">
                   {containersRem.length > 0 ? (
@@ -594,6 +752,7 @@ export default function Index() {
       {
         key: 'expiration',
         label: 'Expiration',
+        sortable: true,
         render: (booking: Booking) => (
           <div className="min-w-[95px]">
             <span className="text-sm text-gray-600">
@@ -620,6 +779,7 @@ export default function Index() {
       {
         key: 'date_added',
         label: 'Date',
+        sortable: true,
         render: (booking: Booking) => (
           <div className="text-sm text-gray-600 min-w-[65px]">
             {new Date(booking.date_added).toLocaleDateString('en-US', {
@@ -665,7 +825,7 @@ export default function Index() {
     ];
 
     // Show all bookings (no pagination)
-    const paginatedBookings = filteredBookings;
+    const paginatedBookings = sortBookings(filteredBookings);
     const totalPages = 1;
 
   return (
@@ -694,50 +854,84 @@ export default function Index() {
         <div className="relative" style={{ zIndex: 0 }}>
           <ModernCard title="Search & Filter Bookings" subtitle="Find bookings quickly" icon={<Search className="w-5 h-5" />}>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2">
+              <div className="md:col-span-3">
                 <Label className="text-sm font-semibold mb-2 text-gray-900">Search Bookings</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <Input
-                    type="text"
-                    placeholder="Search by booking number, shipper, or client..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Search by booking number or shipper..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void handleSearch();
+                        }
+                      }}
+                      className="pl-10 h-11"
+                    />
+                    <ModernButton
+                      type="button"
+                      variant="primary"
+                      onClick={() => void handleSearch()}
+                      disabled={loading || (!searchTerm.trim() && !appliedSearchTerm)}
+                      className="h-11 px-5"
+                    >
+                      Search
+                    </ModernButton>
+                    <button
+                      type="button"
+                      onClick={() => void handleResetSearch()}
+                      disabled={loading || !canResetSearch}
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white p-0 text-gray-600 shadow-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Reset search"
+                      aria-label="Reset search"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div>
-                <Label className="text-sm font-semibold mb-2 text-gray-900">Client Filter</Label>
-                <Select value={clientFilter} onValueChange={setClientFilter}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Clients</SelectItem>
-                    {clients.filter(client => client.name && client.name.trim() !== '').map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-sm font-semibold mb-2 text-gray-900">Expiration Filter</Label>
-                <Input
-                  type="date"
-                  value={expirationFilter}
-                  onChange={(e) => setExpirationFilter(e.target.value)}
-                  className="h-11"
-                  placeholder="Filter by expiration date"
-                />
+              <div className="md:col-span-1">
+                <Label className="text-sm font-semibold mb-2 text-gray-900">Filter Options</Label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftClientFilter(clientFilter);
+                      setDraftExpirationFilter(expirationFilter);
+                      setShowFiltersModal(true);
+                    }}
+                    className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-xs"
+                    disabled={loading}
+                  >
+                    <Filter className="w-4 h-4 text-gray-600" />
+                    <span>Filters</span>
+                    {canResetFilters && (
+                      <span className="ml-2 inline-flex items-center justify-center rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                        Active
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    disabled={loading || !canResetFilters}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white p-0 text-gray-600 shadow-xs transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Reset filters"
+                    aria-label="Reset filters"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-200">
               <p className="text-sm text-gray-600">
                 <span className="font-semibold text-gray-900">{filteredBookings.length}</span> bookings found
-                {searchTerm || clientFilter !== 'all' || expirationFilter ? (
+                {appliedSearchTerm || canResetFilters ? (
                   <span> (filtered from {bookings.length} total)</span>
                 ) : null}
               </p>
@@ -752,6 +946,9 @@ export default function Index() {
             loading={loading}
             emptyMessage="No bookings found. Click 'Book Containers' to get started."
             pagination={false}
+            onSort={handleSort}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
             onRowClick={handleViewContainers}
           />
           {expiredResults && expiredResults.length > 0 && (
@@ -766,10 +963,13 @@ export default function Index() {
               <div className="mt-3">
                 <ModernTable
                   columns={tableColumns}
-                  data={expiredResults}
+                  data={sortBookings(expiredResults)}
                   loading={false}
                   emptyMessage="No expired bookings match your search."
                   pagination={false}
+                  onSort={handleSort}
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
                   onRowClick={handleViewContainers}
                 />
               </div>
@@ -777,6 +977,67 @@ export default function Index() {
           )}
         </div>
       </div>
+
+      {/* Filters Modal */}
+      <Dialog open={showFiltersModal} onOpenChange={handleFilterModalOpenChange}>
+        <DialogContent className="max-w-xl bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+              Filter Options
+            </DialogTitle>
+            <DialogDescription>
+              Apply filters to refine booking results
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-sm font-semibold text-gray-900">Client</Label>
+              <Select value={draftClientFilter} onValueChange={setDraftClientFilter}>
+                <SelectTrigger className="mt-1.5 h-11">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {clients.filter(client => client.name && client.name.trim() !== '').map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-sm font-semibold text-gray-900">Expiration Date</Label>
+              <Input
+                type="date"
+                value={draftExpirationFilter}
+                onChange={(e) => setDraftExpirationFilter(e.target.value)}
+                className="mt-1.5 h-11"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <ModernButton
+              variant="secondary"
+              onClick={handleResetFilters}
+              disabled={loading || !canResetFilters}
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reset
+            </ModernButton>
+            <ModernButton
+              variant="primary"
+              onClick={handleApplyFilters}
+              disabled={loading}
+            >
+              Apply
+            </ModernButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Booking Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
@@ -794,7 +1055,7 @@ export default function Index() {
                     type="button"
                     onClick={() => {
                       setBookingType('without');
-                      setFormData({ ...formData, cnums: '', two: 0, four: 0, fourf: 0 });
+                      setFormData({ ...formData, two: 0, four: 0, fourf: 0 });
                     }}
                     className={`px-6 py-3 text-sm font-medium border transition-all ${
                       bookingType === 'without'
@@ -809,7 +1070,7 @@ export default function Index() {
                     type="button"
                     onClick={() => {
                       setBookingType('with');
-                      setFormData({ ...formData, cnums: '', two: 0, four: 0, fourf: 0 });
+                      setFormData({ ...formData, two: 0, four: 0, fourf: 0 });
                     }}
                     className={`px-6 py-3 text-sm font-medium border border-l-0 transition-all ${
                       bookingType === 'with'
@@ -825,7 +1086,7 @@ export default function Index() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
-                  <Input data-history-key="booking.booking_no" value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value.toUpperCase() })} className={errors.bnum ? 'border-red-500' : ''} />
+                  <Input value={formData.bnum} placeholder="Enter booking number" onChange={(e) => setFormData({ ...formData, bnum: e.target.value.toUpperCase() })} className={errors.bnum ? 'border-red-500' : ''} />
                   {errors.bnum && <p className="text-red-500 text-xs mt-1">{errors.bnum[0]}</p>}
                 </div>
                 <div>
@@ -846,36 +1107,15 @@ export default function Index() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="relative">
+                <div>
                   <Label className="text-gray-900">Shipper <span className="text-red-500">*</span></Label>
                   <Input
                     data-history-key="booking.shipper"
                     value={formData.shipper}
-                    onChange={(e) => handleShipperInput(e.target.value)}
+                    onChange={(e) => setFormData({ ...formData, shipper: e.target.value.toUpperCase() })}
                     placeholder="Enter shipper name"
                     className={errors.shipper ? 'border-red-500' : ''}
-                    autoComplete="off"
                   />
-                  {showShipperSuggestions && shipperSuggestions.length > 0 && (
-                    <div 
-                      className="absolute w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
-                      style={{ zIndex: 9999 }}
-                    >
-                      {shipperSuggestions.map((shipper, idx) => (
-                        <div 
-                          key={idx} 
-                          onClick={() => { 
-                            setFormData({ ...formData, shipper: shipper.toUpperCase() });
-                            setShowShipperSuggestions(false); 
-                          }} 
-                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-gray-900 text-sm"
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {shipper}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   {errors.shipper && <p className="text-red-500 text-xs mt-1">{errors.shipper[0]}</p>}
                 </div>
                 <div>
@@ -897,9 +1137,8 @@ export default function Index() {
                 <div>
                   <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
                   <Textarea
-                      data-history-key="booking.container_numbers"
                     value={formData.cnums}
-                      onChange={(e) => setFormData({ ...formData, cnums: e.target.value.toUpperCase() })}
+                      onChange={(e) => setFormData({ ...formData, cnums: formatContainerListInput(e.target.value) })}
                     rows={4}
                     placeholder="Enter container numbers (comma-separated, 11 chars each)"
                     className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`}
@@ -915,7 +1154,7 @@ export default function Index() {
                       type="number"
                       min="0"
                       value={formData.two}
-                      onChange={(e) => setFormData({ ...formData, two: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setFormData({ ...formData, two: e.target.value })}
                     />
                   </div>
                   <div>
@@ -924,7 +1163,7 @@ export default function Index() {
                       type="number"
                       min="0"
                       value={formData.four}
-                      onChange={(e) => setFormData({ ...formData, four: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setFormData({ ...formData, four: e.target.value })}
                     />
                   </div>
                   <div>
@@ -933,7 +1172,7 @@ export default function Index() {
                       type="number"
                       min="0"
                       value={formData.fourf}
-                      onChange={(e) => setFormData({ ...formData, fourf: parseInt(e.target.value) || 0 })}
+                      onChange={(e) => setFormData({ ...formData, fourf: e.target.value })}
                     />
                   </div>
                 </div>
@@ -956,10 +1195,27 @@ export default function Index() {
           </DialogHeader>
           <form onSubmit={submitUpdateBooking}>
             <div className="grid gap-4 py-4">
+              <div>
+                <Label className="text-gray-900 text-base font-medium mb-2 block">Booking Type</Label>
+                <div className="grid grid-cols-2 gap-0 w-full rounded-lg shadow-sm overflow-hidden" role="group">
+                  <button type="button" onClick={() => {
+                    setEditBookingType('without');
+                    setEditFormData({ ...editFormData, two: editFormData.two || '0', four: editFormData.four || '0', fourf: editFormData.fourf || '0' });
+                  }} className={`px-6 py-3 text-sm font-medium border transition-all ${editBookingType === 'without' ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`} style={editBookingType === 'without' ? { backgroundColor: colors.brand.primary } : {}}>
+                    Without Container List
+                  </button>
+                  <button type="button" onClick={() => {
+                    setEditBookingType('with');
+                    setEditFormData({ ...editFormData, cnums: formatContainerListInput(editFormData.cnums) });
+                  }} className={`px-6 py-3 text-sm font-medium border border-l-0 transition-all ${editBookingType === 'with' ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`} style={editBookingType === 'with' ? { backgroundColor: colors.brand.primary } : {}}>
+                    With Container List
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-900">Booking Number <span className="text-red-500">*</span></Label>
-                  <Input data-history-key="booking.booking_no" value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value.toUpperCase() })} />
+                  <Input value={editFormData.bnum} onChange={(e) => setEditFormData({ ...editFormData, bnum: e.target.value.toUpperCase() })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">Client <span className="text-red-500">*</span></Label>
@@ -967,13 +1223,13 @@ export default function Index() {
                     value={editFormData.clientid}
                     onValueChange={(value) => setEditFormData({ ...editFormData, clientid: value })}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Client" />
+                  <SelectTrigger className="w-full truncate">
+                    <SelectValue placeholder="Select Client" className="truncate" />
                     </SelectTrigger>
                     <SelectContent>
                       {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.text}
+                      <SelectItem key={client.id} value={client.id} className="truncate">
+                        <span className="truncate block" title={client.text}>{client.text}</span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -999,6 +1255,14 @@ export default function Index() {
                   </div>
                 </div>
               </div>
+              {editBookingType === 'with' ? (
+                <div>
+                  <Label className="text-gray-900">Container Numbers <span className="text-red-500">*</span></Label>
+                  <Textarea value={editFormData.cnums} onChange={(e) => setEditFormData({ ...editFormData, cnums: formatContainerListInput(e.target.value) })} rows={4} placeholder="Enter container numbers (comma-separated, 11 chars each)" className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`} />
+                  {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
+                  <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
+                </div>
+              ) : (
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-gray-900">20' Containers</Label>
@@ -1013,6 +1277,7 @@ export default function Index() {
                   <Input type="number" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: e.target.value })} />
                 </div>
               </div>
+              )}
             </div>
             <DialogFooter className="gap-2">
               <ModernButton type="button" variant="toggle" onClick={() => setShowEditModal(false)}>Cancel</ModernButton>
@@ -1077,8 +1342,8 @@ export default function Index() {
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-2">List</div>
                     <div className="space-y-1">
-                      {selectedBooking.cont_list && selectedBooking.cont_list.trim() ? (
-                        getContainerListArray(selectedBooking.cont_list).map((container, idx) => (
+                      {selectedContainerList.length > 0 ? (
+                        selectedContainerList.map((container, idx) => (
                           <div key={`list-${idx}`} className="text-gray-900 font-mono text-sm">{container}</div>
                         ))
                       ) : (
@@ -1090,8 +1355,8 @@ export default function Index() {
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Rem</div>
                     <div className="space-y-1">
-                      {selectedBooking.cont_list_rem && selectedBooking.cont_list_rem.trim() ? (
-                        getContainerListArray(selectedBooking.cont_list_rem).map((container, idx) => (
+                      {selectedRemainingContainerList.length > 0 ? (
+                        selectedRemainingContainerList.map((container, idx) => (
                           <div key={`rem-${idx}`} className="text-gray-900 font-mono text-sm">{container}</div>
                         ))
                       ) : (
