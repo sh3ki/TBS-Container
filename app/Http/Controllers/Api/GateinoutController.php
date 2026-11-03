@@ -1652,7 +1652,10 @@ class GateinoutController extends Controller
                 ], 422);
             }
 
-            // Search bookings by book_no, filter by client_id ONLY
+            // Search bookings by book_no, filter by client_id ONLY.
+            // A container-list allocation takes precedence over numeric REM:
+            // when this container is listed in any active booking for the client,
+            // only the booking(s) containing that container may be returned.
             // This ensures cross-client booking pollution is prevented
             // Only show bookings that are valid through today (Manila time) and
             // still have numeric or container-list capacity remaining.
@@ -1674,12 +1677,21 @@ class GateinoutController extends Controller
                 WHERE b.client_id = ?
                   AND b.expiration_date >= ?
                   AND (
-                      COALESCE({$remainingColumn}, 0) > 0
-                      OR FIND_IN_SET(?, REPLACE(COALESCE(b.cont_list_rem, ''), ' ', '')) > 0
+                      FIND_IN_SET(?, REPLACE(UPPER(COALESCE(b.cont_list_rem, '')), ' ', '')) > 0
+                      OR (
+                          COALESCE({$remainingColumn}, 0) > 0
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM {$this->prefix}bookings listed_booking
+                              WHERE listed_booking.client_id = b.client_id
+                                AND listed_booking.expiration_date >= ?
+                                AND FIND_IN_SET(?, REPLACE(UPPER(COALESCE(listed_booking.cont_list_rem, '')), ' ', '')) > 0
+                          )
+                      )
                   )
             ";
 
-            $params = [$clientId, $today, $containerNo];
+            $params = [$clientId, $today, $containerNo, $today, $containerNo];
 
             if (!empty($key)) {
                 $query .= " AND b.book_no LIKE ?";
@@ -1764,13 +1776,32 @@ class GateinoutController extends Controller
                 ], 404);
             }
 
-            if ((int) $booking->{$remainingColumn} <= 0) {
-                $normalizedContainerNo = strtoupper(preg_replace('/\s+/', '', $containerNo));
-                $remainingList = array_values(array_filter(array_map(
-                    static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                    preg_split('/\s*,\s*/', (string) $booking->cont_list_rem)
-                )));
+            $normalizedContainerNo = strtoupper(preg_replace('/\s+/', '', $containerNo));
+            $remainingList = array_values(array_filter(array_map(
+                static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                preg_split('/\s*,\s*/', (string) $booking->cont_list_rem)
+            )));
+            $bookingContainsContainer = in_array($normalizedContainerNo, $remainingList, true);
 
+            // Do not allow a numeric-REM booking to bypass a container-list
+            // allocation that already identifies the booking for this container.
+            $listedBookingExists = DB::selectOne("
+                SELECT 1
+                FROM {$this->prefix}bookings listed_booking
+                WHERE listed_booking.client_id = ?
+                  AND listed_booking.expiration_date >= ?
+                  AND FIND_IN_SET(?, REPLACE(UPPER(COALESCE(listed_booking.cont_list_rem, '')), ' ', '')) > 0
+                LIMIT 1
+            ", [$clientId, now(config('app.timezone', 'Asia/Manila'))->toDateString(), $normalizedContainerNo]);
+
+            if ($listedBookingExists && !$bookingContainsContainer) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This container is assigned to a container-list booking. Please use that booking.'
+                ], 422);
+            }
+
+            if ((int) $booking->{$remainingColumn} <= 0) {
                 if (!in_array($normalizedContainerNo, $remainingList, true)) {
                     return response()->json([
                         'success' => false,
