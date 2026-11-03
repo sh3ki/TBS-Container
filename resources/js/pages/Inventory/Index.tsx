@@ -1801,7 +1801,7 @@ const Index: React.FC = () => {
                                         moveHighlightMatch(event.shiftKey ? -1 : 1);
                                     }
                                 }}
-                                placeholder="Find in current rows..."
+                                placeholder="Find in inventory rows..."
                                 aria-label="Find text to highlight"
                                 className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm text-white placeholder:text-gray-400 focus-visible:ring-0"
                             />
