@@ -34,6 +34,18 @@ export const saveFieldHistory = (entries: Record<string, string | undefined | nu
     }
 };
 
+export const removeFieldHistory = (...keys: string[]) => {
+    if (keys.length === 0) return;
+
+    try {
+        const keySet = new Set(keys);
+        const history = readHistory().filter((entry) => !keySet.has(entry.key));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    } catch {
+        // Ignore storage failures.
+    }
+};
+
 const getSuggestions = (key: string, query: string) => {
     const normalizedQuery = query.trim().toUpperCase();
     if (!normalizedQuery) return [];
