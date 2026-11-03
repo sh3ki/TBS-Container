@@ -1442,8 +1442,15 @@ class GateinoutController extends Controller
             // Override gate_status_final with the parameter from the request
             $data['gate_status_final'] = $status;
             
-            // Add currently logged-in user's full name for printing
-            $data['logged_in_user_fullname'] = auth()->user()->full_name ?? auth()->user()->name ?? 'Unknown';
+            // Print the user recorded on this inventory event. If its user_id
+            // has no matching user, fall back to the current user's full name.
+            $currentUser = auth()->user();
+            $data['logged_in_user_fullname'] = strtoupper(trim((string) (
+                $record->user_full_name
+                ?? $currentUser?->full_name
+                ?? $currentUser?->name
+                ?? 'UNKNOWN'
+            )));
 
             // Override printed date/time to be the CURRENT Manila date/time (not the original record date).
             // This ensures printed Gate IN/OUT passes show the actual print timestamp in Philippine time.
