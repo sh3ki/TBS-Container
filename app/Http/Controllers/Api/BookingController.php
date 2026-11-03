@@ -38,6 +38,14 @@ class BookingController extends Controller
                   });
         }
 
+        // Search booking number or shipper when requested.
+        if ($search = trim((string) $request->get('search', ''))) {
+            $query->where(function ($searchQuery) use ($search) {
+                $searchQuery->where('book_no', 'like', "%{$search}%")
+                    ->orWhere('shipper', 'like', "%{$search}%");
+            });
+        }
+
         // Sort
         $sortBy = $request->get('sort_by', 'date_added');
         $sortOrder = $request->get('sort_order', 'desc');
@@ -72,6 +80,7 @@ class BookingController extends Controller
             'two' => 'nullable|integer|min:0',
             'four' => 'nullable|integer|min:0',
             'fourf' => 'nullable|integer|min:0',
+            'cnums' => 'nullable|string',
             'cnums' => 'nullable|string', // Container numbers
             'exp' => 'required|date',
         ]);
@@ -124,20 +133,52 @@ class BookingController extends Controller
 
         // Process container list if provided
         if (!empty($request->cnums)) {
-            $contList = preg_replace("/\r|\n/", "", $request->cnums);
-            $contArray = array_filter(array_map('trim', explode(',', $contList)));
-            
-            // Validate container numbers (must be 11 characters each)
-            foreach ($contArray as $cont) {
-                if (strlen(str_replace(' ', '', $cont)) !== 11) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "There's an error with container list!",
-                    ], 422);
+            $contArray = array_values(array_filter(array_map(
+                static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                preg_split('/[,\r\n]+/', (string) $request->cnums)
+            )));
+
+            $invalidContainers = array_values(array_filter($contArray, static fn ($container) => strlen($container) !== 11));
+            $validContainers = array_values(array_filter($contArray, static fn ($container) => strlen($container) === 11));
+            $heldLookup = [];
+            $inventoryLookup = [];
+
+            if ($validContainers) {
+                $heldLookup = array_fill_keys(DB::table('hold_containers')
+                    ->whereIn('container_no', $validContainers)
+                    ->pluck('container_no')
+                    ->map(static fn ($container) => strtoupper(trim((string) $container)))
+                    ->all(), true);
+
+                $inventoryLookup = array_fill_keys(DB::table('inventory')
+                    ->whereIn('container_no', $validContainers)
+                    ->where('gate_status', 'IN')
+                    ->where('complete', 0)
+                    ->pluck('container_no')
+                    ->map(static fn ($container) => strtoupper(trim((string) $container)))
+                    ->all(), true);
+            }
+
+            $containerErrors = [];
+            foreach ($invalidContainers as $container) {
+                $containerErrors[] = "{$container} container is not in inventory";
+            }
+            foreach ($validContainers as $container) {
+                if (isset($heldLookup[$container])) {
+                    $containerErrors[] = "{$container} container is on hold";
+                } elseif (!isset($inventoryLookup[$container])) {
+                    $containerErrors[] = "{$container} container is not in inventory";
                 }
             }
+
+            if ($containerErrors) {
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' and ', $containerErrors) . '.',
+                ], 422);
+            }
             
-            $data['cont_list'] = implode(',', $contArray);
+            $data['cont_list'] = implode(', ', $contArray);
             $data['cont_list_rem'] = $data['cont_list'];
         } else {
             $data['cont_list'] = '';
@@ -322,13 +363,17 @@ class BookingController extends Controller
             $newFourty = $request->four ?? 0;
             $newFourtyFive = $request->fourf ?? 0;
 
-            // A booking cannot be edited below its current remaining quantities.
-            if ($newTwenty < $booking->twenty_rem ||
-                $newFourty < $booking->fourty_rem ||
-                $newFourtyFive < $booking->fourty_five_rem) {
+            // Already-used containers cannot be removed from the allocation.
+            // The minimum is allocated minus remaining (the quantity already used).
+            $minimumTwenty = max(0, $booking->twenty - $booking->twenty_rem);
+            $minimumFourty = max(0, $booking->fourty - $booking->fourty_rem);
+            $minimumFourtyFive = max(0, $booking->fourty_five - $booking->fourty_five_rem);
+            if ($newTwenty < $minimumTwenty ||
+                $newFourty < $minimumFourty ||
+                $newFourtyFive < $minimumFourtyFive) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Container quantities cannot be lower than the remaining quantities.',
+                    'message' => 'Container quantities cannot be lower than the quantity already used.',
                 ], 422);
             }
 
@@ -355,6 +400,63 @@ class BookingController extends Controller
             $data['twenty_rem'] = $newTwentyRem;
             $data['fourty_rem'] = $newFourtyRem;
             $data['fourty_five_rem'] = $newFourtyFiveRem;
+            $data['cont_list'] = '';
+            $data['cont_list_rem'] = '';
+        } else {
+            $containers = array_values(array_unique(array_filter(array_map(
+                static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                preg_split('/[,\r\n]+/', (string) $request->cnums)
+            ))));
+
+            if (!$containers) {
+                return response()->json(['success' => false, 'message' => 'Enter at least one container number.'], 422);
+            }
+
+            $normalizeList = static function (?string $value): array {
+                return array_values(array_unique(array_filter(array_map(
+                    static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                    preg_split('/[,\r\n]+/', (string) $value)
+                ))));
+            };
+            $oldAllocated = $normalizeList($booking->cont_list);
+            $oldRemaining = $normalizeList($booking->cont_list_rem);
+            $removedContainers = array_values(array_diff($oldAllocated, $containers));
+            $usedRemovedContainers = array_values(array_diff($removedContainers, $oldRemaining));
+
+            if ($usedRemovedContainers) {
+                return response()->json([
+                    'success' => false,
+                    'message' => implode(' and ', array_map(static fn ($container) => "{$container} container is already used and cannot be removed", $usedRemovedContainers)) . '.',
+                ], 422);
+            }
+
+            $addedContainers = array_values(array_diff($containers, $oldAllocated));
+            $invalidContainers = array_values(array_filter($addedContainers, static fn ($container) => strlen($container) !== 11));
+            $validContainers = array_values(array_filter($addedContainers, static fn ($container) => strlen($container) === 11));
+            $heldLookup = array_fill_keys(DB::table('hold_containers')->whereIn('container_no', $validContainers)->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
+            $inventoryLookup = array_fill_keys(DB::table('inventory')->whereIn('container_no', $validContainers)->where('gate_status', 'IN')->where('complete', 0)->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
+            $containerErrors = array_map(static fn ($container) => "{$container} container is not in inventory", $invalidContainers);
+            foreach ($validContainers as $container) {
+                if (isset($heldLookup[$container])) {
+                    $containerErrors[] = "{$container} container is on hold";
+                } elseif (!isset($inventoryLookup[$container])) {
+                    $containerErrors[] = "{$container} container is not in inventory";
+                }
+            }
+
+            if ($containerErrors) {
+                return response()->json(['success' => false, 'message' => implode(' and ', $containerErrors) . '.'], 422);
+            }
+
+            $data['cont_list'] = implode(', ', $containers);
+            $newRemaining = array_values(array_diff($oldRemaining, $removedContainers));
+            $data['cont_list_rem'] = implode(', ', array_values(array_unique(array_merge($newRemaining, $addedContainers))));
+            $data['twenty'] = 0;
+            $data['fourty'] = 0;
+            $data['fourty_five'] = 0;
+            $data['twenty_rem'] = 0;
+            $data['fourty_rem'] = 0;
+            $data['fourty_five_rem'] = 0;
         }
 
         // Get old client name
@@ -489,7 +591,7 @@ class BookingController extends Controller
     public function getContainers($hashedId)
     {
         // Find booking by hashed ID
-        $booking = Booking::select('b_id', 'book_no')->get()->first(function($b) use ($hashedId) {
+        $booking = Booking::select('b_id', 'book_no', 'cont_list', 'cont_list_rem')->get()->first(function($b) use ($hashedId) {
             return md5($b->b_id) === $hashedId;
         });
 
@@ -500,22 +602,36 @@ class BookingController extends Controller
             ], 404);
         }
 
-        // Get containers from inventory
         try {
-            $containers = DB::table('inventory')
-                ->where('booking', $booking->book_no)
-                ->select('container_no')
-                ->get()
+            $parseContainerList = static function (?string $list): array {
+                return array_values(array_filter(array_map(
+                    static fn ($container) => strtoupper(trim($container)),
+                    preg_split('/\s*,\s*/', (string) $list)
+                )));
+            };
+
+            $containers = $parseContainerList($booking->cont_list);
+            $remainingContainers = $parseContainerList($booking->cont_list_rem);
+            $allContainers = array_values(array_unique(array_merge($containers, $remainingContainers)));
+            $heldContainers = DB::table('hold_containers')
+                ->whereIn('container_no', $allContainers)
                 ->pluck('container_no')
-                ->toArray();
+                ->map(static fn ($container) => strtoupper(trim((string) $container)))
+                ->all();
+
+            $heldLookup = array_fill_keys($heldContainers, true);
+            $containers = array_values(array_filter($containers, static fn ($container) => !isset($heldLookup[$container])));
+            $remainingContainers = array_values(array_filter($remainingContainers, static fn ($container) => !isset($heldLookup[$container])));
         } catch (\Exception $e) {
             // Inventory table might not exist yet
             $containers = [];
+            $remainingContainers = [];
         }
 
         return response()->json([
             'success' => true,
             'data' => $containers,
+            'remaining' => $remainingContainers,
         ]);
     }
 
