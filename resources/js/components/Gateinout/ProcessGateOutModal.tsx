@@ -1132,8 +1132,9 @@ export default function ProcessGateOutModal({
                                 <Label>Approval Remarks</Label>
                                 <Textarea
                                     value={formData.approval_remarks}
-                                    disabled
-                                    className="min-h-[60px] resize-y overflow-auto bg-gray-50"
+                                    readOnly
+                                    aria-disabled="true"
+                                    className="min-h-[60px] resize-y overflow-auto bg-gray-50 text-gray-500 cursor-default"
                                 />
                             </div>
 
@@ -1141,8 +1142,9 @@ export default function ProcessGateOutModal({
                                 <Label>Gate In Remarks</Label>
                                 <Textarea
                                     value={formData.gate_in_remarks}
-                                    disabled
-                                    className="min-h-[60px] resize-y overflow-auto bg-gray-50"
+                                    readOnly
+                                    aria-disabled="true"
+                                    className="min-h-[60px] resize-y overflow-auto bg-gray-50 text-gray-500 cursor-default"
                                 />
                             </div>
 
