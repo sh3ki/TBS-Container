@@ -1779,8 +1779,15 @@ class InventoryController extends Controller
             // Override gate_status_final with the parameter from the request
             $data['gate_status_final'] = $status;
             
-            // Add currently logged-in user's full name for printing
-            $data['logged_in_user_fullname'] = auth()->user()->full_name ?? auth()->user()->name ?? 'Unknown';
+            // Print the user recorded on this inventory event. If its user_id
+            // has no matching user, fall back to the current user's full name.
+            $currentUser = auth()->user();
+            $data['logged_in_user_fullname'] = strtoupper(trim((string) (
+                $record->user_full_name
+                ?? $currentUser?->full_name
+                ?? $currentUser?->name
+                ?? 'UNKNOWN'
+            )));
             
             // Use unified template instead of old template
             return view('pdfs.gate-pass-unified', compact('data'));
