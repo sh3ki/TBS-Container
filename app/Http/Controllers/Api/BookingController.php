@@ -160,6 +160,19 @@ class BookingController extends Controller
             }
 
             $containerErrors = [];
+            $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
+            $activeReservedContainers = Booking::whereDate('expiration_date', '>=', $today)
+                ->whereNotNull('cont_list')
+                ->get(['book_no', 'cont_list'])
+                ->flatMap(static function ($activeBooking) {
+                    return array_map(
+                        static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
+                        preg_split('/[\s,]+/', (string) $activeBooking->cont_list)
+                    );
+                })
+                ->filter()
+                ->flip();
+
             foreach ($invalidContainers as $container) {
                 $containerErrors[] = "{$container} container is not in inventory";
             }
@@ -168,6 +181,8 @@ class BookingController extends Controller
                     $containerErrors[] = "{$container} container is on hold";
                 } elseif (!isset($inventoryLookup[$container])) {
                     $containerErrors[] = "{$container} container is not in inventory";
+                } elseif (isset($activeReservedContainers[$container])) {
+                    $containerErrors[] = "{$container} container has already been reserved in another booking";
                 }
             }
 
@@ -628,16 +643,32 @@ class BookingController extends Controller
             $heldLookup = array_fill_keys($heldContainers, true);
             $containers = array_values(array_filter($containers, static fn ($container) => !isset($heldLookup[$container])));
             $remainingContainers = array_values(array_filter($remainingContainers, static fn ($container) => !isset($heldLookup[$container])));
+
+            $gateOutContainers = DB::table('inventory')
+                ->select(['container_no', 'date_added'])
+                ->where('booking', $booking->book_no)
+                ->where('gate_status', 'OUT')
+                ->where('complete', 1)
+                ->orderByDesc('date_added')
+                ->get()
+                ->map(static fn ($container) => [
+                    'container_no' => strtoupper(trim((string) $container->container_no)),
+                    'date_added' => $container->date_added,
+                ])
+                ->values()
+                ->all();
         } catch (\Exception $e) {
             // Inventory table might not exist yet
             $containers = [];
             $remainingContainers = [];
+            $gateOutContainers = [];
         }
 
         return response()->json([
             'success' => true,
             'data' => $containers,
             'remaining' => $remainingContainers,
+            'gate_out_containers' => $gateOutContainers,
         ]);
     }
 
