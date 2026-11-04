@@ -1220,6 +1220,124 @@ class ReportExportService
     }
 
     /**
+     * Export the New Zealand/client 80 three-sheet DMR workbook.
+     */
+    public function exportNewZealandDmr(array $data, string $dateFrom, string $dateTo): string
+    {
+        $this->spreadsheet = new Spreadsheet();
+        $this->spreadsheet->removeSheetByIndex(0);
+
+        $titleStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 11],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT, 'vertical' => Alignment::VERTICAL_CENTER],
+        ];
+        $headerStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 10, 'bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E7E6E6']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+        ];
+        $redHeaderStyle = $headerStyle;
+        $redHeaderStyle['font']['color'] = ['rgb' => 'FF0000'];
+        $cellStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 10],
+            'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+        ];
+        $value = static fn ($row, string $field, $default = '') => $row->{$field} ?? $default;
+        $type = static fn ($row) => strtoupper((string) ($row->container_type ?? '')) === 'DC'
+            ? 'GP'
+            : ($row->container_type ?? '');
+        $dateValue = static fn ($row) => $row->date_added ? Carbon::parse($row->date_added)->format('Y-m-d') : '';
+        $timeValue = static fn ($row) => $row->date_added ? Carbon::parse($row->date_added)->format('H:i:s') : '';
+        $setWidths = static function ($sheet, int $maxColumn): void {
+            for ($column = 1; $column <= $maxColumn; $column++) {
+                $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($column))->setAutoSize(true);
+            }
+        };
+        $writeTitle = static function ($sheet) use ($titleStyle, $dateFrom, $dateTo): void {
+            $sheet->setCellValue('A2', 'TBS');
+            $sheet->setCellValue('A3', 'New Zealand');
+            $sheet->setCellValue('A4', 'FROM');
+            $sheet->setCellValue('B4', Carbon::parse($dateFrom)->format('m/d/Y'));
+            $sheet->setCellValue('A5', 'TO');
+            $sheet->setCellValue('B5', Carbon::parse($dateTo)->format('d/m/Y'));
+            $sheet->getStyle('A2:B5')->applyFromArray($titleStyle);
+        };
+        $writeHeaders = static function ($sheet, array $headers, array $redColumns, int $row = 8) use ($headerStyle, $redHeaderStyle): void {
+            foreach ($headers as $column => $header) {
+                $sheet->setCellValueByColumnAndRow($column, $row, $header);
+                $sheet->getStyleByColumnAndRow($column, $row)->applyFromArray(in_array($column, $redColumns, true) ? $redHeaderStyle : $headerStyle);
+            }
+        };
+
+        // Incoming
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Incoming');
+        $this->spreadsheet->addSheet($sheet);
+        $writeTitle($sheet);
+        $incomingHeaders = ['No.', 'Container No.', 'Size', 'Type', 'Date In', '', 'Class', 'B/L No.', 'Method', 'Account Name', 'Truckers', 'Plate No.', 'Chassis', 'Inspected by', 'Cleanliness No.', 'Leg', 'Status', 'MFG Date', 'Liable Party', 'Remarks'];
+        $writeHeaders($sheet, $incomingHeaders, [1, 2, 3, 4, 5, 7, 8, 12, 17, 18]);
+        $rowNumber = 9;
+        foreach ($data['incoming'] ?? [] as $number => $item) {
+            $sheet->fromArray([
+                $number + 1, $value($item, 'container_no'), $value($item, 'size_type'), $type($item),
+                $dateValue($item), $timeValue($item), $value($item, 'class'), $value($item, 'bill_of_lading'),
+                $value($item, 'load_type'), $value($item, 'ex_consignee'), $value($item, 'hauler'),
+                $value($item, 'plate_no'), $value($item, 'chasis'), '', '', '', $value($item, 'status'),
+                $value($item, 'date_manufactured'), '', $value($item, 'remarks'),
+            ], null, 'A' . $rowNumber++);
+        }
+        $sheet->getStyle('A9:T' . max(9, $rowNumber - 1))->applyFromArray($cellStyle);
+        $setWidths($sheet, 20);
+
+        // Outgoing
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Outgoing');
+        $this->spreadsheet->addSheet($sheet);
+        $writeTitle($sheet);
+        $outgoingHeaders = ['No.', 'Container No.', 'Size', 'Type', 'Date Out', '', 'Class', 'B/L No.', 'Method', 'Seal No.', 'Account Name', 'Truckers', 'Plate No.', 'Chassis', 'Inspected by', 'Vessel', 'Voyage No.', 'Leg', 'MFG Date', 'Destination', 'Remarks'];
+        $writeHeaders($sheet, $outgoingHeaders, [1, 2, 3, 4, 5, 7, 8, 10, 13, 16, 17, 19, 20, 21]);
+        $rowNumber = 9;
+        foreach ($data['outgoing'] ?? [] as $number => $item) {
+            $sheet->fromArray([
+                $number + 1, $value($item, 'container_no'), $value($item, 'size_type'), $type($item),
+                $dateValue($item), $timeValue($item), $value($item, 'class'), $value($item, 'bill_of_lading'),
+                $value($item, 'load_type'), $value($item, 'seal_no'), $value($item, 'ex_consignee'),
+                $value($item, 'hauler'), $value($item, 'plate_no'), $value($item, 'chasis'), '',
+                $value($item, 'vessel'), $value($item, 'voyage'), '', $value($item, 'date_manufactured'),
+                $value($item, 'location'), $value($item, 'remarks'),
+            ], null, 'A' . $rowNumber++);
+        }
+        $sheet->getStyle('A9:U' . max(9, $rowNumber - 1))->applyFromArray($cellStyle);
+        $setWidths($sheet, 21);
+
+        // Aging
+        $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Aging');
+        $this->spreadsheet->addSheet($sheet);
+        $sheet->setCellValue('A2', 'TBS CONTAINER YARD');
+        $sheet->setCellValue('A3', 'NEW ZEALAND DAILY AGING REPORT');
+        $sheet->setCellValue('F3', Carbon::parse($dateTo)->format('j-M-y'));
+        $sheet->getStyle('A2:F3')->applyFromArray($titleStyle);
+        $agingHeaders = ['No.', 'Container No.', 'Size', 'Type', 'Class', 'Date In', '', 'Total No. of Days', 'Structural', 'Repairable', 'MFG Date', 'Yard', 'Remarks'];
+        $writeHeaders($sheet, $agingHeaders, [1, 2, 3, 4, 5, 6, 7, 8, 11], 5);
+        $rowNumber = 6;
+        foreach ($data['aging'] ?? [] as $number => $item) {
+            $sheet->fromArray([
+                $number + 1, $value($item, 'container_no'), $value($item, 'size_type'), $type($item),
+                $value($item, 'class'), $value($item, 'date_added') ? Carbon::parse($item->date_added)->format('m/d/Y') : '',
+                $value($item, 'date_added') ? Carbon::parse($item->date_added)->format('H:i:s') : '',
+                $value($item, 'age'), '', '', $value($item, 'date_manufactured'), '', $value($item, 'remarks'),
+            ], null, 'A' . $rowNumber++);
+        }
+        $sheet->getStyle('A6:M' . max(6, $rowNumber - 1))->applyFromArray($cellStyle);
+        $setWidths($sheet, 13);
+
+        $this->spreadsheet->setActiveSheetIndex(0);
+        $filename = 'New Zealand DMR (' . Carbon::parse($dateTo)->format('F d, Y') . ').xlsx';
+        $filepath = storage_path('app/public/exports/' . $filename);
+        if (!file_exists(dirname($filepath))) mkdir(dirname($filepath), 0755, true);
+        (new Xlsx($this->spreadsheet))->save($filepath);
+        return $filepath;
+    }
+
+    /**
      * Export the MSC/client 67 DMR workbook.
      */
     /**
