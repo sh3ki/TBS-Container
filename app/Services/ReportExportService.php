@@ -1264,6 +1264,7 @@ class ReportExportService
         };
         $writeHeaders = static function ($sheet, array $headers, array $redColumns, int $row = 8) use ($headerStyle, $redHeaderStyle): void {
             foreach ($headers as $column => $header) {
+                $column++;
                 $sheet->setCellValueByColumnAndRow($column, $row, $header);
                 $sheet->getStyleByColumnAndRow($column, $row)->applyFromArray(in_array($column, $redColumns, true) ? $redHeaderStyle : $headerStyle);
             }
@@ -1274,15 +1275,15 @@ class ReportExportService
         $this->spreadsheet->addSheet($sheet);
         $writeTitle($sheet);
         $incomingHeaders = ['No.', 'Container No.', 'Size', 'Type', 'Date In', '', 'Class', 'B/L No.', 'Method', 'Account Name', 'Truckers', 'Plate No.', 'Chassis', 'Inspected by', 'Cleanliness No.', 'Leg', 'Status', 'MFG Date', 'Liable Party', 'Remarks'];
-        $writeHeaders($sheet, $incomingHeaders, [1, 2, 3, 4, 5, 7, 8, 12, 17, 18]);
+        $writeHeaders($sheet, $incomingHeaders, [1, 2, 3, 4, 5, 7, 8, 11, 12, 17, 18]);
         $rowNumber = 9;
         foreach ($data['incoming'] ?? [] as $number => $item) {
             $sheet->fromArray([
                 $number + 1, $value($item, 'container_no'), $value($item, 'size_type'), $type($item),
                 $dateValue($item), $timeValue($item), $value($item, 'class'), $value($item, 'bill_of_lading'),
-                $value($item, 'load_type'), $value($item, 'ex_consignee'), $value($item, 'hauler'),
-                $value($item, 'plate_no'), $value($item, 'chasis'), '', '', '', $value($item, 'status'),
-                $value($item, 'date_manufactured'), '', $value($item, 'remarks'),
+                '', '', $value($item, 'hauler'),
+                $value($item, 'plate_no'), '', '', '', '', $value($item, 'status'),
+                $value($item, 'date_manufactured'), '', '',
             ], null, 'A' . $rowNumber++);
         }
         $sheet->getStyle('A9:T' . max(9, $rowNumber - 1))->applyFromArray($cellStyle);
@@ -1293,14 +1294,14 @@ class ReportExportService
         $this->spreadsheet->addSheet($sheet);
         $writeTitle($sheet);
         $outgoingHeaders = ['No.', 'Container No.', 'Size', 'Type', 'Date Out', '', 'Class', 'B/L No.', 'Method', 'Seal No.', 'Account Name', 'Truckers', 'Plate No.', 'Chassis', 'Inspected by', 'Vessel', 'Voyage No.', 'Leg', 'MFG Date', 'Destination', 'Remarks'];
-        $writeHeaders($sheet, $outgoingHeaders, [1, 2, 3, 4, 5, 7, 8, 10, 13, 16, 17, 19, 20, 21]);
+        $writeHeaders($sheet, $outgoingHeaders, [1, 2, 3, 4, 5, 7, 8, 12, 13, 16, 17, 19, 20, 21]);
         $rowNumber = 9;
         foreach ($data['outgoing'] ?? [] as $number => $item) {
             $sheet->fromArray([
                 $number + 1, $value($item, 'container_no'), $value($item, 'size_type'), $type($item),
                 $dateValue($item), $timeValue($item), $value($item, 'class'), $value($item, 'bill_of_lading'),
-                $value($item, 'load_type'), $value($item, 'seal_no'), $value($item, 'ex_consignee'),
-                $value($item, 'hauler'), $value($item, 'plate_no'), $value($item, 'chasis'), '',
+                '', '', $value($item, 'ex_consignee'),
+                $value($item, 'hauler'), $value($item, 'plate_no'), '', '',
                 $value($item, 'vessel'), $value($item, 'voyage'), '', $value($item, 'date_manufactured'),
                 $value($item, 'location'), $value($item, 'remarks'),
             ], null, 'A' . $rowNumber++);
@@ -1323,7 +1324,7 @@ class ReportExportService
                 $number + 1, $value($item, 'container_no'), $value($item, 'size_type'), $type($item),
                 $value($item, 'class'), $value($item, 'date_added') ? Carbon::parse($item->date_added)->format('m/d/Y') : '',
                 $value($item, 'date_added') ? Carbon::parse($item->date_added)->format('H:i:s') : '',
-                $value($item, 'age'), '', '', $value($item, 'date_manufactured'), '', $value($item, 'remarks'),
+                $value($item, 'age'), '', '', $value($item, 'date_manufactured'), '', '',
             ], null, 'A' . $rowNumber++);
         }
         $sheet->getStyle('A6:M' . max(6, $rowNumber - 1))->applyFromArray($cellStyle);
