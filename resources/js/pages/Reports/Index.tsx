@@ -1247,13 +1247,13 @@ const Index: React.FC = () => {
                                         <tr style={{ borderBottom: `1px solid ${colors.table.border}` }}>
                                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">IN</td>
                                             <td className="px-4 py-3 text-sm text-center text-gray-600">{billingData.incoming_count || 0}</td>
-                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{(billingData.incoming_rate || 1200).toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{(billingData.incoming_rate ?? 0).toLocaleString()}</td>
                                             <td className="px-4 py-3 text-sm text-center font-bold text-gray-900">{(billingData.incoming_total || 0).toLocaleString()}</td>
                                         </tr>
                                         <tr style={{ borderBottom: `1px solid ${colors.table.border}` }}>
                                             <td className="px-4 py-3 text-sm font-semibold text-gray-900">OUT</td>
                                             <td className="px-4 py-3 text-sm text-center text-gray-600">{billingData.outgoing_count || 0}</td>
-                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{(billingData.outgoing_rate || 1000).toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-sm text-center text-gray-600">{(billingData.outgoing_rate ?? 0).toLocaleString()}</td>
                                             <td className="px-4 py-3 text-sm text-center font-bold text-gray-900">{(billingData.outgoing_total || 0).toLocaleString()}</td>
                                         </tr>
                                     </tbody>
