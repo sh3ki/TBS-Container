@@ -1312,8 +1312,37 @@ class ReportExportService
         $sheet->mergeCells('B7:E7'); $sheet->mergeCells('F7:I7'); $sheet->mergeCells('J7:M7'); $sheet->mergeCells('N7:N8');
         $sheet->setCellValue('B7', '20'); $sheet->setCellValue('F7', '40'); $sheet->setCellValue('J7', '45'); $sheet->setCellValue('N7', 'Total stock');
         $sheet->fromArray(['TYPE', 'A', 'B', 'C', 'Total', 'A', 'B', 'C', 'Total', 'A', 'B', 'C', 'Total'], null, 'A8'); $sheet->getStyle('A7:N8')->applyFromArray($header); $row = 9;
-        foreach (['DC' => 'DV', 'HC' => 'HC', 'RF' => 'RF', 'FR' => 'FR', 'OT' => 'OT', 'RH' => 'RH'] as $sourceType => $displayType) { $vals = [$displayType]; foreach ([20, 40, 45] as $size) { foreach (['A', 'B', 'C'] as $className) $vals[] = $inventory->filter(fn ($i) => $i->size_type === $size . $sourceType && $i->class === $className)->count(); $vals[] = array_sum(array_slice($vals, -3)); } $vals[] = array_sum(array_slice($vals, 1)); $writeRow($sheet, $vals, $row++); }
-        $sheet->setCellValue('A' . $row, 'TOTAL'); for ($col = 2; $col <= 14; $col++) $sheet->setCellValueByColumnAndRow($col, $row, '=SUM(' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . '9:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . ($row - 1) . ')'); $sheet->getStyle('A8:N' . $row)->applyFromArray($cell); $sheet->getStyle('A8:N8')->applyFromArray($header); $sheet->getStyle('A' . $row . ':N' . $row)->getFont()->setBold(true); $sheet->setShowGridlines(true); $setWidths($sheet, 14);
+        foreach (['DC' => 'DV', 'HC' => 'HC', 'RF' => 'RF', 'FR' => 'FR', 'OT' => 'OT', 'RH' => 'RH'] as $sourceType => $displayType) {
+            $sheet->setCellValue('A' . $row, $displayType);
+
+            foreach ([20, 40, 45] as $sizeIndex => $size) {
+                $startColumn = 2 + ($sizeIndex * 4);
+                foreach (['A', 'B', 'C'] as $classIndex => $className) {
+                    $sheet->setCellValueByColumnAndRow(
+                        $startColumn + $classIndex,
+                        $row,
+                        $inventory->filter(fn ($i) => $i->size_type === $size . $sourceType && $i->class === $className)->count()
+                    );
+                }
+
+                $totalColumn = $startColumn + 3;
+                $firstClassColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($startColumn);
+                $lastClassColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($startColumn + 2);
+                $sheet->setCellValueByColumnAndRow($totalColumn, $row, '=SUM(' . $firstClassColumn . $row . ':' . $lastClassColumn . $row . ')');
+            }
+
+            // Total stock must add only the three group totals (20, 40, and 45).
+            $sheet->setCellValue('N' . $row, '=SUM(E' . $row . ',I' . $row . ',M' . $row . ')');
+            $row++;
+        }
+
+        $sheet->setCellValue('A' . $row, 'TOTAL');
+        for ($col = 2; $col <= 13; $col++) {
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
+            $sheet->setCellValue($column . $row, '=SUM(' . $column . '9:' . $column . ($row - 1) . ')');
+        }
+        $sheet->setCellValue('N' . $row, '=SUM(E' . $row . ',I' . $row . ',M' . $row . ')');
+        $sheet->getStyle('A8:N' . $row)->applyFromArray($cell); $sheet->getStyle('A8:N8')->applyFromArray($header); $sheet->getStyle('A' . $row . ':N' . $row)->getFont()->setBold(true); $sheet->setShowGridlines(true); $setWidths($sheet, 14);
 
         // Outgoing Units
         $sheet = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($this->spreadsheet, 'Outgoing Units'); $this->spreadsheet->addSheet($sheet); $sheet->setCellValue('B2', 'OUTGOING CONTAINERS'); $sheet->fromArray(['NO.', 'CONTAINER NO.', 'SIZE/TYPE', 'DATE IN', 'DAYS', 'DATE OUT'], null, 'A5'); $sheet->getStyle('A5:F5')->applyFromArray($header); $row = 6; $number = 1; $outs = $movement['outgoing_units']->sortBy('date_added'); foreach ($outs as $item) { $dateIn = $item->date_in ? Carbon::parse($item->date_in) : null; $dateOut = Carbon::parse($item->date_added); $days = $dateIn ? (int) ceil(max(0, $dateOut->timestamp - $dateIn->timestamp) / 86400) : 0; $writeRow($sheet, [$number++, $item->container_no, $item->size_type, $dateIn?->format('Y-m-d'), $days, $dateOut->format('Y-m-d')], $row++); } $setWidths($sheet, 6);
