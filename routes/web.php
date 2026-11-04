@@ -126,6 +126,11 @@ Route::middleware(['auth'])->group(function () {
         ]);
     })->middleware('page.access:mobile-settings')->name('mobile-settings.index');
 
+    // App Settings
+    Route::get('/app-settings', function () {
+        return Inertia::render('AppSettings/Index');
+    })->middleware('page.access:app-settings')->name('app-settings.index');
+
     Route::put('/mobile-settings', function (Request $request, AuditService $auditService) {
         $validated = $request->validate([
             'app_version' => ['required', 'string', 'max:50'],
