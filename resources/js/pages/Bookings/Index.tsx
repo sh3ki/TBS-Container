@@ -227,7 +227,7 @@ export default function Index() {
 
     // Apply client filter if set
     if (clientFilter !== 'all') {
-      working = working.filter(booking => booking.client?.c_id?.toString() === clientFilter);
+      working = working.filter(booking => booking.client?.client_code === clientFilter);
     }
 
     // Apply expiration date filter (exact date)
@@ -258,7 +258,7 @@ export default function Index() {
     // For expired results (only used when searching): apply same filters but for expired bookings
     let expired = [...bookings];
     if (clientFilter !== 'all') {
-      expired = expired.filter(booking => booking.client?.c_id?.toString() === clientFilter);
+      expired = expired.filter(booking => booking.client?.client_code === clientFilter);
     }
     if (expirationFilter) {
       expired = expired.filter(booking => {
@@ -1038,8 +1038,8 @@ export default function Index() {
                 <SelectContent>
                   <SelectItem value="all">All Clients</SelectItem>
                   {clients.filter(client => client.name && client.name.trim() !== '').map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
+                    <SelectItem key={client.id} value={client.code || client.id}>
+                      {client.text}
                     </SelectItem>
                   ))}
                 </SelectContent>
