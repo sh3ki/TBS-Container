@@ -128,8 +128,60 @@ Route::middleware(['auth'])->group(function () {
 
     // App Settings
     Route::get('/app-settings', function () {
-        return Inertia::render('AppSettings/Index');
+        $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+
+        return Inertia::render('AppSettings/Index', [
+            'settings' => [
+                'incoming_rate' => (float) ($settings?->incoming_rate ?? 0),
+                'outgoing_rate' => (float) ($settings?->outgoing_rate ?? 0),
+                'hauler_exceptions' => (string) ($settings?->hauler_exceptions ?? ''),
+            ],
+        ]);
     })->middleware('page.access:app-settings')->name('app-settings.index');
+
+    Route::put('/app-settings', function (Request $request, AuditService $auditService) {
+        $validated = $request->validate([
+            'incoming_rate' => ['required', 'numeric', 'gt:0'],
+            'outgoing_rate' => ['required', 'numeric', 'gt:0'],
+            'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $currentSettings = DB::table('app_settings')->where('setting_id', 1)->first();
+        $incomingRate = (float) $validated['incoming_rate'];
+        $outgoingRate = (float) $validated['outgoing_rate'];
+        $haulerExceptions = collect(explode(',', (string) ($validated['hauler_exceptions'] ?? '')))
+            ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
+        DB::table('app_settings')->updateOrInsert(
+            ['setting_id' => 1],
+            [
+                'incoming_rate' => $incomingRate,
+                'outgoing_rate' => $outgoingRate,
+                'hauler_exceptions' => $haulerExceptions !== '' ? $haulerExceptions : null,
+                'updated_at' => now(),
+                'created_at' => $currentSettings?->created_at ?? now(),
+            ],
+        );
+
+        try {
+            if ((float) ($currentSettings?->incoming_rate ?? 0) !== $incomingRate) {
+                $auditService->log('UPDATE', "Updated incoming Docs Fee rate to {$incomingRate}", 'APP SETTINGS');
+            }
+            if ((float) ($currentSettings?->outgoing_rate ?? 0) !== $outgoingRate) {
+                $auditService->log('UPDATE', "Updated outgoing Docs Fee rate to {$outgoingRate}", 'APP SETTINGS');
+            }
+            if ((string) ($currentSettings?->hauler_exceptions ?? '') !== $haulerExceptions) {
+                $auditService->log('UPDATE', 'Updated Docs Fee hauler exceptions', 'APP SETTINGS');
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        return response()->json(['message' => 'Docs Fee settings updated successfully.']);
+    })->middleware('page.access:app-settings')->name('app-settings.update');
 
     Route::put('/mobile-settings', function (Request $request, AuditService $auditService) {
         $validated = $request->validate([
