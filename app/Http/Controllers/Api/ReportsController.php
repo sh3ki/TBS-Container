@@ -1332,7 +1332,7 @@ class ReportsController extends Controller
 
             // New Zealand/client 80 uses the three-sheet New Zealand DMR layout.
             if ((string) $clientId === '80') {
-                $newZealandMovement = function (string $gateStatus) use ($dateStart, $dateEnd) {
+                $newZealandMovement = function (string $gateStatus) use ($dateStart, $dateEnd, $dmrTablePrefix) {
                     return DB::table('inventory')
                         ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
                         ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
