@@ -983,17 +983,38 @@ class ReportsController extends Controller
             $total_ts += $ts;
         }
 
+        $appSettings = DB::table('app_settings')->where('setting_id', 1)->first();
+        $incomingRate = (float) ($appSettings?->incoming_rate ?? 0);
+        $outgoingRate = (float) ($appSettings?->outgoing_rate ?? 0);
+        $haulerExceptions = collect(explode(',', (string) ($appSettings?->hauler_exceptions ?? '')))
+            ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
+            ->filter()
+            ->unique();
+        $billingRows = DB::table('inventory as i')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'i.i_id')
+            ->whereDate('pi.date_added', $date)
+            ->whereIn('i.gate_status', ['IN', 'OUT'])
+            ->select('i.gate_status', 'i.hauler')
+            ->get();
+        $incomingBillableCount = $billingRows->where('gate_status', 'IN')
+            ->reject(fn ($row): bool => $haulerExceptions->contains(strtoupper(trim((string) ($row->hauler ?? '')))))
+            ->count();
+        $outgoingBillableCount = $billingRows->where('gate_status', 'OUT')
+            ->reject(fn ($row): bool => $haulerExceptions->contains(strtoupper(trim((string) ($row->hauler ?? '')))))
+            ->count();
         // Calculate billing totals
         $incomingCount = $total_ti + $total_fi;
         $outgoingCount = $total_to + $total_fo;
         $billingData = [
             'incoming_count' => $incomingCount,
-            'incoming_rate' => 1200,
-            'incoming_total' => $incomingCount * 1200,
+            'incoming_billable_count' => $incomingBillableCount,
+            'incoming_rate' => $incomingRate,
+            'incoming_total' => $incomingBillableCount * $incomingRate,
             'outgoing_count' => $outgoingCount,
-            'outgoing_rate' => 1000,
-            'outgoing_total' => $outgoingCount * 1000,
-            'grand_total' => ($incomingCount * 1200) + ($outgoingCount * 1000),
+            'outgoing_billable_count' => $outgoingBillableCount,
+            'outgoing_rate' => $outgoingRate,
+            'outgoing_total' => $outgoingBillableCount * $outgoingRate,
+            'grand_total' => ($incomingBillableCount * $incomingRate) + ($outgoingBillableCount * $outgoingRate),
         ];
 
         return response()->json([
@@ -1682,6 +1703,26 @@ class ReportsController extends Controller
             ORDER BY c.c_id
         ", [$date, $date, $date, $date, $date, $date, $date, $date]);
 
+        $appSettings = DB::table('app_settings')->where('setting_id', 1)->first();
+        $incomingRate = (float) ($appSettings?->incoming_rate ?? 0);
+        $outgoingRate = (float) ($appSettings?->outgoing_rate ?? 0);
+        $haulerExceptions = collect(explode(',', (string) ($appSettings?->hauler_exceptions ?? '')))
+            ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
+            ->filter()
+            ->unique();
+        $billingRows = DB::table('inventory as i')
+            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'i.i_id')
+            ->whereDate('pi.date_added', $date)
+            ->whereIn('i.gate_status', ['IN', 'OUT'])
+            ->select('i.gate_status', 'i.hauler')
+            ->get();
+        $incomingBillableCount = $billingRows->where('gate_status', 'IN')
+            ->reject(fn ($row): bool => $haulerExceptions->contains(strtoupper(trim((string) ($row->hauler ?? '')))))
+            ->count();
+        $outgoingBillableCount = $billingRows->where('gate_status', 'OUT')
+            ->reject(fn ($row): bool => $haulerExceptions->contains(strtoupper(trim((string) ($row->hauler ?? '')))))
+            ->count();
+
         // Prepare DCR data array
         $dcrData = [
             'clients' => $clientList,
@@ -1693,9 +1734,11 @@ class ReportsController extends Controller
             'date' => $date,
             'billingData' => [
                 'incoming_count' => $incomingCount,
-                'incoming_rate' => 1200,
+                'incoming_billable_count' => $incomingBillableCount,
+                'incoming_rate' => $incomingRate,
                 'outgoing_count' => $outgoingCount,
-                'outgoing_rate' => 1000
+                'outgoing_billable_count' => $outgoingBillableCount,
+                'outgoing_rate' => $outgoingRate
             ]
         ];
 
@@ -1717,8 +1760,7 @@ class ReportsController extends Controller
     }
 
     /**
-     * Export Docs Fee Report
-     * Shows incoming (1200.00) and outgoing (1000.00) containers with fees
+     * Export Docs Fee Report using the saved application rates.
      */
     public function exportDocsFeeReport(Request $request)
     {
@@ -1727,8 +1769,28 @@ class ReportsController extends Controller
         ]);
 
         $date = $request->date;
+        $appSettings = DB::table('app_settings')->where('setting_id', 1)->first();
+        $incomingRate = (float) ($appSettings?->incoming_rate ?? 0);
+        $outgoingRate = (float) ($appSettings?->outgoing_rate ?? 0);
+        $incomingRateSql = number_format($incomingRate, 2, '.', '');
+        $outgoingRateSql = number_format($outgoingRate, 2, '.', '');
+        $inventoryAlias = DB::getTablePrefix() . 'inv';
+        $haulerExceptions = collect(explode(',', (string) ($appSettings?->hauler_exceptions ?? '')))
+            ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
+            ->filter()
+            ->unique()
+            ->values();
+        $exceptionSql = $haulerExceptions->isEmpty()
+            ? null
+            : $haulerExceptions->map(fn (string $hauler): string => DB::getPdo()->quote($hauler))->implode(', ');
+        $incomingAmountSql = $exceptionSql === null
+            ? $incomingRateSql . ' as amount'
+            : "CASE WHEN UPPER(TRIM(COALESCE({$inventoryAlias}.hauler, ''))) IN ({$exceptionSql}) THEN 0.00 ELSE {$incomingRateSql} END as amount";
+        $outgoingAmountSql = $exceptionSql === null
+            ? $outgoingRateSql . ' as amount'
+            : "CASE WHEN UPPER(TRIM(COALESCE({$inventoryAlias}.hauler, ''))) IN ({$exceptionSql}) THEN 0.00 ELSE {$outgoingRateSql} END as amount";
 
-        // Get incoming containers with 1200.00 fee
+        // Get incoming containers with the configured fee.
         $incoming = DB::table('inventory as inv')
             ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
             ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
@@ -1738,12 +1800,12 @@ class ReportsController extends Controller
             ->where('c.archived', 0)
             ->select(
                 DB::raw('CONCAT(fjp_inv.i_id, "I") as eir_no'),
-                DB::raw('TIME(fjp_pi.date_added) as time'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
                 DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
                 'inv.hauler',
                 'inv.plate_no',
-                DB::raw('1200.00 as amount'),
+                DB::raw($incomingAmountSql),
                 DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
                 'st.size'
             )
@@ -1751,7 +1813,7 @@ class ReportsController extends Controller
             ->get()
             ->toArray();
 
-        // Get outgoing containers with 1000.00 fee
+        // Get outgoing containers with the configured fee.
         $outgoing = DB::table('inventory as inv')
             ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
             ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
@@ -1761,12 +1823,12 @@ class ReportsController extends Controller
             ->where('c.archived', 0)
             ->select(
                 DB::raw('CONCAT(fjp_inv.i_id, "O") as eir_no'),
-                DB::raw('TIME(fjp_pi.date_added) as time'),
+                DB::raw('TIME(fjp_inv.date_added) as time'),
                 'inv.container_no',
                 DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
                 'inv.hauler',
                 'inv.plate_no',
-                DB::raw('1000.00 as amount'),
+                DB::raw($outgoingAmountSql),
                 DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
                 'st.size'
             )
