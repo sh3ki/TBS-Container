@@ -23,6 +23,7 @@ import {
     Images,
     FileCode2,
     Smartphone,
+    Settings,
 } from 'lucide-react';
 import { ModernConfirmDialog } from '@/components/modern/ModernConfirmDialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -62,6 +63,7 @@ const iconMap: Record<string, React.ReactNode> = {
     containerimages: <Images className="h-5 w-5" />,
     edi: <FileCode2 className="h-5 w-5" />,
     'mobile-settings': <Smartphone className="h-5 w-5" />,
+    'app-settings': <Settings className="h-5 w-5" />,
 };
 
 export default function Authenticated({ children }: PropsWithChildren) {
