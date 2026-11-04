@@ -644,12 +644,14 @@ class ReportExportService
         $billingData = $dcrData['billingData'] ?? [];
         
         $inCount = (int)($billingData['incoming_count'] ?? 0);
-        $inRate = (int)($billingData['incoming_rate'] ?? 1200);
-        $inTotal = $inCount * $inRate;
+        $inRate = (float)($billingData['incoming_rate'] ?? 0);
+        $inBillableCount = (int)($billingData['incoming_billable_count'] ?? $inCount);
+        $inTotal = $inBillableCount * $inRate;
         
         $outCount = (int)($billingData['outgoing_count'] ?? 0);
-        $outRate = (int)($billingData['outgoing_rate'] ?? 1000);
-        $outTotal = $outCount * $outRate;
+        $outRate = (float)($billingData['outgoing_rate'] ?? 0);
+        $outBillableCount = (int)($billingData['outgoing_billable_count'] ?? $outCount);
+        $outTotal = $outBillableCount * $outRate;
         
         $billRow = 5;
 
