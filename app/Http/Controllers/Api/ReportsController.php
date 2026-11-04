@@ -1330,6 +1330,91 @@ class ReportsController extends Controller
                 return response()->download($filePath, $filename)->deleteFileAfterSend(true);
             }
 
+            // New Zealand/client 80 uses the three-sheet New Zealand DMR layout.
+            if ((string) $clientId === '80') {
+                $newZealandMovement = function (string $gateStatus) use ($dateStart, $dateEnd) {
+                    return DB::table('inventory')
+                        ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
+                        ->leftJoin('container_status', 'inventory.container_status', '=', 'container_status.s_id')
+                        ->where('inventory.client_id', 80)
+                        ->where('inventory.gate_status', $gateStatus)
+                        ->whereBetween('inventory.date_added', [$dateStart, $dateEnd])
+                        ->whereNotNull('container_size_type.size')
+                        ->select(
+                            'inventory.container_no',
+                            DB::raw("CONCAT({$dmrTablePrefix}container_size_type.size, {$dmrTablePrefix}container_size_type.type) as size_type"),
+                            'container_size_type.type as container_type',
+                            'inventory.date_added',
+                            'inventory.class',
+                            'inventory.bill_of_lading',
+                            'inventory.load_type',
+                            'inventory.ex_consignee',
+                            'inventory.hauler',
+                            'inventory.plate_no',
+                            'inventory.chasis',
+                            'container_status.status',
+                            'inventory.date_manufactured',
+                            'inventory.vessel',
+                            'inventory.voyage',
+                            'inventory.seal_no',
+                            'inventory.location',
+                            'inventory.remarks'
+                        )
+                        ->orderBy('container_size_type.size')
+                        ->orderBy('container_size_type.type')
+                        ->orderBy('inventory.date_added')
+                        ->get();
+                };
+
+                $newZealandAging = DB::table('inventory')
+                    ->leftJoin('container_size_type', 'inventory.size_type', '=', 'container_size_type.s_id')
+                    ->where('inventory.client_id', 80)
+                    ->where('inventory.gate_status', 'IN')
+                    ->where(function ($query) use ($date) {
+                        $query->where('inventory.complete', 0)
+                            ->orWhere(function ($query) use ($date) {
+                                $query->where('inventory.complete', 1)
+                                    ->whereExists(function ($subquery) use ($date) {
+                                        $subquery->select(DB::raw(1))
+                                            ->from('inventory as out_inventory')
+                                            ->whereColumn('out_inventory.i_id', 'inventory.out_id')
+                                            ->whereDate('out_inventory.date_added', '>', $date);
+                                    });
+                            });
+                    })
+                    ->whereDate('inventory.date_added', '<=', $date)
+                    ->whereNotNull('container_size_type.size')
+                    ->select(
+                        'inventory.container_no',
+                        DB::raw("CONCAT({$dmrTablePrefix}container_size_type.size, {$dmrTablePrefix}container_size_type.type) as size_type"),
+                        'container_size_type.type as container_type',
+                        'inventory.class',
+                        'inventory.date_added',
+                        'inventory.date_manufactured',
+                        'inventory.remarks',
+                        DB::raw("DATEDIFF('{$date}', DATE({$dmrTablePrefix}inventory.date_added)) as age")
+                    )
+                    ->orderByDesc('age')
+                    ->orderBy('inventory.date_added')
+                    ->get();
+
+                $filePath = (new ReportExportService())->exportNewZealandDmr([
+                    'incoming' => $newZealandMovement('IN'),
+                    'outgoing' => $newZealandMovement('OUT'),
+                    'aging' => $newZealandAging,
+                ], $date, $date);
+
+                DB::table('audit_logs')->insert([
+                    'action' => 'REPORTS',
+                    'description' => '[REPORTS] New Zealand DMR exported',
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+
+                return response()->download($filePath, 'New Zealand DMR ' . $date . '.xlsx')->deleteFileAfterSend(true);
+            }
+
             $tablePrefix = DB::getTablePrefix();
             $invTable = $tablePrefix . 'inventory';
             $clientTable = $tablePrefix . 'clients';
