@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 /**
  * Mobile Inventory Controller
@@ -62,6 +63,8 @@ class MobileInventoryController extends Controller
                     CONCAT(IFNULL(st.size, ''), IFNULL(st.type, '')) as size_type,
                     i.iso_code,
                     i.class,
+                    i.location,
+                    i.date_added,
                     COALESCE(cs.status, '') as container_status,
                     COALESCE(i.approval_notes, '') as approval_notes,
                     COALESCE(i.remarks, '') as remarks,
@@ -91,6 +94,21 @@ class MobileInventoryController extends Controller
             ";
 
             $results = DB::select($sql, $params);
+
+            $now = Carbon::now();
+            $results = array_map(static function ($item) use ($now) {
+                $days = 0;
+                if (!empty($item->date_added)) {
+                    $dateAdded = Carbon::parse($item->date_added);
+                    // Match the Laravel inventory table: elapsed time rounded up,
+                    // with a minimum of one day for a valid inventory timestamp.
+                    $days = max(1, (int) ceil(max(0, $dateAdded->diffInSeconds($now, false)) / 86400));
+                }
+
+                $item->days = $days;
+                unset($item->date_added);
+                return $item;
+            }, $results);
 
             return response()->json([
                 'success' => true,
