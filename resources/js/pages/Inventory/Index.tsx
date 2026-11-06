@@ -3153,7 +3153,7 @@ const Index: React.FC = () => {
                                     )}
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Days in Yard</Label>
-                                        <p className="mt-1 text-gray-900">{formatDurationFrom(viewRecord.date as string, viewRecord.time as string, viewRecord.days)}</p>
+                                        <p className="mt-1 text-gray-900">{Number.isFinite(Number(viewRecord.days)) ? `${viewRecord.days} days` : formatDurationFrom(viewRecord.date as string, viewRecord.time as string)}</p>
                                     </div>
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Gate Status</Label>
@@ -3167,10 +3167,10 @@ const Index: React.FC = () => {
                                         <Label className="text-xs uppercase text-gray-600">Remarks (EIR Notes)</Label>
                                         <p className="mt-1 text-gray-900">{viewRecord.eir_notes || 'N/A'}</p>
                                     </div>
-                                    {viewRecord.gate !== 'OUT' && (
+                                    {viewRecord.gate !== 'OUT' && viewRecord.app_notes && (
                                     <div>
                                         <Label className="text-xs uppercase text-gray-600">Approval Notes</Label>
-                                        <p className="mt-1 text-gray-900">{viewRecord.app_notes || 'N/A'}</p>
+                                        <p className="mt-1 text-gray-900">{viewRecord.app_notes}</p>
                                     </div>
                                     )}
                                     {(viewRecord.hold_notes || viewRecord.repo_notes) && (
