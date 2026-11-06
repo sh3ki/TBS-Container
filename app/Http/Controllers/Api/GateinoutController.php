@@ -20,6 +20,50 @@ class GateinoutController extends Controller
 {
     private $prefix;
 
+    private static function flattenBookingContainers(?string $value): array
+    {
+        if (!$value) return [];
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $containers = [];
+            foreach ($decoded as $mapping) {
+                if (is_array($mapping['containers'] ?? null)) $containers = array_merge($containers, $mapping['containers']);
+            }
+            return array_values(array_unique(array_filter($containers)));
+        }
+        return array_values(array_filter(array_map(
+            static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim((string) $container))),
+            preg_split('/[\s,]+/', $value)
+        )));
+    }
+
+    private static function removeBookingContainer(?string $value, string $selected): string
+    {
+        $decoded = json_decode((string) $value, true);
+        if (is_array($decoded)) {
+            $mappings = [];
+            foreach ($decoded as $mapping) {
+                if (!is_array($mapping)) continue;
+                $containers = array_values(array_filter(
+                    is_array($mapping['containers'] ?? null) ? $mapping['containers'] : [],
+                    static fn ($container) => strtoupper((string) $container) !== $selected
+                ));
+                if ($containers) {
+                    $mappings[] = [
+                        'size_type' => (string) ($mapping['size_type'] ?? ''),
+                        'containers' => $containers,
+                    ];
+                }
+            }
+            return json_encode($mappings, JSON_UNESCAPED_SLASHES);
+        }
+
+        return implode(', ', array_values(array_filter(
+            self::flattenBookingContainers($value),
+            static fn ($container) => $container !== $selected
+        )));
+    }
+
     public function __construct()
     {
         $this->prefix = env('DB_PREFIX', 'fjp_');
@@ -1204,7 +1248,14 @@ class GateinoutController extends Controller
                         [$validated['booking_no'], $validated['client_id']]
                     );
 
-                    if ($bookingInfo && $validated['save_and_book'] === 'YES_COUNT') {
+                    $selectedContainer = strtoupper(preg_replace('/\s+/', '', $validated['container_no']));
+                    $containerIsListed = $bookingInfo && in_array(
+                        $selectedContainer,
+                        self::flattenBookingContainers($bookingInfo->cont_list_rem),
+                        true
+                    );
+
+                    if ($bookingInfo && $validated['save_and_book'] === 'YES_COUNT' && !$containerIsListed) {
                         // Decrement only the matching numeric remainder for YES - container count.
                         if ($containerSize == 20 || $containerSize == 22) {
                             DB::update(
@@ -1222,21 +1273,23 @@ class GateinoutController extends Controller
                                 [$bookingInfo->b_id]
                             );
                         }
-                    } elseif ($bookingInfo && $validated['save_and_book'] === 'YES_LIST') {
+                    } elseif ($bookingInfo && ($validated['save_and_book'] === 'YES_LIST' || $containerIsListed)) {
                         // Remove only the selected container from the remaining list for YES - container list.
-                        $selectedContainer = strtoupper(preg_replace('/\s+/', '', $validated['container_no']));
-                        $remainingContainers = array_values(array_filter(array_map(
-                            static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                            preg_split('/\s*,\s*/', (string) $bookingInfo->cont_list_rem)
-                        )));
-                        $remainingContainers = array_values(array_filter(
-                            $remainingContainers,
-                            static fn ($container) => $container !== $selectedContainer
-                        ));
-
+                        $setParts = ['cont_list_rem = ?'];
+                        $updateParams = [self::removeBookingContainer($bookingInfo->cont_list_rem, $selectedContainer)];
+                        $sizeColumn = match ((int) $containerSize) {
+                            20, 22 => 'twenty_rem',
+                            40, 42 => 'fourty_rem',
+                            45 => 'fourty_five_rem',
+                            default => null,
+                        };
+                        if ($sizeColumn) {
+                            $setParts[] = "{$sizeColumn} = GREATEST({$sizeColumn} - 1, 0)";
+                        }
+                        $updateParams[] = $bookingInfo->b_id;
                         DB::update(
-                            "UPDATE {$this->prefix}bookings SET cont_list_rem = ? WHERE b_id = ?",
-                            [implode(', ', $remainingContainers), $bookingInfo->b_id]
+                            "UPDATE {$this->prefix}bookings SET " . implode(', ', $setParts) . " WHERE b_id = ?",
+                            $updateParams
                         );
                     }
                 }
@@ -1677,7 +1730,8 @@ class GateinoutController extends Controller
                 WHERE b.client_id = ?
                   AND b.expiration_date >= ?
                   AND (
-                      FIND_IN_SET(?, REPLACE(UPPER(COALESCE(b.cont_list_rem, '')), ' ', '')) > 0
+                      (FIND_IN_SET(?, REPLACE(UPPER(COALESCE(b.cont_list_rem, '')), ' ', '')) > 0
+                       OR UPPER(COALESCE(b.cont_list_rem, '')) LIKE CONCAT('%\"', UPPER(?), '\"%'))
                       OR (
                           COALESCE({$remainingColumn}, 0) > 0
                           AND NOT EXISTS (
@@ -1685,13 +1739,14 @@ class GateinoutController extends Controller
                               FROM {$this->prefix}bookings listed_booking
                               WHERE listed_booking.client_id = b.client_id
                                 AND listed_booking.expiration_date >= ?
-                                AND FIND_IN_SET(?, REPLACE(UPPER(COALESCE(listed_booking.cont_list_rem, '')), ' ', '')) > 0
+                                AND (FIND_IN_SET(?, REPLACE(UPPER(COALESCE(listed_booking.cont_list_rem, '')), ' ', '')) > 0
+                                     OR UPPER(COALESCE(listed_booking.cont_list_rem, '')) LIKE CONCAT('%\"', UPPER(?), '\"%'))
                           )
                       )
                   )
             ";
 
-            $params = [$clientId, $today, $containerNo, $today, $containerNo];
+            $params = [$clientId, $today, $containerNo, $containerNo, $today, $containerNo, $containerNo];
 
             if (!empty($key)) {
                 $query .= " AND b.book_no LIKE ?";
@@ -1777,10 +1832,7 @@ class GateinoutController extends Controller
             }
 
             $normalizedContainerNo = strtoupper(preg_replace('/\s+/', '', $containerNo));
-            $remainingList = array_values(array_filter(array_map(
-                static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                preg_split('/\s*,\s*/', (string) $booking->cont_list_rem)
-            )));
+            $remainingList = self::flattenBookingContainers($booking->cont_list_rem);
             $bookingContainsContainer = in_array($normalizedContainerNo, $remainingList, true);
 
             // Do not allow a numeric-REM booking to bypass a container-list
@@ -1790,9 +1842,10 @@ class GateinoutController extends Controller
                 FROM {$this->prefix}bookings listed_booking
                 WHERE listed_booking.client_id = ?
                   AND listed_booking.expiration_date >= ?
-                  AND FIND_IN_SET(?, REPLACE(UPPER(COALESCE(listed_booking.cont_list_rem, '')), ' ', '')) > 0
+                  AND (FIND_IN_SET(?, REPLACE(UPPER(COALESCE(listed_booking.cont_list_rem, '')), ' ', '')) > 0
+                       OR UPPER(COALESCE(listed_booking.cont_list_rem, '')) LIKE CONCAT('%\"', UPPER(?), '\"%'))
                 LIMIT 1
-            ", [$clientId, now(config('app.timezone', 'Asia/Manila'))->toDateString(), $normalizedContainerNo]);
+            ", [$clientId, now(config('app.timezone', 'Asia/Manila'))->toDateString(), $normalizedContainerNo, $normalizedContainerNo]);
 
             if ($listedBookingExists && !$bookingContainsContainer) {
                 return response()->json([
