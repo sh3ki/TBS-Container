@@ -126,6 +126,7 @@ interface InventoryRecord {
     app_notes: string;
     approval_date?: string;
     is_hold?: boolean;
+    is_repo?: boolean;
     container_status_id?: number;
     vessel?: string;
     voyage?: string;
@@ -276,6 +277,10 @@ const Index: React.FC = () => {
     const [bulkHoldReason, setBulkHoldReason] = useState('');
     const [bulkHolding, setBulkHolding] = useState(false);
     const [bulkActionTab, setBulkActionTab] = useState<'hold' | 'unhold'>('hold');
+    const [showBulkRepoModal, setShowBulkRepoModal] = useState(false);
+    const [bulkRepoAction, setBulkRepoAction] = useState<'add' | 'remove'>('add');
+    const [bulkRepoNotes, setBulkRepoNotes] = useState('');
+    const [bulkRepoProcessing, setBulkRepoProcessing] = useState(false);
 
     // Repo/Available action state
     const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -292,9 +297,10 @@ const Index: React.FC = () => {
 
     // Confirmation dialog states
     const [showApproveConfirm, setShowApproveConfirm] = useState(false);
-    const [showHoldConfirm, setShowHoldConfirm] = useState(false);
     const [showUnholdConfirm, setShowUnholdConfirm] = useState(false);
     const [showRepoToggleConfirm, setShowRepoToggleConfirm] = useState(false);
+    const [showRepoNotesModal, setShowRepoNotesModal] = useState(false);
+    const [repoNotes, setRepoNotes] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditConfirm, setShowEditConfirm] = useState(false);
     const [showExportConfirm, setShowExportConfirm] = useState(false);
@@ -1126,11 +1132,6 @@ const Index: React.FC = () => {
     const handleOpenHoldModal = (record: InventoryRecord) => {
         setSelectedRecord(record);
         setHoldNotes('');
-        setShowHoldConfirm(true);
-    };
-
-    const handleConfirmHold = () => {
-        setShowHoldConfirm(false);
         setShowHoldModal(true);
     };
 
@@ -1173,6 +1174,44 @@ const Index: React.FC = () => {
         setBulkHoldReason('');
         setBulkActionTab('hold');
         setShowBulkHoldModal(true);
+    };
+
+    const handleOpenBulkRepoModal = () => {
+        setBulkContainerInput('');
+        setBulkRepoNotes('');
+        setBulkRepoAction('add');
+        setShowBulkRepoModal(true);
+    };
+
+    const handleBulkRepo = async () => {
+        const numbers = parseBulkContainerInput(bulkContainerInput);
+        if (!numbers.length) return error('Please enter at least one container number');
+        if (numbers.some((number) => number.length !== 11)) return error('Each container number must contain exactly 11 characters');
+        if (bulkRepoAction === 'add' && !bulkRepoNotes.trim()) return error('Please enter repo notes');
+        setBulkRepoProcessing(true);
+        try {
+            const response = await axios.post('/api/inventory/bulk-repo', {
+                container_numbers: numbers,
+                action: bulkRepoAction,
+                ...(bulkRepoAction === 'add' ? { notes: bulkRepoNotes.trim() } : {}),
+            });
+            if (response.data.success) {
+                const completedCount = response.data.completed?.length || 0;
+                const alreadyCount = bulkRepoAction === 'add'
+                    ? response.data.already_repo?.length || 0
+                    : response.data.already_not_repo?.length || 0;
+                const details = [
+                    completedCount ? `${completedCount} ${bulkRepoAction === 'add' ? 'updated to repo' : 'removed from repo'}` : '',
+                    alreadyCount ? `${alreadyCount} already ${bulkRepoAction === 'add' ? 'repo' : 'not in repo'}` : '',
+                ].filter(Boolean).join(', ');
+                success(details || response.data.message || 'Bulk repo action completed');
+                setShowBulkRepoModal(false);
+                await fetchInventory({ page: currentPage, perPage: itemsPerPage, search: appliedSearchTerm, showToast: false });
+            } else error(response.data.message || 'Failed to process repo containers');
+        } catch (err: unknown) {
+            const caught = err as { response?: { data?: { message?: string } } };
+            error(caught.response?.data?.message || 'Failed to process repo containers');
+        } finally { setBulkRepoProcessing(false); }
     };
 
     const handleSubmitBulkHold = () => {
@@ -1259,11 +1298,13 @@ const Index: React.FC = () => {
 
             if (response.data.success) {
                 success('Container removed from hold successfully!');
+                const newStatusId = Number(response.data.container_status_id ?? 1);
                 updateInventoryRow(recordForAction.i_id, {
-                    status: 'AVL',
-                    status_id: '1',
-                    container_status_id: 1,
+                    status: newStatusId === 8 ? 'REPO' : 'AVL',
+                    status_id: String(newStatusId),
+                    container_status_id: newStatusId,
                     is_hold: false,
+                    is_repo: response.data.is_repo === true,
                 });
                 setShowUnholdConfirm(false);
                 setRecordForAction(null);
@@ -1280,29 +1321,39 @@ const Index: React.FC = () => {
 
     const handleOpenRepoToggleConfirm = (record: InventoryRecord) => {
         setRecordForAction(record);
-        setShowRepoToggleConfirm(true);
+        if (record.is_repo) {
+            setShowRepoToggleConfirm(true);
+        } else {
+            setRepoNotes('');
+            setShowRepoNotesModal(true);
+        }
     };
 
     const handleToggleRepoStatus = async () => {
         if (!recordForAction) return;
 
-        const isRepo = recordForAction.container_status_id === 8;
-        const action = isRepo ? 'Available' : 'Repo';
+        const isRepo = recordForAction.is_repo === true;
+        const action = isRepo ? 'Remove to Repo' : 'Update to Repo';
 
         setUpdatingStatus(true);
         try {
-            const response = await axios.post(`/api/inventory/${recordForAction.i_id}/toggle-repo`);
+            const response = await axios.post(`/api/inventory/${recordForAction.i_id}/toggle-repo`, {
+                notes: isRepo ? undefined : repoNotes.trim(),
+            });
 
             if (response.data.success) {
                 success(`Container updated to ${action} successfully!`);
-                const newStatusId = isRepo ? 1 : 8;
+                const newStatusId = Number(response.data.container_status_id ?? (isRepo ? 1 : 8));
                 updateInventoryRow(recordForAction.i_id, {
-                    status: isRepo ? 'AVL' : 'REPO',
+                    status: newStatusId === 4 ? 'HLD' : (isRepo ? 'AVL' : 'REPO'),
                     status_id: String(newStatusId),
                     container_status_id: newStatusId,
+                    is_repo: !isRepo,
                 });
                 setShowRepoToggleConfirm(false);
+                setShowRepoNotesModal(false);
                 setRecordForAction(null);
+                setRepoNotes('');
             } else {
                 error(response.data.message || 'Failed to update container status');
             }
@@ -1354,6 +1405,7 @@ const Index: React.FC = () => {
                     app_notes: data.approval_notes || '',
                     approval_date: data.approval_date,
                     is_hold: data.is_hold,
+                    is_repo: data.is_repo,
                     container_status_id: data.container_status_id,
                     vessel: data.vessel,
                     voyage: data.voyage,
@@ -1433,6 +1485,7 @@ const Index: React.FC = () => {
                     app_notes: data.approval_notes || '',
                     approval_date: data.approval_date,
                     is_hold: data.is_hold,
+                    is_repo: data.is_repo,
                     container_status_id: data.container_status_id,
                     vessel: data.vessel,
                     voyage: data.voyage,
@@ -1767,6 +1820,15 @@ const Index: React.FC = () => {
                         >
                             <Lock className="w-5 h-5" />
                             Bulk Hold
+                        </ModernButton>
+                        <ModernButton
+                            variant="repo"
+                            onClick={handleOpenBulkRepoModal}
+                            disabled={loading}
+                            className="px-6 py-3"
+                        >
+                            <Truck className="w-5 h-5" />
+                            Bulk Repo
                         </ModernButton>
                         <ModernButton 
                             variant="add" 
@@ -2286,10 +2348,10 @@ const Index: React.FC = () => {
                                                 )}
 
                                                 <ModernButton
-                                                    variant={row.container_status_id === 8 ? "add" : "repo"}
+                                                    variant={row.is_repo ? "add" : "repo"}
                                                     size="sm"
                                                     onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleOpenRepoToggleConfirm(row); }}
-                                                    title={row.container_status_id === 8 ? "Update to Available" : "Update to Repo"}
+                                                    title={row.is_repo ? "Remove to Repo" : "Update to Repo"}
                                                     disabled={updatingStatus || !canUseInventoryToggles(row)}
                                                 >
                                                     <Truck className="w-3.5 h-3.5" />
@@ -2693,6 +2755,39 @@ const Index: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
+            {/* Repo Notes Modal */}
+            <Dialog open={showRepoNotesModal} onOpenChange={setShowRepoNotesModal}>
+                <DialogContent className="max-w-md bg-white">
+                    <DialogHeader>
+                        <DialogTitle className="text-gray-900">Update Container to Repo</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="text-sm text-gray-700">
+                            <span className="font-semibold text-gray-900">Container No:</span> {recordForAction?.container_no}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="repo-notes" className="text-gray-900">Repo Notes *</Label>
+                            <Textarea
+                                id="repo-notes"
+                                value={repoNotes}
+                                onChange={(e) => setRepoNotes(e.target.value)}
+                                placeholder="Enter reason or notes for repo..."
+                                rows={4}
+                                className="resize-none text-gray-900 bg-white border-gray-300"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <ModernButton variant="secondary" onClick={() => setShowRepoNotesModal(false)} disabled={updatingStatus}>
+                            Cancel
+                        </ModernButton>
+                        <ModernButton variant="repo" onClick={() => { setShowRepoNotesModal(false); void handleToggleRepoStatus(); }} disabled={!repoNotes.trim() || updatingStatus}>
+                            Update to Repo
+                        </ModernButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Bulk Hold Modal */}
             <Dialog open={showBulkHoldModal} onOpenChange={setShowBulkHoldModal}>
                 <DialogContent className="max-w-lg bg-white">
@@ -2774,6 +2869,31 @@ const Index: React.FC = () => {
                                 : <Unlock className="w-4 h-4" />}
                             {bulkActionTab === 'hold' ? 'Hold All Containers' : 'Unhold All Containers'}
                         </ModernButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Repo Modal */}
+            <Dialog open={showBulkRepoModal} onOpenChange={setShowBulkRepoModal}>
+                <DialogContent className="max-w-lg bg-white">
+                    <DialogHeader>
+                        <DialogTitle className="text-gray-900">Bulk Repo Actions</DialogTitle>
+                        <DialogDescription>Update or remove containers in repo.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-0 w-full rounded-lg shadow-sm overflow-hidden">
+                        <button type="button" onClick={() => setBulkRepoAction('add')} className={`px-6 py-3 text-sm font-medium border ${bulkRepoAction === 'add' ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`} style={bulkRepoAction === 'add' ? { backgroundColor: colors.brand.primary } : {}}>Update to Repo</button>
+                        <button type="button" onClick={() => setBulkRepoAction('remove')} className={`px-6 py-3 text-sm font-medium border border-l-0 ${bulkRepoAction === 'remove' ? 'text-white border-transparent' : 'bg-white text-gray-700 border-gray-300'}`} style={bulkRepoAction === 'remove' ? { backgroundColor: colors.brand.primary } : {}}>Remove from Repo</button>
+                    </div>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="bulk-repo-container-numbers" className="text-gray-900">Container Numbers *</Label>
+                            <Textarea id="bulk-repo-container-numbers" value={bulkContainerInput} onChange={(event) => { const value = event.target.value; setBulkContainerInput(value.length < bulkContainerInput.length ? sanitizeBulkContainerInput(value) : formatBulkContainerInput(value)); }} placeholder="Enter container numbers (auto-formatted)" rows={7} className="resize-none bg-white font-mono text-gray-900 border-gray-300" />
+                        </div>
+                        {bulkRepoAction === 'add' && <div className="space-y-2"><Label htmlFor="bulk-repo-notes" className="text-gray-900">Repo Notes *</Label><Textarea id="bulk-repo-notes" value={bulkRepoNotes} onChange={(event) => setBulkRepoNotes(event.target.value)} placeholder="Enter reason for repo..." rows={4} className="resize-none bg-white text-gray-900 border-gray-300" /></div>}
+                    </div>
+                    <DialogFooter>
+                        <ModernButton variant="secondary" onClick={() => setShowBulkRepoModal(false)} disabled={bulkRepoProcessing}>Cancel</ModernButton>
+                        <ModernButton variant="repo" onClick={() => void handleBulkRepo()} disabled={bulkRepoProcessing || !bulkContainerInput.trim() || (bulkRepoAction === 'add' && !bulkRepoNotes.trim())}><Truck className="w-4 h-4" />{bulkRepoAction === 'add' ? 'Update All to Repo' : 'Remove All from Repo'}</ModernButton>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -3491,17 +3611,6 @@ const Index: React.FC = () => {
                 onConfirm={handleApproveContainer}
             />
 
-            {/* Hold Confirmation Dialog */}
-            <ModernConfirmDialog
-                open={showHoldConfirm}
-                onOpenChange={setShowHoldConfirm}
-                type="warning"
-                title="Place Container on Hold?"
-                description={`Are you sure you want to place container ${selectedRecord?.container_no} on hold?`}
-                confirmText="Yes, Place on Hold"
-                onConfirm={handleConfirmHold}
-            />
-
             {/* Bulk Hold Confirmation Dialog */}
             <ModernConfirmDialog
                 open={showBulkHoldConfirm}
@@ -3526,14 +3635,14 @@ const Index: React.FC = () => {
                 onConfirm={handleUnholdContainer}
             />
 
-            {/* Repo/Available Toggle Confirmation Dialog */}
+            {/* Remove from Repo Confirmation Dialog */}
             <ModernConfirmDialog
                 open={showRepoToggleConfirm}
                 onOpenChange={setShowRepoToggleConfirm}
                 type="warning"
-                title={`Update to ${recordForAction?.container_status_id === 8 ? 'Available' : 'Repo'}?`}
-                description={`Are you sure you want to update container ${recordForAction?.container_no} to ${recordForAction?.container_status_id === 8 ? 'Available' : 'Repo'}?`}
-                confirmText={`Yes, Update to ${recordForAction?.container_status_id === 8 ? 'Available' : 'Repo'}`}
+                title="Remove to Repo?"
+                description={`Are you sure you want to remove container ${recordForAction?.container_no} from repo?`}
+                confirmText="Yes, Remove to Repo"
                 onConfirm={handleToggleRepoStatus}
             />
 
