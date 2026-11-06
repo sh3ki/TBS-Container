@@ -1993,13 +1993,13 @@ const Index: React.FC = () => {
 
                                         return (
                                             <div className="flex flex-col gap-1 min-w-[110px]">
-                                                <div>
+                                                <div data-copy-field-indices="4">
                                                     <ModernBadge variant={statusVariant}>{highlightText(row.status || '-')}</ModernBadge>
                                                 </div>
-                                                <div>
+                                                <div data-copy-field-indices="3">
                                                     <ModernBadge variant={sizeVariant}>{highlightText(row.size || '-')}</ModernBadge>
                                                 </div>
-                                                <div>
+                                                <div data-copy-field-indices="5">
                                                     <ModernBadge variant={classVariant}>{highlightText(row.class || '-')}</ModernBadge>
                                                 </div>
                                             </div>
@@ -2033,9 +2033,9 @@ const Index: React.FC = () => {
                                     ),
                                     render: (row: InventoryRecord) => (
                                         <div className="text-sm text-gray-600 min-w-[130px]">
-                                            <div className="font-medium">{highlightText(formatDate(row.date))}</div>
-                                            <div className="text-sm font-medium text-gray-600 mt-1">{highlightText(formatTime(row.time))}</div>
-                                            <div className="mt-1">
+                                            <div className="font-medium" data-copy-field-indices="6">{highlightText(formatDate(row.date))}</div>
+                                            <div className="text-sm font-medium text-gray-600 mt-1" data-copy-field-indices="7">{highlightText(formatTime(row.time))}</div>
+                                            <div className="mt-1" data-copy-field-indices="8">
                                                 <span className="font-bold text-gray-900 text-sm">DAYS: {highlightText(formatDurationCompactFrom(row.date, row.time, row.days))}</span>
                                             </div>
                                         </div>
@@ -2224,6 +2224,17 @@ const Index: React.FC = () => {
                                 'EIR NOTES',
                                 'APP NOTES',
                             ]}
+                            copyColumnMap={{
+                                eir_no: [0],
+                                container_no: [1],
+                                client: [2],
+                                info: [3, 4, 5],
+                                date_days: [6, 7, 8],
+                                dmf: [9],
+                                location: [10],
+                                eir_notes: [11],
+                                app_notes: [12],
+                            }}
                             copyRow={(row: InventoryRecord) => [
                                 row.eir_no,
                                 row.container_no,
