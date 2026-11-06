@@ -83,7 +83,16 @@ class Booking extends Model
      */
     public function getContainerListAttribute()
     {
-        return !empty($this->cont_list) ? explode(',', $this->cont_list) : [];
+        if (empty($this->cont_list)) return [];
+        $decoded = json_decode($this->cont_list, true);
+        if (is_array($decoded)) {
+            $containers = [];
+            foreach ($decoded as $mapping) {
+                if (is_array($mapping['containers'] ?? null)) $containers = array_merge($containers, $mapping['containers']);
+            }
+            return array_values(array_filter($containers));
+        }
+        return explode(',', $this->cont_list);
     }
 
     /**
@@ -91,7 +100,16 @@ class Booking extends Model
      */
     public function getContainerListRemAttribute()
     {
-        return !empty($this->cont_list_rem) ? explode(',', $this->cont_list_rem) : [];
+        if (empty($this->cont_list_rem)) return [];
+        $decoded = json_decode($this->cont_list_rem, true);
+        if (is_array($decoded)) {
+            $containers = [];
+            foreach ($decoded as $mapping) {
+                if (is_array($mapping['containers'] ?? null)) $containers = array_merge($containers, $mapping['containers']);
+            }
+            return array_values(array_filter($containers));
+        }
+        return explode(',', $this->cont_list_rem);
     }
 
     /**
