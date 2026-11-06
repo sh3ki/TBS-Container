@@ -275,6 +275,7 @@ const Index: React.FC = () => {
     const [bulkContainerInput, setBulkContainerInput] = useState('');
     const [bulkHoldReason, setBulkHoldReason] = useState('');
     const [bulkHolding, setBulkHolding] = useState(false);
+    const [bulkActionTab, setBulkActionTab] = useState<'hold' | 'unhold'>('hold');
 
     // Repo/Available action state
     const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -1170,6 +1171,7 @@ const Index: React.FC = () => {
     const handleOpenBulkHoldModal = () => {
         setBulkContainerInput('');
         setBulkHoldReason('');
+        setBulkActionTab('hold');
         setShowBulkHoldModal(true);
     };
 
@@ -1183,7 +1185,7 @@ const Index: React.FC = () => {
             error('Each container number must contain exactly 11 characters');
             return;
         }
-        if (!bulkHoldReason.trim()) {
+        if (bulkActionTab === 'hold' && !bulkHoldReason.trim()) {
             error('Please enter a reason for the hold');
             return;
         }
@@ -1194,20 +1196,20 @@ const Index: React.FC = () => {
     const handleBulkHold = async () => {
         setBulkHolding(true);
         try {
-            const response = await axios.post('/api/inventory/bulk-hold', {
+            const response = await axios.post(`/api/inventory/${bulkActionTab === 'hold' ? 'bulk-hold' : 'bulk-unhold'}`, {
                 container_numbers: parseBulkContainerInput(bulkContainerInput),
-                notes: bulkHoldReason.trim(),
+                ...(bulkActionTab === 'hold' ? { notes: bulkHoldReason.trim() } : {}),
             });
 
             if (response.data.success) {
-                const heldCount = response.data.held?.length || 0;
-                const alreadyHeldCount = response.data.already_held?.length || 0;
+                const completedCount = (bulkActionTab === 'hold' ? response.data.held : response.data.unheld)?.length || 0;
+                const alreadyCompletedCount = (bulkActionTab === 'hold' ? response.data.already_held : response.data.already_unheld)?.length || 0;
                 const details = [
-                    heldCount ? `${heldCount} held` : '',
-                    alreadyHeldCount ? `${alreadyHeldCount} already on hold` : '',
+                    completedCount ? `${completedCount} ${bulkActionTab === 'hold' ? 'held' : 'unheld'}` : '',
+                    alreadyCompletedCount ? `${alreadyCompletedCount} already ${bulkActionTab === 'hold' ? 'on hold' : 'unheld'}` : '',
                 ].filter(Boolean).join(', ');
 
-                success(details || 'Bulk hold completed');
+                success(details || `Bulk ${bulkActionTab} completed`);
                 setShowBulkHoldConfirm(false);
                 setBulkContainerInput('');
                 setBulkHoldReason('');
@@ -2695,43 +2697,65 @@ const Index: React.FC = () => {
             <Dialog open={showBulkHoldModal} onOpenChange={setShowBulkHoldModal}>
                 <DialogContent className="max-w-lg bg-white">
                     <DialogHeader>
-                        <DialogTitle className="text-gray-900">Bulk Hold Containers</DialogTitle>
+                        <DialogTitle className="text-gray-900">Bulk Container Actions</DialogTitle>
                         <DialogDescription>
-                            Enter container numbers. Each number must contain exactly 11 characters.
+                            Hold or unhold containers in Real Time Inventory.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="bulk-container-numbers" className="text-gray-900">
-                                Container Numbers *
-                            </Label>
-                            <Textarea
-                                id="bulk-container-numbers"
-                                value={bulkContainerInput}
-                                onChange={(event) => {
-                                    const value = event.target.value;
-                                    const isDeleting = value.length < bulkContainerInput.length;
-                                    setBulkContainerInput(isDeleting
-                                        ? sanitizeBulkContainerInput(value)
-                                        : formatBulkContainerInput(value));
-                                }}
-                                placeholder={'Enter container numbers (auto-formatted)'}
-                                rows={7}
-                                className="resize-none bg-white font-mono text-gray-900 border-gray-300"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="bulk-hold-reason" className="text-gray-900">Reason *</Label>
-                            <Textarea
-                                id="bulk-hold-reason"
-                                value={bulkHoldReason}
-                                onChange={(event) => setBulkHoldReason(event.target.value)}
-                                placeholder="Enter reason for hold..."
-                                rows={4}
-                                className="resize-none bg-white text-gray-900 border-gray-300"
-                            />
-                        </div>
+                    <div className="grid grid-cols-2 gap-0 w-full rounded-lg shadow-sm overflow-hidden" role="group">
+                        <button
+                            type="button"
+                            onClick={() => setBulkActionTab('hold')}
+                            className={`inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium border transition-all ${bulkActionTab === 'hold' ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                            style={bulkActionTab === 'hold' ? { backgroundColor: colors.brand.primary } : {}}
+                        >
+                            <Lock className="w-4 h-4" />
+                            Hold
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setBulkActionTab('unhold')}
+                            className={`inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium border border-l-0 transition-all ${bulkActionTab === 'unhold' ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                            style={bulkActionTab === 'unhold' ? { backgroundColor: colors.brand.primary } : {}}
+                        >
+                            <Unlock className="w-4 h-4" />
+                            Unhold
+                        </button>
                     </div>
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="bulk-container-numbers" className="text-gray-900">
+                                    Container Numbers *
+                                </Label>
+                                <Textarea
+                                    id="bulk-container-numbers"
+                                    value={bulkContainerInput}
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        const isDeleting = value.length < bulkContainerInput.length;
+                                        setBulkContainerInput(isDeleting
+                                            ? sanitizeBulkContainerInput(value)
+                                            : formatBulkContainerInput(value));
+                                    }}
+                                    placeholder="Enter container numbers (auto-formatted)"
+                                    rows={7}
+                                    className="resize-none bg-white font-mono text-gray-900 border-gray-300"
+                                />
+                            </div>
+                        {bulkActionTab === 'hold' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="bulk-hold-reason" className="text-gray-900">Reason *</Label>
+                                <Textarea
+                                    id="bulk-hold-reason"
+                                    value={bulkHoldReason}
+                                    onChange={(event) => setBulkHoldReason(event.target.value)}
+                                    placeholder="Enter reason for hold..."
+                                    rows={4}
+                                    className="resize-none bg-white text-gray-900 border-gray-300"
+                                />
+                            </div>
+                        )}
+                        </div>
                     <DialogFooter>
                         <ModernButton
                             variant="secondary"
@@ -2743,10 +2767,12 @@ const Index: React.FC = () => {
                         <ModernButton
                             variant="toggle"
                             onClick={handleSubmitBulkHold}
-                            disabled={bulkHolding || !bulkContainerInput.trim() || !bulkHoldReason.trim()}
+                            disabled={bulkHolding || !bulkContainerInput.trim() || (bulkActionTab === 'hold' && !bulkHoldReason.trim())}
                         >
-                            <Lock className="w-4 h-4" />
-                            Hold All Containers
+                            {bulkActionTab === 'hold'
+                                ? <Lock className="w-4 h-4" />
+                                : <Unlock className="w-4 h-4" />}
+                            {bulkActionTab === 'hold' ? 'Hold All Containers' : 'Unhold All Containers'}
                         </ModernButton>
                     </DialogFooter>
                 </DialogContent>
@@ -3482,8 +3508,10 @@ const Index: React.FC = () => {
                 onOpenChange={setShowBulkHoldConfirm}
                 type="warning"
                 title="Hold All Containers?"
-                description={`Are you sure you want to place ${parseBulkContainerInput(bulkContainerInput).length} container(s) on hold using this reason?`}
-                confirmText="Yes, Hold All Containers"
+                description={bulkActionTab === 'hold'
+                    ? `Are you sure you want to place ${parseBulkContainerInput(bulkContainerInput).length} container(s) on hold using this reason?`
+                    : `Are you sure you want to remove the hold from ${parseBulkContainerInput(bulkContainerInput).length} container(s)?`}
+                confirmText={bulkActionTab === 'hold' ? 'Yes, Hold All Containers' : 'Yes, Unhold All Containers'}
                 onConfirm={handleBulkHold}
             />
 
