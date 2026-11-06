@@ -839,6 +839,118 @@ class InventoryController extends Controller
      * Hold container
      * POST /api/inventory/{id}/hold
      */
+    public function bulkHoldContainers(Request $request)
+    {
+        $request->validate([
+            'container_numbers' => ['required', 'array', 'min:1', 'max:500'],
+            'container_numbers.*' => ['required', 'string'],
+            'notes' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $containerNumbers = collect($request->input('container_numbers'))
+            ->map(fn ($number) => strtoupper(trim((string) $number)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $invalid = $containerNumbers
+            ->filter(fn ($number) => ! preg_match('/^[A-Z0-9]{11}$/', $number))
+            ->values()
+            ->all();
+
+        if (count($invalid) > 0 || $containerNumbers->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Each container number must contain exactly 11 letters or numbers.',
+                'invalid' => $invalid,
+            ], 422);
+        }
+
+        try {
+            $held = [];
+            $alreadyHeld = [];
+
+            // Bulk hold is limited to real-time inventory: containers must be
+            // currently in the yard and not completed/gated out.
+            $realTimeInventory = DB::table('inventory')
+                ->whereIn('container_no', $containerNumbers->all())
+                ->where('gate_status', 'IN')
+                ->where('complete', 0)
+                ->get(['i_id', 'container_no']);
+            $realTimeNumbers = $realTimeInventory->pluck('container_no');
+            $notInYard = $containerNumbers->diff($realTimeNumbers)->values()->all();
+
+            if (count($notInYard) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Some containers are not in Real Time Inventory.',
+                    'not_in_yard' => $notInYard,
+                ], 422);
+            }
+
+            DB::transaction(function () use ($containerNumbers, $request, &$held, &$alreadyHeld) {
+                $inventory = DB::table('inventory')
+                    ->whereIn('container_no', $containerNumbers->all())
+                    ->where('gate_status', 'IN')
+                    ->where('complete', 0)
+                    ->lockForUpdate()
+                    ->get(['i_id', 'container_no']);
+
+                $inventoryByContainer = $inventory->keyBy('container_no');
+
+                foreach ($containerNumbers as $containerNumber) {
+                    $record = $inventoryByContainer->get($containerNumber);
+                    if (! $record) {
+                        throw new \RuntimeException('Container is no longer in Real Time Inventory: ' . $containerNumber);
+                    }
+
+                    $existingHold = DB::table('hold_containers')
+                        ->where('container_no', $record->container_no)
+                        ->exists();
+
+                    if ($existingHold) {
+                        $alreadyHeld[] = $containerNumber;
+                        continue;
+                    }
+
+                    DB::table('hold_containers')->insert([
+                        'container_no' => $record->container_no,
+                        'notes' => trim($request->input('notes')),
+                        'date_added' => now(),
+                    ]);
+
+                    DB::table('inventory')
+                        ->where('i_id', $record->i_id)
+                        ->update(['container_status' => 4]);
+
+                    DB::table('audit_logs')->insert([
+                        'action' => 'EDIT',
+                        'description' => '[INVENTORY] Placed container "' . $record->container_no . '" on hold (status -> HLD) with notes: ' . trim($request->input('notes')),
+                        'user_id' => auth()->user()->user_id ?? null,
+                        'date_added' => now(),
+                        'ip_address' => $request->ip(),
+                    ]);
+
+                    $held[] = $containerNumber;
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => count($held) . ' container(s) placed on hold.',
+                'held' => $held,
+                'already_held' => $alreadyHeld,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Bulk hold containers failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to hold containers: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function holdContainer(Request $request, $id)
     {
         try {
