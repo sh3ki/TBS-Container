@@ -504,6 +504,13 @@ class InventoryController extends Controller
                 ", [$inventory->container_no]);
             }
 
+            $repoDetails = DB::selectOne("
+                SELECT notes, date_added
+                FROM {$prefix}repo_containers
+                WHERE container_no = ?
+                ORDER BY r_id DESC LIMIT 1
+            ", [$inventory->container_no]);
+
             // Image discovery is intentionally deferred to /api/inventory/images.
             // The details request must be able to open the modal without scanning
             // the filesystem first.
@@ -553,6 +560,7 @@ class InventoryController extends Controller
                     'is_hold' => (bool) $inventory->is_hold,
                     'is_repo' => (bool) $inventory->is_repo,
                     'hold_details' => $holdDetails,
+                    'repo_details' => $repoDetails,
                     'days_in_yard' => $daysInYard,
                     'remarks' => $inventory->remarks,
                     'approval_notes' => $inventory->approval_notes,
