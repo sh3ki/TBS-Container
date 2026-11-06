@@ -67,6 +67,7 @@ interface ProcessGateInModalProps {
         plate_no?: string;
         hauler?: string;
         date_added?: string | null;
+        date_completed?: string | null;
     } | null;
     statusOptions: Array<{ s_id: number; status: string }>;
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
@@ -551,6 +552,7 @@ export default function ProcessGateInModal({
                         open={open}
                         containerNo={record?.container_no}
                         dateAdded={record?.date_added}
+                        dateCompleted={record?.date_completed}
                         gateStatus="IN"
                     />
 
