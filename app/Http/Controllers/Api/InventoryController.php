@@ -61,6 +61,10 @@ class InventoryController extends Controller
                         WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) THEN 1
                         ELSE 0 
                     END as is_hold,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no) THEN 1
+                        ELSE 0
+                    END as is_repo,
                     {$safeOutDate} as date_out_full,
                     CASE WHEN {$safeOutDate} IS NOT NULL THEN DATE({$safeOutDate}) ELSE NULL END as date_out,
                     CASE WHEN {$safeOutDate} IS NOT NULL THEN TIME({$safeOutDate}) ELSE NULL END as time_out
@@ -136,6 +140,7 @@ class InventoryController extends Controller
                     'gate_status' => $item->gate_status,
                     'status_badge' => $this->getStatusBadge($item),
                     'is_hold' => (bool) $item->is_hold,
+                    'is_repo' => (bool) $item->is_repo,
                     'days_in_yard' => $daysInYard,
                     'remarks' => $item->remarks,
                     'plate_no' => $item->plate_no,
@@ -215,6 +220,10 @@ class InventoryController extends Controller
                         WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
                         THEN 1 ELSE 0 
                     END as is_hold,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no)
+                        THEN 1 ELSE 0
+                    END as is_repo,
                     {$safeOutDate} as date_out_full,
                     CASE WHEN {$safeOutDate} IS NOT NULL THEN DATE({$safeOutDate}) ELSE NULL END as date_out,
                     CASE WHEN {$safeOutDate} IS NOT NULL THEN TIME({$safeOutDate}) ELSE NULL END as time_out
@@ -373,6 +382,7 @@ class InventoryController extends Controller
                     'gate_status' => $item->gate_status,
                     'status_badge' => $this->getStatusBadge($item),
                     'is_hold' => (bool) $item->is_hold,
+                    'is_repo' => (bool) $item->is_repo,
                     'days_in_yard' => $daysInYard,
                     'remarks' => $item->remarks,
                     'app_notes' => $item->app_notes ?? '',
@@ -441,13 +451,21 @@ class InventoryController extends Controller
                     st.size,
                     st.type,
                     st.description as type_desc,
-                    cs.status as container_status_name,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) THEN 'HLD'
+                        WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no) THEN 'REPO'
+                        ELSE cs.status
+                    END as container_status_name,
                     lt.type as load_type_name,
                     o.date_added as date_out_full,
                     CASE 
                         WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
                         THEN 1 ELSE 0 
                     END as is_hold
+                    ,CASE
+                        WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no)
+                        THEN 1 ELSE 0
+                    END as is_repo
                 FROM {$prefix}inventory i
                 LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
@@ -506,7 +524,7 @@ class InventoryController extends Controller
                     'container_size' => $inventory->size . $inventory->type,
                     'size_type_id' => $inventory->size_type,
                     'container_status' => $inventory->container_status_name,
-                    'container_status_id' => $inventory->container_status,
+                    'container_status_id' => (bool) $inventory->is_hold ? 4 : ((bool) $inventory->is_repo ? 8 : $inventory->container_status),
                     'condition' => $inventory->class,
                     'load_type' => $inventory->load_type_name,
                     'load_type_id' => $inventory->load_type,
@@ -533,6 +551,7 @@ class InventoryController extends Controller
                     'gate_status' => $inventory->gate_status,
                     'complete' => $inventory->complete,
                     'is_hold' => (bool) $inventory->is_hold,
+                    'is_repo' => (bool) $inventory->is_repo,
                     'hold_details' => $holdDetails,
                     'days_in_yard' => $daysInYard,
                     'remarks' => $inventory->remarks,
@@ -1056,6 +1075,79 @@ class InventoryController extends Controller
         }
     }
 
+    /**
+     * Bulk add/remove repo membership.
+     * POST /api/inventory/bulk-repo
+     */
+    public function bulkRepoContainers(Request $request)
+    {
+        $request->validate([
+            'container_numbers' => ['required', 'array', 'min:1', 'max:500'],
+            'container_numbers.*' => ['required', 'string'],
+            'action' => ['required', 'in:add,remove'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $numbers = collect($request->input('container_numbers'))
+            ->map(fn ($number) => strtoupper(trim((string) $number)))->filter()->unique()->values();
+        $invalid = $numbers->filter(fn ($number) => ! preg_match('/^[A-Z0-9]{11}$/', $number))->values()->all();
+        if ($invalid || $numbers->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'Each container number must contain exactly 11 letters or numbers.', 'invalid' => $invalid], 422);
+        }
+        if ($request->input('action') === 'add' && !trim((string) $request->input('notes', ''))) {
+            return response()->json(['success' => false, 'message' => 'Repo notes are required.'], 422);
+        }
+
+        try {
+            $repo = $request->input('action') === 'add';
+            $completed = [];
+            $alreadyRepo = [];
+            $alreadyNotRepo = [];
+            DB::transaction(function () use ($numbers, $request, $repo, &$completed, &$alreadyRepo, &$alreadyNotRepo) {
+                $inventory = DB::table('inventory')->whereIn('container_no', $numbers->all())
+                    ->where('gate_status', 'IN')->where('complete', 0)->lockForUpdate()->get(['i_id', 'container_no']);
+                $byNumber = $inventory->keyBy('container_no');
+                foreach ($numbers as $number) {
+                    $record = $byNumber->get($number);
+                    if (!$record) {
+                        if ($repo) {
+                            $alreadyRepo[] = $number;
+                        } else {
+                            $alreadyNotRepo[] = $number;
+                        }
+                        continue;
+                    }
+                    $exists = DB::table('repo_containers')->where('container_no', $number)->exists();
+                    if ($repo && $exists) { $alreadyRepo[] = $number; continue; }
+                    if (!$repo && !$exists) { $alreadyNotRepo[] = $number; continue; }
+                    $isHold = DB::table('hold_containers')->where('container_no', $number)->exists();
+                    if ($repo) {
+                        DB::table('repo_containers')->insert(['container_no' => $number, 'date_added' => now(), 'notes' => trim($request->input('notes'))]);
+                        $status = $isHold ? 4 : 8;
+                        $description = '[INVENTORY] Updated container "' . $number . '" to repo (status -> ' . ($isHold ? 'HLD' : 'REPO') . ')';
+                    } else {
+                        DB::table('repo_containers')->where('container_no', $number)->delete();
+                        $status = $isHold ? 4 : 1;
+                        $description = '[INVENTORY] Removed container "' . $number . '" from repo (status -> ' . ($isHold ? 'HLD' : 'AVL') . ')';
+                    }
+                    DB::table('inventory')->where('i_id', $record->i_id)->update(['container_status' => $status]);
+                    DB::table('audit_logs')->insert(['action' => 'EDIT', 'description' => $description, 'user_id' => auth()->user()->user_id ?? null, 'date_added' => now(), 'ip_address' => $request->ip()]);
+                    $completed[] = $number;
+                }
+            });
+            return response()->json([
+                'success' => true,
+                'message' => count($completed) . ' container(s) processed.',
+                'completed' => $completed,
+                'already_repo' => $alreadyRepo,
+                'already_not_repo' => $alreadyNotRepo,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Bulk repo containers failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Failed to process repo containers: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function holdContainer(Request $request, $id)
     {
         try {
@@ -1154,16 +1246,22 @@ class InventoryController extends Controller
                 [$inventory->container_no]
             );
 
-            // Update container status to AVL (1)
+            $isRepo = DB::selectOne(
+                "SELECT r_id FROM {$prefix}repo_containers WHERE container_no = ? LIMIT 1",
+                [$inventory->container_no]
+            ) !== null;
+            $newStatus = $isRepo ? 8 : 1;
+
+            // Restore REPO when repo membership remains; otherwise restore AVL.
             DB::update(
                 "UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?",
-                [1, $inventory->i_id]
+                [$newStatus, $inventory->i_id]
             );
 
             // Log audit - EDIT action for removing from hold
             DB::table('audit_logs')->insert([
                 'action' => 'EDIT',
-                'description' => '[INVENTORY] Removed container "' . $inventory->container_no . '" from hold (status -> AVL)',
+                'description' => '[INVENTORY] Removed container "' . $inventory->container_no . '" from hold (status -> ' . ($isRepo ? 'REPO' : 'AVL') . ')',
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
@@ -1172,6 +1270,8 @@ class InventoryController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Container released from hold',
+                'container_status_id' => $newStatus,
+                'is_repo' => $isRepo,
             ]);
 
         } catch (\Exception $e) {
@@ -1188,10 +1288,10 @@ class InventoryController extends Controller
     }
 
     /**
-     * Toggle container status between Repo (8) and Available (1)
+     * Toggle repo membership and synchronize the inventory status.
      * POST /api/inventory/{id}/toggle-repo
      */
-    public function toggleRepoStatus($id)
+    public function toggleRepoStatus(Request $request, $id)
     {
         try {
             $prefix = DB::getTablePrefix();
@@ -1208,20 +1308,49 @@ class InventoryController extends Controller
                 ], 404);
             }
 
-            // Toggle: if status is 8 (Repo), change to 1 (Available), otherwise change to 8 (Repo)
-            $newStatus = ($inventory->container_status == 8) ? 1 : 8;
-            $oldStatusText = ($inventory->container_status == 8) ? 'Repo' : 'Available';
-            $newStatusText = ($newStatus == 8) ? 'Repo' : 'Available';
-
-            DB::update(
-                "UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?",
-                [$newStatus, $id]
+            $repo = DB::selectOne(
+                "SELECT r_id FROM {$prefix}repo_containers WHERE container_no = ? LIMIT 1",
+                [$inventory->container_no]
             );
+            $isRepo = $repo !== null;
+            $isHold = DB::selectOne(
+                "SELECT h_id FROM {$prefix}hold_containers WHERE container_no = ? LIMIT 1",
+                [$inventory->container_no]
+            ) !== null;
+            $repoNotes = trim((string) $request->input('notes', ''));
+
+            if (!$isRepo && $repoNotes === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Repo notes are required',
+                ], 422);
+            }
+
+            if ($isRepo) {
+                DB::delete("DELETE FROM {$prefix}repo_containers WHERE container_no = ?", [$inventory->container_no]);
+                if (!$isHold) {
+                    DB::update("UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?", [1, $id]);
+                }
+                $newStatusText = 'Available';
+                $description = '[INVENTORY] Removed container "' . $inventory->container_no . '" from repo'
+                    . ($isHold ? ' (HLD status preserved)' : ' (status -> AVL)');
+            } else {
+                DB::insert(
+                    "INSERT INTO {$prefix}repo_containers (container_no, date_added, notes) VALUES (?, NOW(), ?)",
+                    [$inventory->container_no, $repoNotes]
+                );
+                if (!$isHold) {
+                    DB::update("UPDATE {$prefix}inventory SET container_status = ? WHERE i_id = ?", [8, $id]);
+                }
+                $newStatusText = 'Repo';
+                $description = '[INVENTORY] Updated container "' . $inventory->container_no . '" to repo'
+                    . ($isHold ? ' (HLD status preserved)' : ' (status -> REPO)');
+            }
 
             // Log audit - EDIT action for status change
             DB::table('audit_logs')->insert([
                 'action' => 'EDIT',
-                'description' => '[INVENTORY] Updated container "' . $inventory->container_no . '" status from "' . $oldStatusText . '" to "' . $newStatusText . '"',
+                'description' => $description,
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
@@ -1230,6 +1359,8 @@ class InventoryController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Container updated to {$newStatusText}",
+                'is_repo' => !$isRepo,
+                'container_status_id' => $isHold ? 4 : ($isRepo ? 1 : 8),
             ]);
 
         } catch (\Exception $e) {
@@ -1555,7 +1686,11 @@ class InventoryController extends Controller
                                 GREATEST(1, CEIL(GREATEST(0, TIMESTAMPDIFF(SECOND, {$safeLinkedInDate}, {$safeInDate})) / 86400))
                             ELSE 0
                         END as days,
-                        cs.status,
+                        CASE
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) THEN 'HLD'
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no) THEN 'REPO'
+                            ELSE cs.status
+                        END as status,
                         i.class,
                         CASE 
                             WHEN {$safeManufacturedDate} IS NOT NULL THEN DATE({$safeManufacturedDate})
@@ -1565,11 +1700,19 @@ class InventoryController extends Controller
                         COALESCE(i.remarks, '') as eir_notes,
                         COALESCE(i.approval_notes, '') as app_notes,
                         i.i_id,
-                        i.container_status as container_status_id,
+                        CASE
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) THEN 4
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no) THEN 8
+                            ELSE i.container_status
+                        END as container_status_id,
                         CASE 
                             WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers h WHERE h.container_no = i.container_no) 
                             THEN 1 ELSE 0 
                         END as is_hold
+                        ,CASE
+                            WHEN EXISTS (SELECT 1 FROM {$prefix}repo_containers r WHERE r.container_no = i.container_no)
+                            THEN 1 ELSE 0
+                        END as is_repo
                     FROM {$prefix}inventory i
                     LEFT JOIN {$prefix}inventory o ON o.i_id = i.out_id
                     LEFT JOIN {$prefix}inventory in_ref ON in_ref.out_id = i.i_id AND in_ref.gate_status = 'IN'
