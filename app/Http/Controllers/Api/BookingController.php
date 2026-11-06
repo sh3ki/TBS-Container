@@ -612,10 +612,12 @@ class BookingController extends Controller
      */
     public function getContainers($hashedId)
     {
-        // Find booking by hashed ID
-        $booking = Booking::select('b_id', 'book_no', 'cont_list', 'cont_list_rem')->get()->first(function($b) use ($hashedId) {
-            return md5($b->b_id) === $hashedId;
-        });
+        // Resolve the hashed public id in SQL instead of loading every booking
+        // into PHP and hashing each row. The endpoint only needs one booking.
+        $booking = Booking::query()
+            ->select('b_id', 'book_no', 'cont_list', 'cont_list_rem')
+            ->whereRaw('MD5(b_id) = ?', [$hashedId])
+            ->first();
 
         if (!$booking) {
             return response()->json([
@@ -635,11 +637,13 @@ class BookingController extends Controller
             $containers = $parseContainerList($booking->cont_list);
             $remainingContainers = $parseContainerList($booking->cont_list_rem);
             $allContainers = array_values(array_unique(array_merge($containers, $remainingContainers)));
-            $heldContainers = DB::table('hold_containers')
-                ->whereIn('container_no', $allContainers)
-                ->pluck('container_no')
-                ->map(static fn ($container) => strtoupper(trim((string) $container)))
-                ->all();
+            $heldContainers = empty($allContainers)
+                ? []
+                : DB::table('hold_containers')
+                    ->whereIn('container_no', $allContainers)
+                    ->pluck('container_no')
+                    ->map(static fn ($container) => strtoupper(trim((string) $container)))
+                    ->all();
 
             $heldLookup = array_fill_keys($heldContainers, true);
             $containers = array_values(array_filter($containers, static fn ($container) => !isset($heldLookup[$container])));
