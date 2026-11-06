@@ -84,6 +84,24 @@ const normalizeManufacturedDate = (value: string): string | null => {
     return `${match[2]}-${match[1]}-01`;
 };
 
+const formatBulkContainerInput = (value: string): string => {
+    const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return (normalized.match(/.{1,11}/g) || [])
+        .map((chunk) => chunk.length === 11 ? `${chunk},` : chunk)
+        .join('\n');
+};
+
+const sanitizeBulkContainerInput = (value: string): string => (
+    value.toUpperCase().replace(/[^A-Z0-9,\n]/g, '')
+);
+
+const parseBulkContainerInput = (value: string): string[] => (
+    value
+        .split(/[\s,]+/)
+        .map((number) => number.trim().toUpperCase())
+        .filter(Boolean)
+);
+
 interface InventoryRecord {
     i_id: number;
     hashed_id?: string;
@@ -252,6 +270,11 @@ const Index: React.FC = () => {
     const [showHoldModal, setShowHoldModal] = useState(false);
     const [holdNotes, setHoldNotes] = useState('');
     const [holdingRecord, setHoldingRecord] = useState(false);
+    const [showBulkHoldModal, setShowBulkHoldModal] = useState(false);
+    const [showBulkHoldConfirm, setShowBulkHoldConfirm] = useState(false);
+    const [bulkContainerInput, setBulkContainerInput] = useState('');
+    const [bulkHoldReason, setBulkHoldReason] = useState('');
+    const [bulkHolding, setBulkHolding] = useState(false);
 
     // Repo/Available action state
     const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -1144,6 +1167,82 @@ const Index: React.FC = () => {
         }
     };
 
+    const handleOpenBulkHoldModal = () => {
+        setBulkContainerInput('');
+        setBulkHoldReason('');
+        setShowBulkHoldModal(true);
+    };
+
+    const handleSubmitBulkHold = () => {
+        const containerNumbers = parseBulkContainerInput(bulkContainerInput);
+        if (containerNumbers.length === 0) {
+            error('Please enter at least one container number');
+            return;
+        }
+        if (containerNumbers.some((number) => number.length !== 11)) {
+            error('Each container number must contain exactly 11 characters');
+            return;
+        }
+        if (!bulkHoldReason.trim()) {
+            error('Please enter a reason for the hold');
+            return;
+        }
+
+        setShowBulkHoldConfirm(true);
+    };
+
+    const handleBulkHold = async () => {
+        setBulkHolding(true);
+        try {
+            const response = await axios.post('/api/inventory/bulk-hold', {
+                container_numbers: parseBulkContainerInput(bulkContainerInput),
+                notes: bulkHoldReason.trim(),
+            });
+
+            if (response.data.success) {
+                const heldCount = response.data.held?.length || 0;
+                const alreadyHeldCount = response.data.already_held?.length || 0;
+                const details = [
+                    heldCount ? `${heldCount} held` : '',
+                    alreadyHeldCount ? `${alreadyHeldCount} already on hold` : '',
+                ].filter(Boolean).join(', ');
+
+                success(details || 'Bulk hold completed');
+                setShowBulkHoldConfirm(false);
+                setBulkContainerInput('');
+                setBulkHoldReason('');
+                await fetchInventory({
+                    page: currentPage,
+                    perPage: itemsPerPage,
+                    search: appliedSearchTerm,
+                    showToast: false,
+                });
+            } else {
+                error(response.data.message || 'Failed to hold containers');
+            }
+        } catch (err: unknown) {
+            const errorCaught = err as {
+                response?: {
+                    data?: {
+                        message?: string;
+                        invalid?: string[];
+                        not_in_yard?: string[];
+                    };
+                };
+            };
+            const responseData = errorCaught.response?.data;
+            if (responseData?.invalid?.length) {
+                error(`Invalid container number format: ${responseData.invalid.join(', ')}`);
+            } else if (responseData?.not_in_yard?.length) {
+                error(`Not in Real Time Inventory (Gate IN): ${responseData.not_in_yard.join(', ')}`);
+            } else {
+                error(responseData?.message || 'Failed to hold containers');
+            }
+        } finally {
+            setBulkHolding(false);
+        }
+    };
+
     const handleOpenUnholdConfirm = (record: InventoryRecord) => {
         setRecordForAction(record);
         setShowUnholdConfirm(true);
@@ -1657,6 +1756,15 @@ const Index: React.FC = () => {
                         >
                             {summaryLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
                             {summaryLoading ? 'Generating...' : 'View Summary Report'}
+                        </ModernButton>
+                        <ModernButton
+                            variant="toggle"
+                            onClick={handleOpenBulkHoldModal}
+                            disabled={loading}
+                            className="px-6 py-3"
+                        >
+                            <Lock className="w-5 h-5" />
+                            Bulk Hold
                         </ModernButton>
                         <ModernButton 
                             variant="add" 
@@ -2573,11 +2681,72 @@ const Index: React.FC = () => {
                             Cancel
                         </ModernButton>
                         <ModernButton
-                            variant="delete"
+                            variant="toggle"
                             onClick={handleHoldContainer}
                             disabled={holdingRecord || !holdNotes.trim()}
                         >
                             {holdingRecord ? 'Processing...' : 'Place on Hold'}
+                        </ModernButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Hold Modal */}
+            <Dialog open={showBulkHoldModal} onOpenChange={setShowBulkHoldModal}>
+                <DialogContent className="max-w-lg bg-white">
+                    <DialogHeader>
+                        <DialogTitle className="text-gray-900">Bulk Hold Containers</DialogTitle>
+                        <DialogDescription>
+                            Enter container numbers. Each number must contain exactly 11 characters.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="bulk-container-numbers" className="text-gray-900">
+                                Container Numbers *
+                            </Label>
+                            <Textarea
+                                id="bulk-container-numbers"
+                                value={bulkContainerInput}
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    const isDeleting = value.length < bulkContainerInput.length;
+                                    setBulkContainerInput(isDeleting
+                                        ? sanitizeBulkContainerInput(value)
+                                        : formatBulkContainerInput(value));
+                                }}
+                                placeholder={'Enter container numbers (auto-formatted)'}
+                                rows={7}
+                                className="resize-none bg-white font-mono text-gray-900 border-gray-300"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="bulk-hold-reason" className="text-gray-900">Reason *</Label>
+                            <Textarea
+                                id="bulk-hold-reason"
+                                value={bulkHoldReason}
+                                onChange={(event) => setBulkHoldReason(event.target.value)}
+                                placeholder="Enter reason for hold..."
+                                rows={4}
+                                className="resize-none bg-white text-gray-900 border-gray-300"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <ModernButton
+                            variant="secondary"
+                            onClick={() => setShowBulkHoldModal(false)}
+                            disabled={bulkHolding}
+                        >
+                            Cancel
+                        </ModernButton>
+                        <ModernButton
+                            variant="toggle"
+                            onClick={handleSubmitBulkHold}
+                            disabled={bulkHolding || !bulkContainerInput.trim() || !bulkHoldReason.trim()}
+                        >
+                            <Lock className="w-4 h-4" />
+                            Hold All Containers
                         </ModernButton>
                     </DialogFooter>
                 </DialogContent>
@@ -3305,6 +3474,17 @@ const Index: React.FC = () => {
                 description={`Are you sure you want to place container ${selectedRecord?.container_no} on hold?`}
                 confirmText="Yes, Place on Hold"
                 onConfirm={handleConfirmHold}
+            />
+
+            {/* Bulk Hold Confirmation Dialog */}
+            <ModernConfirmDialog
+                open={showBulkHoldConfirm}
+                onOpenChange={setShowBulkHoldConfirm}
+                type="warning"
+                title="Hold All Containers?"
+                description={`Are you sure you want to place ${parseBulkContainerInput(bulkContainerInput).length} container(s) on hold using this reason?`}
+                confirmText="Yes, Hold All Containers"
+                onConfirm={handleBulkHold}
             />
 
             {/* Unhold Confirmation Dialog */}
