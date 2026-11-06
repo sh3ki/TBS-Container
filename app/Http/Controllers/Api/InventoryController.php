@@ -951,6 +951,111 @@ class InventoryController extends Controller
         }
     }
 
+    /**
+     * Bulk release containers from hold.
+     * POST /api/inventory/bulk-unhold
+     */
+    public function bulkUnholdContainers(Request $request)
+    {
+        $request->validate([
+            'container_numbers' => ['required', 'array', 'min:1', 'max:500'],
+            'container_numbers.*' => ['required', 'string'],
+        ]);
+
+        $containerNumbers = collect($request->input('container_numbers'))
+            ->map(fn ($number) => strtoupper(trim((string) $number)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $invalid = $containerNumbers
+            ->filter(fn ($number) => ! preg_match('/^[A-Z0-9]{11}$/', $number))
+            ->values()
+            ->all();
+
+        if (count($invalid) > 0 || $containerNumbers->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Each container number must contain exactly 11 letters or numbers.',
+                'invalid' => $invalid,
+            ], 422);
+        }
+
+        try {
+            $realTimeInventory = DB::table('inventory')
+                ->whereIn('container_no', $containerNumbers->all())
+                ->where('gate_status', 'IN')
+                ->where('complete', 0)
+                ->get(['i_id', 'container_no']);
+            $notInYard = $containerNumbers->diff($realTimeInventory->pluck('container_no'))->values()->all();
+
+            if (count($notInYard) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Some containers are not in Real Time Inventory.',
+                    'not_in_yard' => $notInYard,
+                ], 422);
+            }
+
+            $unheld = [];
+            $alreadyUnheld = [];
+
+            DB::transaction(function () use ($containerNumbers, $request, &$unheld, &$alreadyUnheld) {
+                $inventory = DB::table('inventory')
+                    ->whereIn('container_no', $containerNumbers->all())
+                    ->where('gate_status', 'IN')
+                    ->where('complete', 0)
+                    ->lockForUpdate()
+                    ->get(['i_id', 'container_no']);
+                $inventoryByContainer = $inventory->keyBy('container_no');
+
+                foreach ($containerNumbers as $containerNumber) {
+                    $record = $inventoryByContainer->get($containerNumber);
+                    if (! $record) {
+                        throw new \RuntimeException('Container is no longer in Real Time Inventory: ' . $containerNumber);
+                    }
+
+                    $deleted = DB::table('hold_containers')
+                        ->where('container_no', $record->container_no)
+                        ->delete();
+
+                    DB::table('inventory')
+                        ->where('i_id', $record->i_id)
+                        ->update(['container_status' => 1]);
+
+                    if ($deleted === 0) {
+                        $alreadyUnheld[] = $containerNumber;
+                        continue;
+                    }
+
+                    DB::table('audit_logs')->insert([
+                        'action' => 'EDIT',
+                        'description' => '[INVENTORY] Removed container "' . $record->container_no . '" from hold (status -> AVL)',
+                        'user_id' => auth()->user()->user_id ?? null,
+                        'date_added' => now(),
+                        'ip_address' => $request->ip(),
+                    ]);
+
+                    $unheld[] = $containerNumber;
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => count($unheld) . ' container(s) released from hold.',
+                'unheld' => $unheld,
+                'already_unheld' => $alreadyUnheld,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Bulk unhold containers failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to release containers from hold: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function holdContainer(Request $request, $id)
     {
         try {
