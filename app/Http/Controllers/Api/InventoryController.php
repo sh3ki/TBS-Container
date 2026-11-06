@@ -110,7 +110,7 @@ class InventoryController extends Controller
                 $daysInYard = 0;
                 if ($item->gate_status === 'IN' && (int) $item->complete === 0 && !empty($item->date_in)) {
                     $dateIn = Carbon::parse($item->date_in)->startOfDay();
-                    $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+                    $today = Carbon::today('Asia/Manila');
                     $daysInYard = max(1, $dateIn->diffInDays($today) + 1);
                 } elseif ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
                     $dateIn = Carbon::parse($item->date_in)->startOfDay();
@@ -487,7 +487,7 @@ class InventoryController extends Controller
             $daysInYard = 0;
             if ($inventory->gate_status === 'IN' && (int) $inventory->complete === 0) {
                 $dateIn = Carbon::parse($inventory->date_added)->startOfDay();
-                $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+                $today = Carbon::today('Asia/Manila');
                 $daysInYard = max(1, $dateIn->diffInDays($today) + 1);
             } elseif ($inventory->date_out_full) {
                 $dateIn = Carbon::parse($inventory->date_added)->startOfDay();
