@@ -168,6 +168,9 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         // Export
         Route::post('/export', [InventoryController::class, 'export']);
 
+        // Bulk hold
+        Route::post('/bulk-hold', [InventoryController::class, 'bulkHoldContainers']);
+
         // Legacy print templates (carbon-copy format)
         Route::get('/print/{id}', [InventoryController::class, 'printLegacy']);
         Route::get('/print-inout', [InventoryController::class, 'printLegacyInOut']);
