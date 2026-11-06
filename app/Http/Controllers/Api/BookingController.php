@@ -21,6 +21,47 @@ class BookingController extends Controller
         $this->audit = $audit;
     }
 
+    /** Normalize container mappings while keeping legacy comma-separated data readable. */
+    private static function containerMappings(?string $value): array
+    {
+        if (!$value) return [];
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            $mappings = [];
+            foreach ($decoded as $mapping) {
+                if (!is_array($mapping)) continue;
+                $sizeType = strtoupper(trim((string) ($mapping['size_type'] ?? '')));
+                $containers = array_values(array_unique(array_filter(array_map(
+                    static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim((string) $container))),
+                    is_array($mapping['containers'] ?? null) ? $mapping['containers'] : []
+                ))));
+                if ($containers) $mappings[] = ['size_type' => $sizeType, 'containers' => $containers];
+            }
+            return $mappings;
+        }
+
+        $containers = array_values(array_filter(array_map(
+            static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim((string) $container))),
+            preg_split('/[\s,]+/', $value)
+        )));
+        return $containers ? [['size_type' => '', 'containers' => $containers]] : [];
+    }
+
+    private static function flattenContainerMappings(?string $value): array
+    {
+        $containers = [];
+        foreach (self::containerMappings($value) as $mapping) {
+            $containers = array_merge($containers, $mapping['containers']);
+        }
+        return array_values(array_unique($containers));
+    }
+
+    private static function encodeContainerMappings(array $mappings): string
+    {
+        return json_encode(array_values($mappings), JSON_UNESCAPED_SLASHES);
+    }
+
     /**
      * Display a listing of bookings.
      */
@@ -81,7 +122,8 @@ class BookingController extends Controller
             'four' => 'nullable|integer|min:0',
             'fourf' => 'nullable|integer|min:0',
             'cnums' => 'nullable|string',
-            'cnums' => 'nullable|string', // Container numbers
+            'container_list' => 'nullable|string',
+            'container_list_rem' => 'nullable|string',
             'exp' => 'required|date',
         ]);
 
@@ -132,16 +174,18 @@ class BookingController extends Controller
         ];
 
         // Process container list if provided
-        if (!empty($request->cnums)) {
-            $contArray = array_values(array_filter(array_map(
-                static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                preg_split('/[,\r\n]+/', (string) $request->cnums)
-            )));
+        $submittedMappings = $request->filled('container_list')
+            ? self::containerMappings($request->container_list)
+            : self::containerMappings($request->cnums);
+        $contArray = self::flattenContainerMappings($request->filled('container_list') ? $request->container_list : $request->cnums);
+
+        if ($contArray) {
 
             $invalidContainers = array_values(array_filter($contArray, static fn ($container) => strlen($container) !== 11));
             $validContainers = array_values(array_filter($contArray, static fn ($container) => strlen($container) === 11));
             $heldLookup = [];
             $inventoryLookup = [];
+            $inventoryRecords = collect();
 
             if ($validContainers) {
                 $heldLookup = array_fill_keys(DB::table('hold_containers')
@@ -150,10 +194,13 @@ class BookingController extends Controller
                     ->map(static fn ($container) => strtoupper(trim((string) $container)))
                     ->all(), true);
 
-                $inventoryLookup = array_fill_keys(DB::table('inventory')
-                    ->whereIn('container_no', $validContainers)
-                    ->where('gate_status', 'IN')
-                    ->where('complete', 0)
+                $inventoryRecords = DB::table('inventory as i')
+                    ->leftJoin('container_size_type as st', 'st.s_id', '=', 'i.size_type')
+                    ->whereIn('i.container_no', $validContainers)
+                    ->where('i.gate_status', 'IN')
+                    ->where('i.complete', 0)
+                    ->get(['i.container_no', 'i.client_id', 'i.size_type', 'st.size']);
+                $inventoryLookup = array_fill_keys($inventoryRecords
                     ->pluck('container_no')
                     ->map(static fn ($container) => strtoupper(trim((string) $container)))
                     ->all(), true);
@@ -165,10 +212,7 @@ class BookingController extends Controller
                 ->whereNotNull('cont_list')
                 ->get(['book_no', 'cont_list'])
                 ->flatMap(static function ($activeBooking) {
-                    return array_map(
-                        static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                        preg_split('/[\s,]+/', (string) $activeBooking->cont_list)
-                    );
+                    return self::flattenContainerMappings($activeBooking->cont_list);
                 })
                 ->filter()
                 ->flip();
@@ -181,8 +225,15 @@ class BookingController extends Controller
                     $containerErrors[] = "{$container} container is on hold";
                 } elseif (!isset($inventoryLookup[$container])) {
                     $containerErrors[] = "{$container} container is not in inventory";
-                } elseif (isset($activeReservedContainers[$container])) {
-                    $containerErrors[] = "{$container} container has already been reserved in another booking";
+                } else {
+                    $inventoryRecord = $inventoryRecords->first(static fn ($record) => strtoupper(trim((string) $record->container_no)) === $container);
+                    if (!$inventoryRecord || (int) $inventoryRecord->client_id !== (int) $client->c_id) {
+                        $containerErrors[] = "{$container} container belongs to another client";
+                    } elseif (!$inventoryRecord->size_type) {
+                        $containerErrors[] = "{$container} container has no size/type assigned";
+                    } elseif (isset($activeReservedContainers[$container])) {
+                        $containerErrors[] = "{$container} container has already been reserved in another booking";
+                    }
                 }
             }
 
@@ -193,8 +244,28 @@ class BookingController extends Controller
                 ], 422);
             }
             
-            $data['cont_list'] = implode(', ', $contArray);
-            $data['cont_list_rem'] = $data['cont_list'];
+            $sizeTypeMappings = [];
+            $sizeCounts = ['20' => 0, '40' => 0, '45' => 0];
+            foreach ($validContainers as $container) {
+                $inventoryRecord = $inventoryRecords->first(static fn ($record) => strtoupper(trim((string) $record->container_no)) === $container);
+                $sizeTypeId = $inventoryRecord?->size_type;
+                $key = (string) $sizeTypeId;
+                if (!isset($sizeTypeMappings[$key])) {
+                    $sizeTypeMappings[$key] = ['size_type' => (int) $sizeTypeId, 'containers' => []];
+                }
+                $sizeTypeMappings[$key]['containers'][] = $container;
+                if (in_array((int) $inventoryRecord->size, [20, 22], true)) $sizeCounts['20']++;
+                elseif (in_array((int) $inventoryRecord->size, [40, 42], true)) $sizeCounts['40']++;
+                elseif ((int) $inventoryRecord->size === 45) $sizeCounts['45']++;
+            }
+            $data['twenty'] = $sizeCounts['20'];
+            $data['fourty'] = $sizeCounts['40'];
+            $data['fourty_five'] = $sizeCounts['45'];
+            $data['twenty_rem'] = $sizeCounts['20'];
+            $data['fourty_rem'] = $sizeCounts['40'];
+            $data['fourty_five_rem'] = $sizeCounts['45'];
+            $data['cont_list'] = self::encodeContainerMappings(array_values($sizeTypeMappings));
+            $data['cont_list_rem'] = self::encodeContainerMappings(array_values($sizeTypeMappings));
         } else {
             $data['cont_list'] = '';
             $data['cont_list_rem'] = '';
@@ -325,6 +396,9 @@ class BookingController extends Controller
             'two' => 'nullable|integer|min:0',
             'four' => 'nullable|integer|min:0',
             'fourf' => 'nullable|integer|min:0',
+            'cnums' => 'nullable|string',
+            'container_list' => 'nullable|string',
+            'container_list_rem' => 'nullable|string',
             'clientid' => 'required|string', // MD5 hashed
             'isc' => 'required|in:0,1', // Is container list (0=no, 1=yes - but reversed in legacy)
         ]);
@@ -418,18 +492,12 @@ class BookingController extends Controller
         $data['cont_list'] = '';
         $data['cont_list_rem'] = '';
 
-        if (!empty($request->cnums)) {
-            $containers = array_values(array_unique(array_filter(array_map(
-                static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                preg_split('/[,\r\n]+/', (string) $request->cnums)
-            ))));
-
-            $normalizeList = static function (?string $value): array {
-                return array_values(array_unique(array_filter(array_map(
-                    static fn ($container) => strtoupper(preg_replace('/\s+/', '', trim($container))),
-                    preg_split('/[,\r\n]+/', (string) $value)
-                ))));
-            };
+        $submittedListValue = $request->filled('container_list') ? $request->container_list : $request->cnums;
+        if (!empty($submittedListValue)) {
+            $submittedMappings = self::containerMappings($submittedListValue);
+            $containers = self::flattenContainerMappings($submittedListValue);
+            $normalizeList = static fn (?string $value): array => self::flattenContainerMappings($value);
+            $oldMappings = self::containerMappings($booking->cont_list);
             $oldAllocated = $normalizeList($booking->cont_list);
             $oldRemaining = $normalizeList($booking->cont_list_rem);
             $removedContainers = array_values(array_diff($oldAllocated, $containers));
@@ -446,14 +514,20 @@ class BookingController extends Controller
             $invalidContainers = array_values(array_filter($addedContainers, static fn ($container) => strlen($container) !== 11));
             $validContainers = array_values(array_filter($addedContainers, static fn ($container) => strlen($container) === 11));
             $heldLookup = array_fill_keys(DB::table('hold_containers')->whereIn('container_no', $validContainers)->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
-            $inventoryLookup = array_fill_keys(DB::table('inventory')->whereIn('container_no', $validContainers)->where('gate_status', 'IN')->where('complete', 0)->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
+            $inventoryRecords = DB::table('inventory as i')
+                ->leftJoin('container_size_type as st', 'st.s_id', '=', 'i.size_type')
+                ->whereIn('i.container_no', $validContainers)
+                ->where('i.gate_status', 'IN')
+                ->where('i.complete', 0)
+                ->get(['i.container_no', 'i.client_id', 'i.size_type', 'st.size']);
+            $inventoryLookup = array_fill_keys($inventoryRecords->pluck('container_no')->map(static fn ($container) => strtoupper(trim((string) $container)))->all(), true);
             $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
             $activeReservedContainers = Booking::whereDate('expiration_date', '>=', $today)
                 ->where('b_id', '!=', $booking->b_id)
                 ->whereNotNull('cont_list')
                 ->get(['cont_list'])
-                ->flatMap(static function ($activeBooking) use ($normalizeList) {
-                    return $normalizeList($activeBooking->cont_list);
+                ->flatMap(static function ($activeBooking) {
+                    return self::flattenContainerMappings($activeBooking->cont_list);
                 })
                 ->flip();
             $containerErrors = array_map(static fn ($container) => "{$container} container is not in inventory", $invalidContainers);
@@ -462,6 +536,13 @@ class BookingController extends Controller
                     $containerErrors[] = "{$container} container is on hold";
                 } elseif (!isset($inventoryLookup[$container])) {
                     $containerErrors[] = "{$container} container is not in inventory";
+                } else {
+                    $inventoryRecord = $inventoryRecords->first(static fn ($record) => strtoupper(trim((string) $record->container_no)) === $container);
+                    if (!$inventoryRecord || (int) $inventoryRecord->client_id !== (int) $client->c_id) {
+                        $containerErrors[] = "{$container} container belongs to another client";
+                    } elseif (!$inventoryRecord->size_type) {
+                        $containerErrors[] = "{$container} container has no size/type assigned";
+                    }
                 }
             }
             foreach ($containers as $container) {
@@ -474,9 +555,58 @@ class BookingController extends Controller
                 return response()->json(['success' => false, 'message' => implode(' and ', $containerErrors) . '.'], 422);
             }
 
-            $data['cont_list'] = implode(', ', $containers);
+            $resolvedMappings = [];
+            foreach ($containers as $container) {
+                $oldMapping = collect($oldMappings)->first(static fn ($mapping) => in_array($container, $mapping['containers'], true));
+                $inventoryRecord = $inventoryRecords->first(static fn ($record) => strtoupper(trim((string) $record->container_no)) === $container);
+                $sizeType = $oldMapping['size_type'] ?? ($inventoryRecord?->size_type ?? null);
+                if ($sizeType === null) continue;
+                $key = (string) $sizeType;
+                if (!isset($resolvedMappings[$key])) $resolvedMappings[$key] = ['size_type' => (int) $sizeType, 'containers' => []];
+                $resolvedMappings[$key]['containers'][] = $container;
+            }
+            $resolvedMappings = array_values($resolvedMappings);
+            $sizeTypeIds = array_values(array_filter(array_map(static fn ($mapping) => $mapping['size_type'], $resolvedMappings)));
+            $sizeLookup = DB::table('container_size_type')->whereIn('s_id', $sizeTypeIds)->pluck('size', 's_id');
+            $sizeCounts = ['20' => 0, '40' => 0, '45' => 0];
+            foreach ($resolvedMappings as $mapping) {
+                $size = (int) ($sizeLookup[(int) $mapping['size_type']] ?? 0);
+                if (in_array($size, [20, 22], true)) $sizeCounts['20'] += count($mapping['containers']);
+                elseif (in_array($size, [40, 42], true)) $sizeCounts['40'] += count($mapping['containers']);
+                elseif ($size === 45) $sizeCounts['45'] += count($mapping['containers']);
+            }
+            $minimums = [
+                '20' => max(0, $booking->twenty - $booking->twenty_rem),
+                '40' => max(0, $booking->fourty - $booking->fourty_rem),
+                '45' => max(0, $booking->fourty_five - $booking->fourty_five_rem),
+            ];
+            foreach ($minimums as $size => $minimum) {
+                if ($sizeCounts[$size] < $minimum) {
+                    return response()->json(['success' => false, 'message' => "The container list cannot reduce used {$size}' containers below {$minimum}."], 422);
+                }
+            }
+            $data['twenty'] = $sizeCounts['20'];
+            $data['fourty'] = $sizeCounts['40'];
+            $data['fourty_five'] = $sizeCounts['45'];
+            $data['twenty_rem'] = $booking->twenty_rem + ($sizeCounts['20'] - $booking->twenty);
+            $data['fourty_rem'] = $booking->fourty_rem + ($sizeCounts['40'] - $booking->fourty);
+            $data['fourty_five_rem'] = $booking->fourty_five_rem + ($sizeCounts['45'] - $booking->fourty_five);
+            $data['cont_list'] = self::encodeContainerMappings($resolvedMappings);
             $newRemaining = array_values(array_diff($oldRemaining, $removedContainers));
-            $data['cont_list_rem'] = implode(', ', array_values(array_unique(array_merge($newRemaining, $containers))));
+            $remainingMappings = array_map(static function ($mapping) use ($newRemaining) {
+                return [
+                    'size_type' => $mapping['size_type'],
+                    'containers' => array_values(array_unique(array_merge(
+                        array_values(array_intersect($mapping['containers'], $newRemaining)),
+                        $mapping['containers']
+                    ))),
+                ];
+            }, $resolvedMappings);
+            $data['cont_list_rem'] = self::encodeContainerMappings($remainingMappings);
+            if (!$containers) {
+                $data['cont_list'] = '';
+                $data['cont_list_rem'] = '';
+            }
         }
 
         // Get old client name
@@ -627,15 +757,8 @@ class BookingController extends Controller
         }
 
         try {
-            $parseContainerList = static function (?string $list): array {
-                return array_values(array_filter(array_map(
-                    static fn ($container) => strtoupper(trim($container)),
-                    preg_split('/\s*,\s*/', (string) $list)
-                )));
-            };
-
-            $containers = $parseContainerList($booking->cont_list);
-            $remainingContainers = $parseContainerList($booking->cont_list_rem);
+            $containers = self::flattenContainerMappings($booking->cont_list);
+            $remainingContainers = self::flattenContainerMappings($booking->cont_list_rem);
             $allContainers = array_values(array_unique(array_merge($containers, $remainingContainers)));
             $heldContainers = empty($allContainers)
                 ? []
@@ -676,6 +799,8 @@ class BookingController extends Controller
             'success' => true,
             'data' => $containers,
             'remaining' => $remainingContainers,
+            'data_mappings' => self::containerMappings($booking->cont_list),
+            'remaining_mappings' => self::containerMappings($booking->cont_list_rem),
             'gate_out_containers' => $gateOutContainers,
         ]);
     }
