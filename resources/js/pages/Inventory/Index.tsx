@@ -3157,15 +3157,28 @@ const Index: React.FC = () => {
                                         <p className="mt-1 text-gray-900">{viewRecord.app_notes || 'N/A'}</p>
                                     </div>
                                     )}
-                                    {viewRecord.is_hold && viewRecord.hold_notes ? (
-                                        <div>
-                                            <Label className="text-xs uppercase text-gray-600">Hold Notes</Label>
-                                            <p className="mt-1 text-gray-900">{viewRecord.hold_notes}</p>
-                                            {viewRecord.hold_date && (
-                                                <p className="text-xs text-gray-500 mt-1">Placed on: {formatDate(viewRecord.hold_date as string)}</p>
+                                    {(viewRecord.hold_notes || viewRecord.repo_notes) && (
+                                        <div className={`grid gap-4 ${viewRecord.hold_notes && viewRecord.repo_notes ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+                                            {viewRecord.hold_notes && (
+                                                <div>
+                                                    <Label className="text-xs uppercase text-gray-600">Hold Notes</Label>
+                                                    <p className="mt-1 text-gray-900">{viewRecord.hold_notes}</p>
+                                                    {viewRecord.hold_date && (
+                                                        <p className="text-xs text-gray-500 mt-1">Placed on: {formatDate(viewRecord.hold_date as string)}</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {viewRecord.repo_notes && (
+                                                <div>
+                                                    <Label className="text-xs uppercase text-gray-600">Repo Notes</Label>
+                                                    <p className="mt-1 text-gray-900">{viewRecord.repo_notes}</p>
+                                                    {viewRecord.repo_date && (
+                                                        <p className="text-xs text-gray-500 mt-1">Placed on: {formatDate(viewRecord.repo_date as string)}</p>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
-                                    ) : null}
+                                    )}
                                     {containerImages.length > 0 && (
                                         <div>
                                             <Label className="text-xs uppercase text-gray-600">Images ({containerImages.length})</Label>
