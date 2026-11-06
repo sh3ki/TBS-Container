@@ -907,6 +907,18 @@ class InventoryController extends Controller
                 ], 422);
             }
 
+            $heldNumbers = DB::table('hold_containers')
+                ->whereIn('container_no', $containerNumbers->all())
+                ->pluck('container_no');
+            $notOnHold = $containerNumbers->diff($heldNumbers)->values()->all();
+            if (count($notOnHold) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Some containers are not in hold containers.',
+                    'not_on_hold' => $notOnHold,
+                ], 422);
+            }
+
             DB::transaction(function () use ($containerNumbers, $request, &$held, &$alreadyHeld) {
                 $inventory = DB::table('inventory')
                     ->whereIn('container_no', $containerNumbers->all())
@@ -1038,9 +1050,12 @@ class InventoryController extends Controller
                         ->where('container_no', $record->container_no)
                         ->delete();
 
+                    $isRepo = DB::table('repo_containers')
+                        ->where('container_no', $record->container_no)
+                        ->exists();
                     DB::table('inventory')
                         ->where('i_id', $record->i_id)
-                        ->update(['container_status' => 1]);
+                        ->update(['container_status' => $isRepo ? 8 : 1]);
 
                     if ($deleted === 0) {
                         $alreadyUnheld[] = $containerNumber;
@@ -1049,7 +1064,7 @@ class InventoryController extends Controller
 
                     DB::table('audit_logs')->insert([
                         'action' => 'EDIT',
-                        'description' => '[INVENTORY] Removed container "' . $record->container_no . '" from hold (status -> AVL)',
+                        'description' => '[INVENTORY] Removed container "' . $record->container_no . '" from hold (status -> ' . ($isRepo ? 'REPO' : 'AVL') . ')',
                         'user_id' => auth()->user()->user_id ?? null,
                         'date_added' => now(),
                         'ip_address' => $request->ip(),
@@ -1114,6 +1129,17 @@ class InventoryController extends Controller
 
         try {
             $repo = $request->input('action') === 'add';
+            $repoNumbers = DB::table('repo_containers')
+                ->whereIn('container_no', $numbers->all())
+                ->pluck('container_no');
+            $missingRepo = $repo ? $numbers->intersect($repoNumbers)->values()->all() : $numbers->diff($repoNumbers)->values()->all();
+            if (!$repo && count($missingRepo) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Some containers are not in repo containers.',
+                    'not_in_repo' => $missingRepo,
+                ], 422);
+            }
             $completed = [];
             $alreadyRepo = [];
             $alreadyNotRepo = [];
