@@ -62,6 +62,26 @@ class BookingController extends Controller
         return json_encode(array_values($mappings), JSON_UNESCAPED_SLASHES);
     }
 
+    private static function markContainersAsRepo(array $containers, string $bookingNumber): void
+    {
+        $note = "Updated to Repo for Booking {$bookingNumber}";
+        foreach (array_values(array_unique($containers)) as $container) {
+            DB::table('inventory')
+                ->where('container_no', $container)
+                ->where('gate_status', 'IN')
+                ->where('complete', 0)
+                ->update(['container_status' => 8]);
+
+            if (!DB::table('repo_containers')->where('container_no', $container)->exists()) {
+                DB::table('repo_containers')->insert([
+                    'container_no' => $container,
+                    'date_added' => now(),
+                    'notes' => $note,
+                ]);
+            }
+        }
+    }
+
     /**
      * Display a listing of bookings.
      */
@@ -172,6 +192,7 @@ class BookingController extends Controller
             'date_added' => now(),
             'user_id' => Auth::check() ? Auth::user()->user_id : null,
         ];
+        $containersToRepo = [];
 
         // Process container list if provided
         $submittedMappings = $request->filled('container_list')
@@ -266,12 +287,16 @@ class BookingController extends Controller
             $data['fourty_five_rem'] = $sizeCounts['45'];
             $data['cont_list'] = self::encodeContainerMappings(array_values($sizeTypeMappings));
             $data['cont_list_rem'] = self::encodeContainerMappings(array_values($sizeTypeMappings));
+            $containersToRepo = $validContainers;
         } else {
             $data['cont_list'] = '';
             $data['cont_list_rem'] = '';
         }
 
         $booking = Booking::create($data);
+        if ($containersToRepo) {
+            self::markContainersAsRepo($containersToRepo, $booking->book_no);
+        }
 
         // Get client name for logging
         $clientName = $client->client_name ?? 'Unknown';
@@ -491,6 +516,7 @@ class BookingController extends Controller
             $data['fourty_five_rem'] = $newFourtyFiveRem;
         $data['cont_list'] = '';
         $data['cont_list_rem'] = '';
+        $newlyAddedContainers = [];
 
         $submittedListValue = $request->filled('container_list') ? $request->container_list : $request->cnums;
         if (!empty($submittedListValue)) {
@@ -566,6 +592,7 @@ class BookingController extends Controller
                 $resolvedMappings[$key]['containers'][] = $container;
             }
             $resolvedMappings = array_values($resolvedMappings);
+            $newlyAddedContainers = $validContainers;
             $sizeTypeIds = array_values(array_filter(array_map(static fn ($mapping) => $mapping['size_type'], $resolvedMappings)));
             $sizeLookup = DB::table('container_size_type')->whereIn('s_id', $sizeTypeIds)->pluck('size', 's_id');
             $sizeCounts = ['20' => 0, '40' => 0, '45' => 0];
@@ -621,6 +648,9 @@ class BookingController extends Controller
         $oldContainerList = (string) ($booking->cont_list ?? '');
         
         $booking->update($data);
+        if ($newlyAddedContainers) {
+            self::markContainersAsRepo($newlyAddedContainers, $newBookNo);
+        }
 
         // If booking number or shipper changed, update inventory records
         if ($newBookNo !== $oldBookNo || strtoupper($request->ship) !== $oldShipper) {
