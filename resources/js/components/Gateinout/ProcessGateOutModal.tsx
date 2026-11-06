@@ -793,7 +793,7 @@ export default function ProcessGateOutModal({
         const target = e.target as HTMLElement;
         if ((e.key === 'Enter' || e.key === 'Tab') && target.dataset.field === 'seal_no') {
             e.preventDefault();
-            (e.currentTarget.querySelector('[data-field="remarks"]') as HTMLElement | null)?.focus();
+            (e.currentTarget.querySelector('[data-field="contact_no"]') as HTMLElement | null)?.focus();
             return;
         }
 
@@ -1033,6 +1033,7 @@ export default function ProcessGateOutModal({
                                 <Label>Contact No. <span className="text-red-500">*</span></Label>
                                 <Input
                                     data-history-key="gateinout.contact_no"
+                                    data-field="contact_no"
                                     value={formData.contact_no}
                                     onChange={(e) => handleInputChange('contact_no', e.target.value)}
                                     disabled={!isContainerSelected}
@@ -1133,6 +1134,7 @@ export default function ProcessGateOutModal({
                                 <Textarea
                                     value={formData.approval_remarks}
                                     readOnly
+                                    tabIndex={-1}
                                     aria-disabled="true"
                                     className="min-h-[60px] resize-y overflow-auto bg-gray-50 text-gray-500 cursor-default"
                                 />
@@ -1143,6 +1145,7 @@ export default function ProcessGateOutModal({
                                 <Textarea
                                     value={formData.gate_in_remarks}
                                     readOnly
+                                    tabIndex={-1}
                                     aria-disabled="true"
                                     className="min-h-[60px] resize-y overflow-auto bg-gray-50 text-gray-500 cursor-default"
                                 />
