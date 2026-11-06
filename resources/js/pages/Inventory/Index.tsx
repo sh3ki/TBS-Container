@@ -1209,8 +1209,15 @@ const Index: React.FC = () => {
                 await fetchInventory({ page: currentPage, perPage: itemsPerPage, search: appliedSearchTerm, showToast: false });
             } else error(response.data.message || 'Failed to process repo containers');
         } catch (err: unknown) {
-            const caught = err as { response?: { data?: { message?: string } } };
-            error(caught.response?.data?.message || 'Failed to process repo containers');
+            const caught = err as { response?: { data?: { message?: string; not_in_yard?: string[]; not_in_repo?: string[] } } };
+            const responseData = caught.response?.data;
+            if (responseData?.not_in_yard?.length) {
+                error(`Not in Real Time Inventory (Gate IN): ${responseData.not_in_yard.join(', ')}`);
+            } else if (responseData?.not_in_repo?.length) {
+                error(`Not in repo containers: ${responseData.not_in_repo.join(', ')}`);
+            } else {
+                error(responseData?.message || 'Failed to process repo containers');
+            }
         } finally { setBulkRepoProcessing(false); }
     };
 
@@ -1268,6 +1275,7 @@ const Index: React.FC = () => {
                         message?: string;
                         invalid?: string[];
                         not_in_yard?: string[];
+                        not_on_hold?: string[];
                     };
                 };
             };
@@ -1276,6 +1284,8 @@ const Index: React.FC = () => {
                 error(`Invalid container number format: ${responseData.invalid.join(', ')}`);
             } else if (responseData?.not_in_yard?.length) {
                 error(`Not in Real Time Inventory (Gate IN): ${responseData.not_in_yard.join(', ')}`);
+            } else if (responseData?.not_on_hold?.length) {
+                error(`Not in hold containers: ${responseData.not_on_hold.join(', ')}`);
             } else {
                 error(responseData?.message || 'Failed to hold containers');
             }
