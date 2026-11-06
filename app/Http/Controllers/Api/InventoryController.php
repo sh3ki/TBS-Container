@@ -910,8 +910,6 @@ class InventoryController extends Controller
             DB::transaction(function () use ($containerNumbers, $request, &$held, &$alreadyHeld) {
                 $inventory = DB::table('inventory')
                     ->whereIn('container_no', $containerNumbers->all())
-                    ->where('gate_status', 'IN')
-                    ->where('complete', 0)
                     ->lockForUpdate()
                     ->get(['i_id', 'container_no']);
 
@@ -920,7 +918,7 @@ class InventoryController extends Controller
                 foreach ($containerNumbers as $containerNumber) {
                     $record = $inventoryByContainer->get($containerNumber);
                     if (! $record) {
-                        throw new \RuntimeException('Container is no longer in Real Time Inventory: ' . $containerNumber);
+                        throw new \RuntimeException('Container not found: ' . $containerNumber);
                     }
 
                     $existingHold = DB::table('hold_containers')
@@ -942,17 +940,19 @@ class InventoryController extends Controller
                         ->where('i_id', $record->i_id)
                         ->update(['container_status' => 4]);
 
-                    DB::table('audit_logs')->insert([
-                        'action' => 'EDIT',
-                        'description' => '[INVENTORY] Placed container "' . $record->container_no . '" on hold (status -> HLD) with notes: ' . trim($request->input('notes')),
-                        'user_id' => auth()->user()->user_id ?? null,
-                        'date_added' => now(),
-                        'ip_address' => $request->ip(),
-                    ]);
-
                     $held[] = $containerNumber;
                 }
             });
+
+            if ($held) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[INVENTORY] Bulk hold containers: ' . implode(', ', $held),
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -1001,18 +1001,14 @@ class InventoryController extends Controller
         }
 
         try {
-            $realTimeInventory = DB::table('inventory')
-                ->whereIn('container_no', $containerNumbers->all())
-                ->where('gate_status', 'IN')
-                ->where('complete', 0)
-                ->get(['i_id', 'container_no']);
-            $notInYard = $containerNumbers->diff($realTimeInventory->pluck('container_no'))->values()->all();
+            $heldNumbers = DB::table('hold_containers')->whereIn('container_no', $containerNumbers->all())->pluck('container_no');
+            $notOnHold = $containerNumbers->diff($heldNumbers)->values()->all();
 
-            if (count($notInYard) > 0) {
+            if ($notOnHold) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Some containers are not in Real Time Inventory.',
-                    'not_in_yard' => $notInYard,
+                    'message' => 'Some containers are not in hold containers.',
+                    'not_on_hold' => $notOnHold,
                 ], 422);
             }
 
@@ -1038,26 +1034,27 @@ class InventoryController extends Controller
                         ->where('container_no', $record->container_no)
                         ->delete();
 
-                    DB::table('inventory')
-                        ->where('i_id', $record->i_id)
-                        ->update(['container_status' => 1]);
+                    $isRepo = DB::table('repo_containers')->where('container_no', $record->container_no)->exists();
+                    DB::table('inventory')->where('i_id', $record->i_id)->update(['container_status' => $isRepo ? 8 : 1]);
 
                     if ($deleted === 0) {
                         $alreadyUnheld[] = $containerNumber;
                         continue;
                     }
 
-                    DB::table('audit_logs')->insert([
-                        'action' => 'EDIT',
-                        'description' => '[INVENTORY] Removed container "' . $record->container_no . '" from hold (status -> AVL)',
-                        'user_id' => auth()->user()->user_id ?? null,
-                        'date_added' => now(),
-                        'ip_address' => $request->ip(),
-                    ]);
-
                     $unheld[] = $containerNumber;
                 }
             });
+
+            if ($unheld) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[INVENTORY] Bulk unhold containers: ' . implode(', ', $unheld),
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -1145,10 +1142,18 @@ class InventoryController extends Controller
                         $description = '[INVENTORY] Removed container "' . $number . '" from repo (status -> ' . ($isHold ? 'HLD' : 'AVL') . ')';
                     }
                     DB::table('inventory')->where('i_id', $record->i_id)->update(['container_status' => $status]);
-                    DB::table('audit_logs')->insert(['action' => 'EDIT', 'description' => $description, 'user_id' => auth()->user()->user_id ?? null, 'date_added' => now(), 'ip_address' => $request->ip()]);
                     $completed[] = $number;
                 }
             });
+            if ($completed) {
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => '[INVENTORY] Bulk ' . ($repo ? 'update to repo containers: ' : 'remove from repo containers: ') . implode(', ', $completed),
+                    'user_id' => auth()->user()->user_id ?? null,
+                    'date_added' => now(),
+                    'ip_address' => $request->ip(),
+                ]);
+            }
             return response()->json([
                 'success' => true,
                 'message' => count($completed) . ' container(s) processed.',
