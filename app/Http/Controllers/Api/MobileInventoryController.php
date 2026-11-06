@@ -65,6 +65,9 @@ class MobileInventoryController extends Controller
                     i.class,
                     i.location,
                     i.date_added,
+                    i.gate_status,
+                    i.complete,
+                    in_ref.date_added as in_date_added,
                     COALESCE(cs.status, '') as container_status,
                     COALESCE(i.approval_notes, '') as approval_notes,
                     COALESCE(i.remarks, '') as remarks,
@@ -85,6 +88,7 @@ class MobileInventoryController extends Controller
                     ) as hold_date,
                     CASE WHEN EXISTS (SELECT 1 FROM {$prefix}hold_containers hc WHERE hc.container_no = i.container_no) THEN 1 ELSE 0 END as is_hold
                 FROM {$prefix}inventory i
+                LEFT JOIN {$prefix}inventory in_ref ON in_ref.out_id = i.i_id AND in_ref.gate_status = 'IN'
                 LEFT JOIN {$prefix}clients c ON c.c_id = i.client_id
                 LEFT JOIN {$prefix}container_size_type st ON st.s_id = i.size_type
                 LEFT JOIN {$prefix}container_status cs ON cs.s_id = i.container_status
@@ -95,18 +99,20 @@ class MobileInventoryController extends Controller
 
             $results = DB::select($sql, $params);
 
-            $now = Carbon::now();
-            $results = array_map(static function ($item) use ($now) {
+            $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+            $results = array_map(static function ($item) use ($today) {
                 $days = 0;
-                if (!empty($item->date_added)) {
-                    $dateAdded = Carbon::parse($item->date_added);
-                    // Match the Laravel inventory table: elapsed time rounded up,
-                    // with a minimum of one day for a valid inventory timestamp.
-                    $days = max(1, (int) ceil(max(0, $dateAdded->diffInSeconds($now, false)) / 86400));
+                if (!empty($item->date_added) && $item->gate_status === 'IN' && (int) $item->complete === 0) {
+                    $dateAdded = Carbon::parse($item->date_added)->startOfDay();
+                    $days = max(1, $dateAdded->diffInDays($today) + 1);
+                } elseif ($item->gate_status === 'OUT' && !empty($item->in_date_added)) {
+                    $dateIn = Carbon::parse($item->in_date_added)->startOfDay();
+                    $dateOut = Carbon::parse($item->date_added)->startOfDay();
+                    $days = max(1, $dateIn->diffInDays($dateOut) + 1);
                 }
 
                 $item->days = $days;
-                unset($item->date_added);
+                unset($item->date_added, $item->in_date_added);
                 return $item;
             }, $results);
 
