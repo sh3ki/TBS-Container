@@ -35,6 +35,26 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
     return fallback;
 };
 
+const parseRemainingContainerList = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.map(String).map((container) => container.replace(/\s+/g, '').toUpperCase()).filter(Boolean);
+    const text = String(value ?? '');
+    try {
+        const parsed = JSON.parse(text) as unknown;
+        if (Array.isArray(parsed)) {
+            return parsed.flatMap((mapping) => {
+                if (!mapping || typeof mapping !== 'object') return [];
+                const containers = (mapping as { containers?: unknown }).containers;
+                return Array.isArray(containers)
+                    ? containers.map(String).map((container) => container.replace(/\s+/g, '').toUpperCase()).filter(Boolean)
+                    : [];
+            });
+        }
+    } catch {
+        // Legacy comma-separated booking lists are supported below.
+    }
+    return text.split(',').map((container) => container.replace(/\s+/g, '').toUpperCase()).filter(Boolean);
+};
+
 interface ProcessGateOutModalProps {
     open: boolean;
     onClose: () => void;
@@ -623,10 +643,7 @@ export default function ProcessGateOutModal({
                     (sizeType) => String(sizeType.s_id) === String(formData.size_type)
                 )?.size;
                 const countAvailable = Number(response.data.available_slots?.[String(selectedSize)]) > 0;
-                const remainingList = String(response.data.remaining_container_list || '')
-                    .split(',')
-                    .map((container: string) => container.replace(/\s+/g, '').toUpperCase())
-                    .filter(Boolean);
+                const remainingList = parseRemainingContainerList(response.data.remaining_container_list);
                 const listAvailable = remainingList.includes(formData.container_no.replace(/\s+/g, '').toUpperCase());
 
                 setFormData((prev) => ({
