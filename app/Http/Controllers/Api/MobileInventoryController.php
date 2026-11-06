@@ -103,11 +103,11 @@ class MobileInventoryController extends Controller
             $results = array_map(static function ($item) use ($today) {
                 $days = 0;
                 if (!empty($item->date_added) && $item->gate_status === 'IN' && (int) $item->complete === 0) {
-                    $dateAdded = Carbon::parse($item->date_added)->startOfDay();
+                    $dateAdded = Carbon::parse($item->date_added, 'Asia/Manila')->startOfDay();
                     $days = max(1, $dateAdded->diffInDays($today) + 1);
                 } elseif ($item->gate_status === 'OUT' && !empty($item->in_date_added)) {
-                    $dateIn = Carbon::parse($item->in_date_added)->startOfDay();
-                    $dateOut = Carbon::parse($item->date_added)->startOfDay();
+                    $dateIn = Carbon::parse($item->in_date_added, 'Asia/Manila')->startOfDay();
+                    $dateOut = Carbon::parse($item->date_added, 'Asia/Manila')->startOfDay();
                     $days = max(1, $dateIn->diffInDays($dateOut) + 1);
                 }
 
