@@ -959,9 +959,25 @@ const Index: React.FC = () => {
         }
     };
 
-    // Table Days display uses whole-day ceiling: 2h => 1d, 1d 1h => 2d.
-    const formatDurationCompactFrom = (dateString?: string, timeString?: string, fallback?: number) => {
+    // Table Days display uses calendar dates for live IN inventory. Time is ignored.
+    const formatDurationCompactFrom = (dateString?: string, timeString?: string, fallback?: number, gateStatus?: string) => {
         try {
+            if (dateString && String(gateStatus || '').toUpperCase() === 'IN') {
+                const dateOnly = String(dateString).slice(0, 10);
+                const manilaParts = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'Asia/Manila',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                }).formatToParts(new Date());
+                const todayOnly = `${manilaParts.find((part) => part.type === 'year')?.value}-${manilaParts.find((part) => part.type === 'month')?.value}-${manilaParts.find((part) => part.type === 'day')?.value}`;
+                const dateInUtc = Date.parse(`${dateOnly}T00:00:00Z`);
+                const todayUtc = Date.parse(`${todayOnly}T00:00:00Z`);
+                if (!Number.isNaN(dateInUtc) && !Number.isNaN(todayUtc)) {
+                    return `${Math.max(1, Math.floor((todayUtc - dateInUtc) / (24 * 60 * 60 * 1000)) + 1)}d`;
+                }
+            }
+
             if (fallback !== undefined && Number.isFinite(Number(fallback))) {
                 return `${Math.max(0, Math.ceil(Number(fallback)))}d`;
             }
@@ -2222,7 +2238,7 @@ const Index: React.FC = () => {
                                             <div className="font-medium" data-copy-field-indices="6">{highlightText(formatDate(row.date))}</div>
                                             <div className="text-sm font-medium text-gray-600 mt-1" data-copy-field-indices="7">{highlightText(formatTime(row.time))}</div>
                                             <div className="mt-1" data-copy-field-indices="8">
-                                                <span className="font-bold text-gray-900 text-sm">DAYS: {highlightText(formatDurationCompactFrom(row.date, row.time, row.days))}</span>
+                                                <span className="font-bold text-gray-900 text-sm">DAYS: {highlightText(formatDurationCompactFrom(row.date, row.time, row.days, row.gate))}</span>
                                             </div>
                                         </div>
                                     )
@@ -2430,7 +2446,7 @@ const Index: React.FC = () => {
                                 row.class,
                                 formatDate(row.date),
                                 formatTime(row.time),
-                                formatDurationCompactFrom(row.date, row.time, row.days),
+                                formatDurationCompactFrom(row.date, row.time, row.days, row.gate),
                                 formatMonthYear(row.dmf as string),
                                 row.location,
                                 row.eir_notes,
