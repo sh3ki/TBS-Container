@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, RotateCcw, Filter, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, RotateCcw, Filter, ArrowUpDown, X } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { removeFieldHistory, saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -70,10 +70,77 @@ interface EditFormData extends Omit<FormData, 'two' | 'four' | 'fourf'> {
   fourf: string;
 }
 
+interface ContainerListRow {
+  sizeType: string;
+  containerNumber: string;
+}
+
+interface ContainerMapping {
+  size_type: string;
+  containers: string[];
+}
+
+interface SizeTypeOption {
+  s_id: number;
+  size: string;
+  type: string;
+}
+
 const formatContainerListInput = (value: string) => {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const containers = normalized.match(/.{1,11}/g) || [];
   return containers.join(', ');
+};
+
+const formatContainerNumberInput = (value: string): string => {
+  const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return (normalized.match(/.{1,11}/g) || [])
+    .map((chunk) => chunk.length === 11 ? `${chunk},` : chunk)
+    .join('\n');
+};
+
+const sanitizeContainerNumberInput = (value: string): string => (
+  value.toUpperCase().replace(/[^A-Z0-9,\n]/g, '')
+);
+
+const cleanContainerNumber = (value: string): string => value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+const containerNumbersFromInput = (value: string): string[] => (
+  value.split(/[\s,]+/).map(cleanContainerNumber).filter(Boolean)
+);
+
+const containerListMappingFromInput = (value: string): ContainerMapping[] => {
+  const containers = containerNumbersFromInput(value);
+  return containers.length > 0 ? [{ size_type: '', containers }] : [];
+};
+
+const rowsToContainerMappings = (rows: ContainerListRow[]): ContainerMapping[] => rows
+  .map((row) => ({
+    size_type: row.sizeType,
+    containers: (row.containerNumber.match(/[A-Z0-9]{11}/gi) || []).map(cleanContainerNumber),
+  }))
+  .filter((mapping) => mapping.size_type && mapping.containers.length > 0);
+
+const storedContainerMappings = (value: string): ContainerMapping[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.flatMap((mapping) => {
+        if (!mapping || typeof mapping !== 'object') return [];
+        const item = mapping as { size_type?: unknown; containers?: unknown };
+        const containers = Array.isArray(item.containers)
+          ? item.containers.map((container) => cleanContainerNumber(String(container))).filter(Boolean)
+          : [];
+        return item.size_type && containers.length > 0
+          ? [{ size_type: String(item.size_type), containers }]
+          : [];
+      });
+    }
+  } catch {
+    // Existing bookings may still use the legacy comma-separated format.
+  }
+  return [{ size_type: '', containers: value.split(/[\s,]+/).map(cleanContainerNumber).filter(Boolean) }];
 };
 
 export default function Index() {
@@ -100,6 +167,7 @@ export default function Index() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [bookingType, setBookingType] = useState<'with' | 'without'>('without');
   const [editBookingType, setEditBookingType] = useState<'with' | 'without'>('without');
+  const [editHasContainerList, setEditHasContainerList] = useState(false);
   
   const [confirmAddBooking, setConfirmAddBooking] = useState(false);
   const [confirmUpdateBooking, setConfirmUpdateBooking] = useState(false);
@@ -131,18 +199,25 @@ export default function Index() {
     ship: '',
   });
   const [editMinimums, setEditMinimums] = useState({ two: 0, four: 0, fourf: 0 });
+  const [editOriginalQuantities, setEditOriginalQuantities] = useState({ two: '0', four: '0', fourf: '0' });
   
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedContainerList, setSelectedContainerList] = useState<string[]>([]);
   const [selectedRemainingContainerList, setSelectedRemainingContainerList] = useState<string[]>([]);
+  const [selectedContainerMappings, setSelectedContainerMappings] = useState<ContainerMapping[]>([]);
+  const [selectedRemainingContainerMappings, setSelectedRemainingContainerMappings] = useState<ContainerMapping[]>([]);
   const [selectedGateOutContainers, setSelectedGateOutContainers] = useState<GateOutContainer[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = useState<SizeTypeOption[]>([]);
+  const [containerListRows, setContainerListRows] = useState<ContainerListRow[]>([{ sizeType: '', containerNumber: '' }]);
+  const [editContainerListRows, setEditContainerListRows] = useState<ContainerListRow[]>([{ sizeType: '', containerNumber: '' }]);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     removeFieldHistory('booking.container_numbers');
     fetchBookings();
     fetchClients();
+    fetchSizeTypeOptions();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -353,21 +428,175 @@ export default function Index() {
     }
   };
 
+  const fetchSizeTypeOptions = async () => {
+    try {
+      const response = await axios.get('/api/gateinout/sizetype-options');
+      if (response.data.success) setSizeTypeOptions(response.data.data || []);
+    } catch {
+      error('Failed to load size/type options');
+    }
+  };
+
+  const rowsToContainerNumbers = (rows: ContainerListRow[]) => rows
+    .map((row) => cleanContainerNumber(row.containerNumber))
+    .filter(Boolean)
+    .join(', ');
+
+  const getAvailableSizeTypes = (rows: ContainerListRow[], currentIndex: number) => {
+    const selected = new Set(rows
+      .filter((_, index) => index !== currentIndex)
+      .map((row) => row.sizeType)
+      .filter(Boolean));
+
+    return sizeTypeOptions.filter((option) => !selected.has(String(option.s_id)));
+  };
+
+  const updateContainerListRow = (
+    rows: ContainerListRow[],
+    setRows: React.Dispatch<React.SetStateAction<ContainerListRow[]>>,
+    index: number,
+    changes: Partial<ContainerListRow>,
+  ) => {
+    setRows(rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...changes } : row));
+  };
+
+  const addContainerListRow = (
+    rows: ContainerListRow[],
+    setRows: React.Dispatch<React.SetStateAction<ContainerListRow[]>>,
+  ) => {
+    const previousRow = rows[rows.length - 1];
+    if (!previousRow?.sizeType) {
+      error('Select a size/type before adding another container');
+      return;
+    }
+    if (cleanContainerNumber(previousRow.containerNumber).length !== 11) {
+      error('Container number must be exactly 11 characters before adding another row');
+      return;
+    }
+    if (rows.length >= sizeTypeOptions.length) {
+      error('There are no more size/type options available');
+      return;
+    }
+    setRows([...rows, { sizeType: '', containerNumber: '' }]);
+  };
+
+  const removeContainerListRow = (
+    rows: ContainerListRow[],
+    setRows: React.Dispatch<React.SetStateAction<ContainerListRow[]>>,
+    index: number,
+  ) => {
+    setRows(rows.length === 1
+      ? [{ sizeType: '', containerNumber: '' }]
+      : rows.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const renderContainerListFields = (
+    rows: ContainerListRow[],
+    setRows: React.Dispatch<React.SetStateAction<ContainerListRow[]>>,
+  ) => (
+    <div
+      className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden overscroll-contain pb-1 pr-1"
+      onWheel={(event) => {
+        if (event.shiftKey && (event.deltaX !== 0 || event.deltaY !== 0)) {
+          event.preventDefault();
+          event.currentTarget.scrollLeft += event.deltaX || event.deltaY;
+        }
+      }}
+    >
+      <div className="flex w-max min-w-full flex-nowrap gap-3">
+        {rows.map((row, index) => (
+          <div key={`container-row-${index}`} className="relative w-80 min-w-80 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            {rows.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeContainerListRow(rows, setRows, index)}
+                className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-red-100 hover:text-red-600"
+                aria-label={`Remove container row ${index + 1}`}
+                title="Remove row"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-gray-900">Size/Type <span className="text-red-500">*</span></Label>
+                <Select
+                  value={row.sizeType}
+                  onValueChange={(value) => updateContainerListRow(rows, setRows, index, { sizeType: value })}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select size/type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableSizeTypes(rows, index).map((option) => (
+                      <SelectItem key={option.s_id} value={String(option.s_id)}>
+                        {option.size}{option.type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-gray-900">Container Number <span className="text-red-500">*</span></Label>
+                <Textarea
+                  value={row.containerNumber}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const formatted = value.length < row.containerNumber.length
+                      ? sanitizeContainerNumberInput(value)
+                      : formatContainerNumberInput(value);
+                    updateContainerListRow(rows, setRows, index, { containerNumber: formatted });
+                  }}
+                  rows={5}
+                  placeholder="Enter 11-character container number"
+                  className="resize-none bg-white font-mono"
+                />
+
+              </div>
+            </div>
+
+          </div>
+        ))}
+
+        {rows.length < sizeTypeOptions.length && (
+          <button
+            type="button"
+            onClick={() => addContainerListRow(rows, setRows)}
+            className="min-h-24 w-80 min-w-80 rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600"
+          >
+            + Add size/type and container number
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   const submitAddBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    if (bookingType === 'with') {
+      const containers = containerNumbersFromInput(formData.cnums);
+      if (containers.some((container) => container.length !== 11)) {
+        error('Each container number must be exactly 11 characters');
+        return;
+      }
+    }
     setConfirmAddBooking(true);
   };
 
   const handleAddBooking = async () => {
     try {
+      const savingContainerList = bookingType === 'with';
+      const containerMappings = savingContainerList ? containerListMappingFromInput(formData.cnums) : [];
       const payload = {
         ...formData,
-        two: Number(formData.two || 0),
-        four: Number(formData.four || 0),
-        fourf: Number(formData.fourf || 0),
-        // The tabs are navigation only; save both the quantities and list.
-        cnums: formData.cnums,
+        two: savingContainerList ? 0 : Number(formData.two || 0),
+        four: savingContainerList ? 0 : Number(formData.four || 0),
+        fourf: savingContainerList ? 0 : Number(formData.fourf || 0),
+        cnums: savingContainerList ? formData.cnums : '',
+        container_list: JSON.stringify(containerMappings),
+        container_list_rem: JSON.stringify(containerMappings),
         isc: bookingType === 'with' ? '1' : '0'
       };
       
@@ -392,6 +621,7 @@ export default function Index() {
           cnums: '',
           exp: '',
         });
+        setContainerListRows([{ sizeType: '', containerNumber: '' }]);
         setErrors({});
         fetchBookings();
       }
@@ -416,6 +646,8 @@ export default function Index() {
     const formattedExp = isNaN(expDate.getTime())
       ? ''
       : `${expDate.getFullYear()}-${String(expDate.getMonth() + 1).padStart(2, '0')}-${String(expDate.getDate()).padStart(2, '0')}`;
+    const existingMappings = storedContainerMappings(booking.cont_list || '');
+    const existingContainerNumbers = existingMappings.flatMap((mapping) => mapping.containers);
     
     setEditFormData({
       id: booking.hashed_id,
@@ -425,18 +657,28 @@ export default function Index() {
       two: String(booking.twenty),
       four: String(booking.fourty),
       fourf: String(booking.fourty_five),
-      cnums: formatContainerListInput(booking.cont_list || ''),
+      cnums: formatContainerNumberInput(existingContainerNumbers.join('')),
       exp: formattedExp,
       clientid: client?.id || '',
       ship: booking.shipper,
     });
+    setEditContainerListRows(existingMappings.length > 0
+      ? existingMappings.flatMap((mapping) => mapping.containers.map((containerNumber) => ({ sizeType: mapping.size_type, containerNumber })))
+      : [{ sizeType: '', containerNumber: '' }]);
     setEditMinimums({
       two: Math.max(0, booking.twenty - booking.twenty_rem),
       four: Math.max(0, booking.fourty - booking.fourty_rem),
       fourf: Math.max(0, booking.fourty_five - booking.fourty_five_rem),
     });
+    setEditOriginalQuantities({
+      two: String(booking.twenty),
+      four: String(booking.fourty),
+      fourf: String(booking.fourty_five),
+    });
     
-    setEditBookingType(booking.cont_list && booking.cont_list.trim() !== '' ? 'with' : 'without');
+    const hasContainerList = Boolean(booking.cont_list && booking.cont_list.trim() !== '');
+    setEditHasContainerList(hasContainerList);
+    setEditBookingType(hasContainerList ? 'with' : 'without');
     setShowEditModal(true);
   }, [clients]);
 
@@ -444,21 +686,30 @@ export default function Index() {
     e.preventDefault();
     setErrors({});
 
+    if (editBookingType === 'with') {
+      const containers = containerNumbersFromInput(editFormData.cnums);
+      if (containers.some((container) => container.length !== 11)) {
+        error('Each container number must be exactly 11 characters');
+        return;
+      }
+    }
     const quantityChecks = [
       { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
       { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
       { value: editFormData.fourf, minimum: editMinimums.fourf, label: "45'" },
     ];
 
-    for (const quantity of quantityChecks) {
-      if (!/^\d+$/.test(quantity.value)) {
-        error(`Enter a whole number for ${quantity.label} containers`);
-        return;
-      }
+    if (editBookingType === 'without') {
+      for (const quantity of quantityChecks) {
+        if (!/^\d+$/.test(quantity.value)) {
+          error(`Enter a whole number for ${quantity.label} containers`);
+          return;
+        }
 
-      if (Number(quantity.value) < quantity.minimum) {
-        error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
-        return;
+        if (Number(quantity.value) < quantity.minimum) {
+          error(`Can't enter below ${quantity.minimum} for ${quantity.label} containers`);
+          return;
+        }
       }
     }
 
@@ -470,15 +721,18 @@ export default function Index() {
     setConfirmUpdateBooking(false);
     
     try {
+      const savingContainerList = editBookingType === 'with';
+      const containerMappings = savingContainerList ? containerListMappingFromInput(editFormData.cnums) : [];
       const response = await axios.put(`/api/bookings/${editFormData.id}`, {
         bnum: editFormData.bnum.toUpperCase(),
         ship: editFormData.ship.toUpperCase(),
         exp: editFormData.exp,
-        two: Number(editFormData.two),
-        four: Number(editFormData.four),
-        fourf: Number(editFormData.fourf),
-        // The tabs are navigation only; save both the quantities and list.
-        cnums: editFormData.cnums,
+        two: Number(savingContainerList ? editOriginalQuantities.two : editFormData.two),
+        four: Number(savingContainerList ? editOriginalQuantities.four : editFormData.four),
+        fourf: Number(savingContainerList ? editOriginalQuantities.fourf : editFormData.fourf),
+        cnums: savingContainerList ? editFormData.cnums : '',
+        container_list: JSON.stringify(containerMappings),
+        container_list_rem: JSON.stringify(containerMappings),
         clientid: editFormData.clientid,
         isc: editBookingType === 'with' ? '1' : '0',
       });
@@ -547,6 +801,8 @@ export default function Index() {
     const fallbackRemainingList = getContainerListArray(booking.cont_list_rem).map((container) => container.trim());
     setSelectedContainerList(fallbackList);
     setSelectedRemainingContainerList(fallbackRemainingList);
+    setSelectedContainerMappings(storedContainerMappings(booking.cont_list));
+    setSelectedRemainingContainerMappings(storedContainerMappings(booking.cont_list_rem));
     setSelectedGateOutContainers([]);
     setSelectedBooking(booking);
     setShowViewModal(true);
@@ -556,6 +812,8 @@ export default function Index() {
       if (response.data.success) {
         setSelectedContainerList(response.data.data || []);
         setSelectedRemainingContainerList(response.data.remaining || []);
+        setSelectedContainerMappings(response.data.data_mappings || []);
+        setSelectedRemainingContainerMappings(response.data.remaining_mappings || []);
         setSelectedGateOutContainers(response.data.gate_out_containers || []);
       }
     } catch {
@@ -565,7 +823,7 @@ export default function Index() {
 
   const getContainerListArray = (contList: string) => {
     if (!contList) return [];
-    return contList.split(',').filter(c => c.trim());
+    return storedContainerMappings(contList).flatMap((mapping) => mapping.containers);
   };
 
   const handleSort = (column: string) => {
@@ -724,32 +982,41 @@ export default function Index() {
           </div>
         ),
         render: (booking: Booking) => {
-          const containers = getContainerListArray(booking.cont_list);
-          const containersRem = getContainerListArray(booking.cont_list_rem);
+          const containers = storedContainerMappings(booking.cont_list);
+          const containersRem = storedContainerMappings(booking.cont_list_rem);
+          const renderMappings = (mappings: ContainerMapping[]) => mappings.length > 0 ? (
+            <div className="space-y-1">
+              {mappings.map((mapping, index) => (
+                <div key={`${mapping.size_type}-${index}`} className="border-t border-gray-300 pt-1 first:border-t-0 first:pt-0">
+                  {mapping.size_type && (() => {
+                    const option = sizeTypeOptions.find((sizeTypeOption) => String(sizeTypeOption.s_id) === String(mapping.size_type));
+                    const label = option ? `${option.size}${option.type}` : String(mapping.size_type);
+                    let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                    if (['10DJH', '20RF', '40HC'].includes(label)) variant = 'success';
+                    else if (['20FR', '20RH', '40OT'].includes(label)) variant = 'error';
+                    else if (['20HR', '40DC', '40RH'].includes(label)) variant = 'warning';
+                    else if (['20OT', '40FR'].includes(label)) variant = 'info';
+                    return <div key={`size-type-${mapping.size_type}`} className="mb-0.5"><ModernBadge variant={variant}>{label}</ModernBadge></div>;
+                  })()}
+                  {mapping.containers.map((container, containerIndex) => (
+                    <div key={`${container}-${containerIndex}`} className="truncate">{container}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : '-';
           return (
             <div className="grid w-full min-w-[180px] grid-cols-2 gap-3">
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-gray-700 mb-0.5">List:</div>
                 <div className="text-xs font-mono text-gray-600">
-                  {containers.length > 0 ? (
-                    <div className="space-y-0.5">
-                      {containers.map((c, i) => (
-                        <div key={i} className="truncate">{c}</div>
-                      ))}
-                    </div>
-                  ) : '-'}
+                  {renderMappings(containers)}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-gray-700 mb-0.5">Rem:</div>
-                <div className="text-xs font-mono text-gray-600">
-                  {containersRem.length > 0 ? (
-                    <div className="space-y-0.5">
-                      {containersRem.map((c, i) => (
-                        <div key={i} className="truncate">{c}</div>
-                      ))}
-                    </div>
-                  ) : '-'}
+                <div className="text-xs font-mono font-semibold text-blue-600">
+                  {renderMappings(containersRem)}
                 </div>
               </div>
             </div>
@@ -860,7 +1127,11 @@ export default function Index() {
               <p className="text-sm mt-1 text-gray-600">Manage container booking and reservations</p>
             </div>
           </div>
-          <ModernButton variant="add" size="lg" onClick={() => setShowAddModal(true)}>
+          <ModernButton variant="add" size="lg" onClick={() => {
+            setBookingType('without');
+            setContainerListRows([{ sizeType: '', containerNumber: '' }]);
+            setShowAddModal(true);
+          }}>
             <Plus className="w-4 h-4" />
             Book Containers
           </ModernButton>
@@ -1079,12 +1350,12 @@ export default function Index() {
 
       {/* Add Booking Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] overflow-x-hidden overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>Book Containers</DialogTitle>
             <DialogDescription>Create a new booking for container reservations</DialogDescription>
           </DialogHeader>
-          <form onSubmit={submitAddBooking}>
+          <form className="min-w-0 max-w-full overflow-x-hidden" onSubmit={submitAddBooking}>
             <div className="grid gap-4 py-4">
               <div>
                 <Label className="text-gray-900 text-base font-medium mb-2 block">Booking Type</Label>
@@ -1170,17 +1441,27 @@ export default function Index() {
                 </div>
               </div>
               {bookingType === 'with' ? (
-                <div>
-                  <Label className="text-gray-900">Container Numbers</Label>
-                  <Textarea
-                    value={formData.cnums}
-                      onChange={(e) => setFormData({ ...formData, cnums: formatContainerListInput(e.target.value) })}
-                    rows={4}
-                    placeholder="Enter container numbers (comma-separated, 11 chars each)"
-                    className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`}
-                  />
+                <div className="min-w-0 max-w-full">
+                  <Label className="mb-2 block text-gray-900">Container List</Label>
+                <div className="min-w-0 max-w-full overflow-hidden rounded-lg bg-white p-2">
+                    <Textarea
+                      value={formData.cnums}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setFormData((current) => ({
+                          ...current,
+                          cnums: value.length < current.cnums.length
+                            ? sanitizeContainerNumberInput(value)
+                            : formatContainerNumberInput(value),
+                        }));
+                      }}
+                      rows={7}
+                      placeholder="Enter container numbers (11 characters each)"
+                      className="resize-none bg-white font-mono"
+                    />
+
+                  </div>
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
-                  <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-4">
@@ -1209,12 +1490,12 @@ export default function Index() {
 
       {/* Edit Booking Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] overflow-x-hidden overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>Edit Booking</DialogTitle>
             <DialogDescription>Update booking information</DialogDescription>
           </DialogHeader>
-          <form onSubmit={submitUpdateBooking}>
+          <form className="min-w-0 max-w-full overflow-x-hidden" onSubmit={submitUpdateBooking}>
             <div className="grid gap-4 py-4">
               <div>
                 <Label className="text-gray-900 text-base font-medium mb-2 block">Booking Type</Label>
@@ -1275,25 +1556,42 @@ export default function Index() {
                 </div>
               </div>
               {editBookingType === 'with' ? (
-                <div>
-                  <Label className="text-gray-900">Container Numbers</Label>
-                  <Textarea value={editFormData.cnums} onChange={(e) => setEditFormData({ ...editFormData, cnums: formatContainerListInput(e.target.value) })} rows={4} placeholder="Enter container numbers (comma-separated, 11 chars each)" className={`font-mono ${errors.cnums ? 'border-red-500' : ''}`} />
+                <div className="min-w-0 max-w-full">
+                  <Label className="mb-2 block text-gray-900">Container List</Label>
+                <div className="min-w-0 max-w-full overflow-hidden rounded-lg bg-white p-2">
+                    <Textarea
+                      value={editFormData.cnums}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setEditFormData((current) => ({
+                          ...current,
+                          cnums: value.length < current.cnums.length
+                            ? sanitizeContainerNumberInput(value)
+                            : formatContainerNumberInput(value),
+                        }));
+                      }}
+                      rows={7}
+                      disabled={!editHasContainerList}
+                      placeholder="Enter container numbers (11 characters each)"
+                      className="resize-none bg-white font-mono"
+                    />
+
+                  </div>
                   {errors.cnums && <p className="text-red-500 text-xs mt-1">{errors.cnums[0]}</p>}
-                  <p className="text-xs text-gray-500 mt-1">Format: ABCD1234567, EFGH8901234</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label className="text-gray-900">20' Containers</Label>
-                  <Input type="number" value={editFormData.two} onChange={(e) => setEditFormData({ ...editFormData, two: e.target.value })} />
+                  <Input type="number" disabled={editHasContainerList} value={editFormData.two} onChange={(e) => setEditFormData({ ...editFormData, two: e.target.value })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">40' Containers</Label>
-                  <Input type="number" value={editFormData.four} onChange={(e) => setEditFormData({ ...editFormData, four: e.target.value })} />
+                  <Input type="number" disabled={editHasContainerList} value={editFormData.four} onChange={(e) => setEditFormData({ ...editFormData, four: e.target.value })} />
                 </div>
                 <div>
                   <Label className="text-gray-900">45' Containers</Label>
-                  <Input type="number" value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: e.target.value })} />
+                  <Input type="number" disabled={editHasContainerList} value={editFormData.fourf} onChange={(e) => setEditFormData({ ...editFormData, fourf: e.target.value })} />
                 </div>
                 </div>
               )}
@@ -1357,30 +1655,55 @@ export default function Index() {
                 {/* Right Column - CONTAINER LISTS */}
                 <div className="space-y-4">
                   <div className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Container Lists</div>
-                  
-                  <div>
-                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">List</div>
-                    <div className="space-y-1">
-                      {selectedContainerList.length > 0 ? (
-                        selectedContainerList.map((container, idx) => (
-                          <div key={`list-${idx}`} className="text-gray-900 font-mono text-sm">{container}</div>
-                        ))
-                      ) : (
-                        <div className="text-gray-500">-</div>
-                      )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase mb-2">List</div>
+                      <div className="space-y-1">
+                        {selectedContainerMappings.length > 0 ? (
+                          selectedContainerMappings.map((mapping, mappingIndex) => (
+                            <div key={`list-mapping-${mappingIndex}`} className="border-t border-gray-300 pt-1 first:border-t-0 first:pt-0 text-gray-900 font-mono text-sm">
+                              {mapping.size_type && (() => {
+                                const option = sizeTypeOptions.find((sizeTypeOption) => String(sizeTypeOption.s_id) === String(mapping.size_type));
+                                const label = option ? `${option.size}${option.type}` : String(mapping.size_type);
+                                let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                if (['10DJH', '20RF', '40HC'].includes(label)) variant = 'success';
+                                else if (['20FR', '20RH', '40OT'].includes(label)) variant = 'error';
+                                else if (['20HR', '40DC', '40RH'].includes(label)) variant = 'warning';
+                                else if (['20OT', '40FR'].includes(label)) variant = 'info';
+                                return <div key={`modal-list-size-type-${mapping.size_type}`} className="mb-1"><ModernBadge variant={variant}>{label}</ModernBadge></div>;
+                              })()}
+                              <div>{mapping.containers.join(', ')}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-gray-500">-</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Rem</div>
-                    <div className="space-y-1">
-                      {selectedRemainingContainerList.length > 0 ? (
-                        selectedRemainingContainerList.map((container, idx) => (
-                          <div key={`rem-${idx}`} className="text-gray-900 font-mono text-sm">{container}</div>
-                        ))
-                      ) : (
-                        <div className="text-gray-500">-</div>
-                      )}
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Rem</div>
+                      <div className="space-y-1">
+                        {selectedRemainingContainerMappings.length > 0 ? (
+                          selectedRemainingContainerMappings.map((mapping, mappingIndex) => (
+                            <div key={`rem-mapping-${mappingIndex}`} className="border-t border-gray-300 pt-1 first:border-t-0 first:pt-0 font-mono text-sm text-blue-600">
+                              {mapping.size_type && (() => {
+                                const option = sizeTypeOptions.find((sizeTypeOption) => String(sizeTypeOption.s_id) === String(mapping.size_type));
+                                const label = option ? `${option.size}${option.type}` : String(mapping.size_type);
+                                let variant: 'success' | 'error' | 'warning' | 'info' | 'default' = 'default';
+                                if (['10DJH', '20RF', '40HC'].includes(label)) variant = 'success';
+                                else if (['20FR', '20RH', '40OT'].includes(label)) variant = 'error';
+                                else if (['20HR', '40DC', '40RH'].includes(label)) variant = 'warning';
+                                else if (['20OT', '40FR'].includes(label)) variant = 'info';
+                                return <div key={`modal-rem-size-type-${mapping.size_type}`} className="mb-1"><span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">{label}</span></div>;
+                              })()}
+                              <div>{mapping.containers.join(', ')}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-gray-500">-</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
