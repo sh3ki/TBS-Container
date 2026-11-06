@@ -47,6 +47,8 @@ interface ModernTableProps<T = unknown> {
   /** Optional tabular clipboard representation for copying the table. */
   copyHeaders?: string[];
   copyRow?: (item: T) => Array<string | number | null | undefined>;
+  /** Maps visible column keys to one or more columns in the clipboard row. */
+  copyColumnMap?: Record<string, number[]>;
 }
 
 const ModernTableBase = <T extends Record<string, unknown>>({
@@ -70,6 +72,7 @@ const ModernTableBase = <T extends Record<string, unknown>>({
   scrollToIndex,
   copyHeaders,
   copyRow,
+  copyColumnMap,
 }: ModernTableProps<T>) => {
   const [scrollTop, setScrollTop] = React.useState(0);
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -136,7 +139,7 @@ const ModernTableBase = <T extends Record<string, unknown>>({
           }
         }}
         onCopy={(event) => {
-          if (!copyRow || !copyHeaders) return;
+          if (!copyRow || !copyHeaders || !copyColumnMap) return;
           const selection = window.getSelection();
           if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
           if (!selection.anchorNode || !event.currentTarget.contains(selection.anchorNode)) return;
@@ -144,15 +147,55 @@ const ModernTableBase = <T extends Record<string, unknown>>({
           const cleanCell = (value: string | number | null | undefined) => String(value ?? '')
             .replace(/[\t\r\n]+/g, ' ')
             .trim();
-          const clipboardText = [
-            copyHeaders,
-            ...data.map((item) => copyRow(item)),
-          ]
-            .map((row) => row.map(cleanCell).join('\t'))
-            .join('\n');
+          const range = selection.getRangeAt(0);
+          const intersectsSelection = (node: Node) => {
+            try {
+              return range.intersectsNode(node);
+            } catch {
+              return false;
+            }
+          };
+          const rows: string[][] = [];
+
+          const selectedHeaderCells = Array.from(event.currentTarget.querySelectorAll<HTMLTableCellElement>('thead th'))
+            .filter(intersectsSelection);
+          if (selectedHeaderCells.length > 0) {
+            rows.push(selectedHeaderCells.flatMap((cell) => {
+              const indexes = copyColumnMap[cell.dataset.copyColumnKey ?? ''] ?? [];
+              return indexes.map((index) => cleanCell(copyHeaders[index]));
+            }));
+          }
+
+          Array.from(event.currentTarget.querySelectorAll<HTMLTableRowElement>('tbody tr[data-copy-row-index]'))
+            .filter(intersectsSelection)
+            .forEach((row) => {
+              const rowIndex = Number(row.dataset.copyRowIndex);
+              const item = data[rowIndex];
+              if (!item) return;
+
+              const copiedRow = copyRow(item);
+              const selectedCells = Array.from(row.querySelectorAll<HTMLTableCellElement>('td'))
+                .filter(intersectsSelection);
+              const values = selectedCells.flatMap((cell) => {
+                const selectedFields = Array.from(cell.querySelectorAll<HTMLElement>('[data-copy-field-indices]'))
+                  .filter(intersectsSelection)
+                  .flatMap((field) => (field.dataset.copyFieldIndices ?? '')
+                    .split(',')
+                    .map((index) => Number(index))
+                    .filter((index) => Number.isInteger(index)));
+                const indexes = selectedFields.length > 0
+                  ? selectedFields
+                  : copyColumnMap[cell.dataset.copyColumnKey ?? ''] ?? [];
+                return indexes.map((index) => cleanCell(copiedRow[index]));
+              });
+
+              if (values.length > 0) rows.push(values);
+            });
+
+          if (rows.length === 0) return;
 
           event.preventDefault();
-          event.clipboardData.setData('text/plain', clipboardText);
+          event.clipboardData.setData('text/plain', rows.map((row) => row.join('\t')).join('\n'));
         }}
         style={{ 
           borderColor: colors.table.border,
@@ -186,6 +229,7 @@ const ModernTableBase = <T extends Record<string, unknown>>({
               {columns.map((column) => (
                 <th
                   key={column.key}
+                  data-copy-column-key={column.key}
                   className={`px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider ${virtualized ? 'sticky top-0 z-10' : ''} ${column.sortable && onSort ? 'cursor-pointer hover:bg-opacity-90' : ''}`}
                   style={{
                     color: colors.table.headerText,
@@ -239,6 +283,7 @@ const ModernTableBase = <T extends Record<string, unknown>>({
                   return (
                 <tr
                   key={index}
+                  data-copy-row-index={index}
                   className={`transition-colors duration-150 ${onRowClick ? 'cursor-pointer' : ''}`}
                   style={{
                     backgroundColor: index % 2 === 0 ? colors.table.row : colors.table.rowAlt,
@@ -264,6 +309,7 @@ const ModernTableBase = <T extends Record<string, unknown>>({
                     columns.map((column) => (
                       <td
                         key={column.key}
+                        data-copy-column-key={column.key}
                         className="px-6 py-4 text-sm"
                         data-row-click={column.disableRowClick ? 'ignore' : undefined}
                         style={{
