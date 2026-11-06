@@ -1098,6 +1098,20 @@ class InventoryController extends Controller
             return response()->json(['success' => false, 'message' => 'Repo notes are required.'], 422);
         }
 
+        $realTimeNumbers = DB::table('inventory')
+            ->whereIn('container_no', $numbers->all())
+            ->where('gate_status', 'IN')
+            ->where('complete', 0)
+            ->pluck('container_no');
+        $notInYard = $numbers->diff($realTimeNumbers)->values()->all();
+        if ($notInYard) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Some containers are not in Real Time Inventory.',
+                'not_in_yard' => $notInYard,
+            ], 422);
+        }
+
         try {
             $repo = $request->input('action') === 'add';
             $completed = [];
