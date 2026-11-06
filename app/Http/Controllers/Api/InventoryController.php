@@ -109,12 +109,13 @@ class InventoryController extends Controller
             foreach ($results as $item) {
                 $daysInYard = 0;
                 if ($item->gate_status === 'IN' && (int) $item->complete === 0 && !empty($item->date_in)) {
-                    $dateIn = Carbon::parse($item->date_in . ' ' . ($item->time_in ?: '00:00:00'));
-                    $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds(Carbon::now(), false)) / 86400));
+                    $dateIn = Carbon::parse($item->date_in)->startOfDay();
+                    $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+                    $daysInYard = max(1, $dateIn->diffInDays($today) + 1);
                 } elseif ($item->date_out_full && !empty($item->date_in) && !empty($item->date_out)) {
-                    $dateIn = Carbon::parse($item->date_in . ' ' . ($item->time_in ?: '00:00:00'));
-                    $dateOut = Carbon::parse($item->date_out . ' ' . ($item->time_out ?: '00:00:00'));
-                    $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds($dateOut, false)) / 86400));
+                    $dateIn = Carbon::parse($item->date_in)->startOfDay();
+                    $dateOut = Carbon::parse($item->date_out)->startOfDay();
+                    $daysInYard = max(1, $dateIn->diffInDays($dateOut) + 1);
                 }
 
                 $data[] = [
@@ -485,12 +486,13 @@ class InventoryController extends Controller
             // Calculate days in yard
             $daysInYard = 0;
             if ($inventory->gate_status === 'IN' && (int) $inventory->complete === 0) {
-                $dateIn = Carbon::parse($inventory->date_added);
-                $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds(Carbon::now(), false)) / 86400));
+                $dateIn = Carbon::parse($inventory->date_added)->startOfDay();
+                $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+                $daysInYard = max(1, $dateIn->diffInDays($today) + 1);
             } elseif ($inventory->date_out_full) {
-                $dateIn = Carbon::parse($inventory->date_added);
-                $dateOut = Carbon::parse($inventory->date_out_full);
-                $daysInYard = max(1, (int) ceil(max(0, $dateIn->diffInSeconds($dateOut, false)) / 86400));
+                $dateIn = Carbon::parse($inventory->date_added)->startOfDay();
+                $dateOut = Carbon::parse($inventory->date_out_full)->startOfDay();
+                $daysInYard = max(1, $dateIn->diffInDays($dateOut) + 1);
             }
 
             // Get hold details if on hold
