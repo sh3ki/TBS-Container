@@ -9,6 +9,7 @@ interface ContainerImagesStripProps {
     open: boolean;
     containerNo?: string;
     dateAdded?: string | null;
+    dateCompleted?: string | null;
     gateStatus: 'IN' | 'OUT';
 }
 
@@ -18,7 +19,7 @@ const formatImageDate = (value: string): string => {
     return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}-${date.getFullYear()}`;
 };
 
-export default function ContainerImagesStrip({ open, containerNo, dateAdded, gateStatus }: ContainerImagesStripProps) {
+export default function ContainerImagesStrip({ open, containerNo, dateAdded, dateCompleted, gateStatus }: ContainerImagesStripProps) {
     const [images, setImages] = useState<ContainerImage[]>([]);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [showImageViewer, setShowImageViewer] = useState(false);
@@ -34,7 +35,12 @@ export default function ContainerImagesStrip({ open, containerNo, dateAdded, gat
         setImages([]);
         setCurrentImageIndex(0);
         setShowImageViewer(false);
-        const date = dateAdded ? formatImageDate(dateAdded) : '';
+        // Completed records use the completion date for their image folder.
+        // Pending records have no completion date yet, so retain date_added as
+        // the lookup fallback for the process modals.
+        const date = dateCompleted
+            ? formatImageDate(dateCompleted)
+            : (dateAdded ? formatImageDate(dateAdded) : '');
         if (!open || !containerNo || !date) return;
 
         void axios.get('/api/inventory/images', {
@@ -51,7 +57,7 @@ export default function ContainerImagesStrip({ open, containerNo, dateAdded, gat
         }).catch(() => { if (!cancelled) setImages([]); });
 
         return () => { cancelled = true; };
-    }, [open, containerNo, dateAdded, gateStatus]);
+    }, [open, containerNo, dateAdded, dateCompleted, gateStatus]);
 
     if (images.length === 0) return null;
 
