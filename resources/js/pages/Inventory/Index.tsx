@@ -146,6 +146,8 @@ interface InventoryRecord {
     bill_of_lading?: string;
     hold_notes?: string;
     hold_date?: string;
+    repo_notes?: string;
+    repo_date?: string;
     [key: string]: unknown;
 }
 
@@ -1435,6 +1437,8 @@ const Index: React.FC = () => {
                     bill_of_lading: data.bill_of_lading,
                     hold_notes: data.hold_details && data.hold_details.notes ? data.hold_details.notes : undefined,
                     hold_date: data.hold_details && data.hold_details.date_added ? data.hold_details.date_added : undefined,
+                    repo_notes: data.repo_details && data.repo_details.notes ? data.repo_details.notes : undefined,
+                    repo_date: data.repo_details && data.repo_details.date_added ? data.repo_details.date_added : undefined,
                 };
                 setViewRecord(mappedRecord);
                 // Open the modal as soon as the database record is ready. Image
