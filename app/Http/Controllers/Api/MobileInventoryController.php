@@ -99,7 +99,7 @@ class MobileInventoryController extends Controller
 
             $results = DB::select($sql, $params);
 
-            $today = Carbon::today(config('app.timezone', 'Asia/Manila'));
+            $today = Carbon::today('Asia/Manila');
             $results = array_map(static function ($item) use ($today) {
                 $days = 0;
                 if (!empty($item->date_added) && $item->gate_status === 'IN' && (int) $item->complete === 0) {
