@@ -731,8 +731,10 @@ export default function Index() {
         four: Number(savingContainerList ? editOriginalQuantities.four : editFormData.four),
         fourf: Number(savingContainerList ? editOriginalQuantities.fourf : editFormData.fourf),
         cnums: savingContainerList ? editFormData.cnums : '',
-        container_list: JSON.stringify(containerMappings),
-        container_list_rem: JSON.stringify(containerMappings),
+        // Quantity-only bookings must not submit an empty JSON list. The API
+        // uses isc to decide which allocation mode is being updated.
+        container_list: savingContainerList ? JSON.stringify(containerMappings) : '',
+        container_list_rem: savingContainerList ? JSON.stringify(containerMappings) : '',
         clientid: editFormData.clientid,
         isc: editBookingType === 'with' ? '1' : '0',
       });
