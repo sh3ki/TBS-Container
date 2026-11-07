@@ -467,8 +467,15 @@ class BookingController extends Controller
             'expiration_date' => $request->exp,
         ];
 
-        // Quantities and a container list are independent allocations. Both may
-        // be saved on the same booking.
+        // A booking is updated in one allocation mode at a time:
+        // - without a container list: save the manually entered quantities;
+        // - with a container list: derive the quantities from that list.
+        // The latter keeps the existing used/remaining safeguards below.
+        $isContainerList = (string) $request->isc === '1';
+
+        // Quantities and a container list are independent allocations, but the
+        // selected mode determines which one is authoritative for this update.
+        if (!$isContainerList) {
             $oldTwenty = $booking->twenty;
             $oldFourty = $booking->fourty;
             $oldFourtyFive = $booking->fourty_five;
@@ -514,12 +521,16 @@ class BookingController extends Controller
             $data['twenty_rem'] = $newTwentyRem;
             $data['fourty_rem'] = $newFourtyRem;
             $data['fourty_five_rem'] = $newFourtyFiveRem;
+        }
+
         $data['cont_list'] = '';
         $data['cont_list_rem'] = '';
         $newlyAddedContainers = [];
 
-        $submittedListValue = $request->filled('container_list') ? $request->container_list : $request->cnums;
-        if (!empty($submittedListValue)) {
+        $submittedListValue = $isContainerList
+            ? ($request->filled('container_list') ? $request->container_list : $request->cnums)
+            : null;
+        if ($isContainerList && $submittedListValue !== null) {
             $submittedMappings = self::containerMappings($submittedListValue);
             $containers = self::flattenContainerMappings($submittedListValue);
             $normalizeList = static fn (?string $value): array => self::flattenContainerMappings($value);
