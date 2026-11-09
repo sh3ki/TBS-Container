@@ -76,6 +76,8 @@ chmod -R 775 "$APP_DIR/storage"
 chmod -R 775 "$APP_DIR/bootstrap/cache"
 
 # Protect SFTP SSH configuration and known hosts
+mkdir -p "$APP_DIR/storage/app/ssh"
+touch "$APP_DIR/storage/app/ssh/known_hosts"
 chown -R www-data:www-data "$APP_DIR/storage/app/ssh"
 chmod 750 "$APP_DIR/storage/app/ssh"
 chmod 640 "$APP_DIR/storage/app/ssh/known_hosts"
