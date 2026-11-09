@@ -575,13 +575,6 @@ export default function Index() {
   const submitAddBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    if (bookingType === 'with') {
-      const containers = containerNumbersFromInput(formData.cnums);
-      if (containers.some((container) => container.length !== 11)) {
-        error('Each container number must be exactly 11 characters');
-        return;
-      }
-    }
     setConfirmAddBooking(true);
   };
 
@@ -605,10 +598,15 @@ export default function Index() {
       
       const response = await axios.post('/api/bookings', payload);
       if (response.data.success) {
+        const containerErrors = (response.data.container_errors || []) as string[];
+        const savedCount = Number(response.data.saved_count || 0);
+        const resultMessage = savingContainerList
+          ? `Booking saved: ${savedCount} container${savedCount === 1 ? '' : 's'} added.${containerErrors.length ? ` Errors: ${containerErrors.join('; ')}` : ''}`
+          : 'Booking created successfully';
         saveFieldHistory({
           'booking.shipper': formData.shipper,
         });
-        success('Booking created successfully');
+        success(resultMessage);
         setShowAddModal(false);
         setConfirmAddBooking(false);
         setFormData({
@@ -627,12 +625,13 @@ export default function Index() {
       }
     } catch (err: unknown) {
       setConfirmAddBooking(false);
-      const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } };
+      const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string; container_errors?: string[] } } };
       if (e.response?.data?.errors) {
         setErrors(e.response.data.errors);
         error('Please check the form for errors');
       } else {
-        error(e.response?.data?.message || 'Failed to create booking');
+        const containerErrors = e.response?.data?.container_errors || [];
+        error([e.response?.data?.message || 'Failed to create booking', ...containerErrors].join(' '));
       }
     }
   };
@@ -686,13 +685,6 @@ export default function Index() {
     e.preventDefault();
     setErrors({});
 
-    if (editBookingType === 'with') {
-      const containers = containerNumbersFromInput(editFormData.cnums);
-      if (containers.some((container) => container.length !== 11)) {
-        error('Each container number must be exactly 11 characters');
-        return;
-      }
-    }
     const quantityChecks = [
       { value: editFormData.two, minimum: editMinimums.two, label: "20'" },
       { value: editFormData.four, minimum: editMinimums.four, label: "40'" },
@@ -739,10 +731,16 @@ export default function Index() {
         isc: editBookingType === 'with' ? '1' : '0',
       });
       if (response.data.success) {
+        const containerErrors = (response.data.container_errors || []) as string[];
+        const savedCount = Number(response.data.saved_count || 0);
+        const retainedUsedCount = Number(response.data.retained_used_count || 0);
+        const resultMessage = savingContainerList
+          ? `Booking updated: ${savedCount} new container${savedCount === 1 ? '' : 's'} added${retainedUsedCount ? `; ${retainedUsedCount} used container${retainedUsedCount === 1 ? '' : 's'} retained` : ''}.${containerErrors.length ? ` Errors: ${containerErrors.join('; ')}` : ''}`
+          : 'Booking updated successfully';
         saveFieldHistory({
           'booking.shipper': editFormData.ship,
         });
-        success('Booking updated successfully');
+        success(resultMessage);
         setShowEditModal(false);
 
         // Update only the edited row so the table does not reload or reset
@@ -768,12 +766,13 @@ export default function Index() {
         }));
       }
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } };
+      const e = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string; container_errors?: string[] } } };
       if (e.response?.data?.errors) {
         setErrors(e.response.data.errors);
         error('Please check the form for errors');
       } else {
-        error(e.response?.data?.message || 'Failed to update booking');
+        const containerErrors = e.response?.data?.container_errors || [];
+        error([e.response?.data?.message || 'Failed to update booking', ...containerErrors].join(' '));
       }
     }
   };
