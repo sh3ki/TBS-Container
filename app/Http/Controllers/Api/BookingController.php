@@ -193,6 +193,7 @@ class BookingController extends Controller
             'user_id' => Auth::check() ? Auth::user()->user_id : null,
         ];
         $containersToRepo = [];
+        $containerErrors = [];
 
         // Process container list if provided
         $submittedMappings = $request->filled('container_list')
@@ -227,7 +228,6 @@ class BookingController extends Controller
                     ->all(), true);
             }
 
-            $containerErrors = [];
             $today = now(config('app.timezone', 'Asia/Manila'))->toDateString();
             $activeReservedContainers = Booking::whereDate('expiration_date', '>=', $today)
                 ->whereNotNull('cont_list')
@@ -241,6 +241,7 @@ class BookingController extends Controller
             foreach ($invalidContainers as $container) {
                 $containerErrors[] = "{$container} container is not in inventory";
             }
+            $acceptedContainers = [];
             foreach ($validContainers as $container) {
                 if (isset($heldLookup[$container])) {
                     $containerErrors[] = "{$container} container is on hold";
@@ -254,14 +255,18 @@ class BookingController extends Controller
                         $containerErrors[] = "{$container} container has no size/type assigned";
                     } elseif (isset($activeReservedContainers[$container])) {
                         $containerErrors[] = "{$container} container has already been reserved in another booking";
+                    } else {
+                        $acceptedContainers[] = $container;
                     }
                 }
             }
 
-            if ($containerErrors) {
+            $validContainers = array_values(array_unique($acceptedContainers));
+            if (!$validContainers) {
                 return response()->json([
                     'success' => false,
-                    'message' => implode(' and ', $containerErrors) . '.',
+                    'message' => 'No valid containers were available to save.',
+                    'container_errors' => $containerErrors,
                 ], 422);
             }
             
@@ -321,6 +326,8 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Success! Booking has been saved!',
+            'saved_count' => count($containersToRepo),
+            'container_errors' => $containerErrors,
             'data' => $booking->load('client'),
         ], 201);
     }
@@ -526,6 +533,8 @@ class BookingController extends Controller
         $data['cont_list'] = '';
         $data['cont_list_rem'] = '';
         $newlyAddedContainers = [];
+        $containerErrors = [];
+        $retainedUsedContainers = [];
 
         $submittedListValue = $isContainerList
             ? ($request->filled('container_list') ? $request->container_list : $request->cnums)
@@ -540,12 +549,10 @@ class BookingController extends Controller
             $removedContainers = array_values(array_diff($oldAllocated, $containers));
             $usedRemovedContainers = array_values(array_diff($removedContainers, $oldRemaining));
 
-            if ($usedRemovedContainers) {
-                return response()->json([
-                    'success' => false,
-                    'message' => implode(' and ', array_map(static fn ($container) => "{$container} container is already used and cannot be removed", $usedRemovedContainers)) . '.',
-                ], 422);
-            }
+            // Used containers cannot be removed. Put them back into the submitted
+            // list so the rest of the edit can still be saved.
+            $retainedUsedContainers = $usedRemovedContainers;
+            $containers = array_values(array_unique(array_merge($containers, $retainedUsedContainers)));
 
             $addedContainers = array_values(array_diff($containers, $oldAllocated));
             $invalidContainers = array_values(array_filter($addedContainers, static fn ($container) => strlen($container) !== 11));
@@ -568,6 +575,7 @@ class BookingController extends Controller
                 })
                 ->flip();
             $containerErrors = array_map(static fn ($container) => "{$container} container is not in inventory", $invalidContainers);
+            $acceptedNewContainers = [];
             foreach ($validContainers as $container) {
                 if (isset($heldLookup[$container])) {
                     $containerErrors[] = "{$container} container is on hold";
@@ -579,18 +587,22 @@ class BookingController extends Controller
                         $containerErrors[] = "{$container} container belongs to another client";
                     } elseif (!$inventoryRecord->size_type) {
                         $containerErrors[] = "{$container} container has no size/type assigned";
+                    } else {
+                        $acceptedNewContainers[] = $container;
                     }
                 }
             }
-            foreach ($containers as $container) {
-                if (strlen($container) === 11 && isset($activeReservedContainers[$container])) {
+            foreach ($acceptedNewContainers as $container) {
+                if (isset($activeReservedContainers[$container])) {
                     $containerErrors[] = "{$container} container has already been reserved in another booking";
                 }
             }
 
-            if ($containerErrors) {
-                return response()->json(['success' => false, 'message' => implode(' and ', $containerErrors) . '.'], 422);
-            }
+            $acceptedNewContainers = array_values(array_filter($acceptedNewContainers, static fn ($container) => !isset($activeReservedContainers[$container])));
+            $containers = array_values(array_unique(array_merge(
+                array_diff($containers, $addedContainers ?? []),
+                $acceptedNewContainers
+            )));
 
             $resolvedMappings = [];
             foreach ($containers as $container) {
@@ -603,7 +615,7 @@ class BookingController extends Controller
                 $resolvedMappings[$key]['containers'][] = $container;
             }
             $resolvedMappings = array_values($resolvedMappings);
-            $newlyAddedContainers = $validContainers;
+            $newlyAddedContainers = $acceptedNewContainers;
             $sizeTypeIds = array_values(array_filter(array_map(static fn ($mapping) => $mapping['size_type'], $resolvedMappings)));
             $sizeLookup = DB::table('container_size_type')->whereIn('s_id', $sizeTypeIds)->pluck('size', 's_id');
             $sizeCounts = ['20' => 0, '40' => 0, '45' => 0];
@@ -630,16 +642,16 @@ class BookingController extends Controller
             $data['fourty_rem'] = $booking->fourty_rem + ($sizeCounts['40'] - $booking->fourty);
             $data['fourty_five_rem'] = $booking->fourty_five_rem + ($sizeCounts['45'] - $booking->fourty_five);
             $data['cont_list'] = self::encodeContainerMappings($resolvedMappings);
-            $newRemaining = array_values(array_diff($oldRemaining, $removedContainers));
+            $newRemaining = array_values(array_unique(array_merge(
+                array_diff($oldRemaining, $removedContainers),
+                $acceptedNewContainers
+            )));
             $remainingMappings = array_map(static function ($mapping) use ($newRemaining) {
                 return [
                     'size_type' => $mapping['size_type'],
-                    'containers' => array_values(array_unique(array_merge(
-                        array_values(array_intersect($mapping['containers'], $newRemaining)),
-                        $mapping['containers']
-                    ))),
+                    'containers' => array_values(array_intersect($mapping['containers'], $newRemaining)),
                 ];
-            }, $resolvedMappings);
+            }, array_values(array_filter($resolvedMappings, static fn ($mapping) => count(array_intersect($mapping['containers'], $newRemaining)) > 0)));
             $data['cont_list_rem'] = self::encodeContainerMappings($remainingMappings);
             if (!$containers) {
                 $data['cont_list'] = '';
@@ -732,6 +744,9 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Booking updated successfully',
+            'saved_count' => count($newlyAddedContainers),
+            'retained_used_count' => count($retainedUsedContainers),
+            'container_errors' => $containerErrors,
             'data' => $booking->load('client'),
         ]);
     }
