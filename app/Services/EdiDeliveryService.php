@@ -132,8 +132,10 @@ class EdiDeliveryService
                 curl_setopt($curl, CURLOPT_SSH_AUTH_TYPES, CURLSSH_AUTH_PASSWORD);
             }
             if ($type === 'sftp') {
-                $knownHostsPath = trim((string) ($config['ssh_known_hosts'] ?? env('EDI_SFTP_KNOWN_HOSTS', '')));
-                $hostKeySha256 = trim((string) ($config['ssh_host_public_key_sha256'] ?? env('EDI_SFTP_HOST_KEY_SHA256', '')));
+                $knownHostsPath = trim((string) ($config['ssh_known_hosts'] ?? ''))
+                    ?: trim((string) config('edi.sftp.known_hosts', ''));
+                $hostKeySha256 = trim((string) ($config['ssh_host_public_key_sha256'] ?? ''))
+                    ?: trim((string) config('edi.sftp.host_public_key_sha256', ''));
 
                 if ($knownHostsPath !== '' && defined('CURLOPT_SSH_KNOWNHOSTS')) {
                     if (! is_file($knownHostsPath) || ! is_readable($knownHostsPath)) {
