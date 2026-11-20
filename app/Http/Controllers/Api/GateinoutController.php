@@ -95,24 +95,80 @@ class GateinoutController extends Controller
         }
     }
 
+    public function reorderQueue(Request $request)
+    {
+        $user = $request->user();
+        $canEdit = $user && DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->where('pages.page', 'queuelist')
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.acs_edit', 1)
+            ->exists();
+        abort_unless($canEdit, 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'status' => ['required', 'in:waiting,serving'],
+            'direction' => ['nullable', 'in:IN,OUT'],
+        ]);
+
+        DB::transaction(function () use ($validated): void {
+            $query = DB::table('queue_entries')
+                ->where('status', $validated['status'])
+                ->when($validated['status'] === 'waiting', fn ($q) => $q->where('direction', $validated['direction']))
+                ->whereDate('queue_date', today())
+                ->lockForUpdate();
+            $existingIds = $query->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+            $submittedIds = collect($validated['ids'])->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+            abort_unless($existingIds === $submittedIds, 422, 'Queue entries changed. Refresh and try again.');
+
+            foreach ($validated['ids'] as $index => $id) {
+                DB::table('queue_entries')->where('id', $id)->update([
+                    $validated['status'] === 'waiting' ? 'waiting_number' : 'serving_number' => $index + 1,
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        return response()->json(['success' => true]);
+    }
+
     private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): void
     {
         $table = 'queue_entries';
-        $nextNumber = ((int) DB::table($table)->where('direction', $direction)
-            ->where('queue_date', today())->where('status', 'waiting')->max('waiting_number')) + 1;
-
         DB::table($table)->insert([
             'plate_no' => $plateNo,
             'pre_inventory_id' => $preInventoryId,
             'ref_no' => $booking['ref_no'] ?? null,
             'direction' => $direction,
             'status' => 'waiting',
-            'waiting_number' => $nextNumber,
+            // Assigned by the booking-time renumbering pass below.
+            'waiting_number' => 0,
             'queue_date' => today(),
             'booking_time' => $booking['booking_time'] ?? now(),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // Booking slots define the waiting order. Existing entries with the
+        // same slot stay ahead of a newly added entry; later slots shift down.
+        $waiting = DB::table($table)
+            ->where('direction', $direction)
+            ->where('queue_date', today())
+            ->where('status', 'waiting')
+            ->orderBy('booking_time')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get(['id']);
+
+        foreach ($waiting as $index => $entry) {
+            DB::table($table)->where('id', $entry->id)->update([
+                'waiting_number' => $index + 1,
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     private function bookingScrapingEnabled(): bool
@@ -263,28 +319,23 @@ class GateinoutController extends Controller
                     : null;
             
                 // Insert Pre-IN record
-                $preInventoryId = DB::insertGetId(
-                "INSERT INTO {$this->prefix}pre_inventory 
-                (container_no, client_id, plate_no, gate_status, user_id, status, inv_id, date_added, remarks, size_type, cnt_class, cnt_status, iso_code, date_mnfg, checker_id)
-                VALUES (:cno, :cid, :pno, :gate, :uid, :stats, :iid, :date, :remarks, :size_type, :cnt_class, :cnt_status, :iso_code, :date_mnfg, :checker_id)",
-                [
-                    'cno' => $containerNo,
-                    'cid' => $client->c_id,
-                    'pno' => $plateNo,
-                    'gate' => 'IN',
-                    'uid' => Auth::check() ? Auth::user()->user_id : 0,
-                    'stats' => 0,
-                    'iid' => 0,
-                    'date' => date('Y-m-d H:i:s'),
+                $preInventoryId = DB::table('pre_inventory')->insertGetId([
+                    'container_no' => $containerNo,
+                    'client_id' => $client->c_id,
+                    'plate_no' => $plateNo,
+                    'gate_status' => 'IN',
+                    'user_id' => Auth::check() ? Auth::user()->user_id : 0,
+                    'status' => 0,
+                    'inv_id' => 0,
+                    'date_added' => date('Y-m-d H:i:s'),
                     'remarks' => '',
                     'size_type' => 0,
                     'cnt_class' => '',
                     'cnt_status' => '',
                     'iso_code' => '',
                     'date_mnfg' => '0000-00-00',
-                    'checker_id' => 0
-                ]
-                );
+                    'checker_id' => 0,
+                ]);
 
                 $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
             
@@ -359,28 +410,23 @@ class GateinoutController extends Controller
                 DB::beginTransaction();
             
                 // Insert Pre-OUT record
-                $preInventoryId = DB::insertGetId(
-                "INSERT INTO {$this->prefix}pre_inventory 
-                (container_no, plate_no, hauler, gate_status, user_id, status, inv_id, date_added, remarks, size_type, cnt_class, cnt_status, iso_code, date_mnfg, checker_id)
-                VALUES (:cno, :pno, :hau, :gate, :uid, :stats, :iid, :date, :remarks, :size_type, :cnt_class, :cnt_status, :iso_code, :date_mnfg, :checker_id)",
-                [
-                    'cno' => '',
-                    'pno' => $plateNo,
-                    'hau' => $hauler,
-                    'gate' => 'OUT',
-                    'uid' => Auth::check() ? Auth::user()->user_id : 0,
-                    'stats' => 0,
-                    'iid' => 0,
-                    'date' => date('Y-m-d H:i:s'),
+                $preInventoryId = DB::table('pre_inventory')->insertGetId([
+                    'container_no' => '',
+                    'plate_no' => $plateNo,
+                    'hauler' => $hauler,
+                    'gate_status' => 'OUT',
+                    'user_id' => Auth::check() ? Auth::user()->user_id : 0,
+                    'status' => 0,
+                    'inv_id' => 0,
+                    'date_added' => date('Y-m-d H:i:s'),
                     'remarks' => '',
                     'size_type' => 0,
                     'cnt_class' => '',
                     'cnt_status' => '',
                     'iso_code' => '',
                     'date_mnfg' => '0000-00-00',
-                    'checker_id' => 0
-                ]
-                );
+                    'checker_id' => 0,
+                ]);
 
                 $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking, (int) $preInventoryId);
             
