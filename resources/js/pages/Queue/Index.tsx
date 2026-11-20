@@ -4,13 +4,14 @@ import axios from 'axios';
 import { List, Radio, Settings, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { colors } from '@/lib/colors';
+import { ToastContainer, useModernToast } from '@/components/modern';
 
-interface QueueEntry { id: number; plate_no: string; waiting_number?: number; }
+interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; }
 interface QueueData { waiting_in: QueueEntry[]; waiting_out: QueueEntry[]; serving: QueueEntry[]; }
 interface QueuePageProps { servingCapacity?: number; }
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
 
-function QueueColumn({ title, direction, group, entries, serving = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number) => void; onCommit: () => void }) {
+function QueueColumn({ title, direction, group, entries, serving = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, servingId }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number) => void; onCommit: () => void; onServe?: (entry: QueueEntry) => void; servingId?: number | null }) {
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<number | null>(null);
     return <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#d8dde3] bg-white shadow-sm">
@@ -25,7 +26,9 @@ function QueueColumn({ title, direction, group, entries, serving = false, canEdi
         <div className="flex-1 space-y-3 overflow-y-auto p-3">
             {entries.length === 0 ? <div className="flex h-full min-h-[220px] flex-col items-center justify-center text-center text-[#68737b]"><List className="mb-3 h-8 w-8 text-[#3E9AF4]" /><p className="font-semibold">Queue is empty</p></div> : entries.map((entry, index) => <article key={entry.id} draggable={canEdit} onDragStart={(event) => { setDragging(index); setActiveGroup(group); event.dataTransfer.setData('queue-group', group); event.dataTransfer.effectAllowed = 'move'; }} onDragOver={(event) => { if (canEdit && activeGroup === group) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(index); if (dragging !== null && dragging !== index) { onMove(dragging, index); setDragging(index); } } }} onDragLeave={() => setDropTarget(null)} onDrop={(event) => { event.preventDefault(); if (canEdit && activeGroup === group) onCommit(); setDragging(null); setDropTarget(null); setActiveGroup(null); }} onDragEnd={() => { setDragging(null); setDropTarget(null); setActiveGroup(null); }} className={`relative flex items-center gap-3 rounded-lg border px-3 py-3 transition-all duration-200 ease-out ${dragging === index ? 'scale-[1.02] cursor-grabbing opacity-50 shadow-lg' : canEdit ? 'cursor-grab' : ''} ${dropTarget === index ? 'border-t-4 border-t-blue-500' : ''} ${serving ? 'border-emerald-200 bg-emerald-50' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`}>{serving ? <Truck className="h-5 w-5" /> : String(index + 1).padStart(2, '0')}</div>
-                <div className="min-w-0"><p className="break-all text-xl font-extrabold tracking-wide text-[#202a35]">{entry.plate_no}</p><p className={`text-xs font-bold ${serving ? 'text-emerald-700' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`}>{serving ? 'Now serving' : index === 0 ? 'Next in line' : 'Waiting'}</p></div>
+                <div className="min-w-0 flex-1"><p className="break-all text-xl font-extrabold tracking-wide text-[#202a35]">{entry.plate_no}</p><p className={`text-xs font-bold ${serving ? 'text-emerald-700' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`}>{serving ? 'Now serving' : index === 0 ? 'Next in line' : 'Waiting'}</p></div>
+                {!serving && canEdit && <button type="button" disabled={servingId === entry.id} onClick={(event) => { event.stopPropagation(); onServe?.(entry); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"><Truck className="h-4 w-4 text-white" />{servingId === entry.id ? 'Serving...' : 'Serve'}</button>}
+                <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`}>{entry.direction ?? direction}</span>
             </article>)}
         </div>
     </section>;
@@ -41,13 +44,19 @@ export default function QueueIndex() {
     const [capacityOpen, setCapacityOpen] = useState(false);
     const [capacity, setCapacity] = useState(String(servingCapacity));
     const [savingCapacity, setSavingCapacity] = useState(false);
-    const [capacityMessage, setCapacityMessage] = useState('');
+    const [servingId, setServingId] = useState<number | null>(null);
+    const { toasts, removeToast, success, error } = useModernToast();
     useEffect(() => {
         let active = true;
-        const refresh = async () => { try { const response = await axios.get('/api/queue/display'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ } };
+        const refresh = async () => {
+            // Never overwrite the user's in-progress drag/reorder state with a
+            // polling response from before the drop is committed.
+            if (activeGroup !== null) return;
+            try { const response = await axios.get('/api/queue/display'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ }
+        };
         refresh(); const timer = window.setInterval(refresh, 5000);
         return () => { active = false; window.clearInterval(timer); };
-    }, []);
+    }, [activeGroup]);
     const moveQueueEntry = (group: 'waiting_in' | 'waiting_out' | 'serving', from: number, to: number) => {
         const next = [...queue[group]];
         const [moved] = next.splice(from, 1);
@@ -69,18 +78,35 @@ export default function QueueIndex() {
     const saveCapacity = async () => {
         const value = Number(capacity);
         if (!Number.isInteger(value) || value < 0) {
-            setCapacityMessage('Enter a whole number of 0 or greater.');
+            error('Enter a whole number of 0 or greater.');
             return;
         }
         setSavingCapacity(true);
-        setCapacityMessage('');
         try {
             await axios.put('/queuelist/settings', { serving_capacity: value });
-            setCapacityMessage('Queue settings updated successfully.');
-        } catch (error: any) {
-            setCapacityMessage(error?.response?.data?.message ?? 'Unable to save queue settings.');
+            success('Queue settings updated successfully.');
+        } catch (exception: any) {
+            error(exception?.response?.data?.message ?? 'Unable to save queue settings.');
         } finally {
             setSavingCapacity(false);
+        }
+    };
+    const serveQueueEntry = async (entry: QueueEntry) => {
+        setServingId(entry.id);
+        try {
+            const response = await axios.post('/api/gateinout/queue/serve', { id: entry.id });
+            const served = response.data.entry;
+            setQueue((current) => ({
+                ...current,
+                waiting_in: current.waiting_in.filter((item) => item.id !== entry.id),
+                waiting_out: current.waiting_out.filter((item) => item.id !== entry.id),
+                serving: [...current.serving, served],
+            }));
+            success(`${entry.plate_no} is now serving.`);
+        } catch (exception: any) {
+            error(exception?.response?.data?.message ?? 'Unable to serve this queue entry.');
+        } finally {
+            setServingId(null);
         }
     };
     return (
@@ -99,11 +125,11 @@ export default function QueueIndex() {
                             </p>
                         </div>
                     </div>
-                    {canEditQueue && <button type="button" onClick={() => { setCapacity(String(servingCapacity)); setCapacityMessage(''); setCapacityOpen(true); }} className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-4 w-4" /> Queue Settings</button>}
+                    {canEditQueue && <button type="button" onClick={() => { setCapacity(String(servingCapacity)); setCapacityOpen(true); }} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
                 </div>
                 <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-3">
-                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={() => commitQueueOrder('waiting_in')} />
-                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={() => commitQueueOrder('waiting_out')} />
+                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={() => commitQueueOrder('waiting_in')} onServe={serveQueueEntry} servingId={servingId} />
+                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={() => commitQueueOrder('waiting_out')} onServe={serveQueueEntry} servingId={servingId} />
                     <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('serving', from, to)} onCommit={() => commitQueueOrder('serving')} />
                 </div>
             </div>
@@ -111,12 +137,12 @@ export default function QueueIndex() {
                 <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
                     <div className="mb-5 flex items-start justify-between"><div><h2 className="text-xl font-bold" style={{ color: colors.text.primary }}>Queue Settings</h2><p className="mt-1 text-sm" style={{ color: colors.text.secondary }}>Configure active serving capacity.</p></div><button type="button" onClick={() => setCapacityOpen(false)} className="text-2xl leading-none text-gray-400" aria-label="Close">&times;</button></div>
                     <label className="block text-sm font-semibold text-gray-700" htmlFor="serving-capacity">Serving Capacity</label>
-                    <input id="serving-capacity" type="number" min="0" step="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    <input id="serving-capacity" type="number" min="0" step="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
                     <p className="mt-2 text-xs text-gray-500">Set to 0 for unlimited serving capacity.</p>
-                    {capacityMessage && <p className={`mt-3 text-sm ${capacityMessage.includes('successfully') ? 'text-emerald-600' : 'text-red-600'}`}>{capacityMessage}</p>}
                     <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setCapacityOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={savingCapacity} onClick={saveCapacity} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: colors.brand.primary }}>{savingCapacity ? 'Saving...' : 'Save Settings'}</button></div>
                 </div>
             </div>}
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
 }
