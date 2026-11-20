@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(env('DB_PREFIX', 'fjp_') . 'queue_entries', function (Blueprint $table): void {
+        Schema::create('queue_entries', function (Blueprint $table): void {
             $table->bigIncrements('id');
             $table->string('plate_no', 50);
             $table->enum('direction', ['IN', 'OUT']);
@@ -27,6 +27,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists(env('DB_PREFIX', 'fjp_') . 'queue_entries');
+        Schema::dropIfExists('queue_entries');
     }
 };
