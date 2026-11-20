@@ -2144,7 +2144,7 @@ const Index: React.FC = () => {
                                     disableRowClick: true,
                                     headerRender: () => (
                                         <div className="flex flex-col items-start gap-0.5 text-xs uppercase leading-tight">
-                                            {(['size', 'status', 'class'] as const).map((column) => (
+                                            {(['status', 'size', 'class'] as const).map((column) => (
                                                 <button
                                                     key={column}
                                                     type="button"
