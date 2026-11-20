@@ -41,7 +41,11 @@ Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay']);
 // Mobile App API Routes (Plain text login - separate from main auth)
 Route::prefix('mobile')->group(function () {
     Route::get('/app-update', function () {
-        $settings = DB::table('mobile_settings')->where('setting_id', 1)->first();
+        $appCode = strtoupper((string) request()->query('app', 'CHECKER'));
+        if (! in_array($appCode, ['CHECKER', 'GUARD'], true)) {
+            $appCode = 'CHECKER';
+        }
+        $settings = DB::table('mobile_settings')->where('app_code', $appCode)->first();
 
         return response()->json([
             'success' => true,
