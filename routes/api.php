@@ -78,6 +78,36 @@ Route::prefix('mobile')->group(function () {
     });
 });
 
+// Guard App API namespace. Keep Guard traffic separate from the Checker app
+// while reusing the same server-side authorization and gate operations.
+Route::prefix('guard')->group(function () {
+    Route::get('/app-update', function () {
+        $settings = DB::table('mobile_settings')->where('app_code', 'GUARD')->first();
+
+        return response()->json([
+            'success' => true,
+            'app_version' => $settings?->app_version ?? '',
+            'apk_url' => $settings?->apk_url ?? '',
+            'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
+        ]);
+    });
+    Route::post('/login', [MobileAuthController::class, 'login']);
+    Route::post('/logout', [MobileAuthController::class, 'logout']);
+    Route::prefix('gateinout')->group(function () {
+        Route::post('/list', [MobileGateinoutController::class, 'getPreInventoryList']);
+        Route::get('/clients', [MobileGateinoutController::class, 'getClients']);
+        Route::get('/status-options', [MobileGateinoutController::class, 'getStatusOptions']);
+        Route::get('/sizetype-options', [MobileGateinoutController::class, 'getSizeTypeOptions']);
+        Route::get('/load-options', [MobileGateinoutController::class, 'getLoadOptions']);
+        Route::get('/container-details', [MobileGateinoutController::class, 'getContainerDetails']);
+        Route::get('/available-containers', [MobileGateinoutController::class, 'searchAvailableContainers']);
+        Route::post('/check-container-in', [MobileGateinoutController::class, 'checkContainerIn']);
+        Route::post('/check-container-out', [MobileGateinoutController::class, 'checkContainerOut']);
+        Route::post('/process-in', [MobileGateinoutController::class, 'processGateIn']);
+        Route::post('/process-out', [MobileGateinoutController::class, 'processGateOut']);
+    });
+});
+
 // CSRF Token endpoint (accessible without authentication for token refresh)
 Route::get('/csrf-token', function () {
     return response()->json([
