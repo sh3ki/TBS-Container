@@ -263,7 +263,7 @@ export default function ProcessGateInModal({
         await handleConfirm();
     };
 
-    const handleConfirm = async () => {
+    const handleConfirm = async (queueConfirmed = false) => {
         if (!record) return;
         // Prevent rapid double-clicks before React has a chance to re-render.
         if (submitInProgressRef.current) return;
@@ -307,6 +307,7 @@ export default function ProcessGateInModal({
                 bol: formData.bill_of_lading.toUpperCase(),
                 remarks: formData.remarks.toUpperCase(),
                 checker: checkerToSave,
+                queue_confirmed: queueConfirmed,
             });
 
             if (response.data.success) {
@@ -333,6 +334,14 @@ export default function ProcessGateInModal({
                 onClose();
             }
         } catch (error: unknown) {
+            const axiosError = error as { response?: { status?: number; data?: { queue_confirmation_required?: boolean; message?: string } } };
+            if (axiosError.response?.status === 409 && axiosError.response.data?.queue_confirmation_required && !queueConfirmed) {
+                submitInProgressRef.current = false;
+                setIsSubmitting(false);
+                const proceed = window.confirm(axiosError.response.data.message || 'This record is currently waiting in the queue and is not serving. Continue to complete the queue?');
+                if (proceed) await handleConfirm(true);
+                return;
+            }
             const message = getApiErrorMessage(error, 'Failed to process Gate IN');
             (showError ? showError(message) : alert(message));
         } finally {
