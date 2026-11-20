@@ -17,20 +17,7 @@ interface QueueData {
     serving: QueueEntry[];
 }
 
-const makeDemoEntries = (label: string, count: number, serving = false): QueueEntry[] =>
-    Array.from({ length: count }, (_, index) => ({
-        id: -((serving ? 100 : label === 'IN' ? 200 : 300) + index + 1),
-        plate_no: `${label === 'IN' ? 'ABC' : label === 'OUT' ? 'XYZ' : 'TBS'}${String((label === 'IN' ? 1001 : label === 'OUT' ? 2001 : 3001) + index)}`,
-        direction: label === 'IN' || label === 'OUT' ? label : undefined,
-        waiting_number: serving ? undefined : index + 1,
-        serving_number: serving ? index + 1 : undefined,
-    }));
-
-const demoQueue: QueueData = {
-    waiting_in: makeDemoEntries('IN', 15),
-    waiting_out: makeDemoEntries('OUT', 12),
-    serving: makeDemoEntries('SV', 20, true),
-};
+const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
 
 function useClock() {
     const [now, setNow] = useState(() => new Date());
@@ -82,7 +69,7 @@ function QueuePanel({ title, direction, entries, kind }: { title: string; direct
 
 export default function QueueDisplay() {
     const now = useClock();
-    const [queue, setQueue] = useState<QueueData>(demoQueue);
+    const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const time = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
     const date = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).format(now);
 
@@ -94,9 +81,9 @@ export default function QueueDisplay() {
                 if (active && response.data.success) {
                     const live = response.data.data as QueueData;
                     setQueue({
-                        waiting_in: live.waiting_in?.length ? live.waiting_in : demoQueue.waiting_in,
-                        waiting_out: live.waiting_out?.length ? live.waiting_out : demoQueue.waiting_out,
-                        serving: live.serving?.length ? live.serving : demoQueue.serving,
+                        waiting_in: Array.isArray(live.waiting_in) ? live.waiting_in : [],
+                        waiting_out: Array.isArray(live.waiting_out) ? live.waiting_out : [],
+                        serving: Array.isArray(live.serving) ? live.serving : [],
                     });
                 }
             } catch (error) {
