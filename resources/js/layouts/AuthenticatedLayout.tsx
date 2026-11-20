@@ -16,7 +16,6 @@ import {
     Ban,
     ChevronLeft,
     ChevronRight,
-    Container,
     Mail,
     Menu,
     X,
@@ -194,7 +193,11 @@ export default function Authenticated({ children }: PropsWithChildren) {
                         </button>
 
                         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-                            <Container className="h-8 w-8 text-white" />
+                            <img
+                                src="/apple-touch-icon.png"
+                                alt="TBS logo"
+                                className="h-8 w-8 rounded-md bg-white object-contain"
+                            />
                             <div className="text-white">
                                 <div className="text-lg font-bold tracking-wide">TBS</div>
                                 <div className="text-xs opacity-90 -mt-1 hidden sm:block">Container Yard Management System</div>
