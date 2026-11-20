@@ -1,12 +1,13 @@
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { List, Radio, Truck } from 'lucide-react';
+import { List, Radio, Settings, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { colors } from '@/lib/colors';
 
 interface QueueEntry { id: number; plate_no: string; waiting_number?: number; }
 interface QueueData { waiting_in: QueueEntry[]; waiting_out: QueueEntry[]; serving: QueueEntry[]; }
+interface QueuePageProps { servingCapacity?: number; }
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
 
 function QueueColumn({ title, direction, group, entries, serving = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number) => void; onCommit: () => void }) {
@@ -32,10 +33,15 @@ function QueueColumn({ title, direction, group, entries, serving = false, canEdi
 
 export default function QueueIndex() {
     const page = usePage();
+    const servingCapacity = Number((page.props as QueuePageProps).servingCapacity ?? 0);
     const auth = (page.props as { auth?: { permissions?: Array<{ page: string; acs_edit: number }> } }).auth;
     const canEditQueue = Number(auth?.permissions?.find((permission) => permission.page === 'queuelist')?.acs_edit ?? 0) === 1;
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [activeGroup, setActiveGroup] = useState<string | null>(null);
+    const [capacityOpen, setCapacityOpen] = useState(false);
+    const [capacity, setCapacity] = useState(String(servingCapacity));
+    const [savingCapacity, setSavingCapacity] = useState(false);
+    const [capacityMessage, setCapacityMessage] = useState('');
     useEffect(() => {
         let active = true;
         const refresh = async () => { try { const response = await axios.get('/api/queue/display'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ } };
@@ -60,20 +66,40 @@ export default function QueueIndex() {
             // The next live refresh restores the server order if the update fails.
         }
     };
+    const saveCapacity = async () => {
+        const value = Number(capacity);
+        if (!Number.isInteger(value) || value < 0) {
+            setCapacityMessage('Enter a whole number of 0 or greater.');
+            return;
+        }
+        setSavingCapacity(true);
+        setCapacityMessage('');
+        try {
+            await axios.put('/queuelist/settings', { serving_capacity: value });
+            setCapacityMessage('Queue settings updated successfully.');
+        } catch (error: any) {
+            setCapacityMessage(error?.response?.data?.message ?? 'Unable to save queue settings.');
+        } finally {
+            setSavingCapacity(false);
+        }
+    };
     return (
         <AuthenticatedLayout>
             <Head title="Queue" />
             <div className="space-y-6 overflow-hidden">
-                <div className="flex items-center gap-3">
-                    <div className="rounded-xl p-3" style={{ backgroundColor: colors.brand.primary }}>
-                        <List className="h-6 w-6 text-white" />
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="rounded-xl p-3" style={{ backgroundColor: colors.brand.primary }}>
+                            <List className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold" style={{ color: colors.text.primary }}>Queue</h1>
+                            <p className="mt-1 text-sm" style={{ color: colors.text.secondary }}>
+                                Manage and monitor the truck queue
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-3xl font-bold" style={{ color: colors.text.primary }}>Queue</h1>
-                        <p className="mt-1 text-sm" style={{ color: colors.text.secondary }}>
-                            Manage and monitor the truck queue
-                        </p>
-                    </div>
+                    {canEditQueue && <button type="button" onClick={() => { setCapacity(String(servingCapacity)); setCapacityMessage(''); setCapacityOpen(true); }} className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-4 w-4" /> Queue Settings</button>}
                 </div>
                 <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-3">
                     <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={() => commitQueueOrder('waiting_in')} />
@@ -81,6 +107,16 @@ export default function QueueIndex() {
                     <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('serving', from, to)} onCommit={() => commitQueueOrder('serving')} />
                 </div>
             </div>
+            {capacityOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setCapacityOpen(false)}>
+                <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                    <div className="mb-5 flex items-start justify-between"><div><h2 className="text-xl font-bold" style={{ color: colors.text.primary }}>Queue Settings</h2><p className="mt-1 text-sm" style={{ color: colors.text.secondary }}>Configure active serving capacity.</p></div><button type="button" onClick={() => setCapacityOpen(false)} className="text-2xl leading-none text-gray-400" aria-label="Close">&times;</button></div>
+                    <label className="block text-sm font-semibold text-gray-700" htmlFor="serving-capacity">Serving Capacity</label>
+                    <input id="serving-capacity" type="number" min="0" step="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    <p className="mt-2 text-xs text-gray-500">Set to 0 for unlimited serving capacity.</p>
+                    {capacityMessage && <p className={`mt-3 text-sm ${capacityMessage.includes('successfully') ? 'text-emerald-600' : 'text-red-600'}`}>{capacityMessage}</p>}
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setCapacityOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={savingCapacity} onClick={saveCapacity} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: colors.brand.primary }}>{savingCapacity ? 'Saving...' : 'Save Settings'}</button></div>
+                </div>
+            </div>}
         </AuthenticatedLayout>
     );
 }
