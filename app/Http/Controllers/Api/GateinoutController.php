@@ -95,7 +95,7 @@ class GateinoutController extends Controller
         }
     }
 
-    private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null): void
+    private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): void
     {
         $table = 'queue_entries';
         $nextNumber = ((int) DB::table($table)->where('direction', $direction)
@@ -103,6 +103,7 @@ class GateinoutController extends Controller
 
         DB::table($table)->insert([
             'plate_no' => $plateNo,
+            'pre_inventory_id' => $preInventoryId,
             'ref_no' => $booking['ref_no'] ?? null,
             'direction' => $direction,
             'status' => 'waiting',
@@ -262,7 +263,7 @@ class GateinoutController extends Controller
                     : null;
             
                 // Insert Pre-IN record
-                DB::insert(
+                $preInventoryId = DB::insertGetId(
                 "INSERT INTO {$this->prefix}pre_inventory 
                 (container_no, client_id, plate_no, gate_status, user_id, status, inv_id, date_added, remarks, size_type, cnt_class, cnt_status, iso_code, date_mnfg, checker_id)
                 VALUES (:cno, :cid, :pno, :gate, :uid, :stats, :iid, :date, :remarks, :size_type, :cnt_class, :cnt_status, :iso_code, :date_mnfg, :checker_id)",
@@ -285,7 +286,7 @@ class GateinoutController extends Controller
                 ]
                 );
 
-                $this->addQueueEntry($plateNo, 'IN', $booking);
+                $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
             
                 // Log audit - ADD action for pre-in
                 $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
@@ -358,7 +359,7 @@ class GateinoutController extends Controller
                 DB::beginTransaction();
             
                 // Insert Pre-OUT record
-                DB::insert(
+                $preInventoryId = DB::insertGetId(
                 "INSERT INTO {$this->prefix}pre_inventory 
                 (container_no, plate_no, hauler, gate_status, user_id, status, inv_id, date_added, remarks, size_type, cnt_class, cnt_status, iso_code, date_mnfg, checker_id)
                 VALUES (:cno, :pno, :hau, :gate, :uid, :stats, :iid, :date, :remarks, :size_type, :cnt_class, :cnt_status, :iso_code, :date_mnfg, :checker_id)",
@@ -381,7 +382,7 @@ class GateinoutController extends Controller
                 ]
                 );
 
-                $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking);
+                $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking, (int) $preInventoryId);
             
                 // Log audit - ADD action for pre-out
                 DB::table('audit_logs')->insert([
@@ -684,12 +685,14 @@ class GateinoutController extends Controller
             $realId = null;
             $identifier = '';
             $gateStatus = '';
+            $plateNo = '';
             
             foreach ($all as $p) {
                 if (md5($p->p_id) === $hashedId) {
                     $realId = $p->p_id;
                     $identifier = $p->container_no ?: "Plate: {$p->plate_no}";
                     $gateStatus = $p->gate_status;
+                    $plateNo = (string) $p->plate_no;
                     break;
                 }
             }
@@ -701,6 +704,16 @@ class GateinoutController extends Controller
             }
             
             // Delete the record (only pending can be deleted)
+            DB::table('queue_entries')
+                ->where(function ($query) use ($realId, $plateNo, $gateStatus): void {
+                    $query->where('pre_inventory_id', $realId)
+                        ->orWhere(function ($fallback) use ($plateNo, $gateStatus): void {
+                            $fallback->whereNull('pre_inventory_id')
+                                ->where('plate_no', $plateNo)
+                                ->where('direction', $gateStatus);
+                        });
+                })
+                ->delete();
             DB::delete("DELETE FROM {$this->prefix}pre_inventory WHERE p_id = :id AND status = 0", ['id' => $realId]);
             
             // Log audit - DELETE action
