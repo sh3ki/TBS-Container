@@ -915,13 +915,11 @@ export default function Index() {
                 ),
               },
               {
-                key: 'container_status',
-                label: 'Status',
+                key: 'plate_no',
+                label: 'Plate No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>
-                    {(record.container_status || '-').toUpperCase()}
-                  </ModernBadge>
+                  <div className="min-w-[90px] text-sm font-semibold text-gray-700" title={record.plate_no || '-'}>{record.plate_no || '-'}</div>
                 ),
               },
               {
@@ -929,9 +927,15 @@ export default function Index() {
                 label: 'Size / Type',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>
-                    {(record.size_type_display || '-').toUpperCase()}
-                  </ModernBadge>
+                  <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>{(record.size_type_display || '-').toUpperCase()}</ModernBadge>
+                ),
+              },
+              {
+                key: 'container_status',
+                label: 'Status',
+                sortable: true,
+                render: (record: PreInventoryRecord) => (
+                  <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>{(record.container_status || '-').toUpperCase()}</ModernBadge>
                 ),
               },
               {
@@ -1601,7 +1605,7 @@ export default function Index() {
         onOpenChange={setConfirmDeleteRecord}
         onConfirm={handleDeleteRecord}
         title="Delete Record"
-        description={`Are you sure you want to delete record for container ${recordToDelete?.container_no}? This action cannot be undone.`}
+        description={`Are you sure you want to delete record for ${recordToDelete?.gate_status === 'OUT' ? `plate number ${recordToDelete?.plate_no || '-'}` : `container ${recordToDelete?.container_no}`}? This action cannot be undone.`}
         confirmText="Delete Record"
         type="danger"
       />
