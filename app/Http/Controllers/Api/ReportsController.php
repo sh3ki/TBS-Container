@@ -899,10 +899,9 @@ class ReportsController extends Controller
                 SUM(CASE WHEN st.size IN(20,22) AND i.gate_status='OUT' THEN 1 ELSE 0 END) as out_20,
                 SUM(CASE WHEN st.size IN(40,42,45) AND i.gate_status='OUT' THEN 1 ELSE 0 END) as out_40
             FROM fjp_inventory i
-            LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
             LEFT JOIN fjp_clients c ON i.client_id=c.c_id
             LEFT JOIN fjp_container_size_type st ON i.size_type=st.s_id
-            WHERE DATE(pi.date_added)=? AND c.archived=0
+            WHERE DATE(i.date_added)=? AND c.archived=0
             GROUP BY c.c_id, c.c_id
             ORDER BY c.c_id
         ", [$date]);
@@ -934,26 +933,22 @@ class ReportsController extends Controller
                 CASE WHEN c.client_code IS NOT NULL AND c.client_code <> '' THEN c.client_code ELSE c.client_name END as client_name,
                 (SELECT COUNT(i.i_id) FROM fjp_inventory i
                     LEFT JOIN fjp_inventory o ON i.out_id=o.i_id
-                    LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
-                    LEFT JOIN fjp_pre_inventory po ON po.inv_id=o.i_id
                     LEFT JOIN fjp_container_size_type st ON st.s_id=i.size_type
                     WHERE i.gate_status='IN' AND 
-                    (CASE WHEN DATE(pi.date_added) IS NULL THEN DATE(i.date_added) <= ? ELSE DATE(pi.date_added) <= ? END) AND 
-                    (i.complete=0 OR (i.complete=1 AND (CASE WHEN DATE(po.date_added) IS NULL THEN DATE(o.date_added) > ? ELSE DATE(po.date_added) > ? END))) AND 
+                    DATE(i.date_added) <= ? AND 
+                    (i.complete=0 OR (i.complete=1 AND DATE(o.date_added) > ?)) AND 
                     st.size IN(20,22) AND i.client_id=c.c_id) as iin,
                 (SELECT COUNT(i.i_id) FROM fjp_inventory i
                     LEFT JOIN fjp_inventory o ON i.out_id=o.i_id
-                    LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
-                    LEFT JOIN fjp_pre_inventory po ON po.inv_id=o.i_id
                     LEFT JOIN fjp_container_size_type st ON st.s_id=i.size_type
                     WHERE i.gate_status='IN' AND 
-                    (CASE WHEN DATE(pi.date_added) IS NULL THEN DATE(i.date_added) <= ? ELSE DATE(pi.date_added) <= ? END) AND 
-                    (i.complete=0 OR (i.complete=1 AND (CASE WHEN DATE(po.date_added) IS NULL THEN DATE(o.date_added) > ? ELSE DATE(po.date_added) > ? END))) AND 
+                    DATE(i.date_added) <= ? AND 
+                    (i.complete=0 OR (i.complete=1 AND DATE(o.date_added) > ?)) AND 
                     st.size IN(40,42,45) AND i.client_id=c.c_id) as iout
             FROM fjp_clients c
             WHERE c.archived=0
             ORDER BY c.c_id
-        ", [$date, $date, $date, $date, $date, $date, $date, $date]);
+        ", [$date, $date, $date, $date]);
 
         $teusData = [];
         $total_iin = 0;
@@ -991,8 +986,7 @@ class ReportsController extends Controller
             ->filter()
             ->unique();
         $billingRows = DB::table('inventory as i')
-            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'i.i_id')
-            ->whereDate('pi.date_added', $date)
+            ->whereDate('i.date_added', $date)
             ->whereIn('i.gate_status', ['IN', 'OUT'])
             ->select('i.gate_status', 'i.hauler')
             ->get();
@@ -1642,10 +1636,9 @@ class ReportsController extends Controller
                 SUM(CASE WHEN st.size IN(20,22) AND i.gate_status='OUT' THEN 1 ELSE 0 END) as twoout_num,
                 SUM(CASE WHEN st.size IN(40,42,45) AND i.gate_status='OUT' THEN 1 ELSE 0 END) as fourout_num
             FROM fjp_inventory i
-            LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
             LEFT JOIN fjp_clients c ON i.client_id=c.c_id
             LEFT JOIN fjp_container_size_type st ON i.size_type=st.s_id
-            WHERE DATE(pi.date_added)=? AND c.archived=0
+            WHERE DATE(i.date_added)=? AND c.archived=0
             GROUP BY c.c_id
             ORDER BY c.c_id
         ", [$date]);
@@ -1682,26 +1675,22 @@ class ReportsController extends Controller
             SELECT c.c_id, c.client_name,
                 (SELECT COUNT(i.i_id) FROM fjp_inventory i
                     LEFT JOIN fjp_inventory o ON i.out_id=o.i_id
-                    LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
-                    LEFT JOIN fjp_pre_inventory po ON po.inv_id=o.i_id
                     LEFT JOIN fjp_container_size_type st ON st.s_id=i.size_type
                     WHERE i.gate_status='IN' AND 
-                    (CASE WHEN DATE(pi.date_added) IS NULL THEN DATE(i.date_added) <= ? ELSE DATE(pi.date_added) <= ? END) AND 
-                    (i.complete=0 OR (i.complete=1 AND (CASE WHEN DATE(po.date_added) IS NULL THEN DATE(o.date_added) > ? ELSE DATE(po.date_added) > ? END))) AND 
+                    DATE(i.date_added) <= ? AND 
+                    (i.complete=0 OR (i.complete=1 AND DATE(o.date_added) > ?)) AND 
                     st.size IN(20,22) AND i.client_id=c.c_id) as iin,
                 (SELECT COUNT(i.i_id) FROM fjp_inventory i
                     LEFT JOIN fjp_inventory o ON i.out_id=o.i_id
-                    LEFT JOIN fjp_pre_inventory pi ON pi.inv_id=i.i_id
-                    LEFT JOIN fjp_pre_inventory po ON po.inv_id=o.i_id
                     LEFT JOIN fjp_container_size_type st ON st.s_id=i.size_type
                     WHERE i.gate_status='IN' AND 
-                    (CASE WHEN DATE(pi.date_added) IS NULL THEN DATE(i.date_added) <= ? ELSE DATE(pi.date_added) <= ? END) AND 
-                    (i.complete=0 OR (i.complete=1 AND (CASE WHEN DATE(po.date_added) IS NULL THEN DATE(o.date_added) > ? ELSE DATE(po.date_added) > ? END))) AND 
+                    DATE(i.date_added) <= ? AND 
+                    (i.complete=0 OR (i.complete=1 AND DATE(o.date_added) > ?)) AND 
                     st.size IN(40,42,45) AND i.client_id=c.c_id) as iout
             FROM fjp_clients c
             WHERE c.archived=0
             ORDER BY c.c_id
-        ", [$date, $date, $date, $date, $date, $date, $date, $date]);
+        ", [$date, $date, $date, $date]);
 
         $appSettings = DB::table('app_settings')->where('setting_id', 1)->first();
         $incomingRate = (float) ($appSettings?->incoming_rate ?? 0);
@@ -1711,8 +1700,7 @@ class ReportsController extends Controller
             ->filter()
             ->unique();
         $billingRows = DB::table('inventory as i')
-            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'i.i_id')
-            ->whereDate('pi.date_added', $date)
+            ->whereDate('i.date_added', $date)
             ->whereIn('i.gate_status', ['IN', 'OUT'])
             ->select('i.gate_status', 'i.hauler')
             ->get();
