@@ -9,6 +9,20 @@ use Symfony\Component\Process\Process;
 
 class GuardScanController extends Controller
 {
+    public function queueDisplay()
+    {
+        $today = today();
+        $waitingIn = DB::table('queue_entries')->whereDate('queue_date', $today)->where('direction', 'IN')->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
+        $waitingOut = DB::table('queue_entries')->whereDate('queue_date', $today)->where('direction', 'OUT')->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
+        $serving = DB::table('queue_entries')->whereDate('queue_date', $today)->where('status', 'serving')->whereNull('completed_at')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
+
+        return response()->json(['success' => true, 'data' => [
+            'waiting_in' => $waitingIn,
+            'waiting_out' => $waitingOut,
+            'serving' => $serving,
+        ]]);
+    }
+
     public function queueCapacity()
     {
         $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
