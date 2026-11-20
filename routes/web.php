@@ -120,14 +120,14 @@ Route::middleware(['auth'])->group(function () {
 
     // Mobile Settings
     Route::get('/mobile-settings', function () {
-        $settings = DB::table('mobile_settings')->first();
+        $settings = DB::table('mobile_settings')->orderBy('setting_id')->get()->keyBy('app_code');
 
         return Inertia::render('MobileSettings/Index', [
-            'settings' => [
-                'app_version' => $settings?->app_version ?? '',
-                'apk_url' => $settings?->apk_url ?? '',
-                'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
-            ],
+            'settings' => $settings->map(fn ($item) => [
+                'app_version' => $item->app_version ?? '',
+                'apk_url' => $item->apk_url ?? '',
+                'update_app_modal' => (bool) ($item->update_app_modal ?? false),
+            ])->all(),
         ]);
     })->middleware('page.access:mobile-settings')->name('mobile-settings.index');
 
@@ -190,12 +190,14 @@ Route::middleware(['auth'])->group(function () {
 
     Route::put('/mobile-settings', function (Request $request, AuditService $auditService) {
         $validated = $request->validate([
+            'app_code' => ['required', 'string', 'in:CHECKER,GUARD'],
             'app_version' => ['required', 'string', 'max:50'],
             'apk_url' => ['required_if:update_app_modal,1', 'nullable', 'url', 'max:2048'],
             'update_app_modal' => ['required', 'boolean'],
         ]);
 
-        $currentSettings = DB::table('mobile_settings')->where('setting_id', 1)->first();
+        $appCode = strtoupper($validated['app_code']);
+        $currentSettings = DB::table('mobile_settings')->where('app_code', $appCode)->first();
         $oldAppVersion = (string) ($currentSettings?->app_version ?? '');
         $oldApkUrl = (string) ($currentSettings?->apk_url ?? '');
         $oldUpdateAppModal = (bool) ($currentSettings?->update_app_modal ?? false);
@@ -204,7 +206,7 @@ Route::middleware(['auth'])->group(function () {
         $newUpdateAppModal = (bool) $validated['update_app_modal'];
 
         DB::table('mobile_settings')->updateOrInsert(
-            ['setting_id' => 1],
+            ['app_code' => $appCode],
             [
                 'app_version' => $newAppVersion,
                 'apk_url' => $newApkUrl !== '' ? $newApkUrl : null,
