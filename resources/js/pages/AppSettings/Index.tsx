@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import axios from 'axios';
 import { useState } from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, ToggleLeft, ToggleRight } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ interface AppSettingsProps {
         incoming_rate: number;
         outgoing_rate: number;
         hauler_exceptions: string;
+        booking_scraping_enabled: boolean;
     };
 }
 
@@ -20,6 +21,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
     const [incomingRate, setIncomingRate] = useState(String(settings.incoming_rate));
     const [outgoingRate, setOutgoingRate] = useState(String(settings.outgoing_rate));
     const [haulerExceptions, setHaulerExceptions] = useState(settings.hauler_exceptions);
+    const [bookingScrapingEnabled, setBookingScrapingEnabled] = useState(settings.booking_scraping_enabled);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
 
@@ -32,6 +34,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                 incoming_rate: Number(incomingRate),
                 outgoing_rate: Number(outgoingRate),
                 hauler_exceptions: haulerExceptions,
+                booking_scraping_enabled: bookingScrapingEnabled,
             });
             setMessage(response.data.message || 'Docs Fee settings updated successfully.');
         } catch (error) {
@@ -116,6 +119,24 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                             </ModernButton>
                             {message && <span className="text-sm text-gray-600">{message}</span>}
                         </div>
+                    </div>
+                </ModernCard>
+
+                <ModernCard title="Queue Settings" subtitle="Configure Booking System verification for Add Pre-In and Add Pre-Out" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="flex max-w-4xl items-center justify-between rounded-lg border border-gray-200 p-4">
+                        <div>
+                            <p className="font-semibold text-gray-900">Booking System Scraping</p>
+                            <p className="mt-1 text-sm text-gray-600">
+                                {bookingScrapingEnabled ? 'Verified booking checks are enabled for both queue entry modals.' : 'Booking checks are disabled for both queue entry modals.'}
+                            </p>
+                        </div>
+                        <ModernButton type="button" variant={bookingScrapingEnabled ? 'primary' : 'secondary'} size="sm" icon={bookingScrapingEnabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setBookingScrapingEnabled((enabled) => !enabled)}>
+                            {bookingScrapingEnabled ? 'ON' : 'OFF'}
+                        </ModernButton>
+                    </div>
+                    <div className="mt-6 flex items-center gap-3">
+                        <ModernButton type="button" variant="primary" loading={saving} onClick={saveSettings}>Save Settings</ModernButton>
+                        {message && <span className="text-sm text-gray-600">{message}</span>}
                     </div>
                 </ModernCard>
             </div>
