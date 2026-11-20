@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw, ArrowUpDown } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw, ArrowUpDown, Copy } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
@@ -650,6 +650,15 @@ export default function Index() {
     }
   };
 
+  const handleCopyContainer = async (containerNo: string) => {
+    try {
+      await navigator.clipboard.writeText(containerNo);
+      success(`Copied ${containerNo}`);
+    } catch {
+      error('Unable to copy container number');
+    }
+  };
+
   const handleProcessClick = (record: PreInventoryRecord) => {
     setSelectedProcessRecord(record);
     if (record.gate_status === 'IN') {
@@ -897,8 +906,9 @@ export default function Index() {
                 label: 'Container No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[70px] flex items-center gap-2" title={record.container_no}>
-                    {record.date_completed && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
+                  <div className="font-mono font-semibold text-gray-900 min-w-[135px] flex items-center gap-1" title={record.container_no}>
+                    {record.date_completed && <CheckCircle className="mr-1 h-5 w-5 shrink-0 text-green-600" />}
+                    <button type="button" onClick={(event) => { event.stopPropagation(); void handleCopyContainer(record.container_no); }} className="inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900" title="Copy container number" aria-label={`Copy container number ${record.container_no}`}><Copy className="h-3.5 w-3.5" /></button>
                     {record.container_no}
                   </div>
                 ),
@@ -927,14 +937,14 @@ export default function Index() {
                 label: 'Size / Status',
                 headerRender: () => (
                   <div className="flex flex-col items-start gap-0.5 text-xs uppercase leading-tight">
-                    <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'size_type_display'); }} title="Sort by size/type">SIZE <ArrowUpDown className="h-3 w-3" /></button>
                     <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'container_status'); }} title="Sort by status">STATUS <ArrowUpDown className="h-3 w-3" /></button>
+                    <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'size_type_display'); }} title="Sort by size/type">SIZE <ArrowUpDown className="h-3 w-3" /></button>
                   </div>
                 ),
                 render: (record: PreInventoryRecord) => (
                   <div className="flex min-w-[110px] flex-col items-start gap-1">
-                    <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>{(record.size_type_display || '-').toUpperCase()}</ModernBadge>
                     <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>{(record.container_status || '-').toUpperCase()}</ModernBadge>
+                    <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>{(record.size_type_display || '-').toUpperCase()}</ModernBadge>
                   </div>
                 ),
               },
@@ -1083,8 +1093,9 @@ export default function Index() {
                 label: 'Container No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[70px] flex items-center gap-2" title={record.container_no}>
-                    {record.date_completed && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
+                  <div className="font-mono font-semibold text-gray-900 min-w-[135px] flex items-center gap-1" title={record.container_no}>
+                    {record.date_completed && <CheckCircle className="mr-1 h-5 w-5 shrink-0 text-green-600" />}
+                    <button type="button" onClick={(event) => { event.stopPropagation(); void handleCopyContainer(record.container_no); }} className="inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900" title="Copy container number" aria-label={`Copy container number ${record.container_no}`}><Copy className="h-3.5 w-3.5" /></button>
                     {record.container_no}
                   </div>
                 ),
