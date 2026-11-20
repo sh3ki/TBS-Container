@@ -85,7 +85,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Authenticated queue management page.
     Route::get('/queuelist', function () {
-        return Inertia::render('Queue/Index');
+        $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+
+        return Inertia::render('Queue/Index', [
+            'servingCapacity' => (int) ($settings?->serving_capacity ?? 0),
+        ]);
     })->middleware('page.access:queuelist')->name('queue.index');
 
     // Size & Type
@@ -155,6 +159,7 @@ Route::middleware(['auth'])->group(function () {
             'section' => ['required', 'string', 'in:docs_fee,queue'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'booking_scraping_enabled' => ['sometimes', 'boolean'],
+            'serving_capacity' => ['sometimes', 'integer', 'min:0'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
@@ -163,11 +168,14 @@ Route::middleware(['auth'])->group(function () {
         $validated = $request->validate($rules);
 
         if ($validated['section'] === 'queue') {
-            $enabled = (bool) ($validated['booking_scraping_enabled'] ?? false);
-            DB::table('app_settings')->where('setting_id', 1)->update([
-                'booking_scraping_enabled' => $enabled,
-                'updated_at' => now(),
-            ]);
+            $updates = ['updated_at' => now()];
+            if (array_key_exists('booking_scraping_enabled', $validated)) {
+                $updates['booking_scraping_enabled'] = (bool) $validated['booking_scraping_enabled'];
+            }
+            if (array_key_exists('serving_capacity', $validated)) {
+                $updates['serving_capacity'] = (int) $validated['serving_capacity'];
+            }
+            DB::table('app_settings')->where('setting_id', 1)->update($updates);
 
             return response()->json(['message' => 'Queue settings updated successfully.']);
         }
@@ -208,6 +216,19 @@ Route::middleware(['auth'])->group(function () {
 
         return response()->json(['message' => 'Docs Fee settings updated successfully.']);
     })->middleware('page.access:app-settings')->name('app-settings.update');
+
+    Route::put('/queuelist/settings', function (Request $request) {
+        $validated = $request->validate([
+            'serving_capacity' => ['required', 'integer', 'min:0'],
+        ]);
+
+        DB::table('app_settings')->where('setting_id', 1)->update([
+            'serving_capacity' => (int) $validated['serving_capacity'],
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Queue settings updated successfully.']);
+    })->middleware('page.access:queuelist')->name('queuelist.settings.update');
 
     Route::put('/mobile-settings', function (Request $request, AuditService $auditService) {
         $validated = $request->validate([
