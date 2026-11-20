@@ -2,6 +2,17 @@
 
 return [
 
+    'booking_system' => [
+        'url' => env('BOOKING_SYSTEM_URL', 'https://simplybook.com.ph/csp/simplybook/ADMIN/fjp/BookingSummary.csp'),
+        'login_url' => env('BOOKING_SYSTEM_LOGIN_URL'),
+        'username' => env('BOOKING_SYSTEM_USERNAME'),
+        'password' => env('BOOKING_SYSTEM_PASSWORD'),
+        'username_field' => env('BOOKING_SYSTEM_USERNAME_FIELD', 'username'),
+        'password_field' => env('BOOKING_SYSTEM_PASSWORD_FIELD', 'password'),
+        'container_parameter' => env('BOOKING_SYSTEM_CONTAINER_PARAMETER', 'container_no'),
+        'timeout' => env('BOOKING_SYSTEM_TIMEOUT', 20),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
