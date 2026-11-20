@@ -114,6 +114,15 @@ class GateinoutController extends Controller
         ]);
     }
 
+    private function bookingScrapingEnabled(): bool
+    {
+        $value = DB::table('app_settings')->where('setting_id', 1)->value('booking_scraping_enabled');
+
+        // Keep scraping enabled for installations created before this setting
+        // existed, while allowing the App Settings toggle to disable it.
+        return $value === null ? true : (bool) $value;
+    }
+
     /**
      * Get Pre-Inventory List (Combined for both IN and OUT)
      * OPTIMIZED: Uses efficient JOINs, returns all pending records for client-side filtering
@@ -248,7 +257,9 @@ class GateinoutController extends Controller
 
                 // Booking System verification is deliberately performed last,
                 // after every local Pre-In validation has passed.
-                $booking = app(BookingSystemService::class)->findVerifiedBooking($containerNo);
+                $booking = $this->bookingScrapingEnabled()
+                    ? app(BookingSystemService::class)->findVerifiedBooking($containerNo)
+                    : null;
             
                 // Insert Pre-IN record
                 DB::insert(
@@ -334,12 +345,15 @@ class GateinoutController extends Controller
             }
 
             try {
-                $usedRefNos = DB::table('queue_entries')
-                    ->whereNotNull('ref_no')
-                    ->pluck('ref_no')
-                    ->map(static fn ($refNo) => (string) $refNo)
-                    ->all();
-                $booking = app(BookingSystemService::class)->findEarliestVerifiedBookingByPlate($plateNo, $usedRefNos);
+                $booking = null;
+                if ($this->bookingScrapingEnabled()) {
+                    $usedRefNos = DB::table('queue_entries')
+                        ->whereNotNull('ref_no')
+                        ->pluck('ref_no')
+                        ->map(static fn ($refNo) => (string) $refNo)
+                        ->all();
+                    $booking = app(BookingSystemService::class)->findEarliestVerifiedBookingByPlate($plateNo, $usedRefNos);
+                }
 
                 DB::beginTransaction();
             
