@@ -667,7 +667,7 @@ export default function ProcessGateOutModal({
         }
     };
 
-    const handleConfirm = async () => {
+    const handleConfirm = async (queueConfirmed = false) => {
         // Validation
         if (!formData.container_no || formData.container_no.trim() === '') {
             (showError ? showError('Please enter Container Number') : alert('Please enter Container Number'));
@@ -771,6 +771,7 @@ export default function ProcessGateOutModal({
                 seal_no: formData.seal_no.toUpperCase(),
                 remarks: formData.remarks.toUpperCase(),
                 save_and_book: formData.save_and_book,
+                queue_confirmed: queueConfirmed,
             });
 
             if (response.data.success) {
@@ -796,6 +797,13 @@ export default function ProcessGateOutModal({
                 onClose();
             }
         } catch (error: any) {
+            if (error?.response?.status === 409 && error.response.data?.queue_confirmation_required && !queueConfirmed) {
+                submitInProgressRef.current = false;
+                setIsSubmitting(false);
+                const proceed = window.confirm(error.response.data.message || 'This record is currently waiting in the queue and is not serving. Continue to complete the queue?');
+                if (proceed) await handleConfirm(true);
+                return;
+            }
             const message = getApiErrorMessage(error, 'Failed to process Gate OUT');
             (showError ? showError(message) : alert(message));
         } finally {
