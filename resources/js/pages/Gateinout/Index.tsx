@@ -45,6 +45,7 @@ interface Client {
 interface PreInFormData {
   container_no: string;
   client_id: string;
+  plate_no: string;
 }
 
 interface PreOutFormData {
@@ -132,6 +133,7 @@ export default function Index() {
   const [preInForm, setPreInForm] = useState<PreInFormData>({
     container_no: '',
     client_id: '',
+    plate_no: '',
   });
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
@@ -428,6 +430,10 @@ export default function Index() {
       error('Please select a client');
       return;
     }
+    if (!preInForm.plate_no.trim()) {
+      error('Plate number is required');
+      return;
+    }
     handleAddPreIn();
   };
 
@@ -440,6 +446,7 @@ export default function Index() {
       const response = await axios.post('/api/gateinout/check-container-in', {
         cno: preInForm.container_no.toUpperCase(),
         client: preInForm.client_id,
+        pno: preInForm.plate_no.trim().toUpperCase(),
       });
 
       if (response.data.message) {
@@ -447,7 +454,7 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-In added successfully');
           setShowAddPreInModal(false);
-          setPreInForm({ container_no: '', client_id: '' });
+          setPreInForm({ container_no: '', client_id: '', plate_no: '' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -542,6 +549,10 @@ export default function Index() {
 
   const submitUpdatePreIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editPreInForm.plate_no.trim()) {
+      error('Plate number is required');
+      return;
+    }
     setConfirmUpdatePreIn(true);
   };
 
@@ -554,7 +565,8 @@ export default function Index() {
       const requestData = {
         id: editPreInForm.id,
         cno: editPreInForm.container_no,
-        cid: hashedClientId
+        cid: hashedClientId,
+        pno: editPreInForm.plate_no.trim().toUpperCase(),
       };
       console.log('Sending Update Pre-In Data:', requestData);
       const response = await axios.post('/api/gateinout/update-prein', requestData);
@@ -1317,6 +1329,18 @@ export default function Index() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Must be exactly 11 characters</p>
               </div>
+              <div>
+                <Label className="text-gray-900">
+                  Plate Number <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  data-history-key="gateinout.plate_no"
+                  value={preInForm.plate_no}
+                  onChange={(e) => setPreInForm({ ...preInForm, plate_no: e.target.value.toUpperCase() })}
+                  placeholder="ABC-1234"
+                  required
+                />
+              </div>
             </div>
             <DialogFooter className="gap-2">
               <ModernButton
@@ -1440,6 +1464,18 @@ export default function Index() {
                     })
                   }
                   maxLength={11}
+                />
+              </div>
+              <div>
+                <Label className="text-gray-900">
+                  Plate Number <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  data-history-key="gateinout.plate_no"
+                  value={editPreInForm.plate_no}
+                  onChange={(e) => setEditPreInForm({ ...editPreInForm, plate_no: e.target.value.toUpperCase() })}
+                  placeholder="ABC-1234"
+                  required
                 />
               </div>
             </div>
