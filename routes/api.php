@@ -83,6 +83,7 @@ Route::prefix('mobile')->group(function () {
 // while reusing the same server-side authorization and gate operations.
 Route::prefix('guard')->group(function () {
     Route::post('/scan-truck-plate', [GuardScanController::class, 'scanTruckPlate']);
+    Route::get('/queue/display', [GuardScanController::class, 'queueDisplay']);
     Route::get('/queue-capacity', [GuardScanController::class, 'queueCapacity']);
     Route::get('/app-update', function () {
         $settings = DB::table('mobile_settings')->where('app_code', 'GUARD')->first();
