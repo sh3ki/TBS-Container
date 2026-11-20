@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PreInventory;
+use App\Exceptions\BookingLookupException;
+use App\Services\BookingSystemService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -72,13 +74,13 @@ class GateinoutController extends Controller
     public function getQueueDisplay()
     {
         try {
-            $waitingIn = DB::table($this->prefix . 'queue_entries')
+            $waitingIn = DB::table('queue_entries')
                 ->whereDate('queue_date', today())->where('direction', 'IN')->where('status', 'waiting')
                 ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
-            $waitingOut = DB::table($this->prefix . 'queue_entries')
+            $waitingOut = DB::table('queue_entries')
                 ->whereDate('queue_date', today())->where('direction', 'OUT')->where('status', 'waiting')
                 ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
-            $serving = DB::table($this->prefix . 'queue_entries')
+            $serving = DB::table('queue_entries')
                 ->whereDate('queue_date', today())->where('status', 'serving')->orderBy('serving_number')
                 ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
@@ -93,19 +95,20 @@ class GateinoutController extends Controller
         }
     }
 
-    private function addQueueEntry(string $plateNo, string $direction): void
+    private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null): void
     {
-        $table = $this->prefix . 'queue_entries';
+        $table = 'queue_entries';
         $nextNumber = ((int) DB::table($table)->where('direction', $direction)
             ->where('queue_date', today())->where('status', 'waiting')->max('waiting_number')) + 1;
 
         DB::table($table)->insert([
             'plate_no' => $plateNo,
+            'ref_no' => $booking['ref_no'] ?? null,
             'direction' => $direction,
             'status' => 'waiting',
             'waiting_number' => $nextNumber,
             'queue_date' => today(),
-            'booking_time' => now(),
+            'booking_time' => $booking['booking_time'] ?? now(),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -242,6 +245,10 @@ class GateinoutController extends Controller
                         'message' => ['danger', $validation['message']]
                     ]);
                 }
+
+                // Booking System verification is deliberately performed last,
+                // after every local Pre-In validation has passed.
+                $booking = app(BookingSystemService::class)->findVerifiedBooking($containerNo);
             
                 // Insert Pre-IN record
                 DB::insert(
@@ -267,7 +274,7 @@ class GateinoutController extends Controller
                 ]
                 );
 
-                $this->addQueueEntry($plateNo, 'IN');
+                $this->addQueueEntry($plateNo, 'IN', $booking);
             
                 // Log audit - ADD action for pre-in
                 $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
@@ -327,6 +334,13 @@ class GateinoutController extends Controller
             }
 
             try {
+                $usedRefNos = DB::table('queue_entries')
+                    ->whereNotNull('ref_no')
+                    ->pluck('ref_no')
+                    ->map(static fn ($refNo) => (string) $refNo)
+                    ->all();
+                $booking = app(BookingSystemService::class)->findEarliestVerifiedBookingByPlate($plateNo, $usedRefNos);
+
                 DB::beginTransaction();
             
                 // Insert Pre-OUT record
@@ -353,7 +367,7 @@ class GateinoutController extends Controller
                 ]
                 );
 
-                $this->addQueueEntry(strtoupper($plateNo), 'OUT');
+                $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking);
             
                 // Log audit - ADD action for pre-out
                 DB::table('audit_logs')->insert([
@@ -376,6 +390,10 @@ class GateinoutController extends Controller
                 $lock->release();
             }
             
+        } catch (BookingLookupException $e) {
+            return response()->json([
+                'message' => ['danger', '<strong>Error!</strong> ' . $e->getMessage()]
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => ['danger', '<strong>Error!</strong> ' . $e->getMessage()]
