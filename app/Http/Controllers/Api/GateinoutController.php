@@ -134,6 +134,33 @@ class GateinoutController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function serveQueueEntry(Request $request)
+    {
+        $user = $request->user();
+        $canEdit = $user && DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->where('pages.page', 'queuelist')
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.acs_edit', 1)
+            ->exists();
+        abort_unless($canEdit, 403);
+        $validated = $request->validate(['id' => ['required', 'integer']]);
+
+        $entry = DB::transaction(function () use ($validated) {
+            $entry = DB::table('queue_entries')->where('id', $validated['id'])->where('status', 'waiting')->lockForUpdate()->first();
+            abort_unless($entry, 404, 'Queue entry not found.');
+            $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
+            $currentServing = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
+            abort_unless($capacity === 0 || $currentServing < $capacity, 409, 'Serving capacity is full.');
+            $servingNumber = ((int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->max('serving_number')) + 1;
+            DB::table('queue_entries')->where('id', $entry->id)->update(['status' => 'serving', 'waiting_number' => null, 'serving_number' => $servingNumber, 'serving_at' => now(), 'updated_at' => now()]);
+            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->whereDate('queue_date', today())->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
+            foreach ($waiting as $index => $waitingEntry) DB::table('queue_entries')->where('id', $waitingEntry->id)->update(['waiting_number' => $index + 1, 'updated_at' => now()]);
+            return ['id' => (int) $entry->id, 'plate_no' => $entry->plate_no, 'direction' => $entry->direction, 'serving_number' => $servingNumber];
+        });
+        return response()->json(['success' => true, 'entry' => $entry]);
+    }
+
     private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): void
     {
         $table = 'queue_entries';
