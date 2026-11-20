@@ -9,8 +9,31 @@ use Symfony\Component\Process\Process;
 
 class GuardScanController extends Controller
 {
+    public function queueCapacity()
+    {
+        $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
+        $current = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
+
+        return response()->json([
+            'success' => true,
+            'serving_capacity' => $capacity,
+            'current_serving' => $current,
+            // Zero means unlimited, while any positive value is enforced.
+            'at_capacity' => $capacity > 0 && $current >= $capacity,
+        ]);
+    }
+
     public function scanTruckPlate(Request $request)
     {
+        $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
+        $current = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
+        if ($capacity > 0 && $current >= $capacity) {
+            return response()->json([
+                'success' => false,
+                'serving_capacity_full' => true,
+                'message' => 'Serving capacity is full.',
+            ], 409);
+        }
         $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240']]);
         $directory = public_path('truck_plates');
         if (! is_dir($directory)) {
@@ -68,8 +91,7 @@ class GuardScanController extends Controller
                 ->where('direction', $entry->direction)
                 ->where('queue_date', $entry->queue_date)
                 ->where('status', 'waiting')
-                ->orderBy('booking_time')
-                ->orderBy('created_at')
+                ->orderBy('waiting_number')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get(['id']);
@@ -79,6 +101,7 @@ class GuardScanController extends Controller
                     'updated_at' => now(),
                 ]);
             }
+
             return $entry;
         });
 
