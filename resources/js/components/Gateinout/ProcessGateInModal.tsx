@@ -502,7 +502,13 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Plate No. <span className="text-red-500">*</span></Label>
-                                    <Input data-history-key="gateinout.plate_no" value={formData.plate_no} onChange={(e) => setFormData({ ...formData, plate_no: e.target.value.toUpperCase() })} />
+                                    <Input
+                                        data-history-key="gateinout.plate_no"
+                                        value={formData.plate_no}
+                                        disabled
+                                        className="bg-gray-100 cursor-not-allowed"
+                                        aria-label="Plate No. (read-only)"
+                                    />
                                 </div>
                                 <div>
                                     <Label>Hauler <span className="text-red-500">*</span></Label>
