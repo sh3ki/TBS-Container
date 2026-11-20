@@ -69,6 +69,48 @@ class GateinoutController extends Controller
         $this->prefix = env('DB_PREFIX', 'fjp_');
     }
 
+    public function getQueueDisplay()
+    {
+        try {
+            $waitingIn = DB::table($this->prefix . 'queue_entries')
+                ->whereDate('queue_date', today())->where('direction', 'IN')->where('status', 'waiting')
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
+            $waitingOut = DB::table($this->prefix . 'queue_entries')
+                ->whereDate('queue_date', today())->where('direction', 'OUT')->where('status', 'waiting')
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
+            $serving = DB::table($this->prefix . 'queue_entries')
+                ->whereDate('queue_date', today())->where('status', 'serving')->orderBy('serving_number')
+                ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
+
+            return response()->json(['success' => true, 'data' => [
+                'waiting_in' => $waitingIn,
+                'waiting_out' => $waitingOut,
+                'serving' => $serving,
+            ]]);
+        } catch (\Throwable $e) {
+            Log::error('Queue display error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Unable to load queue.'], 500);
+        }
+    }
+
+    private function addQueueEntry(string $plateNo, string $direction): void
+    {
+        $table = $this->prefix . 'queue_entries';
+        $nextNumber = ((int) DB::table($table)->where('direction', $direction)
+            ->where('queue_date', today())->where('status', 'waiting')->max('waiting_number')) + 1;
+
+        DB::table($table)->insert([
+            'plate_no' => $plateNo,
+            'direction' => $direction,
+            'status' => 'waiting',
+            'waiting_number' => $nextNumber,
+            'queue_date' => today(),
+            'booking_time' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     /**
      * Get Pre-Inventory List (Combined for both IN and OUT)
      * OPTIMIZED: Uses efficient JOINs, returns all pending records for client-side filtering
@@ -152,11 +194,18 @@ class GateinoutController extends Controller
         try {
             $containerNo = strtoupper(trim($request->input('cno')));
             $clientId = $request->input('client');
+            $plateNo = strtoupper(trim((string) $request->input('pno')));
             
             // Validate container number length
             if (strlen($containerNo) !== 11) {
                 return response()->json([
                     'message' => ['danger', '<strong>Alert!</strong> Container number should be 11 characters length!']
+                ]);
+            }
+
+            if ($plateNo === '') {
+                return response()->json([
+                    'message' => ['danger', '<strong>Error!</strong> Plate number is required.']
                 ]);
             }
             
@@ -202,7 +251,7 @@ class GateinoutController extends Controller
                 [
                     'cno' => $containerNo,
                     'cid' => $client->c_id,
-                    'pno' => '',
+                    'pno' => $plateNo,
                     'gate' => 'IN',
                     'uid' => Auth::check() ? Auth::user()->user_id : 0,
                     'stats' => 0,
@@ -217,6 +266,8 @@ class GateinoutController extends Controller
                     'checker_id' => 0
                 ]
                 );
+
+                $this->addQueueEntry($plateNo, 'IN');
             
                 // Log audit - ADD action for pre-in
                 $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
@@ -301,6 +352,8 @@ class GateinoutController extends Controller
                     'checker_id' => 0
                 ]
                 );
+
+                $this->addQueueEntry(strtoupper($plateNo), 'OUT');
             
                 // Log audit - ADD action for pre-out
                 DB::table('audit_logs')->insert([
@@ -380,11 +433,12 @@ class GateinoutController extends Controller
             $hashedId = $request->input('id');
             $containerNo = strtoupper(trim($request->input('cno')));
             $clientId = $request->input('cid');
+            $plateNo = strtoupper(trim((string) $request->input('pno')));
             
             // Validate
-            if (empty($containerNo) || empty($clientId)) {
+            if (empty($containerNo) || empty($clientId) || $plateNo === '') {
                 return response()->json([
-                    'message' => ['danger', '<strong>Error!</strong> Please fill out required fields.']
+                    'message' => ['danger', '<strong>Error!</strong> Please fill out required fields, including plate number.']
                 ]);
             }
             
@@ -431,13 +485,16 @@ class GateinoutController extends Controller
             if ($oldRecord->client_id != $client->c_id) {
                 $changes[] = 'Client: "' . $oldClientName . '" -> "' . $newClientName . '"';
             }
+            if ($oldRecord->plate_no !== $plateNo) {
+                $changes[] = 'Plate No: "' . $oldRecord->plate_no . '" -> "' . $plateNo . '"';
+            }
             
             // Update
             DB::update(
                 "UPDATE {$this->prefix}pre_inventory 
-                 SET container_no = :cno, client_id = :cid 
+                 SET container_no = :cno, client_id = :cid, plate_no = :pno
                  WHERE p_id = :id",
-                ['cno' => $containerNo, 'cid' => $client->c_id, 'id' => $realId]
+                ['cno' => $containerNo, 'cid' => $client->c_id, 'pno' => $plateNo, 'id' => $realId]
             );
             
             // Log audit - EDIT action with changes
