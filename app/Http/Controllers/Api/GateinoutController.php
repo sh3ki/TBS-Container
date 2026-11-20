@@ -137,7 +137,7 @@ class GateinoutController extends Controller
     private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): void
     {
         $table = 'queue_entries';
-        DB::table($table)->insert([
+        $newId = DB::table($table)->insertGetId([
             'plate_no' => $plateNo,
             'pre_inventory_id' => $preInventoryId,
             'ref_no' => $booking['ref_no'] ?? null,
@@ -151,20 +151,45 @@ class GateinoutController extends Controller
             'updated_at' => now(),
         ]);
 
-        // Booking slots define the waiting order. Existing entries with the
-        // same slot stay ahead of a newly added entry; later slots shift down.
+        // Preserve the current (possibly manually arranged) order. A new
+        // booking is inserted after the last existing entry with the same
+        // booking time, so equal-time bookings remain together in arrival order.
         $waiting = DB::table($table)
             ->where('direction', $direction)
             ->where('queue_date', today())
             ->where('status', 'waiting')
-            ->orderBy('booking_time')
-            ->orderBy('created_at')
+            ->orderBy('waiting_number')
             ->orderBy('id')
             ->lockForUpdate()
-            ->get(['id']);
+            ->get(['id', 'booking_time']);
 
+        $newBookingTime = $booking['booking_time'] ?? now();
+        $newBookingKey = (string) $newBookingTime;
+        $orderedIds = $waiting->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $insertAt = count($orderedIds);
+        $lastSameTime = -1;
         foreach ($waiting as $index => $entry) {
-            DB::table($table)->where('id', $entry->id)->update([
+            if ((string) $entry->booking_time === $newBookingKey) {
+                $lastSameTime = $index;
+            }
+        }
+        if ($lastSameTime >= 0) {
+            $insertAt = $lastSameTime + 1;
+        } else {
+            $newTimestamp = strtotime($newBookingKey) ?: PHP_INT_MAX;
+            foreach ($waiting as $index => $entry) {
+                $entryTimestamp = strtotime((string) $entry->booking_time) ?: PHP_INT_MAX;
+                if ($entryTimestamp > $newTimestamp) {
+                    $insertAt = $index;
+                    break;
+                }
+            }
+        }
+        $orderedIds = array_values(array_filter($orderedIds, fn ($id) => $id !== (int) $newId));
+        array_splice($orderedIds, $insertAt, 0, [(int) $newId]);
+
+        foreach ($orderedIds as $index => $id) {
+            DB::table($table)->where('id', $id)->update([
                 'waiting_number' => $index + 1,
                 'updated_at' => now(),
             ]);
@@ -178,6 +203,61 @@ class GateinoutController extends Controller
         // Keep scraping enabled for installations created before this setting
         // existed, while allowing the App Settings toggle to disable it.
         return $value === null ? true : (bool) $value;
+    }
+
+    private function completeQueueEntryForPreInventory(int $preInventoryId, string $direction, $completedAt): void
+    {
+        $entry = DB::table('queue_entries')
+            ->where('pre_inventory_id', $preInventoryId)
+            ->where('direction', $direction)
+            ->whereIn('status', ['waiting', 'serving'])
+            ->lockForUpdate()
+            ->first();
+
+        if (!$entry) {
+            return;
+        }
+
+        $wasServing = $entry->status === 'serving';
+        DB::table('queue_entries')->where('id', $entry->id)->update([
+            'status' => 'completed',
+            'waiting_number' => null,
+            'serving_number' => null,
+            'completed_at' => $completedAt,
+            'updated_at' => $completedAt,
+        ]);
+
+        if ($wasServing) {
+            $remaining = DB::table('queue_entries')
+                ->whereDate('queue_date', today())
+                ->where('status', 'serving')
+                ->orderBy('serving_number')
+                ->orderBy('serving_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id']);
+            foreach ($remaining as $index => $item) {
+                DB::table('queue_entries')->where('id', $item->id)->update([
+                    'serving_number' => $index + 1,
+                    'updated_at' => $completedAt,
+                ]);
+            }
+        } else {
+            $remaining = DB::table('queue_entries')
+                ->whereDate('queue_date', today())
+                ->where('direction', $direction)
+                ->where('status', 'waiting')
+                ->orderBy('waiting_number')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id']);
+            foreach ($remaining as $index => $item) {
+                DB::table('queue_entries')->where('id', $item->id)->update([
+                    'waiting_number' => $index + 1,
+                    'updated_at' => $completedAt,
+                ]);
+            }
+        }
     }
 
     /**
@@ -1180,13 +1260,7 @@ class GateinoutController extends Controller
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
                     [$inventoryId, $completionTime, $validated['p_id']]
                 );
-                if ($queueEntry) {
-                    DB::table('queue_entries')->where('id', $queueEntry->id)->update([
-                        'status' => 'completed',
-                        'completed_at' => $completionTime,
-                        'updated_at' => $completionTime,
-                    ]);
-                }
+                $this->completeQueueEntryForPreInventory($validated['p_id'], 'IN', $completionTime);
 
                 $this->moveContainerPicturesToCompletionDate(
                     oldDateCompleted: $preRecord->date_completed,
@@ -1408,13 +1482,7 @@ class GateinoutController extends Controller
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
                     [$outInventoryId, $completionTime, $validated['p_id']]
                 );
-                if ($queueEntry) {
-                    DB::table('queue_entries')->where('id', $queueEntry->id)->update([
-                        'status' => 'completed',
-                        'completed_at' => $completionTime,
-                        'updated_at' => $completionTime,
-                    ]);
-                }
+                $this->completeQueueEntryForPreInventory($validated['p_id'], 'OUT', $completionTime);
 
                 $this->moveContainerPicturesToCompletionDate(
                     oldDateCompleted: $preRecord->date_completed,
