@@ -52,7 +52,7 @@ function QueuePanel({ title, direction, entries, kind }: { title: string; direct
                 ) : entries.map((entry, index) => (
                     <article key={entry.id} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'border-emerald-200 bg-emerald-50' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900 }}>
-                            {serving ? <Truck className="h-7 w-7" /> : String(entry.waiting_number ?? index + 1).padStart(2, '0')}
+                            {serving ? <Truck className="h-7 w-7" /> : String(index + 1).padStart(2, '0')}
                         </div>
                         <div className="min-w-0 flex-1">
                             <p className="break-all text-2xl leading-tight text-[#202a35] sm:text-3xl" style={{ fontWeight: 800, letterSpacing: '0.04em' }}>{entry.plate_no}</p>
