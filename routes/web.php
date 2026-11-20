@@ -146,12 +146,26 @@ Route::middleware(['auth'])->group(function () {
     })->middleware('page.access:app-settings')->name('app-settings.index');
 
     Route::put('/app-settings', function (Request $request, AuditService $auditService) {
-        $validated = $request->validate([
-            'incoming_rate' => ['required', 'numeric', 'gt:0'],
-            'outgoing_rate' => ['required', 'numeric', 'gt:0'],
+        $rules = [
+            'section' => ['required', 'string', 'in:docs_fee,queue'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
-            'booking_scraping_enabled' => ['required', 'boolean'],
-        ]);
+            'booking_scraping_enabled' => ['sometimes', 'boolean'],
+        ];
+        if ($request->input('section') === 'docs_fee') {
+            $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
+            $rules['outgoing_rate'] = ['required', 'numeric', 'gt:0'];
+        }
+        $validated = $request->validate($rules);
+
+        if ($validated['section'] === 'queue') {
+            $enabled = (bool) ($validated['booking_scraping_enabled'] ?? false);
+            DB::table('app_settings')->where('setting_id', 1)->update([
+                'booking_scraping_enabled' => $enabled,
+                'updated_at' => now(),
+            ]);
+
+            return response()->json(['message' => 'Queue settings updated successfully.']);
+        }
 
         $currentSettings = DB::table('app_settings')->where('setting_id', 1)->first();
         $incomingRate = (float) $validated['incoming_rate'];
@@ -161,7 +175,6 @@ Route::middleware(['auth'])->group(function () {
             ->filter()
             ->unique()
             ->implode(', ');
-        $bookingScrapingEnabled = (bool) $validated['booking_scraping_enabled'];
 
         DB::table('app_settings')->updateOrInsert(
             ['setting_id' => 1],
@@ -169,7 +182,6 @@ Route::middleware(['auth'])->group(function () {
                 'incoming_rate' => $incomingRate,
                 'outgoing_rate' => $outgoingRate,
                 'hauler_exceptions' => $haulerExceptions !== '' ? $haulerExceptions : null,
-                'booking_scraping_enabled' => $bookingScrapingEnabled,
                 'updated_at' => now(),
                 'created_at' => $currentSettings?->created_at ?? now(),
             ],
@@ -184,9 +196,6 @@ Route::middleware(['auth'])->group(function () {
             }
             if ((string) ($currentSettings?->hauler_exceptions ?? '') !== $haulerExceptions) {
                 $auditService->log('UPDATE', 'Updated Docs Fee hauler exceptions', 'APP SETTINGS');
-            }
-            if ((bool) ($currentSettings?->booking_scraping_enabled ?? true) !== $bookingScrapingEnabled) {
-                $auditService->log('UPDATE', 'Turned Booking System scraping ' . ($bookingScrapingEnabled ? 'ON' : 'OFF'), 'APP SETTINGS');
             }
         } catch (\Throwable $exception) {
             report($exception);
