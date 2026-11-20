@@ -10,7 +10,7 @@ return new class extends Migration
 
     public function __construct()
     {
-        $this->table = env('DB_PREFIX', 'fjp_') . 'queue_entries';
+        $this->table = 'queue_entries';
     }
 
     public function up(): void
