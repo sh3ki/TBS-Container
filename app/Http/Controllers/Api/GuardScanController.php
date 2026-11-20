@@ -21,10 +21,27 @@ class GuardScanController extends Controller
         $imagePath = $directory . DIRECTORY_SEPARATOR . $filename;
 
         $command = (string) env('PLATE_OCR_COMMAND', 'python ocr/plate_ocr.py {image}');
-        $process = Process::fromShellCommandline(str_replace('{image}', escapeshellarg($imagePath), $command), base_path());
+        $process = Process::fromShellCommandline(
+            str_replace('{image}', escapeshellarg($imagePath), $command),
+            base_path(),
+            [
+                'SystemRoot' => getenv('SystemRoot') ?: 'C:\\Windows',
+                'TEMP' => getenv('TEMP') ?: sys_get_temp_dir(),
+                'TMP' => getenv('TMP') ?: sys_get_temp_dir(),
+                'USERPROFILE' => getenv('USERPROFILE') ?: 'C:\\Users\\USER',
+                'HOMEDRIVE' => getenv('HOMEDRIVE') ?: 'C:',
+                'HOMEPATH' => getenv('HOMEPATH') ?: '\\Users\\USER',
+            ]
+        );
         $process->setTimeout(8);
         $process->run();
         if (! $process->isSuccessful()) {
+            \Log::error('Guard plate OCR command failed', [
+                'command' => $command,
+                'exit_code' => $process->getExitCode(),
+                'error' => $process->getErrorOutput(),
+                'output' => $process->getOutput(),
+            ]);
             return response()->json(['success' => false, 'message' => 'Plate recognition service is unavailable.'], 503);
         }
         $result = json_decode(trim($process->getOutput()), true);
@@ -38,7 +55,30 @@ class GuardScanController extends Controller
             $entry = $entries->first(fn ($item) => strtoupper(preg_replace('/[^A-Z0-9]/', '', $item->plate_no)) === $plateNo);
             if (! $entry) return null;
             $servingNumber = ((int) DB::table('queue_entries')->where('status', 'serving')->max('serving_number')) + 1;
-            DB::table('queue_entries')->where('id', $entry->id)->update(['status' => 'serving', 'serving_number' => $servingNumber, 'serving_at' => now(), 'updated_at' => now()]);
+            DB::table('queue_entries')->where('id', $entry->id)->update([
+                'status' => 'serving',
+                'waiting_number' => null,
+                'serving_number' => $servingNumber,
+                'serving_at' => now(),
+                'updated_at' => now(),
+            ]);
+            // Keep the remaining waiting numbers contiguous after removing
+            // the scanned truck, independently for IN or OUT.
+            $waiting = DB::table('queue_entries')
+                ->where('direction', $entry->direction)
+                ->where('queue_date', $entry->queue_date)
+                ->where('status', 'waiting')
+                ->orderBy('booking_time')
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id']);
+            foreach ($waiting as $index => $waitingEntry) {
+                DB::table('queue_entries')->where('id', $waitingEntry->id)->update([
+                    'waiting_number' => $index + 1,
+                    'updated_at' => now(),
+                ]);
+            }
             return $entry;
         });
 
