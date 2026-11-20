@@ -39,6 +39,7 @@ export default function MobileSettings({ settings }: MobileSettingsProps) {
                     <div className="rounded-xl p-3" style={{ backgroundColor: colors.brand.primary }}><Smartphone className="h-6 w-6 text-white" /></div>
                     <div><h1 className="text-3xl font-bold text-gray-900">Mobile Settings</h1><p className="mt-1 text-sm text-gray-600">Manage checker and guard application settings</p></div>
                 </div>
+                <div className="grid gap-6 lg:grid-cols-2">
                 {(['CHECKER', 'GUARD'] as AppCode[]).map((app) => (
                     <ModernCard key={app} title={`${app} App Settings`} subtitle={`Manage ${app.toLowerCase()} mobile application updates`} icon={<Smartphone className="h-5 w-5 text-white" />}>
                         <div className="max-w-xl space-y-6">
@@ -49,6 +50,7 @@ export default function MobileSettings({ settings }: MobileSettingsProps) {
                         </div>
                     </ModernCard>
                 ))}
+                </div>
             </div>
         </AuthenticatedLayout>
     );
