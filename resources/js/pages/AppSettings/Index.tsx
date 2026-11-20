@@ -74,6 +74,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                     </div>
                 </div>
 
+                <div className="grid gap-6 lg:grid-cols-2">
                 <ModernCard
                     title="Docs Fee Settings"
                     subtitle="Configure incoming and outgoing Docs Fee rates"
@@ -151,6 +152,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                         <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueSettings}>Save Settings</ModernButton>
                     </div>
                 </ModernCard>
+                </div>
             </div>
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
