@@ -140,6 +140,7 @@ Route::middleware(['auth'])->group(function () {
                 'incoming_rate' => (float) ($settings?->incoming_rate ?? 0),
                 'outgoing_rate' => (float) ($settings?->outgoing_rate ?? 0),
                 'hauler_exceptions' => (string) ($settings?->hauler_exceptions ?? ''),
+                'booking_scraping_enabled' => (bool) ($settings?->booking_scraping_enabled ?? true),
             ],
         ]);
     })->middleware('page.access:app-settings')->name('app-settings.index');
@@ -149,6 +150,7 @@ Route::middleware(['auth'])->group(function () {
             'incoming_rate' => ['required', 'numeric', 'gt:0'],
             'outgoing_rate' => ['required', 'numeric', 'gt:0'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
+            'booking_scraping_enabled' => ['required', 'boolean'],
         ]);
 
         $currentSettings = DB::table('app_settings')->where('setting_id', 1)->first();
@@ -159,6 +161,7 @@ Route::middleware(['auth'])->group(function () {
             ->filter()
             ->unique()
             ->implode(', ');
+        $bookingScrapingEnabled = (bool) $validated['booking_scraping_enabled'];
 
         DB::table('app_settings')->updateOrInsert(
             ['setting_id' => 1],
@@ -166,6 +169,7 @@ Route::middleware(['auth'])->group(function () {
                 'incoming_rate' => $incomingRate,
                 'outgoing_rate' => $outgoingRate,
                 'hauler_exceptions' => $haulerExceptions !== '' ? $haulerExceptions : null,
+                'booking_scraping_enabled' => $bookingScrapingEnabled,
                 'updated_at' => now(),
                 'created_at' => $currentSettings?->created_at ?? now(),
             ],
@@ -180,6 +184,9 @@ Route::middleware(['auth'])->group(function () {
             }
             if ((string) ($currentSettings?->hauler_exceptions ?? '') !== $haulerExceptions) {
                 $auditService->log('UPDATE', 'Updated Docs Fee hauler exceptions', 'APP SETTINGS');
+            }
+            if ((bool) ($currentSettings?->booking_scraping_enabled ?? true) !== $bookingScrapingEnabled) {
+                $auditService->log('UPDATE', 'Turned Booking System scraping ' . ($bookingScrapingEnabled ? 'ON' : 'OFF'), 'APP SETTINGS');
             }
         } catch (\Throwable $exception) {
             report($exception);
