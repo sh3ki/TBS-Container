@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\SyncController;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay']);
 
 // Mobile App API Routes (Plain text login - separate from main auth)
 Route::prefix('mobile')->group(function () {
