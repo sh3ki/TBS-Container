@@ -1,0 +1,85 @@
+import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
+import { Head, usePage } from '@inertiajs/react';
+import axios from 'axios';
+import { List, Radio, Truck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { colors } from '@/lib/colors';
+
+interface QueueEntry { id: number; plate_no: string; waiting_number?: number; }
+interface QueueData { waiting_in: QueueEntry[]; waiting_out: QueueEntry[]; serving: QueueEntry[]; }
+const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
+
+function QueueColumn({ title, direction, group, entries, serving = false, canEdit, onMove, onCommit }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; onMove: (from: number, to: number) => void; onCommit: () => void }) {
+    const [dragging, setDragging] = useState<number | null>(null);
+    const [dropTarget, setDropTarget] = useState<number | null>(null);
+    return <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#d8dde3] bg-white shadow-sm">
+        <header className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: serving ? '#31393C' : '#3E9AF4', color: '#fff' }}>
+            <div className="flex items-center gap-2 text-lg font-extrabold tracking-wide">
+                {serving ? <Radio className="h-5 w-5" /> : <List className="h-5 w-5" />}
+                <span>{title}</span>
+                {!serving && <><Truck className="h-5 w-5" /><span>{direction}</span></>}
+            </div>
+            <span className="text-2xl font-black tabular-nums">{String(entries.length).padStart(2, '0')}</span>
+        </header>
+        <div className="flex-1 space-y-3 overflow-y-auto p-3">
+            {entries.length === 0 ? <div className="flex h-full min-h-[220px] flex-col items-center justify-center text-center text-[#68737b]"><List className="mb-3 h-8 w-8 text-[#3E9AF4]" /><p className="font-semibold">Queue is empty</p></div> : entries.map((entry, index) => <article key={entry.id} draggable={canEdit} onDragStart={(event) => { setDragging(index); event.dataTransfer.setData('queue-group', group); event.dataTransfer.effectAllowed = 'move'; }} onDragOver={(event) => { if (canEdit && event.dataTransfer.getData('queue-group') === group) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(index); if (dragging !== null && dragging !== index) { onMove(dragging, index); setDragging(index); } } }} onDragLeave={() => setDropTarget(null)} onDrop={(event) => { event.preventDefault(); if (canEdit && event.dataTransfer.getData('queue-group') === group) onCommit(); setDragging(null); setDropTarget(null); }} onDragEnd={() => { setDragging(null); setDropTarget(null); }} className={`relative flex items-center gap-3 rounded-lg border px-3 py-3 transition-all duration-200 ease-out ${dragging === index ? 'scale-[1.02] cursor-grabbing opacity-50 shadow-lg' : canEdit ? 'cursor-grab' : ''} ${dropTarget === index ? 'border-t-4 border-t-blue-500' : ''} ${serving ? 'border-emerald-200 bg-emerald-50' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`}>{serving ? <Truck className="h-5 w-5" /> : String(index + 1).padStart(2, '0')}</div>
+                <div className="min-w-0"><p className="break-all text-xl font-extrabold tracking-wide text-[#202a35]">{entry.plate_no}</p><p className={`text-xs font-bold ${serving ? 'text-emerald-700' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`}>{serving ? 'Now serving' : index === 0 ? 'Next in line' : 'Waiting'}</p></div>
+            </article>)}
+        </div>
+    </section>;
+}
+
+export default function QueueIndex() {
+    const page = usePage();
+    const auth = (page.props as { auth?: { permissions?: Array<{ page: string; acs_edit: number }> } }).auth;
+    const canEditQueue = Number(auth?.permissions?.find((permission) => permission.page === 'queuelist')?.acs_edit ?? 0) === 1;
+    const [queue, setQueue] = useState<QueueData>(emptyQueue);
+    useEffect(() => {
+        let active = true;
+        const refresh = async () => { try { const response = await axios.get('/api/queue/display'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ } };
+        refresh(); const timer = window.setInterval(refresh, 5000);
+        return () => { active = false; window.clearInterval(timer); };
+    }, []);
+    const moveQueueEntry = (group: 'waiting_in' | 'waiting_out' | 'serving', from: number, to: number) => {
+        const next = [...queue[group]];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        setQueue((current) => ({ ...current, [group]: next }));
+    };
+    const commitQueueOrder = async (group: 'waiting_in' | 'waiting_out' | 'serving') => {
+        const entries = queue[group];
+        try {
+            await axios.post('/api/gateinout/queue/reorder', {
+                ids: entries.map((entry) => entry.id),
+                status: group === 'serving' ? 'serving' : 'waiting',
+                direction: group === 'waiting_in' ? 'IN' : group === 'waiting_out' ? 'OUT' : undefined,
+            });
+        } catch {
+            // The next live refresh restores the server order if the update fails.
+        }
+    };
+    return (
+        <AuthenticatedLayout>
+            <Head title="Queue" />
+            <div className="space-y-6 overflow-hidden">
+                <div className="flex items-center gap-3">
+                    <div className="rounded-xl p-3" style={{ backgroundColor: colors.brand.primary }}>
+                        <List className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold" style={{ color: colors.text.primary }}>Queue</h1>
+                        <p className="mt-1 text-sm" style={{ color: colors.text.secondary }}>
+                            Manage and monitor the truck queue
+                        </p>
+                    </div>
+                </div>
+                <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-3">
+                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={() => commitQueueOrder('waiting_in')} />
+                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} canEdit={canEditQueue} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={() => commitQueueOrder('waiting_out')} />
+                    <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving canEdit={canEditQueue} onMove={(from, to) => moveQueueEntry('serving', from, to)} onCommit={() => commitQueueOrder('serving')} />
+                </div>
+            </div>
+        </AuthenticatedLayout>
+    );
+}
