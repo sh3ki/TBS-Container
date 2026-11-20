@@ -1780,11 +1780,10 @@ class ReportsController extends Controller
 
         // Get incoming containers with the configured fee.
         $incoming = DB::table('inventory as inv')
-            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
             ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->where('inv.gate_status', 'IN')
-            ->whereDate('pi.date_added', $date)
+            ->whereDate('inv.date_added', $date)
             ->where('c.archived', 0)
             ->select(
                 DB::raw('CONCAT(fjp_inv.i_id, "I") as eir_no'),
@@ -1797,17 +1796,16 @@ class ReportsController extends Controller
                 DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
                 'st.size'
             )
-            ->orderBy('pi.date_added')
+            ->orderBy('inv.date_added')
             ->get()
             ->toArray();
 
         // Get outgoing containers with the configured fee.
         $outgoing = DB::table('inventory as inv')
-            ->leftJoin('pre_inventory as pi', 'pi.inv_id', '=', 'inv.i_id')
             ->leftJoin('clients as c', 'inv.client_id', '=', 'c.c_id')
             ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
             ->where('inv.gate_status', 'OUT')
-            ->whereDate('pi.date_added', $date)
+            ->whereDate('inv.date_added', $date)
             ->where('c.archived', 0)
             ->select(
                 DB::raw('CONCAT(fjp_inv.i_id, "O") as eir_no'),
@@ -1820,7 +1818,7 @@ class ReportsController extends Controller
                 DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
                 'st.size'
             )
-            ->orderBy('pi.date_added')
+            ->orderBy('inv.date_added')
             ->get()
             ->toArray();
 
