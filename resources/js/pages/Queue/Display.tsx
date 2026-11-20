@@ -60,6 +60,7 @@ function QueuePanel({ title, direction, entries, kind }: { title: string; direct
                                 {serving ? 'Now serving' : index === 0 ? 'Next in line' : 'Waiting'}
                             </p>
                         </div>
+                        <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`}>{entry.direction ?? direction}</span>
                     </article>
                 ))}
             </div>
