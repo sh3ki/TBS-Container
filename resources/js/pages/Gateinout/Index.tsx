@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
@@ -923,19 +923,19 @@ export default function Index() {
                 ),
               },
               {
-                key: 'size_type_display',
-                label: 'Size / Type',
-                sortable: true,
-                render: (record: PreInventoryRecord) => (
-                  <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>{(record.size_type_display || '-').toUpperCase()}</ModernBadge>
+                key: 'info',
+                label: 'Size / Status',
+                headerRender: () => (
+                  <div className="flex flex-col items-start gap-0.5 text-xs uppercase leading-tight">
+                    <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'size_type_display'); }} title="Sort by size/type">SIZE <ArrowUpDown className="h-3 w-3" /></button>
+                    <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'container_status'); }} title="Sort by status">STATUS <ArrowUpDown className="h-3 w-3" /></button>
+                  </div>
                 ),
-              },
-              {
-                key: 'container_status',
-                label: 'Status',
-                sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>{(record.container_status || '-').toUpperCase()}</ModernBadge>
+                  <div className="flex min-w-[110px] flex-col items-start gap-1">
+                    <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>{(record.size_type_display || '-').toUpperCase()}</ModernBadge>
+                    <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>{(record.container_status || '-').toUpperCase()}</ModernBadge>
+                  </div>
                 ),
               },
               {
