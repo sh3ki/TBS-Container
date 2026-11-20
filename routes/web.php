@@ -23,6 +23,11 @@ Route::get('/login', function () {
     ]);
 })->name('login');
 
+// Public queue display for yard monitors.
+Route::get('/queue', function () {
+    return Inertia::render('Queue/Display');
+})->name('queue.display');
+
 // Protected routes - Use 'auth' for web (session-based), not 'auth:sanctum'
 Route::middleware(['auth'])->group(function () {
     // Dashboard
