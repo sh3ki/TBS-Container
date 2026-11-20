@@ -23,7 +23,7 @@ Route::get('/login', function () {
     ]);
 })->name('login');
 
-// Public queue display for yard monitors.
+// Public live queue display for yard monitors and drivers.
 Route::get('/queue', function () {
     return Inertia::render('Queue/Display');
 })->name('queue.display');
@@ -82,6 +82,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/gateinout', function () {
         return Inertia::render('Gateinout/Index');
     })->name('gateinout.index');
+
+    // Authenticated queue management page.
+    Route::get('/queuelist', function () {
+        return Inertia::render('Queue/Index');
+    })->middleware('page.access:queuelist')->name('queue.index');
 
     // Size & Type
     Route::get('/sizetype', function () {
