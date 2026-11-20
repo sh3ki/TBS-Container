@@ -1003,6 +1003,7 @@ class GateinoutController extends Controller
                 'contact_no' => 'required|string|max:30',
                 'bol' => 'required|string|max:255',
                 'remarks' => 'required|string|max:255'
+                ,'queue_confirmed' => 'sometimes|boolean'
             ]);
 
             $manufacturedDate = $validated['date_mnfg'];
@@ -1072,6 +1073,21 @@ class GateinoutController extends Controller
                     ], 409);
                 }
 
+                $queueEntry = DB::table('queue_entries')
+                    ->where('pre_inventory_id', $validated['p_id'])
+                    ->where('direction', 'IN')
+                    ->whereIn('status', ['waiting', 'serving'])
+                    ->lockForUpdate()
+                    ->first();
+                if ($queueEntry && $queueEntry->status === 'waiting' && !($validated['queue_confirmed'] ?? false)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'queue_confirmation_required' => true,
+                        'message' => 'This record is currently waiting in the queue and is not serving. Continue to complete the queue?'
+                    ], 409);
+                }
+
                 // Insert into inventory table
                 DB::insert(
                     "INSERT INTO {$this->prefix}inventory 
@@ -1118,6 +1134,13 @@ class GateinoutController extends Controller
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
                     [$inventoryId, $completionTime, $validated['p_id']]
                 );
+                if ($queueEntry) {
+                    DB::table('queue_entries')->where('id', $queueEntry->id)->update([
+                        'status' => 'completed',
+                        'completed_at' => $completionTime,
+                        'updated_at' => $completionTime,
+                    ]);
+                }
 
                 $this->moveContainerPicturesToCompletionDate(
                     oldDateCompleted: $preRecord->date_completed,
@@ -1213,6 +1236,7 @@ class GateinoutController extends Controller
                 'seal_no' => 'required|string|max:100',
                 'remarks' => 'required|string|max:255',
                 'save_and_book' => 'required|string|in:YES_COUNT,YES_LIST,NO'
+                ,'queue_confirmed' => 'sometimes|boolean'
             ]);
 
             // Validate container number is exactly 11 characters
@@ -1275,6 +1299,21 @@ class GateinoutController extends Controller
                     ], 409);
                 }
 
+                $queueEntry = DB::table('queue_entries')
+                    ->where('pre_inventory_id', $validated['p_id'])
+                    ->where('direction', 'OUT')
+                    ->whereIn('status', ['waiting', 'serving'])
+                    ->lockForUpdate()
+                    ->first();
+                if ($queueEntry && $queueEntry->status === 'waiting' && !($validated['queue_confirmed'] ?? false)) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'queue_confirmation_required' => true,
+                        'message' => 'This record is currently waiting in the queue and is not serving. Continue to complete the queue?'
+                    ], 409);
+                }
+
                 // Create a separate OUT event using the IN event's immutable
                 // container metadata and the values captured at Gate OUT.
                 $outInventoryId = DB::table('inventory')->insertGetId([
@@ -1323,6 +1362,13 @@ class GateinoutController extends Controller
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
                     [$outInventoryId, $completionTime, $validated['p_id']]
                 );
+                if ($queueEntry) {
+                    DB::table('queue_entries')->where('id', $queueEntry->id)->update([
+                        'status' => 'completed',
+                        'completed_at' => $completionTime,
+                        'updated_at' => $completionTime,
+                    ]);
+                }
 
                 $this->moveContainerPicturesToCompletionDate(
                     oldDateCompleted: $preRecord->date_completed,
