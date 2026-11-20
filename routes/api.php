@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ContainerImagesController;
 use App\Http\Controllers\Api\EdiController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\GuardScanController;
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +82,7 @@ Route::prefix('mobile')->group(function () {
 // Guard App API namespace. Keep Guard traffic separate from the Checker app
 // while reusing the same server-side authorization and gate operations.
 Route::prefix('guard')->group(function () {
+    Route::post('/scan-truck-plate', [GuardScanController::class, 'scanTruckPlate']);
     Route::get('/app-update', function () {
         $settings = DB::table('mobile_settings')->where('app_code', 'GUARD')->first();
 
