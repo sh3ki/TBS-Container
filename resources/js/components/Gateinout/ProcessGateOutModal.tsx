@@ -1221,7 +1221,9 @@ export default function ProcessGateOutModal({
                         <ModernButton
                             type="button"
                             variant="add"
-                            onClick={handleConfirm}
+                            // Do not pass React's MouseEvent as queueConfirmed.
+                            // handleConfirm expects a boolean and Axios must serialize it.
+                            onClick={() => handleConfirm()}
                             disabled={isSubmitting}
                         >
                             <Printer className="h-4 w-4" />
