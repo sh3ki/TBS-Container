@@ -13,7 +13,7 @@ class GuardScanController extends Controller
     {
         $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->where('status', 'waiting')->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
         $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->where('status', 'waiting')->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
-        $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
+        $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
         return response()->json(['success' => true, 'data' => [
             'waiting_in' => $waitingIn,
@@ -101,19 +101,26 @@ class GuardScanController extends Controller
             $entries = DB::table('queue_entries')->where('status', 'waiting')->orderBy('created_at')->lockForUpdate()->get();
             $entry = $entries->first(fn ($item) => strtoupper(preg_replace('/[^A-Z0-9]/', '', $item->plate_no)) === $plateNo);
             if (! $entry) return null;
-            $servingNumber = ((int) DB::table('queue_entries')->where('status', 'serving')->max('serving_number')) + 1;
             DB::table('queue_entries')->where('id', $entry->id)->update([
                 'status' => 'serving',
                 'waiting_number' => null,
-                'serving_number' => $servingNumber,
+                'serving_number' => null,
                 'serving_at' => now(),
                 'updated_at' => now(),
             ]);
+            $serving = DB::table('queue_entries')->where('status', 'serving')->where('direction', $entry->direction)->whereNull('completed_at')->where('id', '<>', $entry->id)->orderBy('serving_number')->orderBy('id')->lockForUpdate()->get(['id', 'booking_time']);
+            $servingIds = $serving->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $insertAt = count($servingIds);
+            $newTimestamp = strtotime((string) $entry->booking_time) ?: PHP_INT_MAX;
+            foreach ($serving as $index => $servingEntry) {
+                if ((strtotime((string) $servingEntry->booking_time) ?: PHP_INT_MAX) > $newTimestamp) { $insertAt = $index; break; }
+            }
+            array_splice($servingIds, $insertAt, 0, [(int) $entry->id]);
+            foreach ($servingIds as $index => $servingId) DB::table('queue_entries')->where('id', $servingId)->update(['serving_number' => $index + 1, 'updated_at' => now()]);
             // Keep the remaining waiting numbers contiguous after removing
             // the scanned truck, independently for IN or OUT.
             $waiting = DB::table('queue_entries')
                 ->where('direction', $entry->direction)
-                ->where('queue_date', $entry->queue_date)
                 ->where('status', 'waiting')
                 ->orderBy('waiting_number')
                 ->orderBy('id')
