@@ -84,6 +84,7 @@ Route::middleware(['auth'])->group(function () {
 
         return Inertia::render('Gateinout/Index', [
             'preInHaulerExceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
+            'preOutHaulerExceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
         ]);
     })->name('gateinout.index');
 
