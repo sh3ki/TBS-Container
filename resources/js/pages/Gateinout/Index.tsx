@@ -1413,7 +1413,7 @@ export default function Index() {
                   }
                   placeholder="Hauler/Trucking company name"
                 />
-                <p className="text-xs text-gray-500 mt-1">Trucking company or hauler name</p>
+                <p className="text-xs text-gray-500 mt-1">HAULER FORMAT: NJM, GOLINK, AIT, MMLRR</p>
               </div>
             </div>
             <DialogFooter className="gap-2">
