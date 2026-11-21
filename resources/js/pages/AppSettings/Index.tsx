@@ -14,6 +14,7 @@ interface AppSettingsProps {
         outgoing_rate: number;
         hauler_exceptions: string;
         preout_hauler_exceptions: string;
+        prein_hauler_exceptions: string;
         booking_scraping_enabled: boolean;
     };
 }
@@ -23,6 +24,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
     const [outgoingRate, setOutgoingRate] = useState(String(settings.outgoing_rate));
     const [haulerExceptions, setHaulerExceptions] = useState(settings.hauler_exceptions);
     const [preoutHaulerExceptions, setPreoutHaulerExceptions] = useState(settings.preout_hauler_exceptions);
+    const [preinHaulerExceptions, setPreinHaulerExceptions] = useState(settings.prein_hauler_exceptions);
     const [bookingScrapingEnabled, setBookingScrapingEnabled] = useState(settings.booking_scraping_enabled);
     const [saving, setSaving] = useState<'docs' | 'queue' | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
@@ -52,6 +54,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                 section: 'queue',
                 booking_scraping_enabled: bookingScrapingEnabled,
                 preout_hauler_exceptions: preoutHaulerExceptions,
+                prein_hauler_exceptions: preinHaulerExceptions,
             });
             success(response.data.message || 'Queue settings updated successfully.');
         } catch (exception) {
@@ -155,6 +158,11 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                         <Label htmlFor="preout-hauler-exceptions" className="text-sm font-semibold text-gray-900">PRE-OUT HAULER EXCEPTIONS</Label>
                         <Input id="preout-hauler-exceptions" type="text" value={preoutHaulerExceptions} onChange={(event) => setPreoutHaulerExceptions(event.target.value.toUpperCase())} placeholder="HAULER ONE, HAULER TWO" className="mt-2 h-11 uppercase" />
                         <p className="mt-1 text-xs text-gray-500">Separate haulers with commas. Matching Pre-Out haulers bypass Booking System verification (case-insensitive).</p>
+                    </div>
+                    <div className="mt-4 max-w-4xl">
+                        <Label htmlFor="prein-hauler-exceptions" className="text-sm font-semibold text-gray-900">PRE-IN HAULER EXCEPTIONS</Label>
+                        <Input id="prein-hauler-exceptions" type="text" value={preinHaulerExceptions} onChange={(event) => setPreinHaulerExceptions(event.target.value.toUpperCase())} placeholder="HAULER ONE, HAULER TWO" className="mt-2 h-11 uppercase" />
+                        <p className="mt-1 text-xs text-gray-500">Separate haulers with commas. These haulers appear in Add Pre-In as “Not in Booking” options and bypass Booking System verification.</p>
                     </div>
                     <div className="mt-6 flex items-center gap-3">
                         <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueSettings}>Save Settings</ModernButton>
