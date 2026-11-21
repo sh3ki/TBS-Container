@@ -42,9 +42,9 @@ function QueuePanel({ title, direction, entries, kind }: { title: string; direct
                 </div>
                 <div className="tabular-nums" style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 'clamp(1.8rem, 3vw, 2.75rem)', lineHeight: 1 }}>{String(entries.length).padStart(2, '0')}</div>
             </header>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:space-y-4 sm:p-4" style={{ backgroundColor: '#FFFFFF' }}>
+            <div className={`min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 ${serving ? 'grid grid-cols-2 content-start gap-3 sm:gap-4' : 'space-y-3 sm:space-y-4'}`} style={{ backgroundColor: '#FFFFFF' }}>
                 {entries.length === 0 ? (
-                    <div className="flex h-full min-h-[180px] flex-col items-center justify-center px-4 text-center">
+                    <div className={`flex h-full min-h-[180px] flex-col items-center justify-center px-4 text-center ${serving ? 'col-span-2' : ''}`}>
                         {serving ? <Truck className="mb-4 h-10 w-10 text-emerald-600" /> : <List className="mb-4 h-10 w-10 text-[#3E9AF4]" />}
                         <p className="text-xl font-bold text-[#31393C]">{serving ? 'No trucks being served' : 'Queue is empty'}</p>
                         <p className="mt-2 text-sm text-[#68737b]">{serving ? 'Serving trucks will appear here.' : 'Waiting trucks will appear here.'}</p>
