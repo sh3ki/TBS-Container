@@ -56,7 +56,7 @@ class GuardScanController extends Controller
         $request->file('image')->move($directory, $filename);
         $imagePath = $directory . DIRECTORY_SEPARATOR . $filename;
 
-        $command = (string) env('PLATE_OCR_COMMAND', 'python ocr/plate_ocr.py {image}');
+        $command = (string) config('services.plate_ocr.command', 'python ocr/plate_ocr.py {image}');
         $process = Process::fromShellCommandline(
             str_replace('{image}', escapeshellarg($imagePath), $command),
             base_path(),
