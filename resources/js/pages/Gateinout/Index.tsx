@@ -53,6 +53,7 @@ interface PreInFormData {
 interface PreOutFormData {
   plate_no: string;
   hauler: string;
+  not_in_booking: boolean;
 }
 
 interface EditPreInFormData {
@@ -89,8 +90,12 @@ const getSizeTypeVariant = (sizeType: string): BadgeVariant => {
 };
 
 export default function Index() {
-  const { preInHaulerExceptions = '' } = usePage<{ preInHaulerExceptions?: string }>().props;
+  const { preInHaulerExceptions = '', preOutHaulerExceptions = '' } = usePage<{ preInHaulerExceptions?: string; preOutHaulerExceptions?: string }>().props;
   const preInHaulerOptions = preInHaulerExceptions
+    .split(',')
+    .map((hauler) => hauler.trim().toUpperCase())
+    .filter((hauler, index, options) => hauler !== '' && options.indexOf(hauler) === index);
+  const preOutHaulerOptions = preOutHaulerExceptions
     .split(',')
     .map((hauler) => hauler.trim().toUpperCase())
     .filter((hauler, index, options) => hauler !== '' && options.indexOf(hauler) === index);
@@ -147,6 +152,7 @@ export default function Index() {
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
     hauler: '',
+    not_in_booking: false,
   });
 
   const [editPreInForm, setEditPreInForm] = useState<EditPreInFormData>({
@@ -491,7 +497,7 @@ export default function Index() {
       return;
     }
     if (!preOutForm.hauler.trim()) {
-      error('Hauler is required');
+      error(preOutForm.not_in_booking ? 'Please select a hauler for Not in Booking' : 'Hauler is required');
       return;
     }
     handleAddPreOut();
@@ -506,6 +512,7 @@ export default function Index() {
       const response = await axios.post('/api/gateinout/check-container-out', {
         pno: preOutForm.plate_no,
         hauler: preOutForm.hauler,
+        not_in_booking: preOutForm.not_in_booking,
       });
 
       if (response.data.message) {
@@ -514,7 +521,7 @@ export default function Index() {
           saveFieldHistory({ 'gateinout.plate_no': preOutForm.plate_no, 'gateinout.hauler': preOutForm.hauler });
           success('Pre-Out added successfully');
           setShowAddPreOutModal(false);
-          setPreOutForm({ plate_no: '', hauler: '' });
+          setPreOutForm({ plate_no: '', hauler: '', not_in_booking: false });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -1379,13 +1386,13 @@ export default function Index() {
                   onClick={() => setPreInForm({
                     ...preInForm,
                     not_in_booking: !preInForm.not_in_booking,
-                    hauler: preInForm.not_in_booking ? '' : preInForm.hauler,
+                    hauler: '',
                   })}
                   className="flex w-full items-center justify-between text-left"
                 >
                   <span>
                     <span className="block font-medium text-gray-900">Not in Booking</span>
-                    <span className="mt-1 block text-xs text-gray-500">Bypass Booking System scraping for this Pre-In.</span>
+                    <span className="mt-1 block text-xs text-gray-500">Truck is not in Booking for this Pre-In.</span>
                   </span>
                   <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${preInForm.not_in_booking ? 'bg-blue-500' : 'bg-gray-300'}`}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${preInForm.not_in_booking ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -1464,12 +1471,54 @@ export default function Index() {
                 <Input
                   data-history-key="gateinout.hauler"
                   value={preOutForm.hauler}
+                  disabled={preOutForm.not_in_booking}
                   onChange={(e) =>
                     setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
                   }
                   placeholder="Hauler/Trucking company name"
                 />
-                <p className="text-xs text-gray-500 mt-1">HAULER FORMAT: NJM, GOLINK, AIT, MMLRR</p>
+                <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={preOutForm.not_in_booking}
+                  onClick={() => setPreOutForm({
+                    ...preOutForm,
+                    not_in_booking: !preOutForm.not_in_booking,
+                    hauler: '',
+                  })}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  <span>
+                    <span className="block font-medium text-gray-900">Not in Booking</span>
+                    <span className="mt-1 block text-xs text-gray-500">Bypass Booking System scraping for this Pre-Out.</span>
+                  </span>
+                  <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${preOutForm.not_in_booking ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${preOutForm.not_in_booking ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </span>
+                </button>
+                {preOutForm.not_in_booking && (
+                  <div className="mt-3">
+                    <Label className="text-gray-900">
+                      Exception Hauler <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={preOutForm.hauler}
+                      onValueChange={(value) => setPreOutForm({ ...preOutForm, hauler: value })}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select exception hauler" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {preOutHaulerOptions.map((hauler) => (
+                          <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="gap-2">
