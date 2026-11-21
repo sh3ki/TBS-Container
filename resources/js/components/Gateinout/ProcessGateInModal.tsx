@@ -514,9 +514,8 @@ export default function ProcessGateInModal({
                                     <Input
                                         data-history-key="gateinout.plate_no"
                                         value={formData.plate_no}
-                                        disabled
-                                        className="bg-gray-100 cursor-not-allowed"
-                                        aria-label="Plate No. (read-only)"
+                                        onChange={(e) => setFormData({ ...formData, plate_no: e.target.value.toUpperCase() })}
+                                        aria-label="Plate No."
                                     />
                                 </div>
                                 <div>
