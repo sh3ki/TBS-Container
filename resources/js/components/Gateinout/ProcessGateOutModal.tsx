@@ -930,7 +930,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <div className="flex items-center justify-between gap-2"><Label>Hauler <span className="text-red-500">*</span></Label><span className="text-xs text-gray-500">FORMAT: NJM, GOLINK, AIT, MMLRR</span></div>
+                                <div className="flex items-center justify-between gap-2"><Label>Hauler <span className="text-red-500">*</span></Label><span className="text-xs text-gray-500">EX: NJM, GOLINK, AIT, MMLRR</span></div>
                                 <Input
                                     data-history-key="gateinout.hauler"
                                     value={formData.hauler}
