@@ -80,7 +80,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Gate In & Out
     Route::get('/gateinout', function () {
-        return Inertia::render('Gateinout/Index');
+        $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+
+        return Inertia::render('Gateinout/Index', [
+            'preInHaulerExceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
+        ]);
     })->name('gateinout.index');
 
     // Authenticated queue management page.
@@ -150,6 +154,7 @@ Route::middleware(['auth'])->group(function () {
                 'outgoing_rate' => (float) ($settings?->outgoing_rate ?? 0),
                 'hauler_exceptions' => (string) ($settings?->hauler_exceptions ?? ''),
                 'preout_hauler_exceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
+                'prein_hauler_exceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
                 'booking_scraping_enabled' => (bool) ($settings?->booking_scraping_enabled ?? true),
             ],
         ]);
@@ -160,6 +165,7 @@ Route::middleware(['auth'])->group(function () {
             'section' => ['required', 'string', 'in:docs_fee,queue'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
+            'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'booking_scraping_enabled' => ['sometimes', 'boolean'],
             'serving_capacity' => ['sometimes', 'integer', 'min:0'],
         ];
@@ -179,6 +185,11 @@ Route::middleware(['auth'])->group(function () {
             }
             if (array_key_exists('preout_hauler_exceptions', $validated)) {
                 $updates['preout_hauler_exceptions'] = collect(explode(',', (string) $validated['preout_hauler_exceptions']))
+                    ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
+                    ->filter()->unique()->implode(', ');
+            }
+            if (array_key_exists('prein_hauler_exceptions', $validated)) {
+                $updates['prein_hauler_exceptions'] = collect(explode(',', (string) $validated['prein_hauler_exceptions']))
                     ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
                     ->filter()->unique()->implode(', ');
             }
