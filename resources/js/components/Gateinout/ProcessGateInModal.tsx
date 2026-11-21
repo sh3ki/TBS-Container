@@ -115,6 +115,9 @@ export default function ProcessGateInModal({
     // use `showError` from parent page to ensure toast is rendered by page-level ToastContainer
 
     useEffect(() => {
+        // A modal instance must always start with a clean submission lock.
+        submitInProgressRef.current = false;
+        setIsSubmitting(false);
         if (open) {
             // reset to initial state each time modal opens
             setFormData({ ...initialFormData });
@@ -265,7 +268,8 @@ export default function ProcessGateInModal({
 
     const handleConfirm = async (queueConfirmed = false) => {
         if (!record) return;
-        // Prevent rapid double-clicks before React has a chance to re-render.
+        // Keep the ref guard for rapid double-clicks; it runs synchronously
+        // before React has a chance to re-render the disabled button.
         if (submitInProgressRef.current) return;
         submitInProgressRef.current = true;
         setIsSubmitting(true);
@@ -335,6 +339,7 @@ export default function ProcessGateInModal({
             }
         } catch (error: unknown) {
             const axiosError = error as { response?: { status?: number; data?: { queue_confirmation_required?: boolean; message?: string } } };
+            console.error('Process Gate IN request failed', error);
             if (axiosError.response?.status === 409 && axiosError.response.data?.queue_confirmation_required && !queueConfirmed) {
                 submitInProgressRef.current = false;
                 setIsSubmitting(false);
