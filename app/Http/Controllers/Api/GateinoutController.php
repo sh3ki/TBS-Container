@@ -75,13 +75,13 @@ class GateinoutController extends Controller
     {
         try {
             $waitingIn = DB::table('queue_entries')
-                ->whereDate('queue_date', today())->where('direction', 'IN')->where('status', 'waiting')
+                ->where('direction', 'IN')->where('status', 'waiting')->whereNull('completed_at')
                 ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
             $waitingOut = DB::table('queue_entries')
-                ->whereDate('queue_date', today())->where('direction', 'OUT')->where('status', 'waiting')
+                ->where('direction', 'OUT')->where('status', 'waiting')->whereNull('completed_at')
                 ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
             $serving = DB::table('queue_entries')
-                ->whereDate('queue_date', today())->where('status', 'serving')->orderBy('serving_number')
+                ->where('status', 'serving')->whereNull('completed_at')->orderBy('serving_number')
                 ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
             return response()->json(['success' => true, 'data' => [
