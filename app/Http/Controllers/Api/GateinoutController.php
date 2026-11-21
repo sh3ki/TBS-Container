@@ -227,16 +227,6 @@ class GateinoutController extends Controller
         return $value === null ? true : (bool) $value;
     }
 
-    private function preOutHaulerIsExcepted(string $hauler): bool
-    {
-        $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('preout_hauler_exceptions');
-        $needle = strtoupper(trim($hauler));
-        if ($needle === '') return false;
-        return collect(explode(',', $configured))->contains(
-            static fn (string $item): bool => strtoupper(trim($item)) === $needle
-        );
-    }
-
     private function preInHaulerIsExcepted(string $hauler): bool
     {
         $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('prein_hauler_exceptions');
@@ -510,7 +500,20 @@ class GateinoutController extends Controller
     {
         try {
             $plateNo = trim($request->input('pno'));
-            $hauler = trim($request->input('hauler'));
+            $hauler = strtoupper(trim((string) $request->input('hauler')));
+            $notInBooking = $request->boolean('not_in_booking');
+
+            if ($notInBooking) {
+                $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('preout_hauler_exceptions');
+                $isException = collect(explode(',', $configured))->contains(
+                    static fn (string $item): bool => strtoupper(trim($item)) === $hauler
+                );
+                if (!$isException) {
+                    return response()->json([
+                        'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-Out exception hauler.']
+                    ]);
+                }
+            }
             
             if (empty($plateNo) || empty($hauler)) {
                 return response()->json([
@@ -530,7 +533,7 @@ class GateinoutController extends Controller
 
             try {
                 $booking = null;
-                if ($this->bookingScrapingEnabled() && ! $this->preOutHaulerIsExcepted($hauler)) {
+                if ($this->bookingScrapingEnabled() && !$notInBooking) {
                     $usedRefNos = DB::table('queue_entries')
                         ->whereNotNull('ref_no')
                         ->pluck('ref_no')
