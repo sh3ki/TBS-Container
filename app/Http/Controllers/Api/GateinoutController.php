@@ -232,6 +232,16 @@ class GateinoutController extends Controller
         return $value === null ? true : (bool) $value;
     }
 
+    private function preOutHaulerIsExcepted(string $hauler): bool
+    {
+        $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('preout_hauler_exceptions');
+        $needle = strtoupper(trim($hauler));
+        if ($needle === '') return false;
+        return collect(explode(',', $configured))->contains(
+            static fn (string $item): bool => strtoupper(trim($item)) === $needle
+        );
+    }
+
     private function completeQueueEntryForPreInventory(int $preInventoryId, string $direction, $completedAt): void
     {
         $entry = DB::table('queue_entries')
@@ -505,7 +515,7 @@ class GateinoutController extends Controller
 
             try {
                 $booking = null;
-                if ($this->bookingScrapingEnabled()) {
+                if ($this->bookingScrapingEnabled() && ! $this->preOutHaulerIsExcepted($hauler)) {
                     $usedRefNos = DB::table('queue_entries')
                         ->whereNotNull('ref_no')
                         ->pluck('ref_no')
