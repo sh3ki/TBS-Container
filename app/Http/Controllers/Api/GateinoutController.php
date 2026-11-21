@@ -242,6 +242,16 @@ class GateinoutController extends Controller
         );
     }
 
+    private function preInHaulerIsExcepted(string $hauler): bool
+    {
+        $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('prein_hauler_exceptions');
+        $needle = strtoupper(trim($hauler));
+        if ($needle === '') return false;
+        return collect(explode(',', $configured))->contains(
+            static fn (string $item): bool => strtoupper(trim($item)) === $needle
+        );
+    }
+
     private function completeQueueEntryForPreInventory(int $preInventoryId, string $direction, $completedAt): void
     {
         $entry = DB::table('queue_entries')
@@ -381,6 +391,8 @@ class GateinoutController extends Controller
             $containerNo = strtoupper(trim($request->input('cno')));
             $clientId = $request->input('client');
             $plateNo = strtoupper(trim((string) $request->input('pno')));
+            $notInBooking = $request->boolean('not_in_booking');
+            $hauler = strtoupper(trim((string) $request->input('hauler')));
             
             // Validate container number length
             if (strlen($containerNo) !== 11) {
@@ -392,6 +404,12 @@ class GateinoutController extends Controller
             if ($plateNo === '') {
                 return response()->json([
                     'message' => ['danger', '<strong>Error!</strong> Plate number is required.']
+                ]);
+            }
+
+            if ($notInBooking && !$this->preInHaulerIsExcepted($hauler)) {
+                return response()->json([
+                    'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-In exception hauler.']
                 ]);
             }
             
@@ -431,7 +449,7 @@ class GateinoutController extends Controller
 
                 // Booking System verification is deliberately performed last,
                 // after every local Pre-In validation has passed.
-                $booking = $this->bookingScrapingEnabled()
+                $booking = $this->bookingScrapingEnabled() && !$notInBooking
                     ? app(BookingSystemService::class)->findVerifiedBooking($containerNo)
                     : null;
             
@@ -440,6 +458,7 @@ class GateinoutController extends Controller
                     'container_no' => $containerNo,
                     'client_id' => $client->c_id,
                     'plate_no' => $plateNo,
+                    'hauler' => $notInBooking ? $hauler : null,
                     'gate_status' => 'IN',
                     'user_id' => Auth::check() ? Auth::user()->user_id : 0,
                     'status' => 0,
