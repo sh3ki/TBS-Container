@@ -16,6 +16,26 @@
         max-height: 540px;
     }
 
+    @media (max-width: 767px) {
+        .queue-grid {
+            flex: 0 0 auto;
+        }
+
+        .queue-serving-content {
+            min-width: 0;
+            overflow-x: auto;
+            overscroll-behavior-x: contain;
+            scrollbar-width: thin;
+            grid-template-columns: repeat(2, var(--serving-card-width)) !important;
+            column-gap: 0.75rem;
+        }
+
+        .queue-serving-card {
+            width: var(--serving-card-width);
+            min-width: var(--serving-card-width);
+        }
+    }
+
     .queue-list-grid {
         grid-template-columns: 1fr;
     }
