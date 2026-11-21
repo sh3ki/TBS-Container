@@ -74,6 +74,9 @@ class GuardScanController extends Controller
                 'USERPROFILE' => getenv('USERPROFILE') ?: 'C:\\Users\\USER',
                 'HOMEDRIVE' => getenv('HOMEDRIVE') ?: 'C:',
                 'HOMEPATH' => getenv('HOMEPATH') ?: '\\Users\\USER',
+                // pathlib.Path.home() uses HOME on Linux; FastALPR currently
+                // derives its model cache from that instead of XDG_CACHE_HOME.
+                'HOME' => $ocrCacheDirectory,
                 'XDG_CACHE_HOME' => $ocrCacheDirectory,
             ]
         );
