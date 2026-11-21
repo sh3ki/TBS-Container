@@ -11,10 +11,9 @@ class GuardScanController extends Controller
 {
     public function queueDisplay()
     {
-        $today = today();
-        $waitingIn = DB::table('queue_entries')->whereDate('queue_date', $today)->where('direction', 'IN')->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
-        $waitingOut = DB::table('queue_entries')->whereDate('queue_date', $today)->where('direction', 'OUT')->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
-        $serving = DB::table('queue_entries')->whereDate('queue_date', $today)->where('status', 'serving')->whereNull('completed_at')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
+        $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->where('status', 'waiting')->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
+        $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->where('status', 'waiting')->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
+        $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
         return response()->json(['success' => true, 'data' => [
             'waiting_in' => $waitingIn,
