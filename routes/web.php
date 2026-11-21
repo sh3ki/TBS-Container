@@ -23,6 +23,11 @@ Route::get('/login', function () {
     ]);
 })->name('login');
 
+// Public live queue display for yard monitors and drivers.
+Route::get('/queue', function () {
+    return Inertia::render('Queue/Display');
+})->name('queue.display');
+
 // Protected routes - Use 'auth' for web (session-based), not 'auth:sanctum'
 Route::middleware(['auth'])->group(function () {
     // Dashboard
@@ -78,6 +83,15 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Gateinout/Index');
     })->name('gateinout.index');
 
+    // Authenticated queue management page.
+    Route::get('/queuelist', function () {
+        $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+
+        return Inertia::render('Queue/Index', [
+            'servingCapacity' => (int) ($settings?->serving_capacity ?? 0),
+        ]);
+    })->middleware('page.access:queuelist')->name('queue.index');
+
     // Size & Type
     Route::get('/sizetype', function () {
         return Inertia::render('Sizetype/Index');
@@ -115,14 +129,14 @@ Route::middleware(['auth'])->group(function () {
 
     // Mobile Settings
     Route::get('/mobile-settings', function () {
-        $settings = DB::table('mobile_settings')->first();
+        $settings = DB::table('mobile_settings')->orderBy('setting_id')->get()->keyBy('app_code');
 
         return Inertia::render('MobileSettings/Index', [
-            'settings' => [
-                'app_version' => $settings?->app_version ?? '',
-                'apk_url' => $settings?->apk_url ?? '',
-                'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
-            ],
+            'settings' => $settings->map(fn ($item) => [
+                'app_version' => $item->app_version ?? '',
+                'apk_url' => $item->apk_url ?? '',
+                'update_app_modal' => (bool) ($item->update_app_modal ?? false),
+            ])->all(),
         ]);
     })->middleware('page.access:mobile-settings')->name('mobile-settings.index');
 
@@ -135,16 +149,36 @@ Route::middleware(['auth'])->group(function () {
                 'incoming_rate' => (float) ($settings?->incoming_rate ?? 0),
                 'outgoing_rate' => (float) ($settings?->outgoing_rate ?? 0),
                 'hauler_exceptions' => (string) ($settings?->hauler_exceptions ?? ''),
+                'booking_scraping_enabled' => (bool) ($settings?->booking_scraping_enabled ?? true),
             ],
         ]);
     })->middleware('page.access:app-settings')->name('app-settings.index');
 
     Route::put('/app-settings', function (Request $request, AuditService $auditService) {
-        $validated = $request->validate([
-            'incoming_rate' => ['required', 'numeric', 'gt:0'],
-            'outgoing_rate' => ['required', 'numeric', 'gt:0'],
+        $rules = [
+            'section' => ['required', 'string', 'in:docs_fee,queue'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
-        ]);
+            'booking_scraping_enabled' => ['sometimes', 'boolean'],
+            'serving_capacity' => ['sometimes', 'integer', 'min:0'],
+        ];
+        if ($request->input('section') === 'docs_fee') {
+            $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
+            $rules['outgoing_rate'] = ['required', 'numeric', 'gt:0'];
+        }
+        $validated = $request->validate($rules);
+
+        if ($validated['section'] === 'queue') {
+            $updates = ['updated_at' => now()];
+            if (array_key_exists('booking_scraping_enabled', $validated)) {
+                $updates['booking_scraping_enabled'] = (bool) $validated['booking_scraping_enabled'];
+            }
+            if (array_key_exists('serving_capacity', $validated)) {
+                $updates['serving_capacity'] = (int) $validated['serving_capacity'];
+            }
+            DB::table('app_settings')->where('setting_id', 1)->update($updates);
+
+            return response()->json(['message' => 'Queue settings updated successfully.']);
+        }
 
         $currentSettings = DB::table('app_settings')->where('setting_id', 1)->first();
         $incomingRate = (float) $validated['incoming_rate'];
@@ -183,14 +217,29 @@ Route::middleware(['auth'])->group(function () {
         return response()->json(['message' => 'Docs Fee settings updated successfully.']);
     })->middleware('page.access:app-settings')->name('app-settings.update');
 
+    Route::put('/queuelist/settings', function (Request $request) {
+        $validated = $request->validate([
+            'serving_capacity' => ['required', 'integer', 'min:0'],
+        ]);
+
+        DB::table('app_settings')->where('setting_id', 1)->update([
+            'serving_capacity' => (int) $validated['serving_capacity'],
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Queue settings updated successfully.']);
+    })->middleware('page.access:queuelist')->name('queuelist.settings.update');
+
     Route::put('/mobile-settings', function (Request $request, AuditService $auditService) {
         $validated = $request->validate([
+            'app_code' => ['required', 'string', 'in:CHECKER,GUARD'],
             'app_version' => ['required', 'string', 'max:50'],
             'apk_url' => ['required_if:update_app_modal,1', 'nullable', 'url', 'max:2048'],
             'update_app_modal' => ['required', 'boolean'],
         ]);
 
-        $currentSettings = DB::table('mobile_settings')->where('setting_id', 1)->first();
+        $appCode = strtoupper($validated['app_code']);
+        $currentSettings = DB::table('mobile_settings')->where('app_code', $appCode)->first();
         $oldAppVersion = (string) ($currentSettings?->app_version ?? '');
         $oldApkUrl = (string) ($currentSettings?->apk_url ?? '');
         $oldUpdateAppModal = (bool) ($currentSettings?->update_app_modal ?? false);
@@ -199,7 +248,7 @@ Route::middleware(['auth'])->group(function () {
         $newUpdateAppModal = (bool) $validated['update_app_modal'];
 
         DB::table('mobile_settings')->updateOrInsert(
-            ['setting_id' => 1],
+            ['app_code' => $appCode],
             [
                 'app_version' => $newAppVersion,
                 'apk_url' => $newApkUrl !== '' ? $newApkUrl : null,

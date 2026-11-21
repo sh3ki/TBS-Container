@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ContainerImagesController;
 use App\Http\Controllers\Api\EdiController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\GuardScanController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,11 +37,16 @@ use App\Http\Controllers\Api\SyncController;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay']);
 
 // Mobile App API Routes (Plain text login - separate from main auth)
 Route::prefix('mobile')->group(function () {
     Route::get('/app-update', function () {
-        $settings = DB::table('mobile_settings')->where('setting_id', 1)->first();
+        $appCode = strtoupper((string) request()->query('app', 'CHECKER'));
+        if (! in_array($appCode, ['CHECKER', 'GUARD'], true)) {
+            $appCode = 'CHECKER';
+        }
+        $settings = DB::table('mobile_settings')->where('app_code', $appCode)->first();
 
         return response()->json([
             'success' => true,
@@ -70,6 +76,39 @@ Route::prefix('mobile')->group(function () {
     // Mobile Inventory Routes
     Route::prefix('inventory')->group(function () {
         Route::get('/search', [MobileInventoryController::class, 'search']);
+    });
+});
+
+// Guard App API namespace. Keep Guard traffic separate from the Checker app
+// while reusing the same server-side authorization and gate operations.
+Route::prefix('guard')->group(function () {
+    Route::post('/scan-truck-plate', [GuardScanController::class, 'scanTruckPlate']);
+    Route::get('/queue/display', [GuardScanController::class, 'queueDisplay']);
+    Route::get('/queue-capacity', [GuardScanController::class, 'queueCapacity']);
+    Route::get('/app-update', function () {
+        $settings = DB::table('mobile_settings')->where('app_code', 'GUARD')->first();
+
+        return response()->json([
+            'success' => true,
+            'app_version' => $settings?->app_version ?? '',
+            'apk_url' => $settings?->apk_url ?? '',
+            'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
+        ]);
+    });
+    Route::post('/login', [MobileAuthController::class, 'login']);
+    Route::post('/logout', [MobileAuthController::class, 'logout']);
+    Route::prefix('gateinout')->group(function () {
+        Route::post('/list', [MobileGateinoutController::class, 'getPreInventoryList']);
+        Route::get('/clients', [MobileGateinoutController::class, 'getClients']);
+        Route::get('/status-options', [MobileGateinoutController::class, 'getStatusOptions']);
+        Route::get('/sizetype-options', [MobileGateinoutController::class, 'getSizeTypeOptions']);
+        Route::get('/load-options', [MobileGateinoutController::class, 'getLoadOptions']);
+        Route::get('/container-details', [MobileGateinoutController::class, 'getContainerDetails']);
+        Route::get('/available-containers', [MobileGateinoutController::class, 'searchAvailableContainers']);
+        Route::post('/check-container-in', [MobileGateinoutController::class, 'checkContainerIn']);
+        Route::post('/check-container-out', [MobileGateinoutController::class, 'checkContainerOut']);
+        Route::post('/process-in', [MobileGateinoutController::class, 'processGateIn']);
+        Route::post('/process-out', [MobileGateinoutController::class, 'processGateOut']);
     });
 });
 
@@ -274,6 +313,8 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         // Process Gate IN/OUT (final processing)
         Route::post('/process-in', [GateinoutController::class, 'processGateIn']);
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
+        Route::post('/queue/reorder', [GateinoutController::class, 'reorderQueue']);
+        Route::post('/queue/serve', [GateinoutController::class, 'serveQueueEntry']);
         
         // Get pre-inventory data for React modals (ProcessGateInModal)
         Route::get('/pre-inventory/{containerNo}', [GateinoutController::class, 'getPreInventoryData']);

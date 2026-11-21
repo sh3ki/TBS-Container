@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Auth\LegacyHasher;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +11,10 @@ use Illuminate\Support\Facades\Log;
 
 class MobileAuthController extends Controller
 {
+    public function __construct(private readonly LegacyHasher $legacyHasher)
+    {
+    }
+
     /**
      * Mobile login with plain text credentials (old system compatibility).
      * This is a separate endpoint from the main auth API.
@@ -53,8 +58,12 @@ class MobileAuthController extends Controller
                 ], 403);
             }
 
-            // Compare plain text password (old system compatibility)
-            if ($user->password !== $password) {
+            // Support both legacy plaintext records and the normal legacy
+            // salted hashes used for newly-created accounts.
+            $passwordMatches = $user->password === $password
+                || $this->legacyHasher->check($password, $user->password, ['salt' => $user->salt]);
+
+            if (!$passwordMatches) {
                 $this->logLoginAttempt(false, $username, $request->ip(), 'Invalid password');
                 return response()->json([
                     'success' => false,

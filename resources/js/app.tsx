@@ -30,8 +30,12 @@ createInertiaApp({
 // This will set light / dark mode on load...
 initializeTheme();
 
-// Initialize inactivity monitor (30 minute timeout)
-initializeInactivityMonitor();
+// The public queue display is intended for an always-on monitor and must not
+// be redirected to login because of inactivity. Authenticated pages retain
+// the normal inactivity timeout.
+if (window.location.pathname !== '/queue') {
+    initializeInactivityMonitor();
+}
 
 // Update CSRF token in meta tag whenever Inertia navigates to a new page
 // This ensures the token stays fresh after login or any session regeneration

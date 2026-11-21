@@ -2,17 +2,18 @@ import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import axios from 'axios';
 import { useState } from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, ToggleLeft, ToggleRight } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ModernButton, ModernCard } from '@/components/modern';
+import { ModernButton, ModernCard, ToastContainer, useModernToast } from '@/components/modern';
 
 interface AppSettingsProps {
     settings: {
         incoming_rate: number;
         outgoing_rate: number;
         hauler_exceptions: string;
+        booking_scraping_enabled: boolean;
     };
 }
 
@@ -20,25 +21,41 @@ export default function AppSettings({ settings }: AppSettingsProps) {
     const [incomingRate, setIncomingRate] = useState(String(settings.incoming_rate));
     const [outgoingRate, setOutgoingRate] = useState(String(settings.outgoing_rate));
     const [haulerExceptions, setHaulerExceptions] = useState(settings.hauler_exceptions);
-    const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState('');
+    const [bookingScrapingEnabled, setBookingScrapingEnabled] = useState(settings.booking_scraping_enabled);
+    const [saving, setSaving] = useState<'docs' | 'queue' | null>(null);
+    const { toasts, removeToast, success, error } = useModernToast();
 
-    const saveSettings = async () => {
-        setSaving(true);
-        setMessage('');
-
+    const saveDocsSettings = async () => {
+        setSaving('docs');
         try {
             const response = await axios.put('/app-settings', {
+                section: 'docs_fee',
                 incoming_rate: Number(incomingRate),
                 outgoing_rate: Number(outgoingRate),
                 hauler_exceptions: haulerExceptions,
             });
-            setMessage(response.data.message || 'Docs Fee settings updated successfully.');
-        } catch (error) {
-            console.error('Failed to update Docs Fee settings:', error);
-            setMessage('Rates must be numbers greater than 0.');
+            success(response.data.message || 'Docs Fee settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update Docs Fee settings:', exception);
+            error('Rates must be numbers greater than 0.');
         } finally {
-            setSaving(false);
+            setSaving(null);
+        }
+    };
+
+    const saveQueueSettings = async () => {
+        setSaving('queue');
+        try {
+            const response = await axios.put('/app-settings', {
+                section: 'queue',
+                booking_scraping_enabled: bookingScrapingEnabled,
+            });
+            success(response.data.message || 'Queue settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update Queue settings:', exception);
+            error('Failed to update Queue settings.');
+        } finally {
+            setSaving(null);
         }
     };
 
@@ -57,6 +74,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                     </div>
                 </div>
 
+                <div className="grid gap-6 lg:grid-cols-2">
                 <ModernCard
                     title="Docs Fee Settings"
                     subtitle="Configure incoming and outgoing Docs Fee rates"
@@ -111,14 +129,32 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                         </div>
 
                         <div className="flex items-center gap-3 md:col-span-3">
-                            <ModernButton type="button" variant="primary" loading={saving} onClick={saveSettings}>
+                            <ModernButton type="button" variant="primary" loading={saving === 'docs'} onClick={saveDocsSettings}>
                                 Save Settings
                             </ModernButton>
-                            {message && <span className="text-sm text-gray-600">{message}</span>}
                         </div>
                     </div>
                 </ModernCard>
+
+                <ModernCard title="Queue Settings" subtitle="Configure Booking System verification for Add Pre-In and Add Pre-Out" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="flex max-w-4xl items-center justify-between rounded-lg border border-gray-200 p-4">
+                        <div>
+                            <p className="font-semibold text-gray-900">Booking System Scraping</p>
+                            <p className="mt-1 text-sm text-gray-600">
+                                {bookingScrapingEnabled ? 'Verified booking checks are enabled for both queue entry modals.' : 'Booking checks are disabled for both queue entry modals.'}
+                            </p>
+                        </div>
+                        <ModernButton type="button" variant={bookingScrapingEnabled ? 'primary' : 'secondary'} size="sm" icon={bookingScrapingEnabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setBookingScrapingEnabled((enabled) => !enabled)}>
+                            {bookingScrapingEnabled ? 'ON' : 'OFF'}
+                        </ModernButton>
+                    </div>
+                    <div className="mt-6 flex items-center gap-3">
+                        <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueSettings}>Save Settings</ModernButton>
+                    </div>
+                </ModernCard>
+                </div>
             </div>
+            <ToastContainer toasts={toasts} removeToast={removeToast} />
         </AuthenticatedLayout>
     );
 }

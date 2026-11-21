@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, RotateCcw, Filter, ArrowUpDown, X } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Trash2, Eye, Calendar, RotateCcw, Filter, ArrowUpDown, X, Copy } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import CachedFieldHistory from '@/components/CachedFieldHistory';
 import { removeFieldHistory, saveFieldHistory } from '@/components/CachedFieldHistory';
@@ -843,6 +843,15 @@ export default function Index() {
     ? <span className="text-white">{sortDirection === 'asc' ? '↑' : '↓'}</span>
     : <ArrowUpDown className="h-4 w-4 opacity-90" />;
 
+  const handleCopyBookingNumber = async (bookingNo: string) => {
+    try {
+      await navigator.clipboard.writeText(bookingNo);
+      success(`Copied ${bookingNo}`);
+    } catch {
+      error('Unable to copy booking number');
+    }
+  };
+
   const sortBookings = (rows: Booking[]) => {
     const effectiveColumn = sortColumn || 'date_added';
     const getSortValue = (booking: Booking): string | number => {
@@ -878,7 +887,10 @@ export default function Index() {
         label: 'Book No.',
         sortable: true,
         render: (booking: Booking) => (
-          <div className="font-semibold text-gray-900 max-w-[70px]">{booking.book_no}</div>
+          <div className="flex min-w-[150px] items-center gap-1 font-semibold text-gray-900">
+            <button type="button" onClick={(event) => { event.stopPropagation(); void handleCopyBookingNumber(booking.book_no); }} className="inline-flex shrink-0 items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900" title="Copy booking number" aria-label={`Copy booking number ${booking.book_no}`}><Copy className="h-3.5 w-3.5" /></button>
+            <span className="whitespace-nowrap">{booking.book_no}</span>
+          </div>
         ),
       },
       {
@@ -1029,7 +1041,7 @@ export default function Index() {
         label: 'Expiration',
         sortable: true,
         render: (booking: Booking) => (
-          <div className="min-w-[95px]">
+          <div className="min-w-[82px]">
             <span className="text-sm text-gray-600">
               {new Date(booking.expiration_date).toLocaleDateString('en-US', {
                 year: 'numeric',
@@ -1044,7 +1056,7 @@ export default function Index() {
         key: 'status',
         label: 'Status',
         render: (booking: Booking) => (
-          <div className="min-w-[55px]">
+          <div className="min-w-[48px]">
             <ModernBadge variant={booking.status_text === 'Active' ? 'success' : 'error'}>
               {booking.status_text}
             </ModernBadge>
@@ -1056,7 +1068,7 @@ export default function Index() {
         label: 'Date',
         sortable: true,
         render: (booking: Booking) => (
-          <div className="text-sm text-gray-600 min-w-[65px]">
+          <div className="text-sm text-gray-600 min-w-[58px]">
             {new Date(booking.date_added).toLocaleDateString('en-US', {
               month: 'short',
               day: 'numeric',

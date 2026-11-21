@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, CheckCircle, TruckIcon as GateIcon, Filter, RefreshCw, ArrowUpDown, Copy } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import ProcessGateInModal from '@/components/Gateinout/ProcessGateInModal';
 import ProcessGateOutModal from '@/components/Gateinout/ProcessGateOutModal';
@@ -45,6 +45,7 @@ interface Client {
 interface PreInFormData {
   container_no: string;
   client_id: string;
+  plate_no: string;
 }
 
 interface PreOutFormData {
@@ -132,6 +133,7 @@ export default function Index() {
   const [preInForm, setPreInForm] = useState<PreInFormData>({
     container_no: '',
     client_id: '',
+    plate_no: '',
   });
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
@@ -428,6 +430,10 @@ export default function Index() {
       error('Please select a client');
       return;
     }
+    if (!preInForm.plate_no.trim()) {
+      error('Plate number is required');
+      return;
+    }
     handleAddPreIn();
   };
 
@@ -440,6 +446,7 @@ export default function Index() {
       const response = await axios.post('/api/gateinout/check-container-in', {
         cno: preInForm.container_no.toUpperCase(),
         client: preInForm.client_id,
+        pno: preInForm.plate_no.trim().toUpperCase(),
       });
 
       if (response.data.message) {
@@ -447,7 +454,7 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-In added successfully');
           setShowAddPreInModal(false);
-          setPreInForm({ container_no: '', client_id: '' });
+          setPreInForm({ container_no: '', client_id: '', plate_no: '' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -542,6 +549,10 @@ export default function Index() {
 
   const submitUpdatePreIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editPreInForm.plate_no.trim()) {
+      error('Plate number is required');
+      return;
+    }
     setConfirmUpdatePreIn(true);
   };
 
@@ -554,7 +565,8 @@ export default function Index() {
       const requestData = {
         id: editPreInForm.id,
         cno: editPreInForm.container_no,
-        cid: hashedClientId
+        cid: hashedClientId,
+        pno: editPreInForm.plate_no.trim().toUpperCase(),
       };
       console.log('Sending Update Pre-In Data:', requestData);
       const response = await axios.post('/api/gateinout/update-prein', requestData);
@@ -635,6 +647,15 @@ export default function Index() {
       const e = err as { response?: { data?: { message?: string } } };
       console.error('Delete Error:', err);
       error(e.response?.data?.message || 'Failed to delete record');
+    }
+  };
+
+  const handleCopyContainer = async (containerNo: string) => {
+    try {
+      await navigator.clipboard.writeText(containerNo);
+      success(`Copied ${containerNo}`);
+    } catch {
+      error('Unable to copy container number');
     }
   };
 
@@ -885,8 +906,9 @@ export default function Index() {
                 label: 'Container No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[70px] flex items-center gap-2" title={record.container_no}>
-                    {record.date_completed && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
+                  <div className="font-mono font-semibold text-gray-900 min-w-[135px] flex items-center gap-1" title={record.container_no}>
+                    {record.date_completed && <CheckCircle className="mr-1 h-5 w-5 shrink-0 text-green-600" />}
+                    <button type="button" onClick={(event) => { event.stopPropagation(); void handleCopyContainer(record.container_no); }} className="inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900" title="Copy container number" aria-label={`Copy container number ${record.container_no}`}><Copy className="h-3.5 w-3.5" /></button>
                     {record.container_no}
                   </div>
                 ),
@@ -903,23 +925,27 @@ export default function Index() {
                 ),
               },
               {
-                key: 'container_status',
-                label: 'Status',
+                key: 'plate_no',
+                label: 'Plate No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>
-                    {(record.container_status || '-').toUpperCase()}
-                  </ModernBadge>
+                  <div className="min-w-[90px] text-sm font-semibold text-gray-700" title={record.plate_no || '-'}>{record.plate_no || '-'}</div>
                 ),
               },
               {
-                key: 'size_type_display',
-                label: 'Size / Type',
-                sortable: true,
+                key: 'info',
+                label: 'Size / Status',
+                headerRender: () => (
+                  <div className="flex flex-col items-start gap-0.5 text-xs uppercase leading-tight">
+                    <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'container_status'); }} title="Sort by status">STATUS <ArrowUpDown className="h-3 w-3" /></button>
+                    <button type="button" className="inline-flex items-center gap-1 font-semibold hover:text-white/80" onClick={(event) => { event.stopPropagation(); handleSort('in', 'size_type_display'); }} title="Sort by size/type">SIZE <ArrowUpDown className="h-3 w-3" /></button>
+                  </div>
+                ),
                 render: (record: PreInventoryRecord) => (
-                  <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>
-                    {(record.size_type_display || '-').toUpperCase()}
-                  </ModernBadge>
+                  <div className="flex min-w-[110px] flex-col items-start gap-1">
+                    <ModernBadge variant={getContainerStatusVariant(record.container_status || '')}>{(record.container_status || '-').toUpperCase()}</ModernBadge>
+                    <ModernBadge variant={getSizeTypeVariant(record.size_type_display || '')}>{(record.size_type_display || '-').toUpperCase()}</ModernBadge>
+                  </div>
                 ),
               },
               {
@@ -1067,8 +1093,9 @@ export default function Index() {
                 label: 'Container No',
                 sortable: true,
                 render: (record: PreInventoryRecord) => (
-                  <div className="font-mono font-semibold text-gray-900 min-w-[70px] flex items-center gap-2" title={record.container_no}>
-                    {record.date_completed && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
+                  <div className="font-mono font-semibold text-gray-900 min-w-[135px] flex items-center gap-1" title={record.container_no}>
+                    {record.date_completed && <CheckCircle className="mr-1 h-5 w-5 shrink-0 text-green-600" />}
+                    <button type="button" onClick={(event) => { event.stopPropagation(); void handleCopyContainer(record.container_no); }} className="inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900" title="Copy container number" aria-label={`Copy container number ${record.container_no}`}><Copy className="h-3.5 w-3.5" /></button>
                     {record.container_no}
                   </div>
                 ),
@@ -1317,6 +1344,18 @@ export default function Index() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Must be exactly 11 characters</p>
               </div>
+              <div>
+                <Label className="text-gray-900">
+                  Plate Number <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  data-history-key="gateinout.plate_no"
+                  value={preInForm.plate_no}
+                  onChange={(e) => setPreInForm({ ...preInForm, plate_no: e.target.value.toUpperCase() })}
+                  placeholder="ABC-1234"
+                  required
+                />
+              </div>
             </div>
             <DialogFooter className="gap-2">
               <ModernButton
@@ -1442,6 +1481,18 @@ export default function Index() {
                   maxLength={11}
                 />
               </div>
+              <div>
+                <Label className="text-gray-900">
+                  Plate Number <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  data-history-key="gateinout.plate_no"
+                  value={editPreInForm.plate_no}
+                  onChange={(e) => setEditPreInForm({ ...editPreInForm, plate_no: e.target.value.toUpperCase() })}
+                  placeholder="ABC-1234"
+                  required
+                />
+              </div>
             </div>
             <DialogFooter className="gap-2">
               <ModernButton
@@ -1565,7 +1616,7 @@ export default function Index() {
         onOpenChange={setConfirmDeleteRecord}
         onConfirm={handleDeleteRecord}
         title="Delete Record"
-        description={`Are you sure you want to delete record for container ${recordToDelete?.container_no}? This action cannot be undone.`}
+        description={`Are you sure you want to delete record for ${recordToDelete?.gate_status === 'OUT' ? `plate number ${recordToDelete?.plate_no || '-'}` : `container ${recordToDelete?.container_no}`}? This action cannot be undone.`}
         confirmText="Delete Record"
         type="danger"
       />
