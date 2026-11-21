@@ -186,6 +186,9 @@ export default function ProcessGateOutModal({
 
     // Initialize with pre-gate data and fetch container details if exists
     useEffect(() => {
+        // A modal instance must always start with a clean submission lock.
+        submitInProgressRef.current = false;
+        setIsSubmitting(false);
         if (open) {
             // reset form each time modal opens
             setFormData({ ...initialFormData });
@@ -742,7 +745,8 @@ export default function ProcessGateOutModal({
             return;
         }
 
-        // Prevent rapid double-clicks before React has a chance to re-render.
+        // Keep the ref guard for rapid double-clicks; it runs synchronously
+        // before React has a chance to re-render the disabled button.
         if (submitInProgressRef.current) return;
         submitInProgressRef.current = true;
         setIsSubmitting(true);
@@ -801,6 +805,12 @@ export default function ProcessGateOutModal({
                 onClose();
             }
         } catch (error: any) {
+            console.error('Process Gate OUT request failed', {
+                status: error?.response?.status,
+                url: error?.config?.url,
+                response: error?.response?.data,
+                message: error?.message,
+            });
             if (error?.response?.status === 409 && error.response.data?.queue_confirmation_required && !queueConfirmed) {
                 submitInProgressRef.current = false;
                 setIsSubmitting(false);
@@ -808,7 +818,8 @@ export default function ProcessGateOutModal({
                 if (proceed) await handleConfirm(true);
                 return;
             }
-            const message = getApiErrorMessage(error, 'Failed to process Gate OUT');
+            const status = error?.response?.status;
+            const message = getApiErrorMessage(error, status ? `Failed to process Gate OUT (HTTP ${status})` : 'Failed to process Gate OUT');
             (showError ? showError(message) : alert(message));
         } finally {
             submitInProgressRef.current = false;
