@@ -1,5 +1,5 @@
 ﻿import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { ModernButton, ModernCard, ModernTable, ModernBadge, ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
@@ -46,6 +46,8 @@ interface PreInFormData {
   container_no: string;
   client_id: string;
   plate_no: string;
+  not_in_booking: boolean;
+  hauler: string;
 }
 
 interface PreOutFormData {
@@ -87,6 +89,11 @@ const getSizeTypeVariant = (sizeType: string): BadgeVariant => {
 };
 
 export default function Index() {
+  const { preInHaulerExceptions = '' } = usePage<{ preInHaulerExceptions?: string }>().props;
+  const preInHaulerOptions = preInHaulerExceptions
+    .split(',')
+    .map((hauler) => hauler.trim().toUpperCase())
+    .filter((hauler, index, options) => hauler !== '' && options.indexOf(hauler) === index);
   const { toasts, removeToast, success, error } = useModernToast();
   const [preInventoryList, setPreInventoryList] = useState<PreInventoryRecord[]>([]);
   const [filteredInRecords, setFilteredInRecords] = useState<PreInventoryRecord[]>([]);
@@ -134,6 +141,8 @@ export default function Index() {
     container_no: '',
     client_id: '',
     plate_no: '',
+    not_in_booking: false,
+    hauler: '',
   });
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
@@ -434,6 +443,10 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
+    if (preInForm.not_in_booking && !preInForm.hauler) {
+      error('Please select a hauler for Not in Booking');
+      return;
+    }
     handleAddPreIn();
   };
 
@@ -447,6 +460,8 @@ export default function Index() {
         cno: preInForm.container_no.toUpperCase(),
         client: preInForm.client_id,
         pno: preInForm.plate_no.trim().toUpperCase(),
+        not_in_booking: preInForm.not_in_booking,
+        hauler: preInForm.hauler,
       });
 
       if (response.data.message) {
@@ -454,7 +469,7 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-In added successfully');
           setShowAddPreInModal(false);
-          setPreInForm({ container_no: '', client_id: '', plate_no: '' });
+          setPreInForm({ container_no: '', client_id: '', plate_no: '', not_in_booking: false, hauler: '' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -1355,6 +1370,47 @@ export default function Index() {
                   placeholder="ABC-1234"
                   required
                 />
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={preInForm.not_in_booking}
+                  onClick={() => setPreInForm({
+                    ...preInForm,
+                    not_in_booking: !preInForm.not_in_booking,
+                    hauler: preInForm.not_in_booking ? '' : preInForm.hauler,
+                  })}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  <span>
+                    <span className="block font-medium text-gray-900">Not in Booking</span>
+                    <span className="mt-1 block text-xs text-gray-500">Bypass Booking System scraping for this Pre-In.</span>
+                  </span>
+                  <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${preInForm.not_in_booking ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${preInForm.not_in_booking ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </span>
+                </button>
+                {preInForm.not_in_booking && (
+                  <div className="mt-3">
+                    <Label className="text-gray-900">
+                      Hauler <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={preInForm.hauler}
+                      onValueChange={(value) => setPreInForm({ ...preInForm, hauler: value })}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue placeholder="Select exception hauler" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {preInHaulerOptions.map((hauler) => (
+                          <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="gap-2">
