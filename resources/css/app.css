@@ -45,6 +45,10 @@
             grid-template-columns: 2fr 2fr 3fr;
         }
 
+        .queue-serving-content {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .queue-list-grid {
             grid-template-columns: 2fr 2fr 3fr;
         }
