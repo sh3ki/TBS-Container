@@ -13,6 +13,10 @@ return [
         'timeout' => env('BOOKING_SYSTEM_TIMEOUT', 20),
     ],
 
+    'plate_ocr' => [
+        'command' => env('PLATE_OCR_COMMAND', 'python ocr/plate_ocr.py {image}'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
