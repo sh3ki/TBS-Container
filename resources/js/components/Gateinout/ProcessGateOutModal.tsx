@@ -689,6 +689,10 @@ export default function ProcessGateOutModal({
             (showError ? showError('Please enter Voyage') : alert('Please enter Voyage'));
             return;
         }
+        if (!formData.hauler || formData.hauler.trim() === '') {
+            (showError ? showError('Please enter Hauler') : alert('Please enter Hauler'));
+            return;
+        }
         if (!formData.hauler_driver || formData.hauler_driver.trim() === '') {
             (showError ? showError('Please enter Hauler Driver') : alert('Please enter Hauler Driver'));
             return;
@@ -926,7 +930,7 @@ export default function ProcessGateOutModal({
                             </div>
 
                             <div>
-                                <div className="flex items-center justify-between gap-2"><Label>Hauler</Label><span className="text-xs text-gray-500">FORMAT: NJM, GOLINK, AIT, MMLRR</span></div>
+                                <div className="flex items-center justify-between gap-2"><Label>Hauler <span className="text-red-500">*</span></Label><span className="text-xs text-gray-500">FORMAT: NJM, GOLINK, AIT, MMLRR</span></div>
                                 <Input
                                     data-history-key="gateinout.hauler"
                                     value={formData.hauler}
