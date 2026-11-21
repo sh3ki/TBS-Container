@@ -5,6 +5,37 @@
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
+@layer components {
+    .queue-grid {
+        grid-template-columns: 1fr;
+        align-items: start;
+    }
+
+    .queue-panel {
+        min-height: 540px;
+        max-height: 540px;
+    }
+
+    .queue-list-grid {
+        grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+        .queue-grid {
+            grid-template-columns: 2fr 2fr 3fr;
+        }
+
+        .queue-list-grid {
+            grid-template-columns: 2fr 2fr 3fr;
+        }
+
+        .queue-panel {
+            min-height: 650px;
+            max-height: 650px;
+        }
+    }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {
