@@ -57,6 +57,13 @@ class GuardScanController extends Controller
         $imagePath = $directory . DIRECTORY_SEPARATOR . $filename;
 
         $command = (string) config('services.plate_ocr.command', 'python ocr/plate_ocr.py {image}');
+        // FastALPR downloads model files into the user's cache directory. Keep
+        // that cache under Laravel storage because the web worker may not be
+        // allowed to write under /var/www.
+        $ocrCacheDirectory = storage_path('app/ocr-cache');
+        if (! is_dir($ocrCacheDirectory)) {
+            mkdir($ocrCacheDirectory, 0775, true);
+        }
         $process = Process::fromShellCommandline(
             str_replace('{image}', escapeshellarg($imagePath), $command),
             base_path(),
@@ -67,9 +74,10 @@ class GuardScanController extends Controller
                 'USERPROFILE' => getenv('USERPROFILE') ?: 'C:\\Users\\USER',
                 'HOMEDRIVE' => getenv('HOMEDRIVE') ?: 'C:',
                 'HOMEPATH' => getenv('HOMEPATH') ?: '\\Users\\USER',
+                'XDG_CACHE_HOME' => $ocrCacheDirectory,
             ]
         );
-        $process->setTimeout(8);
+        $process->setTimeout(60);
         $process->run();
         if (! $process->isSuccessful()) {
             \Log::error('Guard plate OCR command failed', [
