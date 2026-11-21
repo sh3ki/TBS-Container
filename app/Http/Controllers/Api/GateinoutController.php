@@ -81,7 +81,7 @@ class GateinoutController extends Controller
                 ->where('direction', 'OUT')->where('status', 'waiting')->whereNull('completed_at')
                 ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
             $serving = DB::table('queue_entries')
-                ->where('status', 'serving')->whereNull('completed_at')->orderBy('serving_number')
+                ->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')
                 ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
             return response()->json(['success' => true, 'data' => [
@@ -110,14 +110,13 @@ class GateinoutController extends Controller
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['integer'],
             'status' => ['required', 'in:waiting,serving'],
-            'direction' => ['nullable', 'in:IN,OUT'],
+            'direction' => ['required', 'in:IN,OUT'],
         ]);
 
         DB::transaction(function () use ($validated): void {
             $query = DB::table('queue_entries')
                 ->where('status', $validated['status'])
-                ->when($validated['status'] === 'waiting', fn ($q) => $q->where('direction', $validated['direction']))
-                ->whereDate('queue_date', today())
+                ->when(in_array($validated['status'], ['waiting', 'serving'], true), fn ($q) => $q->where('direction', $validated['direction']))
                 ->lockForUpdate();
             $existingIds = $query->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
             $submittedIds = collect($validated['ids'])->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
@@ -152,10 +151,22 @@ class GateinoutController extends Controller
             $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
             $currentServing = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
             abort_unless($capacity === 0 || $currentServing < $capacity, 409, 'Serving capacity is full.');
-            $servingNumber = ((int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->max('serving_number')) + 1;
-            DB::table('queue_entries')->where('id', $entry->id)->update(['status' => 'serving', 'waiting_number' => null, 'serving_number' => $servingNumber, 'serving_at' => now(), 'updated_at' => now()]);
-            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->whereDate('queue_date', today())->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
+            DB::table('queue_entries')->where('id', $entry->id)->update(['status' => 'serving', 'waiting_number' => null, 'serving_number' => null, 'serving_at' => now(), 'updated_at' => now()]);
+            $serving = DB::table('queue_entries')->where('direction', $entry->direction)->where('status', 'serving')->whereNull('completed_at')->where('id', '<>', $entry->id)->orderBy('serving_number')->orderBy('id')->lockForUpdate()->get(['id', 'booking_time']);
+            $servingIds = $serving->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $insertAt = count($servingIds);
+            $newTimestamp = strtotime((string) $entry->booking_time) ?: PHP_INT_MAX;
+            foreach ($serving as $index => $servingEntry) {
+                if ((strtotime((string) $servingEntry->booking_time) ?: PHP_INT_MAX) > $newTimestamp) {
+                    $insertAt = $index;
+                    break;
+                }
+            }
+            array_splice($servingIds, $insertAt, 0, [(int) $entry->id]);
+            foreach ($servingIds as $index => $servingId) DB::table('queue_entries')->where('id', $servingId)->update(['serving_number' => $index + 1, 'updated_at' => now()]);
+            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
             foreach ($waiting as $index => $waitingEntry) DB::table('queue_entries')->where('id', $waitingEntry->id)->update(['waiting_number' => $index + 1, 'updated_at' => now()]);
+            $servingNumber = (int) DB::table('queue_entries')->where('id', $entry->id)->value('serving_number');
             return ['id' => (int) $entry->id, 'plate_no' => $entry->plate_no, 'direction' => $entry->direction, 'serving_number' => $servingNumber];
         });
         return response()->json(['success' => true, 'entry' => $entry]);
@@ -178,13 +189,10 @@ class GateinoutController extends Controller
             'updated_at' => now(),
         ]);
 
-        // Preserve the current (possibly manually arranged) order. A new
-        // booking is inserted after the last existing entry with the same
-        // booking time, so equal-time bookings remain together in arrival order.
         $waiting = DB::table($table)
             ->where('direction', $direction)
-            ->where('queue_date', today())
             ->where('status', 'waiting')
+            ->where('id', '<>', $newId)
             ->orderBy('waiting_number')
             ->orderBy('id')
             ->lockForUpdate()
@@ -194,25 +202,12 @@ class GateinoutController extends Controller
         $newBookingKey = (string) $newBookingTime;
         $orderedIds = $waiting->pluck('id')->map(fn ($id) => (int) $id)->all();
         $insertAt = count($orderedIds);
-        $lastSameTime = -1;
-        foreach ($waiting as $index => $entry) {
-            if ((string) $entry->booking_time === $newBookingKey) {
-                $lastSameTime = $index;
+        foreach ($waiting as $index => $queuedEntry) {
+            if (strtotime((string) $queuedEntry->booking_time) > (strtotime($newBookingKey) ?: PHP_INT_MAX)) {
+                $insertAt = $index;
+                break;
             }
         }
-        if ($lastSameTime >= 0) {
-            $insertAt = $lastSameTime + 1;
-        } else {
-            $newTimestamp = strtotime($newBookingKey) ?: PHP_INT_MAX;
-            foreach ($waiting as $index => $entry) {
-                $entryTimestamp = strtotime((string) $entry->booking_time) ?: PHP_INT_MAX;
-                if ($entryTimestamp > $newTimestamp) {
-                    $insertAt = $index;
-                    break;
-                }
-            }
-        }
-        $orderedIds = array_values(array_filter($orderedIds, fn ($id) => $id !== (int) $newId));
         array_splice($orderedIds, $insertAt, 0, [(int) $newId]);
 
         foreach ($orderedIds as $index => $id) {
@@ -276,10 +271,11 @@ class GateinoutController extends Controller
 
         if ($wasServing) {
             $remaining = DB::table('queue_entries')
-                ->whereDate('queue_date', today())
                 ->where('status', 'serving')
+                ->where('direction', $direction)
                 ->orderBy('serving_number')
                 ->orderBy('serving_at')
+                ->orderBy('id')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get(['id']);
@@ -291,10 +287,10 @@ class GateinoutController extends Controller
             }
         } else {
             $remaining = DB::table('queue_entries')
-                ->whereDate('queue_date', today())
                 ->where('direction', $direction)
                 ->where('status', 'waiting')
                 ->orderBy('waiting_number')
+                ->orderBy('id')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get(['id']);
