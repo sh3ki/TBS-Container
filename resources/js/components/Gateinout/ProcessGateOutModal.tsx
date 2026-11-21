@@ -24,6 +24,7 @@ import { Printer, Search } from 'lucide-react';
 import axios from 'axios';
 import { colors } from '@/lib/colors';
 import ContainerImagesStrip from '@/components/Gateinout/ContainerImagesStrip';
+import { ModernConfirmDialog } from '@/components/modern';
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
     const data = (error as { response?: { data?: { message?: unknown; errors?: Record<string, unknown> } } })?.response?.data;
@@ -108,6 +109,7 @@ export default function ProcessGateOutModal({
     const [isContainerSelected, setIsContainerSelected] = useState(false);
     const [checkerName, setCheckerName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showQueueConfirmation, setShowQueueConfirmation] = useState(false);
     const submitInProgressRef = useRef(false);
     
     const initialFormData = {
@@ -814,8 +816,7 @@ export default function ProcessGateOutModal({
             if (error?.response?.status === 409 && error.response.data?.queue_confirmation_required && !queueConfirmed) {
                 submitInProgressRef.current = false;
                 setIsSubmitting(false);
-                const proceed = window.confirm(error.response.data.message || 'This record is currently waiting in the queue and is not serving. Continue to complete the queue?');
-                if (proceed) await handleConfirm(true);
+                setShowQueueConfirmation(true);
                 return;
             }
             const status = error?.response?.status;
@@ -1232,6 +1233,16 @@ export default function ProcessGateOutModal({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ModernConfirmDialog
+                open={showQueueConfirmation}
+                onOpenChange={setShowQueueConfirmation}
+                onConfirm={() => handleConfirm(true)}
+                title="Queue Confirmation"
+                description="This record is currently waiting in the queue and is not serving. Continue to complete the queue?"
+                confirmText="Continue"
+                type="warning"
+            />
 
         </>
     );
