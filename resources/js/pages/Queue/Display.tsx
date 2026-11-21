@@ -30,9 +30,11 @@ function useClock() {
 
 function QueuePanel({ title, direction, entries, kind }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving' }) {
     const serving = kind === 'serving';
+    const servingInEntries = entries.filter((entry) => entry.direction === 'IN');
+    const servingOutEntries = entries.filter((entry) => entry.direction === 'OUT');
 
     return (
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[#d8dde3] shadow-sm" style={{ backgroundColor: '#FFFFFF', color: '#31393C' }}>
+        <section className="queue-panel flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#d8dde3] shadow-sm" style={{ backgroundColor: '#FFFFFF', color: '#31393C' }}>
             <header className="flex items-center justify-between gap-2 px-4 py-3 sm:px-5" style={{ backgroundColor: serving ? '#31393C' : '#3E9AF4', color: '#FFFFFF' }}>
                 <div className="flex min-w-0 items-center gap-3">
                     {serving ? <Radio className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" strokeWidth={2.4} /> : <List className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" strokeWidth={2.4} />}
@@ -50,7 +52,7 @@ function QueuePanel({ title, direction, entries, kind }: { title: string; direct
                         <p className="mt-2 text-sm text-[#68737b]">{serving ? 'Serving trucks will appear here.' : 'Waiting trucks will appear here.'}</p>
                     </div>
                 ) : entries.map((entry, index) => (
-                    <article key={entry.id} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'border-emerald-200 bg-emerald-50' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
+                    <article key={entry.id} style={serving ? { gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'border-emerald-200 bg-emerald-50' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900 }}>
                             {serving ? <Truck className="h-7 w-7" /> : String(index + 1).padStart(2, '0')}
                         </div>
@@ -108,15 +110,15 @@ export default function QueueDisplay() {
                             <div className="text-xs text-white/95 sm:text-base" style={{ fontWeight: 700 }}>Container Yard Management System</div>
                         </div>
                     </div>
-                    <div className="hidden shrink-0 items-center px-3 py-2 text-base uppercase tracking-wider text-white md:flex lg:text-lg" style={{ fontWeight: 900 }}><BellRing className="mr-2 h-5 w-5 fill-current" />Live Queue</div>
+                    <div className="hidden shrink-0 items-center px-3 py-2 text-base uppercase tracking-wider text-white md:flex lg:text-2xl" style={{ fontWeight: 900 }}><BellRing className="mr-2 h-5 w-5 fill-current" />Live Truck Queue</div>
                     <div className="shrink-0 text-right">
-                        <div className="text-2xl leading-tight tabular-nums sm:text-5xl" style={{ fontWeight: 900 }}>{time}</div>
-                        <div className="mt-1 text-xs text-white/95 sm:text-xl" style={{ fontWeight: 900 }}>{date}</div>
+                        <div className="text-2xl leading-tight tabular-nums sm:text-4xl" style={{ fontWeight: 900 }}>{time}</div>
+                        <div className="text-xs text-white/95 sm:text-xl" style={{ fontWeight: 900 }}>{date}</div>
                     </div>
                 </header>
 
-                <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden p-3 sm:gap-5 sm:p-6 lg:p-8" style={{ color: '#202a35', boxSizing: 'border-box' }}>
-                    <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-3 gap-3 md:grid-cols-3 md:grid-rows-1 md:gap-4" style={{ flex: '1 1 0%', minHeight: 0 }}>
+                <div className="queue-page-content flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-3 sm:gap-5 sm:p-6 lg:p-8" style={{ color: '#202a35', boxSizing: 'border-box' }}>
+                    <div className="queue-grid grid min-h-0 gap-3 md:gap-4">
                         <QueuePanel title="WAITING" direction="IN" entries={queue.waiting_in} kind="waiting" />
                         <QueuePanel title="WAITING" direction="OUT" entries={queue.waiting_out} kind="waiting" />
                         <QueuePanel title="SERVING" entries={queue.serving} kind="serving" />
