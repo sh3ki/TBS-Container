@@ -13,6 +13,7 @@ interface AppSettingsProps {
         incoming_rate: number;
         outgoing_rate: number;
         hauler_exceptions: string;
+        preout_hauler_exceptions: string;
         booking_scraping_enabled: boolean;
     };
 }
@@ -21,6 +22,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
     const [incomingRate, setIncomingRate] = useState(String(settings.incoming_rate));
     const [outgoingRate, setOutgoingRate] = useState(String(settings.outgoing_rate));
     const [haulerExceptions, setHaulerExceptions] = useState(settings.hauler_exceptions);
+    const [preoutHaulerExceptions, setPreoutHaulerExceptions] = useState(settings.preout_hauler_exceptions);
     const [bookingScrapingEnabled, setBookingScrapingEnabled] = useState(settings.booking_scraping_enabled);
     const [saving, setSaving] = useState<'docs' | 'queue' | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
@@ -49,6 +51,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
             const response = await axios.put('/app-settings', {
                 section: 'queue',
                 booking_scraping_enabled: bookingScrapingEnabled,
+                preout_hauler_exceptions: preoutHaulerExceptions,
             });
             success(response.data.message || 'Queue settings updated successfully.');
         } catch (exception) {
@@ -147,6 +150,11 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                         <ModernButton type="button" variant={bookingScrapingEnabled ? 'primary' : 'secondary'} size="sm" icon={bookingScrapingEnabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setBookingScrapingEnabled((enabled) => !enabled)}>
                             {bookingScrapingEnabled ? 'ON' : 'OFF'}
                         </ModernButton>
+                    </div>
+                    <div className="mt-4 max-w-4xl">
+                        <Label htmlFor="preout-hauler-exceptions" className="text-sm font-semibold text-gray-900">PRE-OUT HAULER EXCEPTIONS</Label>
+                        <Input id="preout-hauler-exceptions" type="text" value={preoutHaulerExceptions} onChange={(event) => setPreoutHaulerExceptions(event.target.value.toUpperCase())} placeholder="HAULER ONE, HAULER TWO" className="mt-2 h-11 uppercase" />
+                        <p className="mt-1 text-xs text-gray-500">Separate haulers with commas. Matching Pre-Out haulers bypass Booking System verification (case-insensitive).</p>
                     </div>
                     <div className="mt-6 flex items-center gap-3">
                         <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueSettings}>Save Settings</ModernButton>
