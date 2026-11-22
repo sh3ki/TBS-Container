@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Symfony\Component\Process\Process;
 
 class GuardScanController extends Controller
@@ -38,6 +39,12 @@ class GuardScanController extends Controller
 
     public function scanTruckPlate(Request $request)
     {
+        $validated = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'action' => ['required', Rule::in(['return', 'withdraw'])],
+        ]);
+        $direction = $validated['action'] === 'return' ? 'IN' : 'OUT';
+        $oppositeDirection = $direction === 'IN' ? 'OUT' : 'IN';
         $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
         $current = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
         if ($capacity > 0 && $current >= $capacity) {
@@ -47,7 +54,6 @@ class GuardScanController extends Controller
                 'message' => 'Serving capacity is full.',
             ], 409);
         }
-        $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240']]);
         $directory = public_path('truck_plates');
         if (! is_dir($directory)) {
             mkdir($directory, 0755, true);
@@ -97,10 +103,32 @@ class GuardScanController extends Controller
             return response()->json(['success' => false, 'message' => 'Plate number could not be recognized.'], 422);
         }
 
-        $queue = DB::transaction(function () use ($plateNo) {
-            $entries = DB::table('queue_entries')->where('status', 'waiting')->orderBy('created_at')->lockForUpdate()->get();
+        $queue = DB::transaction(function () use ($plateNo, $direction, $oppositeDirection) {
+            $entries = DB::table('queue_entries')
+                ->where('direction', $direction)
+                ->where('status', 'waiting')
+                ->whereNull('completed_at')
+                ->orderBy('waiting_number')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
             $entry = $entries->first(fn ($item) => strtoupper(preg_replace('/[^A-Z0-9]/', '', $item->plate_no)) === $plateNo);
-            if (! $entry) return null;
+            if (! $entry) {
+                $oppositeEntry = DB::table('queue_entries')
+                    ->where('direction', $oppositeDirection)
+                    ->where('status', 'waiting')
+                    ->whereNull('completed_at')
+                    ->orderBy('waiting_number')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->first(fn ($item) => strtoupper(preg_replace('/[^A-Z0-9]/', '', $item->plate_no)) === $plateNo);
+
+                return [
+                    'entry' => null,
+                    'opposite_direction' => $oppositeEntry ? $oppositeDirection : null,
+                ];
+            }
             DB::table('queue_entries')->where('id', $entry->id)->update([
                 'status' => 'serving',
                 'waiting_number' => null,
@@ -133,9 +161,18 @@ class GuardScanController extends Controller
                 ]);
             }
 
-            return $entry;
+            return ['entry' => $entry, 'opposite_direction' => null];
         });
 
-        return response()->json(['success' => true, 'plate_no' => $plateNo, 'queue_updated' => (bool) $queue]);
+        if ($queue['opposite_direction']) {
+            $expectedAction = $queue['opposite_direction'] === 'IN' ? 'Return' : 'Withdraw';
+            return response()->json([
+                'success' => false,
+                'wrong_queue' => true,
+                'message' => "This plate was found in the {$queue['opposite_direction']} queue. Please choose {$expectedAction}.",
+            ], 422);
+        }
+
+        return response()->json(['success' => true, 'plate_no' => $plateNo, 'queue_updated' => (bool) $queue['entry']]);
     }
 }
