@@ -55,13 +55,13 @@ class GuardScanController extends Controller
                 'message' => 'Serving capacity is full.',
             ], 409);
         }
-        $directory = public_path('truck_plates');
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
+        $temporaryDirectory = storage_path('app/guard-scan-tmp');
+        if (! is_dir($temporaryDirectory)) {
+            mkdir($temporaryDirectory, 0755, true);
         }
-        $filename = now()->format('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $request->file('image')->getClientOriginalExtension();
-        $request->file('image')->move($directory, $filename);
-        $imagePath = $directory . DIRECTORY_SEPARATOR . $filename;
+        $temporaryFilename = bin2hex(random_bytes(16)) . '.' . strtolower($request->file('image')->getClientOriginalExtension());
+        $request->file('image')->move($temporaryDirectory, $temporaryFilename);
+        $imagePath = $temporaryDirectory . DIRECTORY_SEPARATOR . $temporaryFilename;
 
         $command = (string) config('services.plate_ocr.command', 'python ocr/plate_ocr.py {image}');
         // FastALPR downloads model files into the user's cache directory. Keep
@@ -96,11 +96,13 @@ class GuardScanController extends Controller
                 'error' => $process->getErrorOutput(),
                 'output' => $process->getOutput(),
             ]);
+            @unlink($imagePath);
             return response()->json(['success' => false, 'message' => 'Plate recognition service is unavailable.'], 503);
         }
         $result = json_decode(trim($process->getOutput()), true);
         $plateNo = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($result['plate_no'] ?? '')));
         if ($plateNo === '') {
+            @unlink($imagePath);
             return response()->json(['success' => false, 'message' => 'Plate number could not be recognized.'], 422);
         }
 
@@ -166,6 +168,7 @@ class GuardScanController extends Controller
         });
 
         if ($queue['opposite_direction']) {
+            @unlink($imagePath);
             $expectedAction = $queue['opposite_direction'] === 'IN' ? 'Return' : 'Withdraw';
             return response()->json([
                 'success' => false,
@@ -176,6 +179,15 @@ class GuardScanController extends Controller
 
         $queueUpdated = (bool) $queue['entry'];
         if ($queueUpdated) {
+            try {
+                $this->saveSuccessfulScanImage($imagePath, $direction, $plateNo);
+            } catch (\Throwable $exception) {
+                \Log::error('Guard successful scan image could not be saved', [
+                    'plate_no' => $plateNo,
+                    'direction' => $direction,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
             DB::table('audit_logs')->insert([
                 'action' => 'SCAN',
                 'description' => sprintf(
@@ -190,6 +202,37 @@ class GuardScanController extends Controller
             ]);
         }
 
+        @unlink($imagePath);
+
         return response()->json(['success' => true, 'plate_no' => $plateNo, 'queue_updated' => $queueUpdated]);
+    }
+
+    private function saveSuccessfulScanImage(string $sourcePath, string $direction, string $plateNo): void
+    {
+        $directory = public_path('truck_plates');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = now()->format('Ymd_His') . '_' . strtolower($direction) . '_' . strtolower($plateNo) . '.jpg';
+        $destination = $directory . DIRECTORY_SEPARATOR . $filename;
+        $extension = strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION));
+        $image = match ($extension) {
+            'jpg', 'jpeg' => imagecreatefromjpeg($sourcePath),
+            'png' => imagecreatefrompng($sourcePath),
+            'webp' => function_exists('imagecreatefromwebp') ? imagecreatefromwebp($sourcePath) : false,
+            default => false,
+        };
+
+        if ($image === false) {
+            throw new \RuntimeException('Unable to convert the successful scan image to JPEG.');
+        }
+
+        imageinterlace($image, true);
+        if (! imagejpeg($image, $destination, 90)) {
+            imagedestroy($image);
+            throw new \RuntimeException('Unable to save the successful scan image.');
+        }
+        imagedestroy($image);
     }
 }
