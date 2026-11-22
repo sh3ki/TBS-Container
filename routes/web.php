@@ -157,24 +157,49 @@ Route::middleware(['auth'])->group(function () {
                 'preout_hauler_exceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
                 'prein_hauler_exceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
                 'booking_scraping_enabled' => (bool) ($settings?->booking_scraping_enabled ?? true),
+                'booking_system_url' => (string) ($settings?->booking_system_url ?: config('services.booking_system.url')),
+                'booking_system_login_url' => (string) ($settings?->booking_system_login_url ?: config('services.booking_system.login_url')),
+                'booking_system_username' => (string) ($settings?->booking_system_username ?: config('services.booking_system.username')),
+                'booking_system_timeout' => (int) ($settings?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
             ],
         ]);
     })->middleware('page.access:app-settings')->name('app-settings.index');
 
     Route::put('/app-settings', function (Request $request, AuditService $auditService) {
         $rules = [
-            'section' => ['required', 'string', 'in:docs_fee,queue'],
+            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'booking_scraping_enabled' => ['sometimes', 'boolean'],
             'serving_capacity' => ['sometimes', 'integer', 'min:0'],
+            'booking_system_url' => ['required_if:section,booking_credentials', 'url', 'max:2048'],
+            'booking_system_login_url' => ['nullable', 'url', 'max:2048'],
+            'booking_system_username' => ['required_if:section,booking_credentials', 'string', 'max:255'],
+            'booking_system_password' => ['nullable', 'string', 'max:5000'],
+            'booking_system_timeout' => ['required_if:section,booking_credentials', 'integer', 'min:1', 'max:300'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
             $rules['outgoing_rate'] = ['required', 'numeric', 'gt:0'];
         }
         $validated = $request->validate($rules);
+
+        if ($validated['section'] === 'booking_credentials') {
+            $updates = [
+                'booking_system_url' => $validated['booking_system_url'],
+                'booking_system_login_url' => $validated['booking_system_login_url'] ?? null,
+                'booking_system_username' => $validated['booking_system_username'],
+                'booking_system_timeout' => (int) $validated['booking_system_timeout'],
+                'updated_at' => now(),
+            ];
+            if (!empty($validated['booking_system_password'])) {
+                $updates['booking_system_password'] = encrypt($validated['booking_system_password']);
+            }
+            DB::table('app_settings')->where('setting_id', 1)->update($updates);
+
+            return response()->json(['message' => 'Booking System credentials updated successfully.']);
+        }
 
         if ($validated['section'] === 'queue') {
             $updates = ['updated_at' => now()];
