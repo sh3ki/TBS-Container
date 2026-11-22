@@ -18,8 +18,9 @@ class AuditLogsController extends Controller
         
         // If no date range provided, default to last 7 days
         if (!$dateFrom && !$dateTo) {
-            $dateTo = date('Y-m-d');
-            $dateFrom = date('Y-m-d', strtotime('-7 days'));
+            $manilaToday = now('Asia/Manila')->startOfDay();
+            $dateTo = $manilaToday->toDateString();
+            $dateFrom = $manilaToday->copy()->subDays(7)->toDateString();
         }
 
         $query = DB::table('audit_logs as a')
