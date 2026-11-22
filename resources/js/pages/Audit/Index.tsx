@@ -76,13 +76,25 @@ export default function Index() {
     const loadAllAuditLogs = async () => {
         setLoading(true);
         try {
-            // Get last 7 days
-            const today = new Date();
-            const sevenDaysAgo = new Date(today);
-            sevenDaysAgo.setDate(today.getDate() - 7);
-            
-            const dateFromDefault = sevenDaysAgo.toISOString().split('T')[0];
-            const dateToDefault = today.toISOString().split('T')[0];
+            // Get the last 7 days using Manila calendar dates. Do not use
+            // toISOString() directly because it converts the browser time to UTC.
+            const manilaParts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            }).formatToParts(new Date());
+            const part = (type: string) => manilaParts.find(({ type: currentType }) => currentType === type)?.value ?? '';
+            const manilaToday = new Date(Date.UTC(
+                Number(part('year')),
+                Number(part('month')) - 1,
+                Number(part('day')),
+            ));
+            const sevenDaysAgo = new Date(manilaToday);
+            sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 7);
+
+            const dateFromDefault = sevenDaysAgo.toISOString().slice(0, 10);
+            const dateToDefault = manilaToday.toISOString().slice(0, 10);
             
             // Set default date values
             setDateFrom(dateFromDefault);
