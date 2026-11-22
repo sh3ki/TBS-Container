@@ -7,12 +7,15 @@ import sys
 
 from fast_alpr import ALPR
 
+DETECTOR_CONFIDENCE_THRESHOLD = 0.85
+
 
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("image path required")
     alpr = ALPR(
         detector_model="yolo-v9-t-384-license-plate-end2end",
+        detector_conf_thresh=DETECTOR_CONFIDENCE_THRESHOLD,
         ocr_model="cct-xs-v2-global-model",
         detector_providers=["CPUExecutionProvider"],
         ocr_providers=["CPUExecutionProvider"],
