@@ -7,9 +7,9 @@ return [
         'login_url' => env('BOOKING_SYSTEM_LOGIN_URL'),
         'username' => env('BOOKING_SYSTEM_USERNAME'),
         'password' => env('BOOKING_SYSTEM_PASSWORD'),
-        'username_field' => env('BOOKING_SYSTEM_USERNAME_FIELD', 'username'),
-        'password_field' => env('BOOKING_SYSTEM_PASSWORD_FIELD', 'password'),
-        'container_parameter' => env('BOOKING_SYSTEM_CONTAINER_PARAMETER', 'container_no'),
+        'username_field' => 'username',
+        'password_field' => 'password',
+        'container_parameter' => 'container_no',
         'timeout' => env('BOOKING_SYSTEM_TIMEOUT', 20),
     ],
 
