@@ -143,7 +143,7 @@ class MobileAuthController extends Controller
             // Create comprehensive audit log entry
             DB::table('audit_logs')->insert([
                 'action' => 'LOGOUT',
-                'description' => '[MOBILE] User logged out: Username: "' . $username . '" | User: "' . $userFullName . '"',
+                'description' => '[AUTH] User logged out.',
                 'user_id' => $auditUserId,
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
@@ -171,8 +171,8 @@ class MobileAuthController extends Controller
         try {
             $action = 'LOGIN';
             $description = $success
-                ? '[MOBILE] User logged in: Username: "' . $username . '"'
-                : '[MOBILE] Failed login attempt for username: "' . $username . '"' . ($reason ? ' - ' . $reason : '');
+                ? '[AUTH] User logged in.'
+                : '[AUTH] Failed login attempt for username "' . $username . '"' . ($reason ? ': ' . $reason . '.' : '.');
 
             // Use user_id from parameter if available, otherwise use the username for identification
             $auditUserId = $userId ?: null;
