@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\BookingLookupException;
 use Carbon\Carbon;
 use GuzzleHttp\Cookie\CookieJar;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use DOMDocument;
 use DOMXPath;
@@ -13,20 +14,18 @@ class BookingSystemService
 {
     public function findVerifiedBooking(string $containerNo): array
     {
-        $url = (string) config('services.booking_system.url');
-        $username = (string) config('services.booking_system.username');
-        $password = (string) config('services.booking_system.password');
+        ['url' => $url, 'username' => $username, 'password' => $password, 'login_url' => $loginUrl, 'timeout' => $timeout] = $this->credentials();
 
         if ($url === '' || $username === '' || $password === '') {
             throw new BookingLookupException('Booking System credentials are not configured.');
         }
 
         $jar = new CookieJar();
-        $client = Http::timeout((int) config('services.booking_system.timeout', 20))
+        $client = Http::timeout($timeout)
             ->withOptions(['allow_redirects' => true, 'cookies' => $jar])
             ->withHeaders(['User-Agent' => 'TBS Container Yard/1.0']);
 
-        $loginUrl = (string) (config('services.booking_system.login_url') ?: $url);
+        $loginUrl = $loginUrl ?: $url;
         $loginPage = $client->get($loginUrl);
         if (!$loginPage->successful()) {
             throw new BookingLookupException('Unable to connect to Booking System.');
@@ -117,16 +116,14 @@ class BookingSystemService
 
     private function fetchInitialSummaryBrokerResponse(): string
     {
-        $url = (string) config('services.booking_system.url');
-        $username = (string) config('services.booking_system.username');
-        $password = (string) config('services.booking_system.password');
+        ['url' => $url, 'username' => $username, 'password' => $password, 'login_url' => $loginUrl, 'timeout' => $timeout] = $this->credentials();
         if ($url === '' || $username === '' || $password === '') throw new BookingLookupException('Booking System credentials are not configured.');
 
         $jar = new CookieJar();
-        $client = Http::timeout((int) config('services.booking_system.timeout', 20))
+        $client = Http::timeout($timeout)
             ->withOptions(['allow_redirects' => true, 'cookies' => $jar])
             ->withHeaders(['User-Agent' => 'TBS Container Yard/1.0']);
-        $loginUrl = (string) (config('services.booking_system.login_url') ?: $url);
+        $loginUrl = $loginUrl ?: $url;
         $loginPage = $client->get($loginUrl);
         if (!$loginPage->successful()) throw new BookingLookupException('Unable to connect to Booking System.');
         $loginEvent = $this->eventFromFunction($loginPage->body(), 'jLogin');
@@ -140,6 +137,28 @@ class BookingSystemService
         if ($initEvent === null) throw new BookingLookupException('Unable to load Booking System records.');
         $response = $this->brokerCall($client, $jar, $url, $initEvent, []);
         return $response->body();
+    }
+
+    private function credentials(): array
+    {
+        $configured = DB::table('app_settings')->where('setting_id', 1)->first();
+        $password = (string) config('services.booking_system.password');
+
+        if (!empty($configured?->booking_system_password)) {
+            try {
+                $password = decrypt($configured->booking_system_password);
+            } catch (\Throwable) {
+                $password = (string) $configured->booking_system_password;
+            }
+        }
+
+        return [
+            'url' => (string) ($configured?->booking_system_url ?: config('services.booking_system.url')),
+            'login_url' => (string) ($configured?->booking_system_login_url ?: config('services.booking_system.login_url')),
+            'username' => (string) ($configured?->booking_system_username ?: config('services.booking_system.username')),
+            'password' => $password,
+            'timeout' => (int) ($configured?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
+        ];
     }
 
     private function parseBookingTime(string $bookingDate, string $timeSlot): string
