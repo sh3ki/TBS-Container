@@ -42,6 +42,7 @@ class GuardScanController extends Controller
         $validated = $request->validate([
             'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'action' => ['required', Rule::in(['return', 'withdraw'])],
+            'user_id' => ['nullable', 'integer'],
         ]);
         $direction = $validated['action'] === 'return' ? 'IN' : 'OUT';
         $oppositeDirection = $direction === 'IN' ? 'OUT' : 'IN';
@@ -173,6 +174,22 @@ class GuardScanController extends Controller
             ], 422);
         }
 
-        return response()->json(['success' => true, 'plate_no' => $plateNo, 'queue_updated' => (bool) $queue['entry']]);
+        $queueUpdated = (bool) $queue['entry'];
+        if ($queueUpdated) {
+            DB::table('audit_logs')->insert([
+                'action' => 'SCAN',
+                'description' => sprintf(
+                    '[SCAN %s] Scanned Plate "%s" for %s and moved to serving.',
+                    strtoupper($validated['action']),
+                    $plateNo,
+                    $validated['action']
+                ),
+                'user_id' => $validated['user_id'] ?? 0,
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
+        return response()->json(['success' => true, 'plate_no' => $plateNo, 'queue_updated' => $queueUpdated]);
     }
 }
