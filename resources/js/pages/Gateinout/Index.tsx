@@ -1493,7 +1493,7 @@ export default function Index() {
                 >
                   <span>
                     <span className="block font-medium text-gray-900">Not in Booking</span>
-                    <span className="mt-1 block text-xs text-gray-500">Bypass Booking System scraping for this Pre-Out.</span>
+                    <span className="mt-1 block text-xs text-gray-500">Truck is not in Booking for this Pre-Out.</span>
                   </span>
                   <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${preOutForm.not_in_booking ? 'bg-blue-500' : 'bg-gray-300'}`}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${preOutForm.not_in_booking ? 'translate-x-6' : 'translate-x-1'}`} />
