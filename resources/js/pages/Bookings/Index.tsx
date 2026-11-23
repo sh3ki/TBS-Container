@@ -791,9 +791,10 @@ export default function Index() {
           (booking) => booking.hashed_id !== bookingToDelete.hashed_id
         ));
       }
-    } catch {
+    } catch (err: unknown) {
       setConfirmDeleteBooking(false);
-      error('Failed to delete booking');
+      const responseError = err as { response?: { data?: { message?: string } } };
+      error(responseError.response?.data?.message || 'Failed to delete booking');
     }
   };
 
