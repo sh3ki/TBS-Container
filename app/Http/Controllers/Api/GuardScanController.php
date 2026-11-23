@@ -52,6 +52,15 @@ class GuardScanController extends Controller
 
             if ($validated['status'] === 'calling') {
                 abort_unless($entry->status === 'waiting', 409, 'Only waiting trucks can be called.');
+                $firstEntry = DB::table('queue_entries')
+                    ->where('direction', $entry->direction)
+                    ->whereIn('status', ['waiting', 'calling', 'floating'])
+                    ->whereNull('completed_at')
+                    ->orderBy('waiting_number')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->first();
+                abort_unless($firstEntry && (int) $firstEntry->id === (int) $entry->id, 409, 'Only the first waiting truck can be called.');
                 DB::table('queue_entries')->where('id', $entry->id)->update([
                     'status' => 'calling', 'calling_at' => now(), 'updated_at' => now(),
                 ]);
