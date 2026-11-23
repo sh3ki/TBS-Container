@@ -19,7 +19,17 @@ class MobileAuthController extends Controller
      * Mobile login with plain text credentials (old system compatibility).
      * This is a separate endpoint from the main auth API.
      */
-    public function login(Request $request)
+    public function checkerLogin(Request $request)
+    {
+        return $this->authenticate($request, 'CHECKER');
+    }
+
+    public function guardLogin(Request $request)
+    {
+        return $this->authenticate($request, 'GUARD');
+    }
+
+    private function authenticate(Request $request, string $appCode)
     {
         $credentials = $request->validate([
             'username' => 'required|string',
@@ -28,6 +38,7 @@ class MobileAuthController extends Controller
 
         $username = strtolower($credentials['username']);
         $password = $credentials['password'];
+        $roleColumn = $appCode === 'GUARD' ? 'is_guard' : 'is_checker';
 
         // Log the mobile login attempt
         Log::info('Mobile login attempt', [
@@ -55,6 +66,16 @@ class MobileAuthController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Your account is archived. Please contact administrator.',
+                ], 403);
+            }
+
+            if ((int) ($user->{$roleColumn} ?? 0) !== 1) {
+                $roleName = $appCode === 'GUARD' ? 'guard' : 'checker';
+                $this->logLoginAttempt(false, $username, $request->ip(), "Not authorized for the {$roleName} app");
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "This account is not authorized for the {$roleName} app.",
                 ], 403);
             }
 
@@ -86,6 +107,8 @@ class MobileAuthController extends Controller
                     'username' => $user->username,
                     'full_name' => $user->full_name,
                     'email' => $user->email,
+                    'is_checker' => (int) $user->is_checker,
+                    'is_guard' => (int) $user->is_guard,
                 ],
                 'token' => $token,
             ], 200);
