@@ -204,6 +204,46 @@ class GateinoutController extends Controller
         return response()->json(['success' => true, 'entry' => $entry]);
     }
 
+    public function updateQueueStatus(Request $request)
+    {
+        $user = $request->user();
+        $canEdit = $user && DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->where('pages.page', 'queuelist')
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.acs_edit', 1)
+            ->exists();
+        abort_unless($canEdit, 403);
+
+        $validated = $request->validate([
+            'id' => ['required', 'integer'],
+            'status' => ['required', 'in:calling,floating,forfeited'],
+        ]);
+
+        $entry = DB::transaction(function () use ($validated) {
+            $entry = DB::table('queue_entries')->where('id', $validated['id'])->lockForUpdate()->first();
+            abort_unless($entry, 404, 'Queue entry not found.');
+
+            $allowedPreviousStatus = match ($validated['status']) {
+                'calling' => ['waiting'],
+                'floating' => ['calling'],
+                'forfeited' => ['floating'],
+            };
+            abort_unless(in_array($entry->status, $allowedPreviousStatus, true), 409, 'This queue status transition is not allowed.');
+
+            $timestampColumn = $validated['status'] . '_at';
+            DB::table('queue_entries')->where('id', $entry->id)->update([
+                'status' => $validated['status'],
+                $timestampColumn => now(),
+                'updated_at' => now(),
+            ]);
+
+            return DB::table('queue_entries')->where('id', $entry->id)->first();
+        });
+
+        return response()->json(['success' => true, 'entry' => $entry]);
+    }
+
     private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): void
     {
         $table = 'queue_entries';
