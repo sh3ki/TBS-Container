@@ -55,7 +55,7 @@ Route::prefix('mobile')->group(function () {
             'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
         ]);
     });
-    Route::post('/login', [MobileAuthController::class, 'login']);
+    Route::post('/login', [MobileAuthController::class, 'checkerLogin']);
     Route::post('/logout', [MobileAuthController::class, 'logout']);
     // Mobile Gate In/Out Routes
     Route::prefix('gateinout')->group(function () {
@@ -95,7 +95,7 @@ Route::prefix('guard')->group(function () {
             'update_app_modal' => (bool) ($settings?->update_app_modal ?? false),
         ]);
     });
-    Route::post('/login', [MobileAuthController::class, 'login']);
+    Route::post('/login', [MobileAuthController::class, 'guardLogin']);
     Route::post('/logout', [MobileAuthController::class, 'logout']);
     Route::prefix('gateinout')->group(function () {
         Route::post('/list', [MobileGateinoutController::class, 'getPreInventoryList']);
