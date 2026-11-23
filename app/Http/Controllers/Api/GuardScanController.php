@@ -175,9 +175,9 @@ class GuardScanController extends Controller
 
             // Floating trucks may be scanned from any position. Calling trucks
             // may only be scanned when they are first in their direction.
-            $nextEntry = $entries->first();
+            $firstCallingEntry = $entries->first(fn ($item) => $item->status === 'calling');
             $isEligible = $entry->status === 'floating'
-                || ($entry->status === 'calling' && $nextEntry && (int) $nextEntry->id === (int) $entry->id);
+                || ($entry->status === 'calling' && $firstCallingEntry && (int) $firstCallingEntry->id === (int) $entry->id);
             if (! $isEligible) {
                 return [
                     'entry' => null,
