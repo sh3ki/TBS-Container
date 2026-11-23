@@ -742,6 +742,12 @@ class GateinoutController extends Controller
                  WHERE p_id = :id",
                 ['cno' => $containerNo, 'cid' => $client->c_id, 'pno' => $plateNo, 'id' => $realId]
             );
+
+            // Keep every queue entry linked to this pre-inventory record in
+            // sync with the edited plate number.
+            DB::table('queue_entries')
+                ->where('pre_inventory_id', $realId)
+                ->update(['plate_no' => $plateNo, 'updated_at' => now()]);
             
             // Log audit - EDIT action with changes
             if (count($changes) > 0) {
@@ -858,6 +864,12 @@ class GateinoutController extends Controller
                  WHERE p_id = :id",
                 ['pno' => $plateNo, 'hau' => $hauler, 'id' => $realId]
             );
+
+            // Keep every queue entry linked to this pre-inventory record in
+            // sync with the edited plate number.
+            DB::table('queue_entries')
+                ->where('pre_inventory_id', $realId)
+                ->update(['plate_no' => $plateNo, 'updated_at' => now()]);
             
             // Log audit - EDIT action with changes
             if (count($changes) > 0) {
