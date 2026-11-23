@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { BellRing, Box, CircleHelp, List, Radio, Truck } from 'lucide-react';
+import { servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 
 interface QueueEntry {
     id: number;
@@ -28,63 +29,6 @@ function useClock() {
         return () => window.clearInterval(timer);
     }, []);
     return now;
-}
-
-function servingStartedAt(servingAt: string | null | undefined): number {
-    if (!servingAt) return Number.NaN;
-
-    // MySQL timestamps are returned without an offset. Interpret those values
-    // as Manila time so the display is independent of the monitor's timezone.
-    const value = servingAt.trim().replace(' ', 'T');
-    const timestamp = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
-        ? Date.parse(value)
-        : (() => {
-            const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?/);
-            if (!parts) return Number.NaN;
-            const milliseconds = Number((parts[7] ?? '').padEnd(3, '0').slice(0, 3) || 0);
-            return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4]), Number(parts[5]), Number(parts[6] ?? 0), milliseconds) - (8 * 60 * 60 * 1000);
-        })();
-
-    return timestamp;
-}
-
-function servingElapsedSeconds(servingAt: string | null | undefined, now: Date): number {
-    const timestamp = servingStartedAt(servingAt);
-    if (!Number.isFinite(timestamp)) return 0;
-
-    return Math.max(0, Math.floor((now.getTime() - timestamp) / 1000));
-}
-
-function servingRuntime(servingAt: string | null | undefined, now: Date): string {
-    const elapsed = servingElapsedSeconds(servingAt, now);
-    const hours = Math.floor(elapsed / 3600);
-    const minutes = Math.floor((elapsed % 3600) / 60);
-    const seconds = elapsed % 60;
-    return `Runtime: ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
-function servingCardColors(servingAt: string | null | undefined, now: Date): CSSProperties {
-    const minutes = servingElapsedSeconds(servingAt, now) / 60;
-
-    if (minutes >= 60) return { backgroundColor: '#F1D5DE', borderColor: '#9F3853', color: '#202A35' };
-    if (minutes >= 45) return { backgroundColor: '#FEE2E2', borderColor: '#EF4444', color: '#7F1D1D' };
-    if (minutes >= 30) return { backgroundColor: '#FFEDD5', borderColor: '#F97316', color: '#9A3412' };
-    if (minutes >= 20) return { backgroundColor: '#FEF9C3', borderColor: '#EAB308', color: '#854D0E' };
-    return { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', color: '#065F46' };
-}
-
-function servingAccentColors(servingAt: string | null | undefined, now: Date): CSSProperties {
-    const minutes = servingElapsedSeconds(servingAt, now) / 60;
-
-    if (minutes >= 60) return { backgroundColor: '#DFA1B2', color: '#8F2945' };
-    if (minutes >= 45) return { backgroundColor: '#FECACA', color: '#B91C1C' };
-    if (minutes >= 30) return { backgroundColor: '#FED7AA', color: '#C2410C' };
-    if (minutes >= 20) return { backgroundColor: '#FEF08A', color: '#A16207' };
-    return { backgroundColor: '#D1FAE5', color: '#047857' };
-}
-
-function servingPlateTextColor(servingAt: string | null | undefined, now: Date): string {
-    return '#202A35';
 }
 
 function QueuePanel({ title, direction, entries, kind, now }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; now: Date }) {
