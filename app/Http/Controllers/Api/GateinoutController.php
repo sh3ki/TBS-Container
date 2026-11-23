@@ -74,12 +74,13 @@ class GateinoutController extends Controller
     public function getQueueDisplay()
     {
         try {
+            $activeStatuses = ['waiting', 'calling', 'floating'];
             $waitingIn = DB::table('queue_entries')
-                ->where('direction', 'IN')->where('status', 'waiting')->whereNull('completed_at')
-                ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
+                ->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
             $waitingOut = DB::table('queue_entries')
-                ->where('direction', 'OUT')->where('status', 'waiting')->whereNull('completed_at')
-                ->orderBy('waiting_number')->get(['id', 'plate_no', 'waiting_number', 'booking_time']);
+                ->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
             $serving = DB::table('queue_entries')
                 ->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')
                 ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
@@ -170,7 +171,7 @@ class GateinoutController extends Controller
         $userId = $request->user()?->user_id ?? auth()->id();
 
         $entry = DB::transaction(function () use ($validated) {
-            $entry = DB::table('queue_entries')->where('id', $validated['id'])->where('status', 'waiting')->lockForUpdate()->first();
+            $entry = DB::table('queue_entries')->where('id', $validated['id'])->whereIn('status', ['waiting', 'calling', 'floating'])->lockForUpdate()->first();
             abort_unless($entry, 404, 'Queue entry not found.');
             $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
             $currentServing = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
@@ -188,7 +189,7 @@ class GateinoutController extends Controller
             }
             array_splice($servingIds, $insertAt, 0, [(int) $entry->id]);
             foreach ($servingIds as $index => $servingId) DB::table('queue_entries')->where('id', $servingId)->update(['serving_number' => $index + 1, 'updated_at' => now()]);
-            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->where('status', 'waiting')->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
+            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->whereIn('status', ['waiting', 'calling', 'floating'])->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
             foreach ($waiting as $index => $waitingEntry) DB::table('queue_entries')->where('id', $waitingEntry->id)->update(['waiting_number' => $index + 1, 'updated_at' => now()]);
             $servingNumber = (int) DB::table('queue_entries')->where('id', $entry->id)->value('serving_number');
             return ['id' => (int) $entry->id, 'plate_no' => $entry->plate_no, 'direction' => $entry->direction, 'serving_number' => $servingNumber];
@@ -273,7 +274,7 @@ class GateinoutController extends Controller
         $entry = DB::table('queue_entries')
             ->where('pre_inventory_id', $preInventoryId)
             ->where('direction', $direction)
-            ->whereIn('status', ['waiting', 'serving'])
+            ->whereIn('status', ['waiting', 'calling', 'floating', 'serving'])
             ->lockForUpdate()
             ->first();
 
