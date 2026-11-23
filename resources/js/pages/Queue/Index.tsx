@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { List, Radio, Settings, Truck } from 'lucide-react';
+import { Flag, List, Megaphone, Pause, Radio, Settings, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { colors } from '@/lib/colors';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
@@ -21,13 +21,18 @@ function useClock() {
     return now;
 }
 
-function QueueColumn({ title, direction, group, entries, serving = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, servingId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[]) => void; onServe?: (entry: QueueEntry) => void; servingId?: number | null; now: Date }) {
+function QueueColumn({ title, direction, group, entries, serving = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, servingId, onStatus, statusId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[]) => void; onServe?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date }) {
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<number | null>(null);
     const renderEntries = (list: QueueEntry[], listGroup: string, listDirection?: 'IN' | 'OUT') => list.length === 0 ? <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-[#68737b]"><List className="mb-3 h-8 w-8 text-[#3E9AF4]" /><p className="font-semibold">Queue is empty</p></div> : list.map((entry, index) => { const activeStatus = entry.status === 'calling' || entry.status === 'floating'; const activeColor = activeStatus ? activeQueueRuntimeColor(entry, now) : undefined; return <article key={entry.id} draggable={canEdit} onDragStart={(event) => { setDragging(index); setActiveGroup(listGroup); event.dataTransfer.setData('queue-group', listGroup); event.dataTransfer.effectAllowed = 'move'; }} onDragOver={(event) => { if (canEdit && activeGroup === listGroup) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropTarget(index); if (dragging !== null && dragging !== index) { onMove(dragging, index, listDirection); setDragging(index); } } }} onDragLeave={() => setDropTarget(null)} onDrop={(event) => { event.preventDefault(); if (canEdit && activeGroup === listGroup) onCommit(listDirection, list.map((item) => item.id)); setDragging(null); setDropTarget(null); setActiveGroup(null); }} onDragEnd={() => { setDragging(null); setDropTarget(null); setActiveGroup(null); }} style={serving ? servingCardColors(entry.serving_at, now) : activeStatus ? activeQueueCardColors() : undefined} className={`relative flex items-center gap-3 rounded-lg border px-3 py-3 transition-all duration-200 ease-out ${dragging === index && activeGroup === listGroup ? 'scale-[1.02] cursor-grabbing opacity-50 shadow-lg' : canEdit ? 'cursor-grab' : ''} ${dropTarget === index && activeGroup === listGroup ? 'border-t-4 border-t-blue-500' : ''} ${serving ? '' : activeStatus || index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black ${serving ? '' : activeStatus || index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{serving ? <Truck className="h-5 w-5" /> : String(index + 1).padStart(2, '0')}</div>
                 <div className="min-w-0 flex-1"><p className="break-all text-xl font-extrabold tracking-wide" style={{ color: serving ? servingPlateTextColor() : '#202a35' }}>{entry.plate_no}</p><p className={`text-xs font-bold ${serving ? '' : activeStatus || index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`} style={serving ? { color: servingAccentColors(entry.serving_at, now).color } : activeStatus ? { color: activeColor } : undefined}>{serving ? servingRuntime(entry.serving_at, now) : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : index === 0 ? 'Next in line' : 'Waiting'}</p></div>
-                {!serving && canEdit && <button type="button" disabled={servingId === entry.id} onClick={(event) => { event.stopPropagation(); onServe?.(entry); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"><Truck className="h-4 w-4 text-white" />{servingId === entry.id ? 'Serving...' : 'Serve'}</button>}
+                {!serving && canEdit && <div className="flex shrink-0 flex-col items-stretch gap-1.5">
+                    {entry.status === 'waiting' && <button type="button" disabled={statusId === entry.id} onClick={(event) => { event.stopPropagation(); onStatus?.(entry, 'calling'); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:opacity-60"><Megaphone className="h-3.5 w-3.5" />Call</button>}
+                    {entry.status === 'calling' && <button type="button" disabled={statusId === entry.id} onClick={(event) => { event.stopPropagation(); onStatus?.(entry, 'floating'); }} className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-60"><Pause className="h-3.5 w-3.5" />Float</button>}
+                    {entry.status === 'floating' && <button type="button" disabled={statusId === entry.id} onClick={(event) => { event.stopPropagation(); onStatus?.(entry, 'forfeited'); }} className="inline-flex items-center gap-1 rounded-lg bg-red-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-red-600 disabled:opacity-60"><Flag className="h-3.5 w-3.5" />Forfeit</button>}
+                    <button type="button" disabled={servingId === entry.id} onClick={(event) => { event.stopPropagation(); onServe?.(entry); }} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"><Truck className="h-3.5 w-3.5 text-white" />{servingId === entry.id ? 'Serving...' : 'Serve'}</button>
+                </div>}
                 <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : activeStatus || index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
             </article>; });
     return <section className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#d8dde3] bg-white shadow-sm">
@@ -61,6 +66,8 @@ export default function QueueIndex() {
     const [savingCapacity, setSavingCapacity] = useState(false);
     const [servingId, setServingId] = useState<number | null>(null);
     const [serveConfirmation, setServeConfirmation] = useState<QueueEntry | null>(null);
+    const [statusConfirmation, setStatusConfirmation] = useState<{ entry: QueueEntry; status: 'calling' | 'floating' | 'forfeited' } | null>(null);
+    const [statusId, setStatusId] = useState<number | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
     useEffect(() => {
         let active = true;
@@ -132,6 +139,23 @@ export default function QueueIndex() {
             setServingId(null);
         }
     };
+    const updateQueueStatus = async (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => {
+        setStatusId(entry.id);
+        try {
+            const response = await axios.post('/api/gateinout/queue/status', { id: entry.id, status });
+            const updated = response.data.entry as QueueEntry;
+            setQueue((current) => ({
+                ...current,
+                waiting_in: status === 'forfeited' ? current.waiting_in.filter((item) => item.id !== entry.id) : current.waiting_in.map((item) => item.id === entry.id ? updated : item),
+                waiting_out: status === 'forfeited' ? current.waiting_out.filter((item) => item.id !== entry.id) : current.waiting_out.map((item) => item.id === entry.id ? updated : item),
+            }));
+            success(`${entry.plate_no} marked as ${status}.`);
+        } catch (exception: any) {
+            error(exception?.response?.data?.message ?? 'Unable to update this queue entry.');
+        } finally {
+            setStatusId(null);
+        }
+    };
     return (
         <AuthenticatedLayout>
             <Head title="Queue" />
@@ -151,8 +175,8 @@ export default function QueueIndex() {
                     {canEditQueue && <button type="button" onClick={() => { setCapacity(String(servingCapacity)); setCapacityOpen(true); }} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
                 </div>
                 <div className="queue-list-grid grid min-h-0 gap-4">
-                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids) => commitQueueOrder('waiting_in', ids)} onServe={setServeConfirmation} servingId={servingId} now={now} />
-                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids) => commitQueueOrder('waiting_out', ids)} onServe={setServeConfirmation} servingId={servingId} now={now} />
+                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids) => commitQueueOrder('waiting_in', ids)} onServe={setServeConfirmation} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
+                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids) => commitQueueOrder('waiting_out', ids)} onServe={setServeConfirmation} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
                     <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} />
                 </div>
             </div>
@@ -167,6 +191,18 @@ export default function QueueIndex() {
                 confirmText="Serve Truck"
                 cancelText="Cancel"
                 type="success"
+            />
+            <ModernConfirmDialog
+                open={statusConfirmation !== null}
+                onOpenChange={(open) => { if (!open && statusId === null) setStatusConfirmation(null); }}
+                onConfirm={async () => {
+                    if (statusConfirmation) await updateQueueStatus(statusConfirmation.entry, statusConfirmation.status);
+                }}
+                title={`${statusConfirmation?.status === 'calling' ? 'Call' : statusConfirmation?.status === 'floating' ? 'Float' : 'Forfeit'} this truck?`}
+                description={statusConfirmation ? `Are you sure you want to mark plate ${statusConfirmation.entry.plate_no} as ${statusConfirmation.status}?` : ''}
+                confirmText={statusConfirmation?.status === 'calling' ? 'Call Truck' : statusConfirmation?.status === 'floating' ? 'Float Truck' : 'Forfeit Truck'}
+                cancelText="Cancel"
+                type={statusConfirmation?.status === 'forfeited' ? 'danger' : statusConfirmation?.status === 'floating' ? 'warning' : 'info'}
             />
             {capacityOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setCapacityOpen(false)}>
                 <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
