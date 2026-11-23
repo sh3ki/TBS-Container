@@ -54,7 +54,7 @@ class GuardScanController extends Controller
                 abort_unless($entry->status === 'waiting', 409, 'Only waiting trucks can be called.');
                 $firstEntry = DB::table('queue_entries')
                     ->where('direction', $entry->direction)
-                    ->whereIn('status', ['waiting', 'calling', 'floating'])
+                    ->where('status', 'waiting')
                     ->whereNull('completed_at')
                     ->orderBy('waiting_number')
                     ->orderBy('id')
