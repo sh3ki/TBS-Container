@@ -43,6 +43,8 @@ class User extends Authenticatable
         'date_added',
         'archived',
         'checker_id',
+        'is_checker',
+        'is_guard',
     ];
 
     /**
@@ -64,6 +66,8 @@ class User extends Authenticatable
         return [
             'date_added' => 'datetime',
             'archived' => 'boolean',
+            'is_checker' => 'boolean',
+            'is_guard' => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
