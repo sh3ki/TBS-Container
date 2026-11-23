@@ -52,3 +52,28 @@ export function servingAccentColors(servingAt: string | null | undefined, now: D
 export function servingPlateTextColor(): string {
     return '#202A35';
 }
+
+export function activeQueueTimestamp(entry: { status?: string; calling_at?: string | null; floating_at?: string | null }): string | null | undefined {
+    return entry.status === 'floating' ? entry.floating_at : entry.status === 'calling' ? entry.calling_at : undefined;
+}
+
+export function activeQueueRuntime(entry: { status?: string; calling_at?: string | null; floating_at?: string | null }, now: Date): string {
+    return servingRuntime(activeQueueTimestamp(entry), now);
+}
+
+export function activeQueueLabel(entry: { status?: string }): string {
+    return entry.status === 'calling' ? 'Calling' : entry.status === 'floating' ? 'Floating' : '';
+}
+
+export function activeQueueCardColors(): CSSProperties {
+    return { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', color: '#202A35' };
+}
+
+export function activeQueueRuntimeColor(entry: { status?: string; calling_at?: string | null; floating_at?: string | null }, now: Date): string {
+    const minutes = servingElapsedSeconds(activeQueueTimestamp(entry), now) / 60;
+    if (minutes >= 45) return '#8F2945';
+    if (minutes >= 30) return '#B91C1C';
+    if (minutes >= 20) return '#C2410C';
+    if (minutes >= 10) return '#A16207';
+    return '#047857';
+}
