@@ -104,7 +104,7 @@ export default function QueueDisplay() {
             }
         };
         refresh();
-        const timer = window.setInterval(refresh, 5000);
+        const timer = window.setInterval(refresh, 1000);
         return () => { active = false; window.clearInterval(timer); };
     }, []);
 
