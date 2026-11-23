@@ -30,8 +30,8 @@ function useClock() {
     return now;
 }
 
-function servingRuntime(servingAt: string | null | undefined, now: Date): string {
-    if (!servingAt) return 'Runtime: 00:00:00';
+function servingStartedAt(servingAt: string | null | undefined): number {
+    if (!servingAt) return Number.NaN;
 
     // MySQL timestamps are returned without an offset. Interpret those values
     // as Manila time so the display is independent of the monitor's timezone.
@@ -45,13 +45,46 @@ function servingRuntime(servingAt: string | null | undefined, now: Date): string
             return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4]), Number(parts[5]), Number(parts[6] ?? 0), milliseconds) - (8 * 60 * 60 * 1000);
         })();
 
-    if (!Number.isFinite(timestamp)) return 'Runtime: 00:00:00';
+    return timestamp;
+}
 
-    const elapsed = Math.max(0, Math.floor((now.getTime() - timestamp) / 1000));
+function servingElapsedSeconds(servingAt: string | null | undefined, now: Date): number {
+    const timestamp = servingStartedAt(servingAt);
+    if (!Number.isFinite(timestamp)) return 0;
+
+    return Math.max(0, Math.floor((now.getTime() - timestamp) / 1000));
+}
+
+function servingRuntime(servingAt: string | null | undefined, now: Date): string {
+    const elapsed = servingElapsedSeconds(servingAt, now);
     const hours = Math.floor(elapsed / 3600);
     const minutes = Math.floor((elapsed % 3600) / 60);
     const seconds = elapsed % 60;
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    return `Runtime: ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function servingCardColors(servingAt: string | null | undefined, now: Date): CSSProperties {
+    const minutes = servingElapsedSeconds(servingAt, now) / 60;
+
+    if (minutes >= 60) return { backgroundColor: '#F1D5DE', borderColor: '#9F3853', color: '#202A35' };
+    if (minutes >= 45) return { backgroundColor: '#FEE2E2', borderColor: '#EF4444', color: '#7F1D1D' };
+    if (minutes >= 30) return { backgroundColor: '#FFEDD5', borderColor: '#F97316', color: '#9A3412' };
+    if (minutes >= 20) return { backgroundColor: '#FEF9C3', borderColor: '#EAB308', color: '#854D0E' };
+    return { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', color: '#065F46' };
+}
+
+function servingAccentColors(servingAt: string | null | undefined, now: Date): CSSProperties {
+    const minutes = servingElapsedSeconds(servingAt, now) / 60;
+
+    if (minutes >= 60) return { backgroundColor: '#DFA1B2', color: '#8F2945' };
+    if (minutes >= 45) return { backgroundColor: '#FECACA', color: '#B91C1C' };
+    if (minutes >= 30) return { backgroundColor: '#FED7AA', color: '#C2410C' };
+    if (minutes >= 20) return { backgroundColor: '#FEF08A', color: '#A16207' };
+    return { backgroundColor: '#D1FAE5', color: '#047857' };
+}
+
+function servingPlateTextColor(servingAt: string | null | undefined, now: Date): string {
+    return '#202A35';
 }
 
 function QueuePanel({ title, direction, entries, kind, now }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; now: Date }) {
@@ -80,17 +113,17 @@ function QueuePanel({ title, direction, entries, kind, now }: { title: string; d
                         <p className="mt-2 text-sm text-[#68737b]">{serving ? 'Serving trucks will appear here.' : 'Waiting trucks will appear here.'}</p>
                     </div>
                 ) : entries.map((entry, index) => (
-                    <article key={entry.id} style={serving ? { gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'queue-serving-card border-emerald-200 bg-emerald-50' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900 }}>
+                    <article key={entry.id} style={serving ? { ...servingCardColors(entry.serving_at, now), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'queue-serving-card' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? '' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900, ...(serving ? servingAccentColors(entry.serving_at, now) : {}) }}>
                             {serving ? <Truck className="h-7 w-7" /> : String(index + 1).padStart(2, '0')}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight text-[#202a35] sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em' }}>{entry.plate_no}</p>
-                            <p className={`mt-1 text-xs sm:text-sm ${serving ? 'text-emerald-700' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700 }}>
+                            <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em', color: serving ? servingPlateTextColor(entry.serving_at, now) : '#202a35' }}>{entry.plate_no}</p>
+                            <p className={`mt-1 text-xs sm:text-sm ${serving ? '' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now).color } : {}) }}>
                                 {serving ? servingRuntime(entry.serving_at, now) : index === 0 ? 'Next in line' : 'Waiting'}
                             </p>
                         </div>
-                        <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`}>{entry.direction ?? direction}</span>
+                        <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
                     </article>
                 ))}
             </div>
