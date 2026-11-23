@@ -39,6 +39,11 @@
             width: var(--serving-card-width);
             min-width: var(--serving-card-width);
         }
+
+        .queue-serving-column {
+            width: var(--serving-card-width);
+            min-width: var(--serving-card-width);
+        }
     }
 
     .queue-list-grid {
