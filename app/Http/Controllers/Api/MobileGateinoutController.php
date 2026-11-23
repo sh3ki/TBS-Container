@@ -52,6 +52,12 @@ class MobileGateinoutController extends Controller
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
                 WHERE p.status = 0
+                  AND EXISTS (
+                      SELECT 1
+                      FROM {$prefix}queue_entries qe
+                      WHERE qe.pre_inventory_id = p.p_id
+                        AND qe.status = 'serving'
+                  )
                 ORDER BY p.date_added DESC
                 LIMIT 1000
             ");
