@@ -10,6 +10,7 @@ interface QueueEntry {
     direction?: 'IN' | 'OUT';
     waiting_number?: number;
     serving_number?: number;
+    serving_at?: string | null;
 }
 
 interface QueueData {
@@ -29,7 +30,31 @@ function useClock() {
     return now;
 }
 
-function QueuePanel({ title, direction, entries, kind }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving' }) {
+function servingRuntime(servingAt: string | null | undefined, now: Date): string {
+    if (!servingAt) return 'Runtime: 00:00:00';
+
+    // MySQL timestamps are returned without an offset. Interpret those values
+    // as Manila time so the display is independent of the monitor's timezone.
+    const value = servingAt.trim().replace(' ', 'T');
+    const timestamp = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+        ? Date.parse(value)
+        : (() => {
+            const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?/);
+            if (!parts) return Number.NaN;
+            const milliseconds = Number((parts[7] ?? '').padEnd(3, '0').slice(0, 3) || 0);
+            return Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4]), Number(parts[5]), Number(parts[6] ?? 0), milliseconds) - (8 * 60 * 60 * 1000);
+        })();
+
+    if (!Number.isFinite(timestamp)) return 'Runtime: 00:00:00';
+
+    const elapsed = Math.max(0, Math.floor((now.getTime() - timestamp) / 1000));
+    const hours = Math.floor(elapsed / 3600);
+    const minutes = Math.floor((elapsed % 3600) / 60);
+    const seconds = elapsed % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function QueuePanel({ title, direction, entries, kind, now }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; now: Date }) {
     const serving = kind === 'serving';
     const servingInEntries = entries.filter((entry) => entry.direction === 'IN');
     const servingOutEntries = entries.filter((entry) => entry.direction === 'OUT');
@@ -62,7 +87,7 @@ function QueuePanel({ title, direction, entries, kind }: { title: string; direct
                         <div className="min-w-0 flex-1">
                             <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight text-[#202a35] sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em' }}>{entry.plate_no}</p>
                             <p className={`mt-1 text-xs sm:text-sm ${serving ? 'text-emerald-700' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700 }}>
-                                {serving ? 'Now serving' : index === 0 ? 'Next in line' : 'Waiting'}
+                                {serving ? servingRuntime(entry.serving_at, now) : index === 0 ? 'Next in line' : 'Waiting'}
                             </p>
                         </div>
                         <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? 'bg-emerald-100 text-emerald-700' : index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`}>{entry.direction ?? direction}</span>
@@ -122,9 +147,9 @@ export default function QueueDisplay() {
 
                 <div className="queue-page-content flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-3 sm:gap-5 sm:p-6 lg:p-8" style={{ color: '#202a35', boxSizing: 'border-box' }}>
                     <div className="queue-grid grid min-h-0 gap-3 md:gap-4">
-                        <QueuePanel title="WAITING" direction="IN" entries={queue.waiting_in} kind="waiting" />
-                        <QueuePanel title="WAITING" direction="OUT" entries={queue.waiting_out} kind="waiting" />
-                        <QueuePanel title="SERVING" entries={queue.serving} kind="serving" />
+                        <QueuePanel title="WAITING" direction="IN" entries={queue.waiting_in} kind="waiting" now={now} />
+                        <QueuePanel title="WAITING" direction="OUT" entries={queue.waiting_out} kind="waiting" now={now} />
+                        <QueuePanel title="SERVING" entries={queue.serving} kind="serving" now={now} />
                     </div>
 
                     <aside className="queue-driver-notice flex shrink-0 items-start gap-3 rounded-xl border border-[#d8dde3] px-4 py-3 shadow-sm sm:items-center sm:px-5" style={{ backgroundColor: '#FFFFFF', color: '#31393C' }}>
