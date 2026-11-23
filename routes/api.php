@@ -85,6 +85,7 @@ Route::prefix('guard')->group(function () {
     Route::post('/scan-truck-plate', [GuardScanController::class, 'scanTruckPlate']);
     Route::get('/queue/display', [GuardScanController::class, 'queueDisplay']);
     Route::get('/queue-capacity', [GuardScanController::class, 'queueCapacity']);
+    Route::post('/queue/status', [GuardScanController::class, 'updateQueueStatus']);
     Route::get('/app-update', function () {
         $settings = DB::table('mobile_settings')->where('app_code', 'GUARD')->first();
 
