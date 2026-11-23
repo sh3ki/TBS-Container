@@ -80,7 +80,7 @@ export default function QueueIndex() {
             if (activeGroup !== null) return;
             try { const response = await axios.get('/api/queue/display'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ }
         };
-        refresh(); const timer = window.setInterval(refresh, 5000);
+        refresh(); const timer = window.setInterval(refresh, 1000);
         return () => { active = false; window.clearInterval(timer); };
     }, [activeGroup]);
     const moveQueueEntry = (group: 'waiting_in' | 'waiting_out' | 'serving_in' | 'serving_out', from: number, to: number) => {
