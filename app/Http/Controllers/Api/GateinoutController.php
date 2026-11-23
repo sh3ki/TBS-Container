@@ -113,19 +113,42 @@ class GateinoutController extends Controller
             'direction' => ['required', 'in:IN,OUT'],
         ]);
 
-        DB::transaction(function () use ($validated): void {
+        $userId = $request->user()?->user_id ?? auth()->id();
+
+        DB::transaction(function () use ($validated, $userId): void {
             $query = DB::table('queue_entries')
                 ->where('status', $validated['status'])
                 ->when(in_array($validated['status'], ['waiting', 'serving'], true), fn ($q) => $q->where('direction', $validated['direction']))
+                ->orderBy($validated['status'] === 'waiting' ? 'waiting_number' : 'serving_number')
+                ->orderBy('id')
                 ->lockForUpdate();
-            $existingIds = $query->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+
+            $existingEntries = $query->get(['id', 'plate_no']);
+            $existingIds = $existingEntries->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
             $submittedIds = collect($validated['ids'])->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
             abort_unless($existingIds === $submittedIds, 422, 'Queue entries changed. Refresh and try again.');
+
+            $oldOrder = $existingEntries->values()->map(fn ($entry, $index) => sprintf('%s - %d', $entry->plate_no, $index + 1))->implode(', ');
+            $entryById = $existingEntries->keyBy(fn ($entry) => (int) $entry->id);
+            $newOrder = collect($validated['ids'])->values()->map(fn ($id, $index) => sprintf('%s - %d', $entryById[(int) $id]->plate_no, $index + 1))->implode(', ');
 
             foreach ($validated['ids'] as $index => $id) {
                 DB::table('queue_entries')->where('id', $id)->update([
                     $validated['status'] === 'waiting' ? 'waiting_number' : 'serving_number' => $index + 1,
                     'updated_at' => now(),
+                ]);
+            }
+
+            if ($oldOrder !== $newOrder) {
+                $queueName = $validated['status'] === 'waiting'
+                    ? 'WAITING ' . $validated['direction']
+                    : 'SERVING ' . $validated['direction'];
+                DB::table('audit_logs')->insert([
+                    'action' => 'EDIT',
+                    'description' => sprintf('[QUEUE] Rearranged order "%s" from "%s" -> "%s"', $queueName, $oldOrder, $newOrder),
+                    'user_id' => $userId,
+                    'date_added' => now(),
+                    'ip_address' => request()->ip(),
                 ]);
             }
         });
@@ -144,6 +167,7 @@ class GateinoutController extends Controller
             ->exists();
         abort_unless($canEdit, 403);
         $validated = $request->validate(['id' => ['required', 'integer']]);
+        $userId = $request->user()?->user_id ?? auth()->id();
 
         $entry = DB::transaction(function () use ($validated) {
             $entry = DB::table('queue_entries')->where('id', $validated['id'])->where('status', 'waiting')->lockForUpdate()->first();
@@ -169,6 +193,13 @@ class GateinoutController extends Controller
             $servingNumber = (int) DB::table('queue_entries')->where('id', $entry->id)->value('serving_number');
             return ['id' => (int) $entry->id, 'plate_no' => $entry->plate_no, 'direction' => $entry->direction, 'serving_number' => $servingNumber];
         });
+        DB::table('audit_logs')->insert([
+            'action' => 'EDIT',
+            'description' => sprintf('[QUEUE] Serve plate number "%s"', $entry['plate_no']),
+            'user_id' => $userId,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
         return response()->json(['success' => true, 'entry' => $entry]);
     }
 
