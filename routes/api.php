@@ -316,6 +316,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
         Route::post('/queue/reorder', [GateinoutController::class, 'reorderQueue']);
         Route::post('/queue/serve', [GateinoutController::class, 'serveQueueEntry']);
+        Route::post('/queue/status', [GateinoutController::class, 'updateQueueStatus']);
         
         // Get pre-inventory data for React modals (ProcessGateInModal)
         Route::get('/pre-inventory/{containerNo}', [GateinoutController::class, 'getPreInventoryData']);
