@@ -184,6 +184,7 @@ class GuardScanController extends Controller
                     'opposite_direction' => null,
                     'not_next_line' => true,
                     'waiting_number' => (int) ($entry->waiting_number ?? 0),
+                    'entry_status' => $entry->status,
                 ];
             }
 
@@ -234,10 +235,13 @@ class GuardScanController extends Controller
 
         if ($queue['not_next_line'] ?? false) {
             @unlink($imagePath);
+            $message = ($queue['entry_status'] ?? null) === 'waiting'
+                ? "Plate {$plateNo} is still WAITING. Please set plate {$plateNo} to CALLING first before scanning."
+                : "Plate {$plateNo} cannot be scanned yet. Only floating trucks or the first calling truck in the WAITING {$direction} queue can be scanned.";
             return response()->json([
                 'success' => false,
                 'not_next_line' => true,
-                'message' => "Plate {$plateNo} cannot be scanned yet. Only floating trucks or the first calling truck in the WAITING {$direction} queue can be scanned.",
+                'message' => $message,
                 'waiting_number' => $queue['waiting_number'] ?? null,
             ], 422);
         }
