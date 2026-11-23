@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { BellRing, Box, CircleHelp, List, Radio, Truck } from 'lucide-react';
-import { servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
+import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 
 interface QueueEntry {
     id: number;
@@ -12,6 +12,9 @@ interface QueueEntry {
     waiting_number?: number;
     serving_number?: number;
     serving_at?: string | null;
+    status?: 'waiting' | 'calling' | 'floating' | 'serving' | 'completed' | 'forfeited';
+    calling_at?: string | null;
+    floating_at?: string | null;
 }
 
 interface QueueData {
@@ -56,20 +59,22 @@ function QueuePanel({ title, direction, entries, kind, now }: { title: string; d
                         <p className="text-xl font-bold text-[#31393C]">{serving ? 'No trucks being served' : 'Queue is empty'}</p>
                         <p className="mt-2 text-sm text-[#68737b]">{serving ? 'Serving trucks will appear here.' : 'Waiting trucks will appear here.'}</p>
                     </div>
-                ) : entries.map((entry, index) => (
-                    <article key={entry.id} style={serving ? { ...servingCardColors(entry.serving_at, now), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'queue-serving-card' : index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? '' : index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900, ...(serving ? servingAccentColors(entry.serving_at, now) : {}) }}>
+                ) : entries.map((entry, index) => {
+                    const activeStatus = entry.status === 'calling' || entry.status === 'floating';
+                    const activeColor = activeStatus ? activeQueueRuntimeColor(entry, now) : undefined;
+                    return <article key={entry.id} style={serving ? { ...servingCardColors(entry.serving_at, now), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : activeStatus ? activeQueueCardColors() : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${serving ? 'queue-serving-card' : activeStatus || index === 0 ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? '' : activeStatus || index === 0 ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900, ...(serving ? servingAccentColors(entry.serving_at, now) : {}) }}>
                             {serving ? <Truck className="h-7 w-7" /> : String(index + 1).padStart(2, '0')}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em', color: serving ? servingPlateTextColor(entry.serving_at, now) : '#202a35' }}>{entry.plate_no}</p>
-                            <p className={`mt-1 text-xs sm:text-sm ${serving ? '' : index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now).color } : {}) }}>
-                                {serving ? servingRuntime(entry.serving_at, now) : index === 0 ? 'Next in line' : 'Waiting'}
+                            <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em', color: serving ? servingPlateTextColor() : '#202a35' }}>{entry.plate_no}</p>
+                            <p className={`mt-1 text-xs sm:text-sm ${serving ? '' : activeStatus || index === 0 ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now).color } : activeStatus ? { color: activeColor } : {}) }}>
+                                {serving ? servingRuntime(entry.serving_at, now) : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : index === 0 ? 'Next in line' : 'Waiting'}
                             </p>
                         </div>
-                        <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
-                    </article>
-                ))}
+                        <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : activeStatus || index === 0 ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
+                    </article>;
+                })}
             </div>
         </section>
     );
