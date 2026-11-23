@@ -12,12 +12,15 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->string('plate_no', 50);
             $table->enum('direction', ['IN', 'OUT']);
-            $table->enum('status', ['waiting', 'serving', 'completed', 'cancelled'])->default('waiting');
+            $table->enum('status', ['waiting', 'calling', 'floating', 'serving', 'completed', 'forfeited'])->default('waiting');
             $table->unsignedInteger('waiting_number')->nullable();
             $table->unsignedInteger('serving_number')->nullable();
             $table->timestamp('queued_at')->useCurrent();
+            $table->timestamp('calling_at')->nullable();
+            $table->timestamp('floating_at')->nullable();
             $table->timestamp('serving_at')->nullable();
             $table->timestamp('completed_at')->nullable();
+            $table->timestamp('forfeited_at')->nullable();
             $table->timestamps();
 
             $table->index(['status', 'direction', 'waiting_number'], 'queue_waiting_order_idx');
