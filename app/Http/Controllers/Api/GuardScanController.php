@@ -45,10 +45,12 @@ class GuardScanController extends Controller
             'status' => ['required', 'in:calling,floating'],
             'user_id' => ['nullable', 'integer'],
         ]);
+        $userId = $request->user()?->user_id ?? ($validated['user_id'] ?? 0);
 
-        $entry = DB::transaction(function () use ($validated) {
+        $transition = DB::transaction(function () use ($validated) {
             $entry = DB::table('queue_entries')->where('id', $validated['id'])->lockForUpdate()->first();
             abort_unless($entry, 404, 'Queue entry not found.');
+            $fromStatus = $entry->status;
 
             if ($validated['status'] === 'calling') {
                 abort_unless($entry->status === 'waiting', 409, 'Only waiting trucks can be called.');
@@ -71,10 +73,26 @@ class GuardScanController extends Controller
                 ]);
             }
 
-            return DB::table('queue_entries')->where('id', $entry->id)->first();
+            return [
+                'entry' => DB::table('queue_entries')->where('id', $entry->id)->first(),
+                'from_status' => $fromStatus,
+            ];
         });
 
-        return response()->json(['success' => true, 'entry' => $entry]);
+        DB::table('audit_logs')->insert([
+            'action' => 'EDIT',
+            'description' => sprintf(
+                '[QUEUE] Change plate number "%s" status from %s to %s.',
+                $transition['entry']->plate_no,
+                $transition['from_status'],
+                $transition['entry']->status
+            ),
+            'user_id' => $userId,
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json(['success' => true, 'entry' => $transition['entry']]);
     }
 
     public function scanTruckPlate(Request $request)
