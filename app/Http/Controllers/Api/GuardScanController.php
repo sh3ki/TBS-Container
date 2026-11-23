@@ -132,6 +132,20 @@ class GuardScanController extends Controller
                     'opposite_direction' => $oppositeEntry ? $oppositeDirection : null,
                 ];
             }
+
+            // Guards may only scan the first truck in the selected direction.
+            // Keep this check inside the transaction while the queue rows are
+            // locked so two simultaneous scans cannot bypass the queue order.
+            $nextEntry = $entries->first();
+            if (! $nextEntry || (int) $nextEntry->id !== (int) $entry->id) {
+                return [
+                    'entry' => null,
+                    'opposite_direction' => null,
+                    'not_next_line' => true,
+                    'waiting_number' => (int) ($entry->waiting_number ?? 0),
+                ];
+            }
+
             DB::table('queue_entries')->where('id', $entry->id)->update([
                 'status' => 'serving',
                 'waiting_number' => null,
@@ -174,6 +188,16 @@ class GuardScanController extends Controller
                 'success' => false,
                 'wrong_queue' => true,
                 'message' => "This plate was found in the {$queue['opposite_direction']} queue. Please choose {$expectedAction}.",
+            ], 422);
+        }
+
+        if ($queue['not_next_line'] ?? false) {
+            @unlink($imagePath);
+            return response()->json([
+                'success' => false,
+                'not_next_line' => true,
+                'message' => "Plate {$plateNo} is not in the next line. Please scan the first truck in the WAITING {$direction} queue.",
+                'waiting_number' => $queue['waiting_number'] ?? null,
             ], 422);
         }
 
