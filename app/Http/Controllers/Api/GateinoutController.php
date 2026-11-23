@@ -117,8 +117,11 @@ class GateinoutController extends Controller
         $userId = $request->user()?->user_id ?? auth()->id();
 
         DB::transaction(function () use ($validated, $userId): void {
+            $queueStatuses = $validated['status'] === 'waiting'
+                ? ['waiting', 'calling', 'floating']
+                : ['serving'];
             $query = DB::table('queue_entries')
-                ->where('status', $validated['status'])
+                ->whereIn('status', $queueStatuses)
                 ->when(in_array($validated['status'], ['waiting', 'serving'], true), fn ($q) => $q->where('direction', $validated['direction']))
                 ->orderBy($validated['status'] === 'waiting' ? 'waiting_number' : 'serving_number')
                 ->orderBy('id')
