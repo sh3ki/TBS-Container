@@ -57,6 +57,30 @@ class BookingController extends Controller
         return array_values(array_unique($containers));
     }
 
+    /**
+     * A booking may only be deleted when nothing has been used.
+     * Numeric bookings compare each supported size independently. Container-list
+     * bookings compare the normalized container sets so JSON ordering does not
+     * affect the result.
+     */
+    private static function canDeleteBooking(Booking $booking): bool
+    {
+        $numericValuesMatch = (int) ($booking->twenty ?? 0) === (int) ($booking->twenty_rem ?? 0)
+            && (int) ($booking->fourty ?? 0) === (int) ($booking->fourty_rem ?? 0)
+            && (int) ($booking->fourty_five ?? 0) === (int) ($booking->fourty_five_rem ?? 0);
+
+        $allocatedContainers = self::flattenContainerMappings($booking->cont_list);
+        $remainingContainers = self::flattenContainerMappings($booking->cont_list_rem);
+        $hasContainerList = $allocatedContainers !== [] || $remainingContainers !== [];
+
+        sort($allocatedContainers);
+        sort($remainingContainers);
+
+        return $hasContainerList
+            ? $allocatedContainers === $remainingContainers
+            : $numericValuesMatch;
+    }
+
     private static function encodeContainerMappings(array $mappings): string
     {
         return json_encode(array_values($mappings), JSON_UNESCAPED_SLASHES);
@@ -768,6 +792,13 @@ class BookingController extends Controller
             ], 404);
         }
 
+        if (!self::canDeleteBooking($booking)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Booking cannot be deleted because allocated and remaining containers do not match.',
+            ], 422);
+        }
+
         $bookNo = $booking->book_no;
         $shipper = $booking->shipper;
         $bookingId = $booking->b_id;
@@ -778,14 +809,22 @@ class BookingController extends Controller
         
         $booking->delete();
 
-        // Log to audit - DELETE action with all details
-        DB::table('audit_logs')->insert([
-            'action' => 'DELETE',
-            'description' => '[BOOKING] Deleted booking: Booking No: "' . $bookNo . '", Client: "' . $clientName . '", Shipper: "' . $shipper . '"',
-            'user_id' => Auth::user()->user_id ?? null,
-            'date_added' => now(),
-            'ip_address' => request()->ip(),
-        ]);
+        // Log to audit - DELETE action with all details. Audit failures should
+        // not turn a successful booking deletion into a misleading 500.
+        try {
+            DB::table('audit_logs')->insert([
+                'action' => 'DELETE',
+                'description' => '[BOOKING] Deleted booking: Booking No: "' . $bookNo . '", Client: "' . $clientName . '", Shipper: "' . $shipper . '"',
+                'user_id' => Auth::check() ? Auth::user()->user_id : null,
+                'date_added' => now(),
+                'ip_address' => request()->ip(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Booking deleted but audit log could not be written.', [
+                'booking_id' => $bookingId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'success' => true,
