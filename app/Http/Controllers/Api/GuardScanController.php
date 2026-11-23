@@ -12,8 +12,9 @@ class GuardScanController extends Controller
 {
     public function queueDisplay()
     {
-        $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->where('status', 'waiting')->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
-        $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->where('status', 'waiting')->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'waiting_number', 'booking_time']);
+        $activeStatuses = ['waiting', 'calling', 'floating'];
+        $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
+        $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
         $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
         return response()->json(['success' => true, 'data' => [
@@ -35,6 +36,36 @@ class GuardScanController extends Controller
             // Zero means unlimited, while any positive value is enforced.
             'at_capacity' => $capacity > 0 && $current >= $capacity,
         ]);
+    }
+
+    public function updateQueueStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'id' => ['required', 'integer'],
+            'status' => ['required', 'in:calling,floating'],
+            'user_id' => ['nullable', 'integer'],
+        ]);
+
+        $entry = DB::transaction(function () use ($validated) {
+            $entry = DB::table('queue_entries')->where('id', $validated['id'])->lockForUpdate()->first();
+            abort_unless($entry, 404, 'Queue entry not found.');
+
+            if ($validated['status'] === 'calling') {
+                abort_unless($entry->status === 'waiting', 409, 'Only waiting trucks can be called.');
+                DB::table('queue_entries')->where('id', $entry->id)->update([
+                    'status' => 'calling', 'calling_at' => now(), 'updated_at' => now(),
+                ]);
+            } else {
+                abort_unless($entry->status === 'calling', 409, 'Only calling trucks can be floated.');
+                DB::table('queue_entries')->where('id', $entry->id)->update([
+                    'status' => 'floating', 'floating_at' => now(), 'updated_at' => now(),
+                ]);
+            }
+
+            return DB::table('queue_entries')->where('id', $entry->id)->first();
+        });
+
+        return response()->json(['success' => true, 'entry' => $entry]);
     }
 
     public function scanTruckPlate(Request $request)
@@ -109,7 +140,7 @@ class GuardScanController extends Controller
         $queue = DB::transaction(function () use ($plateNo, $direction, $oppositeDirection) {
             $entries = DB::table('queue_entries')
                 ->where('direction', $direction)
-                ->where('status', 'waiting')
+                ->whereIn('status', ['waiting', 'calling', 'floating'])
                 ->whereNull('completed_at')
                 ->orderBy('waiting_number')
                 ->orderBy('id')
@@ -119,7 +150,7 @@ class GuardScanController extends Controller
             if (! $entry) {
                 $oppositeEntry = DB::table('queue_entries')
                     ->where('direction', $oppositeDirection)
-                    ->where('status', 'waiting')
+                    ->whereIn('status', ['waiting', 'calling', 'floating'])
                     ->whereNull('completed_at')
                     ->orderBy('waiting_number')
                     ->orderBy('id')
@@ -133,11 +164,12 @@ class GuardScanController extends Controller
                 ];
             }
 
-            // Guards may only scan the first truck in the selected direction.
-            // Keep this check inside the transaction while the queue rows are
-            // locked so two simultaneous scans cannot bypass the queue order.
+            // Floating trucks may be scanned from any position. Calling trucks
+            // may only be scanned when they are first in their direction.
             $nextEntry = $entries->first();
-            if (! $nextEntry || (int) $nextEntry->id !== (int) $entry->id) {
+            $isEligible = $entry->status === 'floating'
+                || ($entry->status === 'calling' && $nextEntry && (int) $nextEntry->id === (int) $entry->id);
+            if (! $isEligible) {
                 return [
                     'entry' => null,
                     'opposite_direction' => null,
@@ -166,7 +198,7 @@ class GuardScanController extends Controller
             // the scanned truck, independently for IN or OUT.
             $waiting = DB::table('queue_entries')
                 ->where('direction', $entry->direction)
-                ->where('status', 'waiting')
+                ->whereIn('status', ['waiting', 'calling', 'floating'])
                 ->orderBy('waiting_number')
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -196,7 +228,7 @@ class GuardScanController extends Controller
             return response()->json([
                 'success' => false,
                 'not_next_line' => true,
-                'message' => "Plate {$plateNo} is not in the next line. Please scan the first truck in the WAITING {$direction} queue.",
+                'message' => "Plate {$plateNo} cannot be scanned yet. Only floating trucks or the first calling truck in the WAITING {$direction} queue can be scanned.",
                 'waiting_number' => $queue['waiting_number'] ?? null,
             ], 422);
         }
