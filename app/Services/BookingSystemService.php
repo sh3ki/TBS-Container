@@ -14,7 +14,6 @@ class BookingSystemService
 {
     public function findVerifiedBooking(string $containerNo): array
     {
-        $containerNo = self::normalizeIdentifier($containerNo);
         ['url' => $url, 'username' => $username, 'password' => $password, 'login_url' => $loginUrl, 'timeout' => $timeout] = $this->credentials();
 
         if ($url === '' || $username === '' || $password === '') {
@@ -91,13 +90,13 @@ class BookingSystemService
 
     public function findEarliestVerifiedBookingByPlate(string $plateNo, array $excludedRefNos = []): array
     {
-        $plateNo = self::normalizeIdentifier($plateNo);
+        $normalizedPlateNo = self::normalizeIdentifier($plateNo);
         $response = $this->fetchInitialSummaryBrokerResponse();
         $excluded = array_fill_keys(array_map('strval', $excludedRefNos), true);
         $candidates = [];
 
         foreach ($this->parseBrokerBookings($response) as $booking) {
-            if (self::normalizeIdentifier($booking['plate_no']) !== $plateNo) continue;
+            if (self::normalizeIdentifier($booking['plate_no']) !== $normalizedPlateNo) continue;
             if (strtoupper($booking['status']) !== 'VERIFIED') continue;
             if ($booking['ref_no'] !== '' && isset($excluded[$booking['ref_no']])) continue;
             try {
