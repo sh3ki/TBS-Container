@@ -171,9 +171,10 @@ class GateinoutController extends Controller
                 DB::table('audit_logs')->insert([
                     'action' => 'EDIT',
                     'description' => sprintf(
-                        '[QUEUE] Rearranged %s queue:\n%s.',
+                        '[QUEUE] Rearranged %s queue:%s%s.',
                         $queueName,
-                        implode(';\n', $changes),
+                        PHP_EOL,
+                        implode(';' . PHP_EOL, $changes),
                     ),
                     'user_id' => $userId,
                     'date_added' => now(),
