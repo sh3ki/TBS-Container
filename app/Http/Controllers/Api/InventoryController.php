@@ -1927,6 +1927,16 @@ class InventoryController extends Controller
                 $sizeTypeList = array_values(array_unique($sizeTypeList));
             }
 
+            $capacityTeus = (float) (DB::table('app_settings')->where('setting_id', 1)->value('utilization_capacity_teus') ?? 0);
+            $totalTeus = 0.0;
+            foreach ($summaryByClient as $sizeCounts) {
+                foreach ($sizeCounts as $sizeType => $count) {
+                    $size = substr((string) $sizeType, 0, 2);
+                    $teusPerContainer = in_array($size, ['40', '45'], true) ? 2.0 : ($size === '20' ? 1.0 : 0.0);
+                    $totalTeus += (int) $count * $teusPerContainer;
+                }
+            }
+
             // Only allow known sortable columns to reach ORDER BY. The default
             // defaults to the oldest inventory records first.
             $sortExpressions = [
@@ -2003,6 +2013,9 @@ class InventoryController extends Controller
                 'summary' => [
                     'by_client' => $summaryByClient,
                     'size_types' => $sizeTypeList,
+                    'total_teus' => $totalTeus,
+                    'capacity_teus' => $capacityTeus,
+                    'utilization_percentage' => $capacityTeus > 0 ? round(($totalTeus / $capacityTeus) * 100, 2) : 0,
                 ],
             ]);
             
