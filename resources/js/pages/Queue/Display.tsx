@@ -21,6 +21,7 @@ interface QueueData {
     waiting_in: QueueEntry[];
     waiting_out: QueueEntry[];
     serving: QueueEntry[];
+    serving_capacity?: number;
 }
 
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
@@ -34,7 +35,7 @@ function useClock() {
     return now;
 }
 
-function QueuePanel({ title, direction, entries, kind, now }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; now: Date }) {
+function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; servingCapacity?: number; now: Date }) {
     const serving = kind === 'serving';
     const servingInEntries = entries.filter((entry) => entry.direction === 'IN');
     const servingOutEntries = entries.filter((entry) => entry.direction === 'OUT');
@@ -50,7 +51,7 @@ function QueuePanel({ title, direction, entries, kind, now }: { title: string; d
                         {direction ? <><span>{title}</span><Truck className="h-5 w-8 shrink-0 sm:h-6 sm:w-10" strokeWidth={2.5} /><span>{direction}</span></> : title}
                     </h2>
                 </div>
-                <div className="tabular-nums" style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 'clamp(1.8rem, 3vw, 2.75rem)', lineHeight: 1 }}>{String(entries.length).padStart(2, '0')}</div>
+                <div className="tabular-nums" style={{ color: '#FFFFFF', fontWeight: 900, fontSize: 'clamp(1.8rem, 3vw, 2.75rem)', lineHeight: 1 }}>{serving ? `${String(entries.length).padStart(2, '0')}/${String(servingCapacity).padStart(2, '0')}` : String(entries.length).padStart(2, '0')}</div>
             </header>
             <div className={`min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 ${serving ? 'queue-serving-content grid content-start gap-3 sm:gap-4' : 'space-y-3 sm:space-y-4'}`} style={{ backgroundColor: '#FFFFFF', ...(serving ? { '--serving-card-width': servingCardWidth } as CSSProperties : {}) }}>
                 {entries.length === 0 ? (
@@ -85,6 +86,7 @@ function QueuePanel({ title, direction, entries, kind, now }: { title: string; d
 export default function QueueDisplay() {
     const now = useClock();
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
+    const [servingCapacity, setServingCapacity] = useState(0);
     const time = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
     const date = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).format(now);
 
@@ -100,6 +102,7 @@ export default function QueueDisplay() {
                         waiting_out: Array.isArray(live.waiting_out) ? live.waiting_out : [],
                         serving: Array.isArray(live.serving) ? live.serving : [],
                     });
+                    setServingCapacity(Number(live.serving_capacity ?? 0));
                 }
             } catch (error) {
                 console.error('Failed to refresh queue display', error);
@@ -133,7 +136,7 @@ export default function QueueDisplay() {
                     <div className="queue-grid grid min-h-0 gap-3 md:gap-4">
                         <QueuePanel title="WAITING" direction="IN" entries={queue.waiting_in} kind="waiting" now={now} />
                         <QueuePanel title="WAITING" direction="OUT" entries={queue.waiting_out} kind="waiting" now={now} />
-                        <QueuePanel title="SERVING" entries={queue.serving} kind="serving" now={now} />
+                        <QueuePanel title="SERVING" entries={queue.serving} kind="serving" servingCapacity={servingCapacity} now={now} />
                     </div>
 
                     <aside className="queue-driver-notice flex shrink-0 items-start gap-3 rounded-xl border border-[#d8dde3] px-4 py-3 shadow-sm sm:items-center sm:px-5" style={{ backgroundColor: '#FFFFFF', color: '#31393C' }}>
