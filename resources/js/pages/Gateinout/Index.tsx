@@ -54,6 +54,8 @@ interface PreOutFormData {
   plate_no: string;
   hauler: string;
   not_in_booking: boolean;
+  exception_mode: 'client' | 'hauler';
+  client_id: string;
 }
 
 interface EditPreInFormData {
@@ -90,7 +92,7 @@ const getSizeTypeVariant = (sizeType: string): BadgeVariant => {
 };
 
 export default function Index() {
-  const { preInHaulerExceptions = '', preOutHaulerExceptions = '' } = usePage<{ preInHaulerExceptions?: string; preOutHaulerExceptions?: string }>().props;
+  const { preInHaulerExceptions = '', preOutHaulerExceptions = '', clientExceptionIds = [] } = usePage<{ preInHaulerExceptions?: string; preOutHaulerExceptions?: string; clientExceptionIds?: number[] }>().props;
   const preInHaulerOptions = preInHaulerExceptions
     .split(',')
     .map((hauler) => hauler.trim().toUpperCase())
@@ -153,7 +155,16 @@ export default function Index() {
     plate_no: '',
     hauler: '',
     not_in_booking: false,
+    exception_mode: 'client',
+    client_id: '',
   });
+  const selectedPreInClient = clients.find((client) => client.hashed_c_id === preInForm.client_id);
+  const selectedPreInClientIsException = Boolean(
+    selectedPreInClient && clientExceptionIds.map(Number).includes(Number(selectedPreInClient.c_id))
+  );
+  const clientExceptionOptions = clients.filter((client) =>
+    clientExceptionIds.map(Number).includes(Number(client.c_id))
+  );
 
   const [editPreInForm, setEditPreInForm] = useState<EditPreInFormData>({
     id: '',
@@ -500,6 +511,10 @@ export default function Index() {
       error(preOutForm.not_in_booking ? 'Please select a hauler for Not in Booking' : 'Hauler is required');
       return;
     }
+    if (preOutForm.not_in_booking && preOutForm.exception_mode === 'client' && !preOutForm.client_id) {
+      error('Please select a client exception');
+      return;
+    }
     handleAddPreOut();
   };
 
@@ -513,6 +528,8 @@ export default function Index() {
         pno: preOutForm.plate_no,
         hauler: preOutForm.hauler,
         not_in_booking: preOutForm.not_in_booking,
+        exception_mode: preOutForm.exception_mode,
+        client: preOutForm.client_id,
       });
 
       if (response.data.message) {
@@ -521,7 +538,7 @@ export default function Index() {
           saveFieldHistory({ 'gateinout.plate_no': preOutForm.plate_no, 'gateinout.hauler': preOutForm.hauler });
           success('Pre-Out added successfully');
           setShowAddPreOutModal(false);
-          setPreOutForm({ plate_no: '', hauler: '', not_in_booking: false });
+          setPreOutForm({ plate_no: '', hauler: '', not_in_booking: false, exception_mode: 'client', client_id: '' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -1337,7 +1354,7 @@ export default function Index() {
                 <Select
                   value={preInForm.client_id}
                   onValueChange={(value) =>
-                    setPreInForm({ ...preInForm, client_id: value })
+                    setPreInForm({ ...preInForm, client_id: value, not_in_booking: false, hauler: '' })
                   }
                 >
                   <SelectTrigger>
@@ -1378,7 +1395,7 @@ export default function Index() {
                   required
                 />
               </div>
-              <div className="rounded-lg border border-gray-200 p-3">
+              {!selectedPreInClientIsException && <div className="rounded-lg border border-gray-200 p-3">
                 <button
                   type="button"
                   role="switch"
@@ -1418,7 +1435,7 @@ export default function Index() {
                     </Select>
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
             <DialogFooter className="gap-2">
               <ModernButton
@@ -1468,16 +1485,17 @@ export default function Index() {
                 <Label className="text-gray-900">
                   Hauler <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  data-history-key="gateinout.hauler"
-                  value={preOutForm.hauler}
-                  disabled={preOutForm.not_in_booking}
-                  onChange={(e) =>
-                    setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
-                  }
-                  placeholder="Hauler/Trucking company name"
-                />
-                <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
+                {(!preOutForm.not_in_booking || preOutForm.exception_mode === 'client') && <>
+                  <Input
+                    data-history-key="gateinout.hauler"
+                    value={preOutForm.hauler}
+                    onChange={(e) =>
+                      setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
+                    }
+                    placeholder="Hauler/Trucking company name"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
+                </>}
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <button
@@ -1487,6 +1505,8 @@ export default function Index() {
                   onClick={() => setPreOutForm({
                     ...preOutForm,
                     not_in_booking: !preOutForm.not_in_booking,
+                    exception_mode: 'client',
+                    client_id: '',
                     hauler: '',
                   })}
                   className="flex w-full items-center justify-between text-left"
@@ -1501,22 +1521,55 @@ export default function Index() {
                 </button>
                 {preOutForm.not_in_booking && (
                   <div className="mt-3">
-                    <Label className="text-gray-900">
-                      Exception Hauler <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-                      value={preOutForm.hauler}
-                      onValueChange={(value) => setPreOutForm({ ...preOutForm, hauler: value })}
-                    >
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Select exception hauler" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {preOutHaulerOptions.map((hauler) => (
-                          <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="mb-3 grid grid-cols-2 rounded-md bg-gray-100 p-1">
+                      {(['client', 'hauler'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setPreOutForm({ ...preOutForm, exception_mode: mode, client_id: '', hauler: '' })}
+                          className={`rounded px-3 py-2 text-sm font-semibold transition ${preOutForm.exception_mode === mode ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
+                          {mode === 'client' ? 'Client' : 'Hauler'}
+                        </button>
+                      ))}
+                    </div>
+                    {preOutForm.exception_mode === 'client' ? <>
+                      <Label className="text-gray-900">
+                        Client Exception <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={preOutForm.client_id}
+                        onValueChange={(value) => setPreOutForm({ ...preOutForm, client_id: value })}
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Select client exception" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clientExceptionOptions.map((client) => (
+                            <SelectItem key={client.c_id} value={client.hashed_c_id}>
+                              {client.client_code} - {client.client_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </> : <>
+                      <Label className="text-gray-900">
+                        Exception Hauler <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={preOutForm.hauler}
+                        onValueChange={(value) => setPreOutForm({ ...preOutForm, hauler: value })}
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Select exception hauler" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {preOutHaulerOptions.map((hauler) => (
+                            <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>}
                   </div>
                 )}
               </div>
