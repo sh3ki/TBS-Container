@@ -14,6 +14,7 @@ class BookingSystemService
 {
     public function findVerifiedBooking(string $containerNo): array
     {
+        $containerNo = self::normalizeIdentifier($containerNo);
         ['url' => $url, 'username' => $username, 'password' => $password, 'login_url' => $loginUrl, 'timeout' => $timeout] = $this->credentials();
 
         if ($url === '' || $username === '' || $password === '') {
@@ -90,12 +91,13 @@ class BookingSystemService
 
     public function findEarliestVerifiedBookingByPlate(string $plateNo, array $excludedRefNos = []): array
     {
+        $plateNo = self::normalizeIdentifier($plateNo);
         $response = $this->fetchInitialSummaryBrokerResponse();
         $excluded = array_fill_keys(array_map('strval', $excludedRefNos), true);
         $candidates = [];
 
         foreach ($this->parseBrokerBookings($response) as $booking) {
-            if (strtoupper(trim($booking['plate_no'])) !== strtoupper(trim($plateNo))) continue;
+            if (self::normalizeIdentifier($booking['plate_no']) !== $plateNo) continue;
             if (strtoupper($booking['status']) !== 'VERIFIED') continue;
             if ($booking['ref_no'] !== '' && isset($excluded[$booking['ref_no']])) continue;
             try {
@@ -194,10 +196,17 @@ class BookingSystemService
 
     private function findBookingInBrokerResponse(string $response, string $containerNo): ?array
     {
+        $containerNo = self::normalizeIdentifier($containerNo);
         foreach ($this->parseBrokerBookings($response) as $booking) {
-            if (strtoupper(trim($booking['container_no'])) === strtoupper(trim($containerNo))) return $booking;
+            if (self::normalizeIdentifier($booking['container_no']) === $containerNo) return $booking;
         }
         return null;
+    }
+
+    /** Compare container and plate identifiers without spaces or punctuation. */
+    private static function normalizeIdentifier(string $value): string
+    {
+        return strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim($value)) ?? '');
     }
 
     private function parseBrokerBookings(string $response): array
@@ -230,6 +239,7 @@ class BookingSystemService
 
     private function findBookingRow(string $html, string $containerNo): ?array
     {
+        $normalizedContainerNo = self::normalizeIdentifier($containerNo);
         libxml_use_internal_errors(true);
         $document = new DOMDocument();
         $document->loadHTML($html);
@@ -245,7 +255,7 @@ class BookingSystemService
             $values = [];
             foreach ($cells as $cell) $values[] = trim(preg_replace('/\s+/', ' ', $this->cellText($cell, $xpath)));
             $joined = strtoupper(implode(' ', $values));
-            if (!str_contains($joined, strtoupper($containerNo))) continue;
+            if (!str_contains(self::normalizeIdentifier($joined), $normalizedContainerNo)) continue;
             $headers = [];
             if ($headerCells) foreach ($headerCells as $cell) $headers[] = trim(preg_replace('/\s+/', ' ', $cell->textContent));
             $byHeader = static function (array $headers, array $values, array $labels): string {
