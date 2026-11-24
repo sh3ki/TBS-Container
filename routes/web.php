@@ -85,6 +85,7 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Gateinout/Index', [
             'preInHaulerExceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
             'preOutHaulerExceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
+            'clientExceptionIds' => json_decode((string) ($settings?->prein_scraping_client_ids ?? '[]'), true) ?: [],
         ]);
     })->name('gateinout.index');
 
@@ -156,6 +157,9 @@ Route::middleware(['auth'])->group(function () {
     // App Settings
     Route::get('/app-settings', function () {
         $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+        $clients = DB::table('clients')
+            ->orderBy('client_name')
+            ->get(['c_id', 'client_name', 'client_code']);
 
         return Inertia::render('AppSettings/Index', [
             'settings' => [
@@ -164,12 +168,14 @@ Route::middleware(['auth'])->group(function () {
                 'hauler_exceptions' => (string) ($settings?->hauler_exceptions ?? ''),
                 'preout_hauler_exceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
                 'prein_hauler_exceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
+                'prein_scraping_client_ids' => json_decode((string) ($settings?->prein_scraping_client_ids ?? '[]'), true) ?: [],
                 'booking_scraping_enabled' => (bool) ($settings?->booking_scraping_enabled ?? true),
                 'booking_system_url' => (string) ($settings?->booking_system_url ?: config('services.booking_system.url')),
                 'booking_system_login_url' => (string) ($settings?->booking_system_login_url ?: config('services.booking_system.login_url')),
                 'booking_system_username' => (string) ($settings?->booking_system_username ?: config('services.booking_system.username')),
                 'booking_system_timeout' => (int) ($settings?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
             ],
+            'clients' => $clients,
         ]);
     })->middleware('page.access:app-settings')->name('app-settings.index');
 
@@ -179,6 +185,8 @@ Route::middleware(['auth'])->group(function () {
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
+            'prein_scraping_client_ids' => ['sometimes', 'array'],
+            'prein_scraping_client_ids.*' => ['integer', 'exists:clients,c_id'],
             'booking_scraping_enabled' => ['sometimes', 'boolean'],
             'serving_capacity' => ['sometimes', 'integer', 'min:0'],
             'booking_system_url' => ['required_if:section,booking_credentials', 'url', 'max:2048'],
@@ -226,6 +234,11 @@ Route::middleware(['auth'])->group(function () {
                 $updates['prein_hauler_exceptions'] = collect(explode(',', (string) $validated['prein_hauler_exceptions']))
                     ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
                     ->filter()->unique()->implode(', ');
+            }
+            if (array_key_exists('prein_scraping_client_ids', $validated)) {
+                $updates['prein_scraping_client_ids'] = json_encode(
+                    collect($validated['prein_scraping_client_ids'])->map(fn ($id): int => (int) $id)->unique()->values()->all()
+                );
             }
             DB::table('app_settings')->where('setting_id', 1)->update($updates);
 
