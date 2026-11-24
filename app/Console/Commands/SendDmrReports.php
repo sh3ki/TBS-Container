@@ -50,11 +50,18 @@ class SendDmrReports extends Command
         $dateLabel = Carbon::parse($reportDate, $timezone)->format('F d, Y');
         $sent = 0;
         foreach ($groups as $group) {
+            $clientId = (string) ($group['client_id'] ?? '');
+            if ($clientId === '') continue;
+
+            $deliveryStartedAt = Carbon::now($timezone);
+            $deliveryLogId = $this->markDeliveryProcessing($clientId, $reportDate, $deliveryStartedAt);
+
             try {
-                $clientId = (string) ($group['client_id'] ?? '');
-                if ($clientId === '') continue;
                 $receivers = $this->emails($group['receiver_emails'] ?? '');
-                if (!$receivers) continue;
+                if (!$receivers) {
+                    $this->markDeliverySkipped($deliveryLogId, 'No valid receiver email addresses configured.');
+                    continue;
+                }
                 $cc = $this->emails($group['cc_emails'] ?? '');
                 $subject = $this->replaceTokens(strip_tags((string) ($group['subject'] ?? '')), $dateLabel, (float) $utilization->utilization_percentage);
                 $content = $this->replaceTokens((string) ($group['content'] ?? ''), $dateLabel, (float) $utilization->utilization_percentage);
@@ -72,14 +79,16 @@ class SendDmrReports extends Command
                     'timeout' => 30,
                     'from' => ['address' => $senderEmail, 'name' => $senderName],
                 ]);
-                $mailer->send([], [], function ($message) use ($senderEmail, $senderName, $receivers, $cc, $subject, $html, $attachment): void {
+                $sentMessage = $mailer->send([], [], function ($message) use ($senderEmail, $senderName, $receivers, $cc, $subject, $html, $attachment): void {
                     $message->from($senderEmail, $senderName)->to($receivers)->subject($subject)->html($html)->attach($attachment['path'], ['as' => $attachment['name']]);
                     if ($cc) $message->cc($cc);
                 });
                 @unlink($attachment['path']);
+                $this->markDeliverySent($deliveryLogId, $sentMessage?->getMessageId());
                 $sent++;
                 Log::info('DMR sent successfully.', ['client_id' => $clientId, 'report_date' => $reportDate, 'recipients' => $receivers]);
             } catch (\Throwable $exception) {
+                $this->markDeliveryFailed($deliveryLogId, $exception->getMessage());
                 Log::error('DMR send failed.', ['client_id' => $group['client_id'] ?? null, 'report_date' => $reportDate, 'error' => $exception->getMessage()]);
                 $this->error($exception->getMessage());
             }
@@ -87,6 +96,62 @@ class SendDmrReports extends Command
 
         $this->info("DMR send completed. Sent {$sent} group(s) for {$reportDate}.");
         return $sent > 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function markDeliveryProcessing(string $clientId, string $reportDate, Carbon $startedAt): int
+    {
+        $now = $startedAt->toDateTimeString();
+
+        return (int) DB::table('dmr_delivery_logs')->insertGetId([
+            'client_id' => $clientId,
+            'report_date' => $reportDate,
+            'scheduled_at' => $now,
+            'started_at' => $now,
+            'status' => 'processing',
+            'attempts' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function markDeliverySent(int $deliveryLogId, ?string $messageId): void
+    {
+        DB::table('dmr_delivery_logs')
+            ->where('id', $deliveryLogId)
+            ->update([
+                'status' => 'sent',
+                'sent_at' => now('Asia/Manila'),
+                'message_id' => $messageId,
+                'error_message' => null,
+                'last_error_at' => null,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function markDeliveryFailed(int $deliveryLogId, string $error): void
+    {
+        $now = now('Asia/Manila');
+        DB::table('dmr_delivery_logs')
+            ->where('id', $deliveryLogId)
+            ->update([
+                'status' => 'failed',
+                'error_message' => $error,
+                'last_error_at' => $now,
+                'updated_at' => now(),
+            ]);
+    }
+
+    private function markDeliverySkipped(int $deliveryLogId, string $reason): void
+    {
+        $now = now('Asia/Manila');
+        DB::table('dmr_delivery_logs')
+            ->where('id', $deliveryLogId)
+            ->update([
+                'status' => 'skipped',
+                'error_message' => $reason,
+                'last_error_at' => $now,
+                'updated_at' => now(),
+            ]);
     }
 
     private function exportDmr(string $date, string $clientId): array
