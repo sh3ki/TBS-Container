@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import axios from 'axios';
 import { useState } from 'react';
-import { Eye, EyeOff, Plus, Settings, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Copy, Eye, EyeOff, Plus, Settings, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -164,6 +164,13 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
 
     const removeDmrGroup = (index: number) => {
         setDmrGroups((groups) => groups.filter((_, groupIndex) => groupIndex !== index));
+    };
+
+    const duplicateDmrGroup = (index: number) => {
+        setDmrGroups((groups) => {
+            const group = groups[index];
+            return [...groups.slice(0, index + 1), { ...group, client_id: '' }, ...groups.slice(index + 1)];
+        });
     };
 
     const saveDmrSettings = async () => {
@@ -426,7 +433,10 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                 <div key={`dmr-group-${index}`} className="rounded-xl border border-gray-200 bg-gray-50 p-5">
                                     <div className="mb-4 flex items-center justify-between">
                                         <h5 className="font-semibold text-gray-900">Group {index + 1}</h5>
-                                        <ModernButton type="button" variant="delete" size="sm" icon={<Trash2 className="h-4 w-4" />} onClick={() => removeDmrGroup(index)}>Remove</ModernButton>
+                                        <div className="flex items-center gap-2">
+                                            <ModernButton type="button" variant="secondary" size="sm" icon={<Copy className="h-4 w-4" />} onClick={() => duplicateDmrGroup(index)}>Duplicate</ModernButton>
+                                            <ModernButton type="button" variant="delete" size="sm" icon={<Trash2 className="h-4 w-4" />} onClick={() => removeDmrGroup(index)}>Remove</ModernButton>
+                                        </div>
                                     </div>
                                     <div className="grid gap-4 md:grid-cols-2">
                                         <div className="md:col-span-2">
