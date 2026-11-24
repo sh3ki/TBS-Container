@@ -36,8 +36,21 @@ interface AppSettingsProps {
         dmr_time: string;
         dmr_sender_email: string;
         dmr_sender_password: string;
+        dmr_sender_name: string;
+        dmr_day_exceptions: string[];
         dmr_signature: string;
         dmr_groups: Array<Partial<DmrGroup> & { client_id?: number | string }>;
+        utilization_time: string;
+        utilization_day_exceptions: string[];
+        utilization_capacity_teus: number;
+        smtp_host: string;
+        smtp_incoming_port: number;
+        smtp_port: number;
+        smtp_encryption: string;
+        smtp_username: string;
+        smtp_password: string;
+        smtp_from_email: string;
+        smtp_from_name: string;
     };
 }
 
@@ -58,7 +71,9 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [dmrTime, setDmrTime] = useState(settings.dmr_time);
     const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
     const [dmrSenderPassword, setDmrSenderPassword] = useState(settings.dmr_sender_password);
+    const [dmrSenderName, setDmrSenderName] = useState(settings.dmr_sender_name);
     const [showDmrSenderPassword, setShowDmrSenderPassword] = useState(false);
+    const [dmrDayExceptions, setDmrDayExceptions] = useState<string[]>(settings.dmr_day_exceptions);
     const [dmrSignature, setDmrSignature] = useState(settings.dmr_signature);
     const [dmrGroups, setDmrGroups] = useState<DmrGroup[]>(settings.dmr_groups.map((group) => ({
         client_id: String(group.client_id ?? ''),
@@ -67,7 +82,19 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         subject: group.subject ?? '',
         content: group.content ?? '',
     })));
-    const [saving, setSaving] = useState<'docs' | 'queue' | 'credentials' | 'dmr' | null>(null);
+    const [utilizationTime, setUtilizationTime] = useState(settings.utilization_time);
+    const [utilizationDayExceptions, setUtilizationDayExceptions] = useState<string[]>(settings.utilization_day_exceptions);
+    const [utilizationCapacityTeus, setUtilizationCapacityTeus] = useState(String(settings.utilization_capacity_teus));
+    const [smtpHost, setSmtpHost] = useState(settings.smtp_host);
+    const [smtpIncomingPort, setSmtpIncomingPort] = useState(String(settings.smtp_incoming_port));
+    const [smtpPort, setSmtpPort] = useState(String(settings.smtp_port));
+    const [smtpEncryption, setSmtpEncryption] = useState(settings.smtp_encryption === 'ssl' ? 'smtps' : (settings.smtp_encryption || 'smtps'));
+    const [smtpUsername, setSmtpUsername] = useState(settings.smtp_username);
+    const [smtpPassword, setSmtpPassword] = useState(settings.smtp_password);
+    const [smtpFromEmail, setSmtpFromEmail] = useState(settings.smtp_from_email);
+    const [smtpFromName, setSmtpFromName] = useState(settings.smtp_from_name);
+    const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+    const [saving, setSaving] = useState<'docs' | 'queue' | 'booking' | 'smtp' | 'dmr' | 'utilization' | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
 
     const saveDocsSettings = async () => {
@@ -108,7 +135,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     };
 
     const saveBookingCredentials = async () => {
-        setSaving('credentials');
+        setSaving('booking');
         try {
             const response = await axios.put('/app-settings', {
                 section: 'booking_credentials',
@@ -147,6 +174,8 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 dmr_time: dmrTime,
                 dmr_sender_email: dmrSenderEmail || null,
                 ...(dmrSenderPassword ? { dmr_sender_password: dmrSenderPassword } : {}),
+                dmr_sender_name: dmrSenderName || null,
+                dmr_day_exceptions: dmrDayExceptions,
                 dmr_signature: dmrSignature,
                 dmr_groups: dmrGroups,
             });
@@ -154,6 +183,47 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         } catch (exception) {
             console.error('Failed to update DMR settings:', exception);
             error('Please check the DMR settings and make sure each client is selected only once.');
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    const saveUtilizationSettings = async () => {
+        setSaving('utilization');
+        try {
+            const response = await axios.put('/app-settings', {
+                section: 'utilization',
+                utilization_time: utilizationTime,
+                utilization_day_exceptions: utilizationDayExceptions,
+                utilization_capacity_teus: Number(utilizationCapacityTeus),
+            });
+            success(response.data.message || 'Utilization settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update Utilization settings:', exception);
+            error('Capacity TEUS must be a number of at least 1.');
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    const saveSmtpSettings = async () => {
+        setSaving('smtp');
+        try {
+            const response = await axios.put('/app-settings', {
+                section: 'smtp',
+                smtp_host: smtpHost,
+                smtp_incoming_port: Number(smtpIncomingPort),
+                smtp_port: Number(smtpPort),
+                smtp_encryption: smtpEncryption,
+                smtp_username: smtpUsername || null,
+                smtp_password: smtpPassword || null,
+                smtp_from_email: smtpFromEmail,
+                smtp_from_name: smtpFromName || null,
+            });
+            success(response.data.message || 'SMTP settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update SMTP settings:', exception);
+            error('Please check the SMTP host, port, encryption, and from email fields.');
         } finally {
             setSaving(null);
         }
@@ -174,7 +244,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                     </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="relative space-y-0 [&>div]:mb-6 lg:[&>div]:w-[calc(50%-0.75rem)]">
                 <ModernCard title="Booking System Scraping Settings" subtitle="Configure Booking System verification for Add Pre-In and Add Pre-Out" icon={<Settings className="h-5 w-5 text-white" />}>
                     <div className="flex max-w-4xl items-center justify-between rounded-lg border border-gray-200 p-4">
                         <div>
@@ -246,20 +316,83 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                             <Input id="booking-system-timeout" type="number" min="1" max="300" value={bookingSystemTimeout} onChange={(event) => setBookingSystemTimeout(event.target.value)} className="mt-2 h-11" />
                         </div>
                         <div className="flex items-center gap-3 md:col-span-2">
-                            <ModernButton type="button" variant="primary" loading={saving === 'credentials'} onClick={saveBookingCredentials}>Save Settings</ModernButton>
+                            <ModernButton type="button" variant="primary" loading={saving === 'booking'} onClick={saveBookingCredentials}>Save Settings</ModernButton>
                         </div>
                     </div>
                 </ModernCard>
 
-                <ModernCard title="DMR Settings" subtitle="Configure the DMR schedule, sender, signature, and client-specific email content" icon={<Settings className="h-5 w-5 text-white" />}>
+                <ModernCard title="SMTP Settings" subtitle="Configure the SMTP server used for dynamic email delivery" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                        <div>
+                            <Label htmlFor="smtp-host" className="text-sm font-semibold text-gray-900">SMTP HOST</Label>
+                            <Input id="smtp-host" value={smtpHost} onChange={(event) => setSmtpHost(event.target.value)} placeholder="smtp.example.com" className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label className="text-sm font-semibold text-gray-900">ENCRYPTION</Label>
+                            <Select value={smtpEncryption} onValueChange={setSmtpEncryption}>
+                                <SelectTrigger className="mt-2 h-11"><SelectValue placeholder="Select encryption" /></SelectTrigger>
+                                <SelectContent><SelectItem value="smtps">SSL/TLS</SelectItem><SelectItem value="tls">STARTTLS</SelectItem><SelectItem value="none">None</SelectItem></SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="smtp-incoming-port" className="text-sm font-semibold text-gray-900">INCOMING PORT</Label>
+                            <Input id="smtp-incoming-port" type="number" min="1" max="65535" value={smtpIncomingPort} onChange={(event) => setSmtpIncomingPort(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="smtp-outgoing-port" className="text-sm font-semibold text-gray-900">OUTGOING PORT</Label>
+                            <Input id="smtp-outgoing-port" type="number" min="1" max="65535" value={smtpPort} onChange={(event) => setSmtpPort(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="smtp-username" className="text-sm font-semibold text-gray-900">SMTP USERNAME</Label>
+                            <Input id="smtp-username" value={smtpUsername} onChange={(event) => setSmtpUsername(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="smtp-password" className="text-sm font-semibold text-gray-900">SMTP PASSWORD</Label>
+                            <div className="relative mt-2">
+                                <Input id="smtp-password" type={showSmtpPassword ? 'text' : 'password'} value={smtpPassword} onChange={(event) => setSmtpPassword(event.target.value)} className="h-11 pr-11" />
+                                <button type="button" onClick={() => setShowSmtpPassword((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900" aria-label={showSmtpPassword ? 'Hide password' : 'Show password'}>{showSmtpPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="smtp-from-email" className="text-sm font-semibold text-gray-900">FROM EMAIL</Label>
+                            <Input id="smtp-from-email" type="email" value={smtpFromEmail} onChange={(event) => setSmtpFromEmail(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="smtp-from-name" className="text-sm font-semibold text-gray-900">FROM NAME</Label>
+                            <Input id="smtp-from-name" value={smtpFromName} onChange={(event) => setSmtpFromName(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div className="flex items-center gap-3 md:col-span-2">
+                            <ModernButton type="button" variant="primary" loading={saving === 'smtp'} onClick={saveSmtpSettings}>Save Settings</ModernButton>
+                        </div>
+                    </div>
+                </ModernCard>
+
+                <ModernCard title="DMR Settings" subtitle="Configure the DMR schedule, sender, signature, and client-specific email content" icon={<Settings className="h-5 w-5 text-white" />} className="lg:absolute lg:right-0 lg:top-0">
                     <div className="grid max-w-5xl gap-4 md:grid-cols-2">
                         <div>
                             <Label htmlFor="dmr-time" className="text-sm font-semibold text-gray-900">TIME</Label>
                             <Input id="dmr-time" type="time" value={dmrTime} onChange={(event) => setDmrTime(event.target.value)} className="mt-2 h-11" />
                         </div>
                         <div>
+                            <Label htmlFor="dmr-day-exceptions" className="text-sm font-semibold text-gray-900">DAY EXCEPTIONS</Label>
+                            <div className="mt-2">
+                                <MultiSelect
+                                    options={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => ({ value: day, label: day }))}
+                                    value={dmrDayExceptions}
+                                    onChange={setDmrDayExceptions}
+                                    placeholder="Select exception days"
+                                    searchPlaceholder="Search days..."
+                                />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">The DMR worker will skip sending on selected days.</p>
+                        </div>
+                        <div>
                             <Label htmlFor="dmr-sender-email" className="text-sm font-semibold text-gray-900">SENDER EMAIL</Label>
                             <Input id="dmr-sender-email" type="email" value={dmrSenderEmail} onChange={(event) => setDmrSenderEmail(event.target.value)} placeholder="sender@example.com" className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="dmr-sender-name" className="text-sm font-semibold text-gray-900">SENDER NAME</Label>
+                            <Input id="dmr-sender-name" value={dmrSenderName} onChange={(event) => setDmrSenderName(event.target.value)} placeholder="TBS Container Yard" className="mt-2 h-11" />
                         </div>
                         <div>
                             <Label htmlFor="dmr-sender-password" className="text-sm font-semibold text-gray-900">SENDER PASSWORD</Label>
@@ -330,6 +463,36 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                     </div>
                     <div className="mt-6 flex items-center gap-3">
                         <ModernButton type="button" variant="primary" loading={saving === 'dmr'} onClick={saveDmrSettings}>Save Settings</ModernButton>
+                    </div>
+                </ModernCard>
+
+                <ModernCard title="Utilization Settings" subtitle="Configure the daily real-time inventory utilization snapshot" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                        <div>
+                            <Label htmlFor="utilization-time" className="text-sm font-semibold text-gray-900">TIME</Label>
+                            <Input id="utilization-time" type="time" value={utilizationTime} onChange={(event) => setUtilizationTime(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="utilization-capacity" className="text-sm font-semibold text-gray-900">CAPACITY (TEUS)</Label>
+                            <Input id="utilization-capacity" type="number" min="1" step="1" value={utilizationCapacityTeus} onChange={(event) => setUtilizationCapacityTeus(event.target.value)} className="mt-2 h-11" />
+                            <p className="mt-1 text-xs text-gray-500">Must be a number greater than or equal to 1.</p>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Label htmlFor="utilization-day-exceptions" className="text-sm font-semibold text-gray-900">DAY EXCEPTIONS</Label>
+                            <div className="mt-2">
+                                <MultiSelect
+                                    options={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => ({ value: day, label: day }))}
+                                    value={utilizationDayExceptions}
+                                    onChange={setUtilizationDayExceptions}
+                                    placeholder="Select exception days"
+                                    searchPlaceholder="Search days..."
+                                />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">The worker skips utilization capture on selected days.</p>
+                        </div>
+                        <div className="flex items-center gap-3 md:col-span-2">
+                            <ModernButton type="button" variant="primary" loading={saving === 'utilization'} onClick={saveUtilizationSettings}>Save Settings</ModernButton>
+                        </div>
                     </div>
                 </ModernCard>
 
