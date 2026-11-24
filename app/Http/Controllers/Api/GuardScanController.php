@@ -206,19 +206,20 @@ class GuardScanController extends Controller
                 ];
             }
 
+            $servingAt = now();
             DB::table('queue_entries')->where('id', $entry->id)->update([
                 'status' => 'serving',
                 'waiting_number' => null,
                 'serving_number' => null,
-                'serving_at' => now(),
-                'updated_at' => now(),
+                'serving_at' => $servingAt,
+                'updated_at' => $servingAt,
             ]);
-            $serving = DB::table('queue_entries')->where('status', 'serving')->where('direction', $entry->direction)->whereNull('completed_at')->where('id', '<>', $entry->id)->orderBy('serving_number')->orderBy('id')->lockForUpdate()->get(['id', 'booking_time']);
+            $serving = DB::table('queue_entries')->where('status', 'serving')->where('direction', $entry->direction)->whereNull('completed_at')->where('id', '<>', $entry->id)->orderByRaw('CASE WHEN serving_at IS NULL THEN 1 ELSE 0 END')->orderBy('serving_at')->orderBy('id')->lockForUpdate()->get(['id', 'serving_at']);
             $servingIds = $serving->pluck('id')->map(fn ($id) => (int) $id)->all();
             $insertAt = count($servingIds);
-            $newTimestamp = strtotime((string) $entry->booking_time) ?: PHP_INT_MAX;
+            $newTimestamp = strtotime((string) $servingAt) ?: PHP_INT_MAX;
             foreach ($serving as $index => $servingEntry) {
-                if ((strtotime((string) $servingEntry->booking_time) ?: PHP_INT_MAX) > $newTimestamp) { $insertAt = $index; break; }
+                if ((strtotime((string) $servingEntry->serving_at) ?: PHP_INT_MAX) > $newTimestamp) { $insertAt = $index; break; }
             }
             array_splice($servingIds, $insertAt, 0, [(int) $entry->id]);
             foreach ($servingIds as $index => $servingId) DB::table('queue_entries')->where('id', $servingId)->update(['serving_number' => $index + 1, 'updated_at' => now()]);
