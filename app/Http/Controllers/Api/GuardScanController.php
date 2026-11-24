@@ -13,6 +13,7 @@ class GuardScanController extends Controller
     public function queueDisplay()
     {
         $activeStatuses = ['waiting', 'calling', 'floating'];
+        $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
         $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
         $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
         $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
@@ -21,6 +22,7 @@ class GuardScanController extends Controller
             'waiting_in' => $waitingIn,
             'waiting_out' => $waitingOut,
             'serving' => $serving,
+            'serving_capacity' => $servingCapacity,
         ]]);
     }
 
