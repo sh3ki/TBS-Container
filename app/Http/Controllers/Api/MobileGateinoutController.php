@@ -347,6 +347,7 @@ class MobileGateinoutController extends Controller
         try {
             $searchTerm = trim((string) $request->input('search', ''));
             $username = $request->input('username', 'mobile-user');
+            $clientId = $request->input('client_id');
 
             if (empty($searchTerm) || strlen($searchTerm) < 3) {
                 return response()->json([
@@ -356,6 +357,12 @@ class MobileGateinoutController extends Controller
             }
 
             $prefix = $this->prefix;
+            $clientFilter = '';
+            $bindings = [];
+            if (is_numeric($clientId) && (int) $clientId > 0) {
+                $clientFilter = ' AND i.client_id = ?';
+                $bindings[] = (int) $clientId;
+            }
 
             // Search inventory table for containers IN and not complete
             // Excludes held containers and archived clients
@@ -382,10 +389,12 @@ class MobileGateinoutController extends Controller
                       SELECT 1 FROM {$prefix}hold_containers hc 
                       WHERE hc.container_no = i.container_no
                   )
+                  {$clientFilter}
                   AND LOWER(i.container_no) LIKE LOWER(?)
                 ORDER BY i.date_added DESC
             ", [
-                '%' . $searchTerm . '%'
+                ...$bindings,
+                '%' . $searchTerm . '%',
             ]);
 
             return response()->json([
