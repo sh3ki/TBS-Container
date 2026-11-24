@@ -378,6 +378,16 @@ class GateinoutController extends Controller
         );
     }
 
+    private function preInClientIsExcepted(int $clientId): bool
+    {
+        $configured = json_decode(
+            (string) DB::table('app_settings')->where('setting_id', 1)->value('prein_scraping_client_ids'),
+            true
+        );
+
+        return is_array($configured) && in_array($clientId, array_map('intval', $configured), true);
+    }
+
     private function completeQueueEntryForPreInventory(int $preInventoryId, string $direction, $completedAt): void
     {
         $entry = DB::table('queue_entries')
@@ -576,7 +586,7 @@ class GateinoutController extends Controller
 
                 // Booking System verification is deliberately performed last,
                 // after every local Pre-In validation has passed.
-                $booking = $this->bookingScrapingEnabled() && !$notInBooking
+                $booking = $this->bookingScrapingEnabled() && !$notInBooking && !$this->preInClientIsExcepted((int) $client->c_id)
                     ? app(BookingSystemService::class)->findVerifiedBooking($containerNo)
                     : null;
             
@@ -643,8 +653,27 @@ class GateinoutController extends Controller
             $plateNo = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim((string) $request->input('pno'))));
             $hauler = strtoupper(trim((string) $request->input('hauler')));
             $notInBooking = $request->boolean('not_in_booking');
+            $exceptionMode = $request->input('exception_mode', 'client');
+            $clientId = null;
 
-            if ($notInBooking) {
+            if (!in_array($exceptionMode, ['client', 'hauler'], true)) {
+                $exceptionMode = 'client';
+            }
+
+            if ($notInBooking && $exceptionMode === 'client') {
+                $client = DB::selectOne(
+                    "SELECT c_id FROM {$this->prefix}clients WHERE MD5(c_id) = :cid",
+                    ['cid' => (string) $request->input('client')]
+                );
+                if (!$client) {
+                    return response()->json([
+                        'message' => ['danger', '<strong>Error!</strong> Please select a valid client exception.']
+                    ]);
+                }
+                $clientId = (int) $client->c_id;
+            }
+
+            if ($notInBooking && $exceptionMode === 'hauler') {
                 $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('preout_hauler_exceptions');
                 $isException = collect(explode(',', $configured))->contains(
                     static fn (string $item): bool => strtoupper(trim($item)) === $hauler
@@ -688,6 +717,7 @@ class GateinoutController extends Controller
                 // Insert Pre-OUT record
                 $preInventoryId = DB::table('pre_inventory')->insertGetId([
                     'container_no' => '',
+                    'client_id' => $clientId,
                     'plate_no' => $plateNo,
                     'hauler' => $hauler,
                     'gate_status' => 'OUT',
