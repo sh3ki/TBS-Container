@@ -1840,7 +1840,7 @@ const Index: React.FC = () => {
                             className="px-6 py-3"
                         >
                             {summaryLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
-                            {summaryLoading ? 'Generating...' : 'View Summary Report'}
+                            {summaryLoading ? 'Generating...' : 'Summary Report'}
                         </ModernButton>
                         <ModernButton
                             variant="toggle"
