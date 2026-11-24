@@ -12,6 +12,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xls;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Color;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 
 class ReportExportService
@@ -1024,7 +1025,7 @@ class ReportExportService
             );
             $sheetIncoming->getStyle('A' . $utilizationRow)->getFont()
                 ->setItalic(true)
-                ->setColor('FFFF0000');
+                ->setColor(new Color('FFFF0000'));
         }
 
         foreach (range('A', 'N') as $col) {
