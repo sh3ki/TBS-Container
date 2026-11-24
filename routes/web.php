@@ -160,6 +160,17 @@ Route::middleware(['auth'])->group(function () {
         $clients = DB::table('clients')
             ->orderBy('client_name')
             ->get(['c_id', 'client_name', 'client_code']);
+        $decryptSetting = static function (?string $value): string {
+            if (!$value) {
+                return '';
+            }
+
+            try {
+                return decrypt($value);
+            } catch (\Throwable) {
+                return '';
+            }
+        };
 
         return Inertia::render('AppSettings/Index', [
             'settings' => [
@@ -173,7 +184,13 @@ Route::middleware(['auth'])->group(function () {
                 'booking_system_url' => (string) ($settings?->booking_system_url ?: config('services.booking_system.url')),
                 'booking_system_login_url' => (string) ($settings?->booking_system_login_url ?: config('services.booking_system.login_url')),
                 'booking_system_username' => (string) ($settings?->booking_system_username ?: config('services.booking_system.username')),
+                'booking_system_password' => $decryptSetting($settings?->booking_system_password),
                 'booking_system_timeout' => (int) ($settings?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
+                'dmr_time' => (string) ($settings?->dmr_time ?? ''),
+                'dmr_sender_email' => (string) ($settings?->dmr_sender_email ?? ''),
+                'dmr_sender_password' => $decryptSetting($settings?->dmr_sender_password),
+                'dmr_signature' => (string) ($settings?->dmr_signature ?? ''),
+                'dmr_groups' => json_decode((string) ($settings?->dmr_groups ?? '[]'), true) ?: [],
             ],
             'clients' => $clients,
         ]);
@@ -181,7 +198,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::put('/app-settings', function (Request $request, AuditService $auditService) {
         $rules = [
-            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials'],
+            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials,dmr'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
@@ -194,12 +211,40 @@ Route::middleware(['auth'])->group(function () {
             'booking_system_username' => ['required_if:section,booking_credentials', 'string', 'max:255'],
             'booking_system_password' => ['nullable', 'string', 'max:5000'],
             'booking_system_timeout' => ['required_if:section,booking_credentials', 'integer', 'min:1', 'max:300'],
+            'dmr_time' => ['nullable', 'string', 'max:20'],
+            'dmr_sender_email' => ['nullable', 'email', 'max:255'],
+            'dmr_sender_password' => ['nullable', 'string', 'max:5000'],
+            'dmr_signature' => ['nullable', 'string', 'max:100000'],
+            'dmr_groups' => ['nullable', 'array'],
+            'dmr_groups.*.client_id' => ['required', 'integer', 'distinct', 'exists:clients,c_id'],
+            'dmr_groups.*.receiver_emails' => ['nullable', 'string', 'max:5000'],
+            'dmr_groups.*.cc_emails' => ['nullable', 'string', 'max:5000'],
+            'dmr_groups.*.subject' => ['nullable', 'string', 'max:100000'],
+            'dmr_groups.*.content' => ['nullable', 'string', 'max:100000'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
             $rules['outgoing_rate'] = ['required', 'numeric', 'gt:0'];
         }
         $validated = $request->validate($rules);
+
+        if ($validated['section'] === 'dmr') {
+            DB::table('app_settings')->where('setting_id', 1)->update([
+                'dmr_time' => $validated['dmr_time'] ?? null,
+                'dmr_sender_email' => $validated['dmr_sender_email'] ?? null,
+                'dmr_signature' => $validated['dmr_signature'] ?? null,
+                'dmr_groups' => json_encode(array_values($validated['dmr_groups'] ?? [])),
+                'updated_at' => now(),
+            ]);
+
+            if (!empty($validated['dmr_sender_password'])) {
+                DB::table('app_settings')->where('setting_id', 1)->update([
+                    'dmr_sender_password' => encrypt($validated['dmr_sender_password']),
+                ]);
+            }
+
+            return response()->json(['message' => 'DMR settings updated successfully.']);
+        }
 
         if ($validated['section'] === 'booking_credentials') {
             $updates = [
