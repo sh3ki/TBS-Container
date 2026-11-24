@@ -71,6 +71,8 @@ interface EditPreOutFormData {
   hauler: string;
 }
 
+const normalizeBookingIdentifier = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 type BadgeVariant = 'success' | 'error' | 'warning' | 'info' | 'default';
 
 const getContainerStatusVariant = (status: string): BadgeVariant => {
@@ -437,7 +439,7 @@ export default function Index() {
 
   const submitAddPreIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (preInForm.container_no.length !== 11) {
+    if (normalizeBookingIdentifier(preInForm.container_no).length !== 11) {
       error('Container number must be exactly 11 characters');
       return;
     }
@@ -463,7 +465,7 @@ export default function Index() {
 
     try {
       const response = await axios.post('/api/gateinout/check-container-in', {
-        cno: preInForm.container_no.toUpperCase(),
+        cno: normalizeBookingIdentifier(preInForm.container_no),
         client: preInForm.client_id,
         pno: preInForm.plate_no.trim().toUpperCase(),
         not_in_booking: preInForm.not_in_booking,
@@ -510,7 +512,7 @@ export default function Index() {
 
     try {
       const response = await axios.post('/api/gateinout/check-container-out', {
-        pno: preOutForm.plate_no,
+        pno: normalizeBookingIdentifier(preOutForm.plate_no),
         hauler: preOutForm.hauler,
         not_in_booking: preOutForm.not_in_booking,
       });
@@ -1362,9 +1364,9 @@ export default function Index() {
                     setPreInForm({ ...preInForm, container_no: e.target.value.toUpperCase() })
                   }
                   placeholder="ABCD1234567"
-                  maxLength={11}
+                  maxLength={14}
                 />
-                <p className="text-xs text-gray-500 mt-1">Must be exactly 11 characters</p>
+                <p className="text-xs text-gray-500 mt-1">Must be exactly 11 letters/numbers; spaces and hyphens are ignored</p>
               </div>
               <div>
                 <Label className="text-gray-900">
