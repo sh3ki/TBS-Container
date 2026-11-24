@@ -1274,7 +1274,7 @@ class ReportsController extends Controller
                 DB::table('audit_logs')->insert([
                     'action' => 'REPORTS',
                     'description' => '[REPORTS] COSCO DMR exported ' . $inventory->count() . ' inventory record(s) to XLS file',
-                    'user_id' => auth()->user()->user_id ?? null,
+                    'user_id' => auth()->user()?->user_id ?? DB::table('users')->value('user_id'),
                     'date_added' => now(),
                     'ip_address' => $request->ip(),
                 ]);
@@ -1337,7 +1337,7 @@ class ReportsController extends Controller
                 DB::table('audit_logs')->insert([
                     'action' => 'REPORTS',
                     'description' => '[REPORTS] MSC DMR exported ' . ($inData->count() + $outData->count()) . ' record(s) to XLS file',
-                    'user_id' => auth()->user()->user_id ?? null,
+                    'user_id' => auth()->user()?->user_id ?? DB::table('users')->value('user_id'),
                     'date_added' => now(),
                     'ip_address' => $request->ip(),
                 ]);
@@ -1422,7 +1422,7 @@ class ReportsController extends Controller
                 DB::table('audit_logs')->insert([
                     'action' => 'REPORTS',
                     'description' => '[REPORTS] New Zealand DMR exported',
-                    'user_id' => auth()->user()->user_id ?? null,
+                    'user_id' => auth()->user()?->user_id ?? DB::table('users')->value('user_id'),
                     'date_added' => now(),
                     'ip_address' => $request->ip(),
                 ]);
@@ -1589,7 +1589,7 @@ class ReportsController extends Controller
             DB::table('audit_logs')->insert([
                 'action' => 'REPORTS',
                 'description' => '[REPORTS] DMR Report exported ' . count($inventoryData) . ' record(s) to XLS file',
-                'user_id' => auth()->user()->user_id ?? null,
+                'user_id' => auth()->user()?->user_id ?? DB::table('users')->value('user_id'),
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
