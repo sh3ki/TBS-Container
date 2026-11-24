@@ -32,7 +32,7 @@ function useClock() {
     return now;
 }
 
-function QueueColumn({ title, direction, group, entries, serving = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, servingId, onStatus, statusId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[]) => void; onServe?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date }) {
+function QueueColumn({ title, direction, group, entries, serving = false, servingCapacity = 0, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, servingId, onStatus, statusId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; servingCapacity?: number; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[]) => void; onServe?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date }) {
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<number | null>(null);
     const longestPlateLength = serving ? Math.max(8, ...entries.map((entry) => entry.plate_no.length)) : 0;
@@ -58,7 +58,7 @@ function QueueColumn({ title, direction, group, entries, serving = false, canEdi
                 <span>{title}{direction ? ` ${direction}` : ''}</span>
                 {!serving && <Truck className="h-5 w-5" />}
             </div>
-            <span className="text-2xl font-black tabular-nums">{String(entries.length).padStart(2, '0')}</span>
+            <span className="text-2xl font-black tabular-nums">{serving ? `${String(entries.length).padStart(2, '0')}/${String(servingCapacity).padStart(2, '0')}` : String(entries.length).padStart(2, '0')}</span>
         </header>
         <div className={serving ? 'queue-serving-content grid content-start gap-3 p-3' : 'space-y-3 p-3'} style={serving ? { '--serving-card-width': servingCardWidth } as CSSProperties : undefined}>
             {serving ? <>
@@ -72,13 +72,14 @@ function QueueColumn({ title, direction, group, entries, serving = false, canEdi
 export default function QueueIndex() {
     const now = useClock();
     const page = usePage();
-    const servingCapacity = Number((page.props as QueuePageProps).servingCapacity ?? 0);
+    const initialServingCapacity = Number((page.props as QueuePageProps).servingCapacity ?? 0);
+    const [servingCapacity, setServingCapacity] = useState(initialServingCapacity);
     const auth = (page.props as { auth?: { permissions?: Array<{ page: string; acs_edit: number }> } }).auth;
     const canEditQueue = Number(auth?.permissions?.find((permission) => permission.page === 'queuelist')?.acs_edit ?? 0) === 1;
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [activeGroup, setActiveGroup] = useState<string | null>(null);
     const [capacityOpen, setCapacityOpen] = useState(false);
-    const [capacity, setCapacity] = useState(String(servingCapacity));
+    const [capacity, setCapacity] = useState(String(initialServingCapacity));
     const [savingCapacity, setSavingCapacity] = useState(false);
     const [servingId, setServingId] = useState<number | null>(null);
     const [serveConfirmation, setServeConfirmation] = useState<QueueEntry | null>(null);
@@ -130,12 +131,27 @@ export default function QueueIndex() {
         setSavingCapacity(true);
         try {
             await axios.put('/queuelist/settings', { serving_capacity: value });
+            setServingCapacity(value);
+            setCapacityOpen(false);
             success('Queue settings updated successfully.');
         } catch (exception: any) {
             error(exception?.response?.data?.message ?? 'Unable to save queue settings.');
         } finally {
             setSavingCapacity(false);
         }
+    };
+    const openCapacitySettings = async () => {
+        try {
+            const response = await axios.get('/api/guard/queue-capacity');
+            const value = Number(response.data?.serving_capacity ?? 0);
+            if (Number.isFinite(value)) {
+                setServingCapacity(value);
+                setCapacity(String(value));
+            }
+        } catch {
+            setCapacity(String(servingCapacity));
+        }
+        setCapacityOpen(true);
     };
     const serveQueueEntry = async (entry: QueueEntry) => {
         setServingId(entry.id);
@@ -188,12 +204,12 @@ export default function QueueIndex() {
                             </p>
                         </div>
                     </div>
-                    {canEditQueue && <button type="button" onClick={() => { setCapacity(String(servingCapacity)); setCapacityOpen(true); }} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
+                    {canEditQueue && <button type="button" onClick={openCapacitySettings} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
                 </div>
                 <div className="queue-list-grid grid min-h-0 gap-4">
                     <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids) => commitQueueOrder('waiting_in', ids)} onServe={setServeConfirmation} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
                     <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids) => commitQueueOrder('waiting_out', ids)} onServe={setServeConfirmation} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
-                    <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} />
+                    <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving servingCapacity={servingCapacity} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} />
                 </div>
             </div>
             <ModernConfirmDialog
