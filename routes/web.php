@@ -89,13 +89,21 @@ Route::middleware(['auth'])->group(function () {
     })->name('gateinout.index');
 
     // Authenticated queue management page.
-    Route::get('/queuelist', function () {
+    Route::get('/queue-admin', function () {
         $settings = DB::table('app_settings')->where('setting_id', 1)->first();
 
         return Inertia::render('Queue/Index', [
             'servingCapacity' => (int) ($settings?->serving_capacity ?? 0),
         ]);
-    })->middleware('page.access:queuelist')->name('queue.index');
+    })->middleware('page.access:queue-admin')->name('queue.index');
+
+    Route::get('/queue-planner', function () {
+        $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+
+        return Inertia::render('Queue/Planner', [
+            'servingCapacity' => (int) ($settings?->serving_capacity ?? 0),
+        ]);
+    })->middleware('page.access:queue-planner')->name('queue.planner');
 
     // Size & Type
     Route::get('/sizetype', function () {
@@ -261,7 +269,7 @@ Route::middleware(['auth'])->group(function () {
         return response()->json(['message' => 'Docs Fee settings updated successfully.']);
     })->middleware('page.access:app-settings')->name('app-settings.update');
 
-    Route::put('/queuelist/settings', function (Request $request) {
+    Route::put('/queue-admin/settings', function (Request $request) {
         $validated = $request->validate([
             'serving_capacity' => ['required', 'integer', 'min:0'],
         ]);
@@ -272,7 +280,7 @@ Route::middleware(['auth'])->group(function () {
         ]);
 
         return response()->json(['message' => 'Queue settings updated successfully.']);
-    })->middleware('page.access:queuelist')->name('queuelist.settings.update');
+    })->middleware('page.access:queue-admin')->name('queue-admin.settings.update');
 
     Route::put('/mobile-settings', function (Request $request, AuditService $auditService) {
         $validated = $request->validate([
