@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -923,7 +924,7 @@ class ReportExportService
      * @param string $clientCode
      * @return string Path to the exported file
      */
-    public function exportDmrMultiSheet(array $data, string $date, string $clientName): string
+    public function exportDmrMultiSheet(array $data, string $date, string $clientName, bool $includeIncomingUtilization = false): string
     {
         try {
             // Create fresh spreadsheet
@@ -1007,6 +1008,23 @@ class ReportExportService
             $sheetIncoming->setCellValue($col . $currentRow, $row->load_value ?? ''); $col++;
             
             $currentRow++;
+        }
+
+        // Namsung (client ID 104) requires the saved utilization snapshot for
+        // the report date below the incoming movement table.
+        if ($includeIncomingUtilization) {
+            $utilization = DB::table('utilizations')
+                ->whereDate('utilization_date', $date)
+                ->value('utilization_percentage');
+
+            $utilizationRow = $currentRow + 1;
+            $sheetIncoming->setCellValue(
+                'A' . $utilizationRow,
+                'UTILIZATION = ' . number_format((float) ($utilization ?? 0), 0) . '%'
+            );
+            $sheetIncoming->getStyle('A' . $utilizationRow)->getFont()
+                ->setItalic(true)
+                ->setColor('FFFF0000');
         }
 
         foreach (range('A', 'N') as $col) {
