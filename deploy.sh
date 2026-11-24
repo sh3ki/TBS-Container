@@ -116,7 +116,6 @@ if command -v supervisorctl >/dev/null 2>&1; then
 	fi
 	supervisorctl restart tbs-worker:* || true
 	supervisorctl restart tbs-scheduler || true
-	supervisorctl restart tbs-email-automation || true
 fi
 
 # Bring application back up
