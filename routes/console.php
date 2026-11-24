@@ -34,6 +34,22 @@ Schedule::command('email:automation --once')
     ->withoutOverlapping()
     ->onOneServer();
 
+// Utilization settings are read by the command each minute so the configured
+// time and exception days can be changed without rebuilding the scheduler.
+Schedule::command('utilization:capture')
+    ->everyMinute()
+    ->timezone('Asia/Manila')
+    ->name('capture-daily-utilization')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('dmr:send')
+    ->everyMinute()
+    ->timezone('Asia/Manila')
+    ->name('send-daily-dmr-reports')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ============================================================================
 // ADDITIONAL MAINTENANCE JOBS
 // ============================================================================
