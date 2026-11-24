@@ -1,8 +1,8 @@
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import axios from 'axios';
-import { useState } from 'react';
-import { Copy, Eye, EyeOff, Plus, Settings, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Copy, Eye, EyeOff, Plus, Settings, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,6 +82,14 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         subject: group.subject ?? '',
         content: group.content ?? '',
     })));
+    const [collapsedDmrGroups, setCollapsedDmrGroups] = useState<Record<string, boolean>>(() => {
+        if (typeof window === 'undefined') return {};
+        try {
+            return JSON.parse(window.localStorage.getItem('app-settings:dmr-group-collapse') || '{}') as Record<string, boolean>;
+        } catch {
+            return {};
+        }
+    });
     const [utilizationTime, setUtilizationTime] = useState(settings.utilization_time);
     const [utilizationDayExceptions, setUtilizationDayExceptions] = useState<string[]>(settings.utilization_day_exceptions);
     const [utilizationCapacityTeus, setUtilizationCapacityTeus] = useState(String(settings.utilization_capacity_teus));
@@ -171,6 +179,15 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
             const group = groups[index];
             return [...groups.slice(0, index + 1), { ...group, client_id: '' }, ...groups.slice(index + 1)];
         });
+    };
+
+    useEffect(() => {
+        window.localStorage.setItem('app-settings:dmr-group-collapse', JSON.stringify(collapsedDmrGroups));
+    }, [collapsedDmrGroups]);
+
+    const toggleDmrGroup = (index: number) => {
+        const key = String(index);
+        setCollapsedDmrGroups((groups) => ({ ...groups, [key]: !groups[key] }));
     };
 
     const saveDmrSettings = async () => {
@@ -432,13 +449,16 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                             return (
                                 <div key={`dmr-group-${index}`} className="rounded-xl border border-gray-200 bg-gray-50 p-5">
                                     <div className="mb-4 flex items-center justify-between">
-                                        <h5 className="font-semibold text-gray-900">Group {index + 1}</h5>
+                                        <button type="button" onClick={() => toggleDmrGroup(index)} className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600" aria-expanded={!collapsedDmrGroups[String(index)]} aria-controls={`dmr-group-content-${index}`}>
+                                            {collapsedDmrGroups[String(index)] ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+                                            Group {index + 1}
+                                        </button>
                                         <div className="flex items-center gap-2">
                                             <ModernButton type="button" variant="secondary" size="sm" icon={<Copy className="h-4 w-4" />} onClick={() => duplicateDmrGroup(index)}>Duplicate</ModernButton>
                                             <ModernButton type="button" variant="delete" size="sm" icon={<Trash2 className="h-4 w-4" />} onClick={() => removeDmrGroup(index)}>Remove</ModernButton>
                                         </div>
                                     </div>
-                                    <div className="grid gap-4 md:grid-cols-2">
+                                    <div id={`dmr-group-content-${index}`} className={collapsedDmrGroups[String(index)] ? 'hidden' : 'grid gap-4 md:grid-cols-2'}>
                                         <div className="md:col-span-2">
                                             <Label htmlFor={`dmr-client-${index}`} className="text-sm font-semibold text-gray-900">CLIENT</Label>
                                             <Select value={group.client_id || undefined} onValueChange={(value) => updateDmrGroup(index, 'client_id', value)}>
