@@ -75,6 +75,7 @@ class GateinoutController extends Controller
     {
         try {
             $activeStatuses = ['waiting', 'calling', 'floating'];
+            $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
             $waitingIn = DB::table('queue_entries')
                 ->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')
                 ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
@@ -89,6 +90,7 @@ class GateinoutController extends Controller
                 'waiting_in' => $waitingIn,
                 'waiting_out' => $waitingOut,
                 'serving' => $serving,
+                'serving_capacity' => $servingCapacity,
             ]]);
         } catch (\Throwable $e) {
             Log::error('Queue display error: ' . $e->getMessage());
