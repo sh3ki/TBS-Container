@@ -56,7 +56,8 @@ const iconMap: Record<string, React.ReactNode> = {
     inventory: <Package className="h-5 w-5" />,
     gateinout: <LogIn className="h-5 w-5" />,
     queue: <List className="h-5 w-5" />,
-    queuelist: <List className="h-5 w-5" />,
+    'queue-admin': <List className="h-5 w-5" />,
+    'queue-planner': <List className="h-5 w-5" />,
     audit: <BarChart3 className="h-5 w-5" />,
     reports: <FileBarChart className="h-5 w-5" />,
     sizetype: <Layers className="h-5 w-5" />,
@@ -155,6 +156,8 @@ export default function Authenticated({ children }: PropsWithChildren) {
     const isActivePath = (path: string) => {
         return currentPath === path || currentPath.startsWith(`${path}/`);
     };
+
+    const pagePath = (pageName: string) => `/${pageName}`;
 
     const isDashboardActive = currentPath === '/dashboard';
     const isEmailAutomationActive = isActivePath('/dashboard/email-automation');
@@ -315,14 +318,15 @@ export default function Authenticated({ children }: PropsWithChildren) {
                                     {/* Category Items */}
                                     {category.permissions.map((permission) => {
                                         const icon = iconMap[permission.page.toLowerCase()] || <Package className="h-5 w-5" />;
-                                        const isActive = isActivePath(`/${permission.page}`);
+                                        const permissionPath = pagePath(permission.page);
+                                        const isActive = isActivePath(permissionPath);
 
                                         return (
                                             <li key={permission.p_id}>
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
                                                         <Link
-                                                            href={`/${permission.page}`}
+                                                            href={permissionPath}
                                 className={`flex items-center gap-3 rounded-xl px-4 py-3.5 transition-all duration-200 group ${
                                     sidebarCollapsed ? 'lg:mx-auto lg:h-[52px] lg:w-[52px] lg:justify-center lg:gap-0 lg:px-0 lg:py-0' : ''
                                 } ${
