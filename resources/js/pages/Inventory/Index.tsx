@@ -260,6 +260,9 @@ const Index: React.FC = () => {
     const [summaryData, setSummaryData] = useState<{
         by_client: Record<string, Record<string, number>>;
         size_types: string[];
+        total_teus: number;
+        capacity_teus: number;
+        utilization_percentage: number;
     } | null>(null);
     const [summaryLoading, setSummaryLoading] = useState(false);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -2468,7 +2471,7 @@ const Index: React.FC = () => {
             {/* Filters Modal */}
             <Dialog open={showFiltersModal} onOpenChange={handleFilterModalOpenChange}>
                 <DialogContent className="!max-w-6xl !w-[90vw] !max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
+                    <DialogHeader className="pr-12">
                         <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
                             Filter Options
                         </DialogTitle>
@@ -3728,9 +3731,14 @@ const Index: React.FC = () => {
             <Dialog open={showSummaryModal} onOpenChange={setShowSummaryModal}>
                 <DialogContent className="!max-w-[90vw] !w-[90vw] !max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
-                            Summary Report
-                        </DialogTitle>
+                        <div className="flex items-center justify-between gap-4">
+                            <DialogTitle className="text-2xl font-bold" style={{ color: colors.brand.primary }}>
+                                Summary Report
+                            </DialogTitle>
+                            <div className="mr-10 whitespace-nowrap rounded-lg bg-blue-50 px-4 py-2 text-right text-sm font-semibold text-gray-900">
+                                Utilization: <span className="text-lg font-bold" style={{ color: colors.brand.primary }}>{Number(summaryData?.utilization_percentage ?? 0).toFixed(2)}%</span>
+                            </div>
+                        </div>
                         <DialogDescription>
                             Container inventory summary by client and size/type with TEUs calculation
                         </DialogDescription>
