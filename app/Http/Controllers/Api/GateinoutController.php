@@ -103,7 +103,7 @@ class GateinoutController extends Controller
         $user = $request->user();
         $canEdit = $user && DB::table('pages_access')
             ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
-            ->where('pages.page', 'queuelist')
+            ->whereIn('pages.page', ['queue-admin', 'queue-planner'])
             ->where('pages_access.privilege', $user->priv_id)
             ->where('pages_access.acs_edit', 1)
             ->exists();
@@ -114,14 +114,18 @@ class GateinoutController extends Controller
             'ids.*' => ['integer'],
             'status' => ['required', 'in:waiting,serving'],
             'direction' => ['required', 'in:IN,OUT'],
+            'planner' => ['sometimes', 'boolean'],
         ]);
 
         $userId = $request->user()?->user_id ?? auth()->id();
 
         DB::transaction(function () use ($validated, $userId): void {
-            $queueStatuses = $validated['status'] === 'waiting'
-                ? ['waiting', 'calling', 'floating']
-                : ['serving'];
+            $plannerWaiting = ($validated['planner'] ?? false) && $validated['status'] === 'waiting';
+            $queueStatuses = $plannerWaiting
+                ? ['calling']
+                : ($validated['status'] === 'waiting'
+                    ? ['waiting', 'calling', 'floating']
+                    : ['serving']);
             $query = DB::table('queue_entries')
                 ->whereIn('status', $queueStatuses)
                 ->when(in_array($validated['status'], ['waiting', 'serving'], true), fn ($q) => $q->where('direction', $validated['direction']))
@@ -129,7 +133,7 @@ class GateinoutController extends Controller
                 ->orderBy('id')
                 ->lockForUpdate();
 
-            $existingEntries = $query->get(['id', 'plate_no']);
+            $existingEntries = $query->get(['id', 'plate_no', 'waiting_number']);
             $existingIds = $existingEntries->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
             $submittedIds = collect($validated['ids'])->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
             abort_unless($existingIds === $submittedIds, 422, 'Queue entries changed. Refresh and try again.');
@@ -138,17 +142,22 @@ class GateinoutController extends Controller
             $entryById = $existingEntries->keyBy(fn ($entry) => (int) $entry->id);
             $newOrder = collect($validated['ids'])->values()->map(fn ($id, $index) => sprintf('%s - %d', $entryById[(int) $id]->plate_no, $index + 1))->implode(', ');
 
+            $plannerPositions = $existingEntries->pluck('waiting_number')->values()->all();
             foreach ($validated['ids'] as $index => $id) {
                 DB::table('queue_entries')->where('id', $id)->update([
-                    $validated['status'] === 'waiting' ? 'waiting_number' : 'serving_number' => $index + 1,
+                    $validated['status'] === 'waiting' ? 'waiting_number' : 'serving_number' => $plannerWaiting
+                        ? $plannerPositions[$index]
+                        : $index + 1,
                     'updated_at' => now(),
                 ]);
             }
 
             if ($oldOrder !== $newOrder) {
-                $queueName = $validated['status'] === 'waiting'
-                    ? 'WAITING ' . $validated['direction']
-                    : 'SERVING ' . $validated['direction'];
+                $queueName = $plannerWaiting
+                    ? 'CALLING ' . $validated['direction']
+                    : ($validated['status'] === 'waiting'
+                        ? 'WAITING ' . $validated['direction']
+                        : 'SERVING ' . $validated['direction']);
                 DB::table('audit_logs')->insert([
                     'action' => 'EDIT',
                     'description' => sprintf('[QUEUE] Rearranged order "%s" from "%s" -> "%s"', $queueName, $oldOrder, $newOrder),
@@ -167,7 +176,7 @@ class GateinoutController extends Controller
         $user = $request->user();
         $canEdit = $user && DB::table('pages_access')
             ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
-            ->where('pages.page', 'queuelist')
+            ->whereIn('pages.page', ['queue-admin', 'queue-planner'])
             ->where('pages_access.privilege', $user->priv_id)
             ->where('pages_access.acs_edit', 1)
             ->exists();
@@ -215,7 +224,7 @@ class GateinoutController extends Controller
         $user = $request->user();
         $canEdit = $user && DB::table('pages_access')
             ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
-            ->where('pages.page', 'queuelist')
+            ->whereIn('pages.page', ['queue-admin', 'queue-planner'])
             ->where('pages_access.privilege', $user->priv_id)
             ->where('pages_access.acs_edit', 1)
             ->exists();
