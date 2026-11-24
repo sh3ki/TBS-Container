@@ -472,9 +472,9 @@ class GateinoutController extends Controller
     public function checkContainerIn(Request $request)
     {
         try {
-            $containerNo = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim((string) $request->input('cno'))));
+            $containerNo = strtoupper(trim((string) $request->input('cno')));
             $clientId = $request->input('client');
-            $plateNo = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim((string) $request->input('pno'))));
+            $plateNo = strtoupper(trim((string) $request->input('pno')));
             $notInBooking = $request->boolean('not_in_booking');
             $hauler = strtoupper(trim((string) $request->input('hauler')));
             
