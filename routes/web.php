@@ -189,8 +189,21 @@ Route::middleware(['auth'])->group(function () {
                 'dmr_time' => (string) ($settings?->dmr_time ?? ''),
                 'dmr_sender_email' => (string) ($settings?->dmr_sender_email ?? ''),
                 'dmr_sender_password' => $decryptSetting($settings?->dmr_sender_password),
+                'dmr_sender_name' => (string) ($settings?->dmr_sender_name ?? ''),
+                'dmr_day_exceptions' => json_decode((string) ($settings?->dmr_day_exceptions ?? '[]'), true) ?: [],
                 'dmr_signature' => (string) ($settings?->dmr_signature ?? ''),
                 'dmr_groups' => json_decode((string) ($settings?->dmr_groups ?? '[]'), true) ?: [],
+                'utilization_time' => (string) ($settings?->utilization_time ?? ''),
+                'utilization_day_exceptions' => json_decode((string) ($settings?->utilization_day_exceptions ?? '[]'), true) ?: [],
+                'utilization_capacity_teus' => (float) ($settings?->utilization_capacity_teus ?? 1),
+                'smtp_host' => (string) ($settings?->smtp_host ?? ''),
+                'smtp_incoming_port' => (int) ($settings?->smtp_incoming_port ?? 993),
+                'smtp_port' => (int) ($settings?->smtp_port ?? 587),
+                'smtp_encryption' => (string) ($settings?->smtp_encryption ?? 'smtps'),
+                'smtp_username' => (string) ($settings?->smtp_username ?? ''),
+                'smtp_password' => $decryptSetting($settings?->smtp_password),
+                'smtp_from_email' => (string) ($settings?->smtp_from_email ?? ''),
+                'smtp_from_name' => (string) ($settings?->smtp_from_name ?? ''),
             ],
             'clients' => $clients,
         ]);
@@ -198,7 +211,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::put('/app-settings', function (Request $request, AuditService $auditService) {
         $rules = [
-            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials,dmr'],
+            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials,dmr,utilization,smtp'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
@@ -214,6 +227,9 @@ Route::middleware(['auth'])->group(function () {
             'dmr_time' => ['nullable', 'string', 'max:20'],
             'dmr_sender_email' => ['nullable', 'email', 'max:255'],
             'dmr_sender_password' => ['nullable', 'string', 'max:5000'],
+            'dmr_sender_name' => ['nullable', 'string', 'max:255'],
+            'dmr_day_exceptions' => ['nullable', 'array'],
+            'dmr_day_exceptions.*' => ['string', 'in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday'],
             'dmr_signature' => ['nullable', 'string', 'max:100000'],
             'dmr_groups' => ['nullable', 'array'],
             'dmr_groups.*.client_id' => ['required', 'integer', 'distinct', 'exists:clients,c_id'],
@@ -221,6 +237,18 @@ Route::middleware(['auth'])->group(function () {
             'dmr_groups.*.cc_emails' => ['nullable', 'string', 'max:5000'],
             'dmr_groups.*.subject' => ['nullable', 'string', 'max:100000'],
             'dmr_groups.*.content' => ['nullable', 'string', 'max:100000'],
+            'utilization_time' => ['nullable', 'date_format:H:i'],
+            'utilization_day_exceptions' => ['nullable', 'array'],
+            'utilization_day_exceptions.*' => ['string', 'in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday'],
+            'utilization_capacity_teus' => ['required_if:section,utilization', 'numeric', 'min:1'],
+            'smtp_host' => ['required_if:section,smtp', 'string', 'max:255'],
+            'smtp_incoming_port' => ['required_if:section,smtp', 'integer', 'min:1', 'max:65535'],
+            'smtp_port' => ['required_if:section,smtp', 'integer', 'min:1', 'max:65535'],
+            'smtp_encryption' => ['nullable', 'in:none,tls,ssl,smtps'],
+            'smtp_username' => ['nullable', 'string', 'max:255'],
+            'smtp_password' => ['nullable', 'string', 'max:5000'],
+            'smtp_from_email' => ['required_if:section,smtp', 'email', 'max:255'],
+            'smtp_from_name' => ['nullable', 'string', 'max:255'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
@@ -232,7 +260,9 @@ Route::middleware(['auth'])->group(function () {
             DB::table('app_settings')->where('setting_id', 1)->update([
                 'dmr_time' => $validated['dmr_time'] ?? null,
                 'dmr_sender_email' => $validated['dmr_sender_email'] ?? null,
+                'dmr_sender_name' => $validated['dmr_sender_name'] ?? null,
                 'dmr_signature' => $validated['dmr_signature'] ?? null,
+                'dmr_day_exceptions' => json_encode(array_values(array_unique($validated['dmr_day_exceptions'] ?? []))),
                 'dmr_groups' => json_encode(array_values($validated['dmr_groups'] ?? [])),
                 'updated_at' => now(),
             ]);
@@ -244,6 +274,36 @@ Route::middleware(['auth'])->group(function () {
             }
 
             return response()->json(['message' => 'DMR settings updated successfully.']);
+        }
+
+        if ($validated['section'] === 'utilization') {
+            DB::table('app_settings')->where('setting_id', 1)->update([
+                'utilization_time' => $validated['utilization_time'] ?? null,
+                'utilization_day_exceptions' => json_encode(array_values(array_unique($validated['utilization_day_exceptions'] ?? []))),
+                'utilization_capacity_teus' => $validated['utilization_capacity_teus'],
+                'updated_at' => now(),
+            ]);
+
+            return response()->json(['message' => 'Utilization settings updated successfully.']);
+        }
+
+        if ($validated['section'] === 'smtp') {
+            $updates = [
+                'smtp_host' => $validated['smtp_host'],
+                'smtp_incoming_port' => $validated['smtp_incoming_port'],
+                'smtp_port' => $validated['smtp_port'],
+                'smtp_encryption' => in_array($validated['smtp_encryption'] ?? 'none', ['ssl', 'smtps'], true) ? 'smtps' : (($validated['smtp_encryption'] ?? 'none') === 'none' ? null : $validated['smtp_encryption']),
+                'smtp_username' => $validated['smtp_username'] ?? null,
+                'smtp_from_email' => $validated['smtp_from_email'],
+                'smtp_from_name' => $validated['smtp_from_name'] ?? null,
+                'updated_at' => now(),
+            ];
+            if (!empty($validated['smtp_password'])) {
+                $updates['smtp_password'] = encrypt($validated['smtp_password']);
+            }
+            DB::table('app_settings')->where('setting_id', 1)->update($updates);
+
+            return response()->json(['message' => 'SMTP settings updated successfully.']);
         }
 
         if ($validated['section'] === 'booking_credentials') {
