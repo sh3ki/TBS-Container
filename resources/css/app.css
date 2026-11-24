@@ -246,6 +246,19 @@
         animation: float-delay 8s ease-in-out infinite;
     }
 
+    @keyframes queue-calling-pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.18); }
+        50% { transform: scale(1.025); box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.12); }
+    }
+
+    @keyframes queue-floating-pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.14); }
+        50% { transform: scale(1.012); box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.08); }
+    }
+
+    .queue-calling-pulse { animation: queue-calling-pulse 1.2s ease-in-out infinite; }
+    .queue-floating-pulse { animation: queue-floating-pulse 2.2s ease-in-out infinite; }
+
     @keyframes login-water {
         from { transform: translate3d(0, 0, 0) scaleX(1.05); }
         to { transform: translate3d(-7%, 0, 0) scaleX(1.05); }
