@@ -2,12 +2,21 @@ import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import axios from 'axios';
 import { useState } from 'react';
-import { Settings, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Eye, EyeOff, Plus, Settings, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelect } from '@/components/ui/multi-select';
-import { ModernButton, ModernCard, ToastContainer, useModernToast } from '@/components/modern';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ModernButton, ModernCard, RichTextEditor, ToastContainer, useModernToast } from '@/components/modern';
+
+interface DmrGroup {
+    client_id: string;
+    receiver_emails: string;
+    cc_emails: string;
+    subject: string;
+    content: string;
+}
 
 interface AppSettingsProps {
     clients: Array<{ c_id: number; client_name: string; client_code: string }>;
@@ -22,7 +31,13 @@ interface AppSettingsProps {
         booking_system_url: string;
         booking_system_login_url: string;
         booking_system_username: string;
+        booking_system_password: string;
         booking_system_timeout: number;
+        dmr_time: string;
+        dmr_sender_email: string;
+        dmr_sender_password: string;
+        dmr_signature: string;
+        dmr_groups: Array<Partial<DmrGroup> & { client_id?: number | string }>;
     };
 }
 
@@ -37,9 +52,22 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [bookingSystemUrl, setBookingSystemUrl] = useState(settings.booking_system_url);
     const [bookingSystemLoginUrl, setBookingSystemLoginUrl] = useState(settings.booking_system_login_url);
     const [bookingSystemUsername, setBookingSystemUsername] = useState(settings.booking_system_username);
-    const [bookingSystemPassword, setBookingSystemPassword] = useState('');
+    const [bookingSystemPassword, setBookingSystemPassword] = useState(settings.booking_system_password);
+    const [showBookingSystemPassword, setShowBookingSystemPassword] = useState(false);
     const [bookingSystemTimeout, setBookingSystemTimeout] = useState(String(settings.booking_system_timeout));
-    const [saving, setSaving] = useState<'docs' | 'queue' | 'credentials' | null>(null);
+    const [dmrTime, setDmrTime] = useState(settings.dmr_time);
+    const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
+    const [dmrSenderPassword, setDmrSenderPassword] = useState(settings.dmr_sender_password);
+    const [showDmrSenderPassword, setShowDmrSenderPassword] = useState(false);
+    const [dmrSignature, setDmrSignature] = useState(settings.dmr_signature);
+    const [dmrGroups, setDmrGroups] = useState<DmrGroup[]>(settings.dmr_groups.map((group) => ({
+        client_id: String(group.client_id ?? ''),
+        receiver_emails: group.receiver_emails ?? '',
+        cc_emails: group.cc_emails ?? '',
+        subject: group.subject ?? '',
+        content: group.content ?? '',
+    })));
+    const [saving, setSaving] = useState<'docs' | 'queue' | 'credentials' | 'dmr' | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
 
     const saveDocsSettings = async () => {
@@ -90,11 +118,42 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 ...(bookingSystemPassword ? { booking_system_password: bookingSystemPassword } : {}),
                 booking_system_timeout: Number(bookingSystemTimeout),
             });
-            setBookingSystemPassword('');
             success(response.data.message || 'Booking System credentials updated successfully.');
         } catch (exception) {
             console.error('Failed to update Booking System credentials:', exception);
             error('Please check the Booking System credential fields.');
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    const updateDmrGroup = (index: number, field: keyof DmrGroup, value: string) => {
+        setDmrGroups((groups) => groups.map((group, groupIndex) => groupIndex === index ? { ...group, [field]: value } : group));
+    };
+
+    const addDmrGroup = () => {
+        setDmrGroups((groups) => [...groups, { client_id: '', receiver_emails: '', cc_emails: '', subject: '', content: '' }]);
+    };
+
+    const removeDmrGroup = (index: number) => {
+        setDmrGroups((groups) => groups.filter((_, groupIndex) => groupIndex !== index));
+    };
+
+    const saveDmrSettings = async () => {
+        setSaving('dmr');
+        try {
+            const response = await axios.put('/app-settings', {
+                section: 'dmr',
+                dmr_time: dmrTime,
+                dmr_sender_email: dmrSenderEmail || null,
+                ...(dmrSenderPassword ? { dmr_sender_password: dmrSenderPassword } : {}),
+                dmr_signature: dmrSignature,
+                dmr_groups: dmrGroups,
+            });
+            success(response.data.message || 'DMR settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update DMR settings:', exception);
+            error('Please check the DMR settings and make sure each client is selected only once.');
         } finally {
             setSaving(null);
         }
@@ -175,7 +234,12 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         </div>
                         <div>
                             <Label htmlFor="booking-system-password" className="text-sm font-semibold text-gray-900">PASSWORD</Label>
-                            <Input id="booking-system-password" type="password" value={bookingSystemPassword} onChange={(event) => setBookingSystemPassword(event.target.value)} placeholder="Leave blank to keep current password" className="mt-2 h-11" />
+                            <div className="relative mt-2">
+                                <Input id="booking-system-password" type={showBookingSystemPassword ? 'text' : 'password'} value={bookingSystemPassword} onChange={(event) => setBookingSystemPassword(event.target.value)} placeholder="Leave blank to keep current password" className="h-11 pr-11" />
+                                <button type="button" onClick={() => setShowBookingSystemPassword((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900" aria-label={showBookingSystemPassword ? 'Hide password' : 'Show password'}>
+                                    {showBookingSystemPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <Label htmlFor="booking-system-timeout" className="text-sm font-semibold text-gray-900">TIMEOUT (SECONDS)</Label>
@@ -184,6 +248,88 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         <div className="flex items-center gap-3 md:col-span-2">
                             <ModernButton type="button" variant="primary" loading={saving === 'credentials'} onClick={saveBookingCredentials}>Save Settings</ModernButton>
                         </div>
+                    </div>
+                </ModernCard>
+
+                <ModernCard title="DMR Settings" subtitle="Configure the DMR schedule, sender, signature, and client-specific email content" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="grid max-w-5xl gap-4 md:grid-cols-2">
+                        <div>
+                            <Label htmlFor="dmr-time" className="text-sm font-semibold text-gray-900">TIME</Label>
+                            <Input id="dmr-time" type="time" value={dmrTime} onChange={(event) => setDmrTime(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="dmr-sender-email" className="text-sm font-semibold text-gray-900">SENDER EMAIL</Label>
+                            <Input id="dmr-sender-email" type="email" value={dmrSenderEmail} onChange={(event) => setDmrSenderEmail(event.target.value)} placeholder="sender@example.com" className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="dmr-sender-password" className="text-sm font-semibold text-gray-900">SENDER PASSWORD</Label>
+                            <div className="relative mt-2">
+                                <Input id="dmr-sender-password" type={showDmrSenderPassword ? 'text' : 'password'} value={dmrSenderPassword} onChange={(event) => setDmrSenderPassword(event.target.value)} placeholder="Leave blank to keep current password" className="h-11 pr-11" />
+                                <button type="button" onClick={() => setShowDmrSenderPassword((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900" aria-label={showDmrSenderPassword ? 'Hide password' : 'Show password'}>
+                                    {showDmrSenderPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Used with the sender email to send DMR emails.</p>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Label className="text-sm font-semibold text-gray-900">SIGNATURE</Label>
+                            <RichTextEditor value={dmrSignature} onChange={setDmrSignature} placeholder="Enter the default DMR signature..." />
+                        </div>
+                    </div>
+
+                    <div className="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
+                        <div>
+                            <h4 className="font-semibold text-gray-900">Client Email Groups</h4>
+                            <p className="mt-1 text-sm text-gray-500">Configure a separate recipient list, subject, and message for each client.</p>
+                        </div>
+                        <ModernButton type="button" variant="secondary" size="sm" icon={<Plus className="h-4 w-4" />} onClick={addDmrGroup}>Add Group</ModernButton>
+                    </div>
+
+                    <div className="mt-4 space-y-5">
+                        {dmrGroups.length === 0 && <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">No client groups added yet.</p>}
+                        {dmrGroups.map((group, index) => {
+                            const selectedClientIds = new Set(dmrGroups.filter((_, groupIndex) => groupIndex !== index).map((item) => item.client_id).filter(Boolean));
+                            return (
+                                <div key={`dmr-group-${index}`} className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <h5 className="font-semibold text-gray-900">Group {index + 1}</h5>
+                                        <ModernButton type="button" variant="delete" size="sm" icon={<Trash2 className="h-4 w-4" />} onClick={() => removeDmrGroup(index)}>Remove</ModernButton>
+                                    </div>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="md:col-span-2">
+                                            <Label htmlFor={`dmr-client-${index}`} className="text-sm font-semibold text-gray-900">CLIENT</Label>
+                                            <Select value={group.client_id || undefined} onValueChange={(value) => updateDmrGroup(index, 'client_id', value)}>
+                                                <SelectTrigger id={`dmr-client-${index}`} className="mt-2 h-11 w-full"><SelectValue placeholder="Select a client" /></SelectTrigger>
+                                                <SelectContent>
+                                                    {clients.filter((client) => !selectedClientIds.has(String(client.c_id)) || String(client.c_id) === group.client_id).map((client) => <SelectItem key={client.c_id} value={String(client.c_id)}>{client.client_name}{client.client_code ? ` (${client.client_code})` : ''}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor={`dmr-receiver-${index}`} className="text-sm font-semibold text-gray-900">RECEIVER EMAILS</Label>
+                                            <Input id={`dmr-receiver-${index}`} type="text" value={group.receiver_emails} onChange={(event) => updateDmrGroup(index, 'receiver_emails', event.target.value)} placeholder="receiver@example.com, another@example.com" className="mt-2 h-11" />
+                                            <p className="mt-1 text-xs text-gray-500">Separate multiple emails with commas.</p>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor={`dmr-cc-${index}`} className="text-sm font-semibold text-gray-900">CC EMAILS</Label>
+                                            <Input id={`dmr-cc-${index}`} type="text" value={group.cc_emails} onChange={(event) => updateDmrGroup(index, 'cc_emails', event.target.value)} placeholder="cc@example.com" className="mt-2 h-11" />
+                                            <p className="mt-1 text-xs text-gray-500">Separate multiple emails with commas.</p>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Label className="text-sm font-semibold text-gray-900">SUBJECT</Label>
+                                            <RichTextEditor value={group.subject} onChange={(value) => updateDmrGroup(index, 'subject', value)} placeholder="Enter the email subject..." minHeight="90px" />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Label className="text-sm font-semibold text-gray-900">CONTENT</Label>
+                                            <RichTextEditor value={group.content} onChange={(value) => updateDmrGroup(index, 'content', value)} placeholder="Enter the email content..." minHeight="180px" />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="mt-6 flex items-center gap-3">
+                        <ModernButton type="button" variant="primary" loading={saving === 'dmr'} onClick={saveDmrSettings}>Save Settings</ModernButton>
                     </div>
                 </ModernCard>
 
