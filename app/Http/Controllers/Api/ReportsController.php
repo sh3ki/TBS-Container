@@ -1583,7 +1583,7 @@ class ReportsController extends Controller
                 'outgoing' => $outgoingData,
                 'inventory' => $inventoryData,
                 'aging' => $agingData,
-            ], $date, $clientName);
+            ], $date, $clientName, (string) $clientId === '104');
 
             // Log audit - REPORTS action
             DB::table('audit_logs')->insert([
