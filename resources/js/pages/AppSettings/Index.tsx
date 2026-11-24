@@ -6,15 +6,18 @@ import { Settings, ToggleLeft, ToggleRight } from 'lucide-react';
 import { colors } from '@/lib/colors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { ModernButton, ModernCard, ToastContainer, useModernToast } from '@/components/modern';
 
 interface AppSettingsProps {
+    clients: Array<{ c_id: number; client_name: string; client_code: string }>;
     settings: {
         incoming_rate: number;
         outgoing_rate: number;
         hauler_exceptions: string;
         preout_hauler_exceptions: string;
         prein_hauler_exceptions: string;
+        prein_scraping_client_ids: number[];
         booking_scraping_enabled: boolean;
         booking_system_url: string;
         booking_system_login_url: string;
@@ -23,12 +26,13 @@ interface AppSettingsProps {
     };
 }
 
-export default function AppSettings({ settings }: AppSettingsProps) {
+export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [incomingRate, setIncomingRate] = useState(String(settings.incoming_rate));
     const [outgoingRate, setOutgoingRate] = useState(String(settings.outgoing_rate));
     const [haulerExceptions, setHaulerExceptions] = useState(settings.hauler_exceptions);
     const [preoutHaulerExceptions, setPreoutHaulerExceptions] = useState(settings.preout_hauler_exceptions);
     const [preinHaulerExceptions, setPreinHaulerExceptions] = useState(settings.prein_hauler_exceptions);
+    const [preinScrapingClientIds, setPreinScrapingClientIds] = useState<string[]>(settings.prein_scraping_client_ids.map(String));
     const [bookingScrapingEnabled, setBookingScrapingEnabled] = useState(settings.booking_scraping_enabled);
     const [bookingSystemUrl, setBookingSystemUrl] = useState(settings.booking_system_url);
     const [bookingSystemLoginUrl, setBookingSystemLoginUrl] = useState(settings.booking_system_login_url);
@@ -64,6 +68,7 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                 booking_scraping_enabled: bookingScrapingEnabled,
                 preout_hauler_exceptions: preoutHaulerExceptions,
                 prein_hauler_exceptions: preinHaulerExceptions,
+                prein_scraping_client_ids: preinScrapingClientIds,
             });
             success(response.data.message || 'Booking System Scraping settings updated successfully.');
         } catch (exception) {
@@ -124,14 +129,30 @@ export default function AppSettings({ settings }: AppSettingsProps) {
                         </ModernButton>
                     </div>
                     <div className="mt-4 max-w-4xl">
-                        <Label htmlFor="preout-hauler-exceptions" className="text-sm font-semibold text-gray-900">PRE-OUT HAULER EXCEPTIONS</Label>
-                        <Input id="preout-hauler-exceptions" type="text" value={preoutHaulerExceptions} onChange={(event) => setPreoutHaulerExceptions(event.target.value.toUpperCase())} placeholder="HAULER ONE, HAULER TWO" className="mt-2 h-11 uppercase" />
-                        <p className="mt-1 text-xs text-gray-500">Separate haulers with commas. These haulers appear in Add Pre-Out as “Not in Booking” options and bypass Booking System verification.</p>
+                        <Label htmlFor="prein-scraping-clients" className="text-sm font-semibold text-gray-900">CLIENTS EXCEPTION</Label>
+                        <div className="mt-2">
+                            <MultiSelect
+                                options={clients.map((client) => ({
+                                    value: String(client.c_id),
+                                    label: `${client.client_name}${client.client_code ? ` (${client.client_code})` : ''}`,
+                                }))}
+                                value={preinScrapingClientIds}
+                                onChange={setPreinScrapingClientIds}
+                                placeholder="Select clients"
+                                searchPlaceholder="Search clients..."
+                            />
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">Selected clients are treated as exceptions to Booking System verification.</p>
                     </div>
                     <div className="mt-4 max-w-4xl">
                         <Label htmlFor="prein-hauler-exceptions" className="text-sm font-semibold text-gray-900">PRE-IN HAULER EXCEPTIONS</Label>
                         <Input id="prein-hauler-exceptions" type="text" value={preinHaulerExceptions} onChange={(event) => setPreinHaulerExceptions(event.target.value.toUpperCase())} placeholder="HAULER ONE, HAULER TWO" className="mt-2 h-11 uppercase" />
                         <p className="mt-1 text-xs text-gray-500">Separate haulers with commas. These haulers appear in Add Pre-In as “Not in Booking” options and bypass Booking System verification.</p>
+                    </div>
+                    <div className="mt-4 max-w-4xl">
+                        <Label htmlFor="preout-hauler-exceptions" className="text-sm font-semibold text-gray-900">PRE-OUT HAULER EXCEPTIONS</Label>
+                        <Input id="preout-hauler-exceptions" type="text" value={preoutHaulerExceptions} onChange={(event) => setPreoutHaulerExceptions(event.target.value.toUpperCase())} placeholder="HAULER ONE, HAULER TWO" className="mt-2 h-11 uppercase" />
+                        <p className="mt-1 text-xs text-gray-500">Separate haulers with commas. These haulers appear in Add Pre-Out as “Not in Booking” options and bypass Booking System verification.</p>
                     </div>
                     <div className="mt-6 flex items-center gap-3">
                         <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueSettings}>Save Settings</ModernButton>
