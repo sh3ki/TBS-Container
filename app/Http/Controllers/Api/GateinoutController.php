@@ -264,26 +264,48 @@ class GateinoutController extends Controller
             'updated_at' => now(),
         ]);
 
-        $waiting = DB::table($table)
+        $queueEntries = DB::table($table)
             ->where('direction', $direction)
-            ->where('status', 'waiting')
             ->where('id', '<>', $newId)
+            ->whereIn('status', ['waiting', 'calling', 'floating'])
             ->orderBy('waiting_number')
             ->orderBy('id')
             ->lockForUpdate()
-            ->get(['id', 'booking_time']);
+            ->get(['id', 'status', 'booking_time']);
 
         $newBookingTime = $booking['booking_time'] ?? now();
         $newBookingKey = (string) $newBookingTime;
-        $orderedIds = $waiting->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $insertAt = count($orderedIds);
+
+        // Calling and floating entries already have priority. Keep them and
+        // anything before them in place, then insert the new waiting entry
+        // below the latest active entry. Booking time controls the order only
+        // within the waiting entries below that protected active block.
+        $latestActiveIndex = -1;
+        foreach ($queueEntries as $index => $queuedEntry) {
+            if (in_array($queuedEntry->status, ['calling', 'floating'], true)) {
+                $latestActiveIndex = $index;
+            }
+        }
+
+        $prefix = $latestActiveIndex >= 0
+            ? $queueEntries->slice(0, $latestActiveIndex + 1)->values()
+            : collect();
+        $waiting = $latestActiveIndex >= 0
+            ? $queueEntries->slice($latestActiveIndex + 1)->values()
+            : $queueEntries;
+
+        $insertAt = count($waiting);
         foreach ($waiting as $index => $queuedEntry) {
             if (strtotime((string) $queuedEntry->booking_time) > (strtotime($newBookingKey) ?: PHP_INT_MAX)) {
                 $insertAt = $index;
                 break;
             }
         }
-        array_splice($orderedIds, $insertAt, 0, [(int) $newId]);
+
+        $orderedIds = $prefix->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $waitingIds = $waiting->pluck('id')->map(fn ($id) => (int) $id)->all();
+        array_splice($waitingIds, $insertAt, 0, [(int) $newId]);
+        $orderedIds = array_merge($orderedIds, $waitingIds);
 
         foreach ($orderedIds as $index => $id) {
             DB::table($table)->where('id', $id)->update([
