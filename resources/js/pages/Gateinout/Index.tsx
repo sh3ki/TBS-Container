@@ -187,7 +187,7 @@ export default function Index() {
   const [selectedProcessRecord, setSelectedProcessRecord] = useState<PreInventoryRecord | null>(null);
 
   const [statusOptions, setStatusOptions] = useState<Array<{ s_id: number; status: string }>>([]);
-  const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string }>>([]);
+  const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string; iso_code?: string | null }>>([]);
   const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
 
   const [pageAccess, setPageAccess] = useState<{ can_view: boolean; module_edit: boolean; module_delete: boolean }>({
