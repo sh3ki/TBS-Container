@@ -96,10 +96,11 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
     );
 }
 
-export default function QueueDisplay({ greenServing = true, visiblePlateNo, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; onSessionExpired?: () => void } = {}) {
+export default function QueueDisplay({ greenServing = true, visiblePlateNo, showAll = false, showRulesModal = false, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; showAll?: boolean; showRulesModal?: boolean; onSessionExpired?: () => void } = {}) {
     const now = useClock();
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [servingCapacity, setServingCapacity] = useState(0);
+    const [rulesOpen, setRulesOpen] = useState(showRulesModal);
     const time = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
     const date = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).format(now);
     const normalizedVisiblePlate = normalizePlate(visiblePlateNo);
@@ -149,8 +150,8 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, onSe
 
                 <div className="queue-page-content flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-3 sm:gap-5 sm:p-6 lg:p-8" style={{ color: '#202a35', boxSizing: 'border-box' }}>
                     <div className="queue-grid grid min-h-0 gap-3 md:gap-4">
-                        <QueuePanel title="WAITING" direction="IN" entries={filterWaitingEntries(queue.waiting_in, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
-                        <QueuePanel title="WAITING" direction="OUT" entries={filterWaitingEntries(queue.waiting_out, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
+                        <QueuePanel title="WAITING" direction="IN" entries={showAll ? queue.waiting_in : filterWaitingEntries(queue.waiting_in, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
+                        <QueuePanel title="WAITING" direction="OUT" entries={showAll ? queue.waiting_out : filterWaitingEntries(queue.waiting_out, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
                         <QueuePanel title="SERVING" entries={queue.serving} kind="serving" servingCapacity={servingCapacity} now={now} greenServing={greenServing} />
                     </div>
 
@@ -164,6 +165,35 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, onSe
                     </aside>
                 </div>
             </main>
+            {rulesOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="queue-rules-title">
+                    <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" style={{ color: '#202a35' }}>
+                        <div className="bg-[#3E9AF4] px-6 py-5 text-white sm:px-8">
+                            <div className="flex items-center gap-3">
+                                <CircleHelp className="h-8 w-8 shrink-0" />
+                                <div>
+                                    <h2 id="queue-rules-title" className="text-2xl font-black tracking-wide">RULES AND GUIDELINES</h2>
+                                    <p className="mt-1 text-sm text-white/90">Please read before viewing the queue.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="max-h-[65vh] overflow-y-auto px-6 py-6 sm:px-8">
+                            <h3 className="text-lg font-extrabold text-[#31393C]">QUEUE RULES</h3>
+                            <ul className="mt-4 space-y-3 text-sm leading-6 text-[#536170] sm:text-base">
+                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">1.</span><span>Follow the queue order and wait until your plate number is called.</span></li>
+                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">2.</span><span>Keep your plate number visible and make sure your truck is ready when it is next in line.</span></li>
+                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">3.</span><span>Follow all instructions from the yard personnel and security guards.</span></li>
+                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">4.</span><span>Do not block the entrance, exit, or other trucks while waiting.</span></li>
+                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">5.</span><span>Only authorized queue actions and status updates are permitted.</span></li>
+                            </ul>
+                            <p className="mt-6 rounded-lg bg-blue-50 px-4 py-3 text-sm font-semibold leading-5 text-blue-800">Failure to follow these guidelines may cause delays or removal from the queue.</p>
+                        </div>
+                        <div className="flex justify-end border-t border-gray-200 px-6 py-4 sm:px-8">
+                            <button type="button" onClick={() => setRulesOpen(false)} className="rounded-lg bg-[#3E9AF4] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#2785dc]">I UNDERSTAND</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
