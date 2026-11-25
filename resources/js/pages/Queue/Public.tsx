@@ -44,7 +44,7 @@ export default function QueuePublic() {
     };
 
     if (checking) return <main className="flex min-h-screen items-center justify-center bg-[#0d2238]" />;
-    if (authenticated) return <QueueDisplay visiblePlateNo={authenticatedPlate} />;
+    if (authenticated) return <QueueDisplay visiblePlateNo={authenticatedPlate} onSessionExpired={() => setAuthenticated(false)} />;
 
     return <>
         <Head title="Queue" />
