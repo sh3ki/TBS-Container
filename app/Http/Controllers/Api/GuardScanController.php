@@ -10,18 +10,20 @@ use Symfony\Component\Process\Process;
 
 class GuardScanController extends Controller
 {
-    public function queueDisplay()
+    public function queueDisplay(Request $request)
     {
+        $guardUserId = $this->guardUserId($request);
         $activeStatuses = ['waiting', 'calling', 'floating'];
         $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
         $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
         $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
         $manualCapture = DB::table('queue_entries')
             ->whereNotNull('manual_reason')
+            ->where('manual_guard_user_id', $guardUserId ?: 0)
             ->whereIn('status', $activeStatuses)
             ->whereNull('completed_at')
             ->orderBy('id')
-            ->first(['id', 'plate_no', 'direction', 'manual_reason']);
+            ->first(['id', 'plate_no', 'direction', 'manual_reason', 'manual_guard_user_id']);
         $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
         return response()->json(['success' => true, 'data' => [
@@ -64,6 +66,7 @@ class GuardScanController extends Controller
         if (!$entry) {
             return response()->json(['success' => false, 'message' => 'This manual capture request is no longer active.'], 409);
         }
+        abort_unless((int) $entry->manual_guard_user_id === (int) $this->guardUserId($request), 403, 'This manual capture is assigned to another Guard account.');
 
         $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
         $current = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
@@ -137,6 +140,16 @@ class GuardScanController extends Controller
         } finally {
             @unlink($imagePath);
         }
+    }
+
+    private function guardUserId(Request $request): ?int
+    {
+        $token = $request->bearerToken();
+        if (!$token) return null;
+        $decoded = base64_decode($token, true);
+        $userId = is_string($decoded) ? (int) explode(':', $decoded, 2)[0] : 0;
+        if ($userId <= 0) return null;
+        return DB::table('users')->where('user_id', $userId)->where('is_guard', 1)->where('archived', 0)->exists() ? $userId : null;
     }
 
     public function updateQueueStatus(Request $request)
