@@ -28,6 +28,8 @@ interface AppSettingsProps {
         prein_hauler_exceptions: string;
         prein_scraping_client_ids: number[];
         booking_scraping_enabled: boolean;
+        prein_booking_dependent: boolean;
+        preout_booking_dependent: boolean;
         booking_system_url: string;
         booking_system_login_url: string;
         booking_system_username: string;
@@ -65,6 +67,8 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [preinHaulerExceptions, setPreinHaulerExceptions] = useState(settings.prein_hauler_exceptions);
     const [preinScrapingClientIds, setPreinScrapingClientIds] = useState<string[]>(settings.prein_scraping_client_ids.map(String));
     const [bookingScrapingEnabled, setBookingScrapingEnabled] = useState(settings.booking_scraping_enabled);
+    const [preInBookingDependent, setPreInBookingDependent] = useState(settings.prein_booking_dependent);
+    const [preOutBookingDependent, setPreOutBookingDependent] = useState(settings.preout_booking_dependent);
     const [bookingSystemUrl, setBookingSystemUrl] = useState(settings.booking_system_url);
     const [bookingSystemLoginUrl, setBookingSystemLoginUrl] = useState(settings.booking_system_login_url);
     const [bookingSystemUsername, setBookingSystemUsername] = useState(settings.booking_system_username);
@@ -135,6 +139,8 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
             const response = await axios.put('/app-settings', {
                 section: 'queue',
                 booking_scraping_enabled: bookingScrapingEnabled,
+                prein_booking_dependent: preInBookingDependent,
+                preout_booking_dependent: preOutBookingDependent,
                 preout_hauler_exceptions: preoutHaulerExceptions,
                 prein_hauler_exceptions: preinHaulerExceptions,
                 prein_scraping_client_ids: preinScrapingClientIds,
@@ -320,6 +326,22 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         <ModernButton type="button" variant={bookingScrapingEnabled ? 'primary' : 'secondary'} size="sm" icon={bookingScrapingEnabled ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setBookingScrapingEnabled((enabled) => !enabled)}>
                             {bookingScrapingEnabled ? 'ON' : 'OFF'}
                         </ModernButton>
+                    </div>
+                    <div className="mt-4 grid max-w-4xl gap-4 md:grid-cols-2">
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                            <div>
+                                <p className="font-semibold text-gray-900">PRE-IN BOOKING DEPENDENT</p>
+                                <p className="mt-1 text-xs text-gray-500">Scrape by container number when enabled.</p>
+                            </div>
+                            <ModernButton type="button" variant={preInBookingDependent ? 'primary' : 'secondary'} size="sm" icon={preInBookingDependent ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setPreInBookingDependent((enabled) => !enabled)}>{preInBookingDependent ? 'ON' : 'OFF'}</ModernButton>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                            <div>
+                                <p className="font-semibold text-gray-900">PRE-OUT BOOKING DEPENDENT</p>
+                                <p className="mt-1 text-xs text-gray-500">Scrape by plate number when enabled.</p>
+                            </div>
+                            <ModernButton type="button" variant={preOutBookingDependent ? 'primary' : 'secondary'} size="sm" icon={preOutBookingDependent ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setPreOutBookingDependent((enabled) => !enabled)}>{preOutBookingDependent ? 'ON' : 'OFF'}</ModernButton>
+                        </div>
                     </div>
                     <div className="mt-4 max-w-4xl">
                         <Label htmlFor="prein-scraping-clients" className="text-sm font-semibold text-gray-900">CLIENTS EXCEPTION</Label>
