@@ -50,6 +50,7 @@ Route::post('/queue/login', [QueueDisplayController::class, 'login']);
 Route::post('/queue/logout', [QueueDisplayController::class, 'logout']);
 Route::get('/queue-internal/session', [QueueInternalController::class, 'session']);
 Route::post('/queue-internal/login', [QueueInternalController::class, 'login']);
+Route::get('/queue-internal/entry/{entryId}', [QueueInternalController::class, 'entryDetails']);
 Route::post('/queue-internal/logout', [QueueInternalController::class, 'logout']);
 
 // Mobile App API Routes (Plain text login - separate from main auth)
