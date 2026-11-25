@@ -10,6 +10,19 @@ use Symfony\Component\Process\Process;
 
 class GuardScanController extends Controller
 {
+    public function heartbeat(Request $request)
+    {
+        $userId = $this->guardUserId($request);
+        abort_unless($userId, 401, 'Guard session is invalid.');
+
+        DB::table('guard_presence')->updateOrInsert(
+            ['user_id' => $userId],
+            ['last_seen_at' => now(), 'ip_address' => $request->ip(), 'user_agent' => (string) $request->userAgent(), 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['success' => true]);
+    }
+
     public function queueDisplay(Request $request)
     {
         $guardUserId = $this->guardUserId($request);
