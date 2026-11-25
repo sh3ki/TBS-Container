@@ -48,9 +48,13 @@ class MobileGateinoutController extends Controller
                     p.date_completed,
                     TIMESTAMPDIFF(MINUTE, p.date_added, COALESCE(p.date_completed, CONVERT_TZ(NOW(), @@session.time_zone, '+08:00'))) AS runtime,
                     p.client_id,
+                    CAST(COALESCE(p.size_type, 0) AS UNSIGNED) AS sizetype_id,
+                    COALESCE(CONCAT(st.size, st.type), '-') AS size_type_display,
+                    COALESCE(p.iso_code, '') AS iso_code,
                     p.user_id
                 FROM {$prefix}pre_inventory p
                 LEFT JOIN {$prefix}clients c ON c.c_id = p.client_id
+                LEFT JOIN {$prefix}container_size_type st ON st.s_id = p.size_type
                 WHERE p.status = 0
                   AND EXISTS (
                       SELECT 1
@@ -370,7 +374,7 @@ class MobileGateinoutController extends Controller
                 SELECT 
                     i.i_id,
                     i.container_no,
-                    COALESCE(c.client_code, c.client_name, '-') AS client_name,
+                    COALESCE(c.client_name, c.client_code, '-') AS client_name,
                     c.c_id AS client_id,
                     CONCAT(st.size, st.type) AS size_type,
                     st.s_id AS sizetype_id,
