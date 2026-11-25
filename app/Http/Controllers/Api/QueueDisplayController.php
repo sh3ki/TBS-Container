@@ -44,7 +44,7 @@ class QueueDisplayController extends Controller
         DB::table('queue_display_sessions')->insert([
             'token_hash' => hash('sha256', $rawToken),
             'plate_no' => strtoupper(preg_replace('/[\s-]+/', '', (string) $entry->plate_no) ?? ''),
-            'expires_at' => $now->copy()->addHours(2),
+            'expires_at' => $now->copy()->addMinutes(30),
             'last_used_at' => $now,
             'ip_address' => $request->ip(),
             'user_agent' => (string) $request->userAgent(),
