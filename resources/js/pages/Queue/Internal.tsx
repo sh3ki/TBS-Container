@@ -53,7 +53,7 @@ export default function QueueInternal() {
     const [checking, setChecking] = useState(true);
     const [authenticated, setAuthenticated] = useState(false);
     const [password, setPassword] = useState('');
-    const [remember, setRemember] = useState(false);
+    const [remember, setRemember] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -98,7 +98,7 @@ export default function QueueInternal() {
     if (checking) {
         return <main className="flex min-h-screen items-center justify-center bg-[#0d2238]" />;
     }
-    if (authenticated) return <QueueDisplay />;
+    if (authenticated) return <QueueDisplay greenServing={false} />;
 
     return (
         <>
