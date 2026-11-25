@@ -48,6 +48,7 @@ interface PreInFormData {
   plate_no: string;
   not_in_booking: boolean;
   hauler: string;
+  exception_mode: 'client' | 'hauler';
 }
 
 interface PreOutFormData {
@@ -92,7 +93,7 @@ const getSizeTypeVariant = (sizeType: string): BadgeVariant => {
 };
 
 export default function Index() {
-  const { preInHaulerExceptions = '', preOutHaulerExceptions = '', clientExceptionIds = [] } = usePage<{ preInHaulerExceptions?: string; preOutHaulerExceptions?: string; clientExceptionIds?: number[] }>().props;
+  const { preInHaulerExceptions = '', preOutHaulerExceptions = '', clientExceptionIds = [], preInBookingDependent = true, preOutBookingDependent = true } = usePage<{ preInHaulerExceptions?: string; preOutHaulerExceptions?: string; clientExceptionIds?: number[]; preInBookingDependent?: boolean; preOutBookingDependent?: boolean }>().props;
   const preInHaulerOptions = preInHaulerExceptions
     .split(',')
     .map((hauler) => hauler.trim().toUpperCase())
@@ -150,6 +151,7 @@ export default function Index() {
     plate_no: '',
     not_in_booking: false,
     hauler: '',
+    exception_mode: 'client',
   });
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
@@ -158,10 +160,8 @@ export default function Index() {
     exception_mode: 'client',
     client_id: '',
   });
-  const selectedPreInClient = clients.find((client) => client.hashed_c_id === preInForm.client_id);
-  const selectedPreInClientIsException = Boolean(
-    selectedPreInClient && clientExceptionIds.map(Number).includes(Number(selectedPreInClient.c_id))
-  );
+  const [bookingMatch, setBookingMatch] = useState<{ direction: 'IN' | 'OUT'; shippingLine: string; clientId: string }>({ direction: 'IN', shippingLine: '', clientId: '' });
+  const [showBookingMatchModal, setShowBookingMatchModal] = useState(false);
   const clientExceptionOptions = clients.filter((client) =>
     clientExceptionIds.map(Number).includes(Number(client.c_id))
   );
@@ -452,7 +452,9 @@ export default function Index() {
       error('Container number must be exactly 11 characters');
       return;
     }
-    if (!preInForm.client_id) {
+    if (preInBookingDependent && !preInForm.not_in_booking) {
+      // Client and hauler are supplied by the booking.
+    } else if (preInForm.exception_mode === 'client' && !preInForm.client_id) {
       error('Please select a client');
       return;
     }
@@ -460,7 +462,7 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
-    if (preInForm.not_in_booking && !preInForm.hauler) {
+    if (preInForm.not_in_booking && preInForm.exception_mode === 'hauler' && !preInForm.hauler) {
       error('Please select a hauler for Not in Booking');
       return;
     }
@@ -479,6 +481,8 @@ export default function Index() {
         pno: preInForm.plate_no.trim().toUpperCase(),
         not_in_booking: preInForm.not_in_booking,
         hauler: preInForm.hauler,
+        exception_mode: preInForm.exception_mode,
+        booking_match_client_id: bookingMatch.direction === 'IN' && bookingMatch.clientId ? bookingMatch.clientId : undefined,
       });
 
       if (response.data.message) {
@@ -486,14 +490,19 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-In added successfully');
           setShowAddPreInModal(false);
-          setPreInForm({ container_no: '', client_id: '', plate_no: '', not_in_booking: false, hauler: '' });
+          setPreInForm({ container_no: '', client_id: '', plate_no: '', not_in_booking: false, hauler: '', exception_mode: 'client' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
         }
       }
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } } };
+      const e = err as { response?: { data?: { message?: string; booking_match_required?: boolean; shipping_line?: string } } };
+      if (e.response?.data?.booking_match_required) {
+        setBookingMatch({ direction: 'IN', shippingLine: e.response.data.shipping_line || '', clientId: '' });
+        setShowBookingMatchModal(true);
+        return;
+      }
       error(e.response?.data?.message || 'Failed to add Pre-In');
     } finally {
       addPreInInProgressRef.current = false;
@@ -507,9 +516,11 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
-    if (!preOutForm.hauler.trim()) {
+    if ((!preOutBookingDependent && !preOutForm.not_in_booking) || (preOutForm.not_in_booking && preOutForm.exception_mode === 'hauler')) {
+      if (!preOutForm.hauler.trim()) {
       error(preOutForm.not_in_booking ? 'Please select a hauler for Not in Booking' : 'Hauler is required');
       return;
+      }
     }
     if (preOutForm.not_in_booking && preOutForm.exception_mode === 'client' && !preOutForm.client_id) {
       error('Please select a client exception');
@@ -530,6 +541,7 @@ export default function Index() {
         not_in_booking: preOutForm.not_in_booking,
         exception_mode: preOutForm.exception_mode,
         client: preOutForm.client_id,
+        booking_match_client_id: bookingMatch.direction === 'OUT' && bookingMatch.clientId ? bookingMatch.clientId : undefined,
       });
 
       if (response.data.message) {
@@ -545,7 +557,12 @@ export default function Index() {
         }
       }
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { message?: string } } };
+      const e = err as { response?: { data?: { message?: string; booking_match_required?: boolean; shipping_line?: string } } };
+      if (e.response?.data?.booking_match_required) {
+        setBookingMatch({ direction: 'OUT', shippingLine: e.response.data.shipping_line || '', clientId: '' });
+        setShowBookingMatchModal(true);
+        return;
+      }
       error(e.response?.data?.message || 'Failed to add Pre-Out');
     } finally {
       addPreOutInProgressRef.current = false;
@@ -1347,14 +1364,14 @@ export default function Index() {
           </DialogHeader>
           <form onSubmit={submitAddPreIn}>
             <div className="grid gap-4 py-4">
-              <div>
+              {!preInBookingDependent && !preInForm.not_in_booking && <div>
                 <Label className="text-gray-900">
                   Client <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={preInForm.client_id}
                   onValueChange={(value) =>
-                    setPreInForm({ ...preInForm, client_id: value, not_in_booking: false, hauler: '' })
+                    setPreInForm({ ...preInForm, client_id: value, hauler: '' })
                   }
                 >
                   <SelectTrigger>
@@ -1368,7 +1385,7 @@ export default function Index() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div>}
               <div>
                 <Label className="text-gray-900">
                   Container No. <span className="text-red-500">*</span>
@@ -1395,7 +1412,7 @@ export default function Index() {
                   required
                 />
               </div>
-              {!selectedPreInClientIsException && <div className="rounded-lg border border-gray-200 p-3">
+              <div className="rounded-lg border border-gray-200 p-3">
                 <button
                   type="button"
                   role="switch"
@@ -1404,6 +1421,7 @@ export default function Index() {
                     ...preInForm,
                     not_in_booking: !preInForm.not_in_booking,
                     hauler: '',
+                    exception_mode: preInForm.exception_mode,
                   })}
                   className="flex w-full items-center justify-between text-left"
                 >
@@ -1417,25 +1435,19 @@ export default function Index() {
                 </button>
                 {preInForm.not_in_booking && (
                   <div className="mt-3">
-                    <Label className="text-gray-900">
-                      Hauler <span className="text-red-500">*</span>
-                    </Label>
-                    <Select
-                      value={preInForm.hauler}
-                      onValueChange={(value) => setPreInForm({ ...preInForm, hauler: value })}
-                    >
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Select exception hauler" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {preInHaulerOptions.map((hauler) => (
-                          <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="mb-3 grid grid-cols-2 rounded-md bg-gray-100 p-1">
+                      {(['client', 'hauler'] as const).map((mode) => <button key={mode} type="button" onClick={() => setPreInForm({ ...preInForm, exception_mode: mode, client_id: '', hauler: '' })} className={`rounded px-3 py-2 text-sm font-semibold ${preInForm.exception_mode === mode ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-600'}`}>{mode === 'client' ? 'Client' : 'Hauler'}</button>)}
+                    </div>
+                    {preInForm.exception_mode === 'client' ? <Select value={preInForm.client_id} onValueChange={(value) => setPreInForm({ ...preInForm, client_id: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select client" /></SelectTrigger>
+                      <SelectContent>{clientExceptionOptions.map((client) => <SelectItem key={client.c_id} value={client.hashed_c_id}>{client.client_code} - {client.client_name}</SelectItem>)}</SelectContent>
+                    </Select> : <Select value={preInForm.hauler} onValueChange={(value) => setPreInForm({ ...preInForm, hauler: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select hauler" /></SelectTrigger>
+                      <SelectContent>{preInHaulerOptions.map((hauler) => <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>)}</SelectContent>
+                    </Select>}
                   </div>
                 )}
-              </div>}
+              </div>
             </div>
             <DialogFooter className="gap-2">
               <ModernButton
@@ -1485,7 +1497,7 @@ export default function Index() {
                 <Label className="text-gray-900">
                   Hauler <span className="text-red-500">*</span>
                 </Label>
-                {(!preOutForm.not_in_booking || preOutForm.exception_mode === 'client') && <>
+                {((!preOutBookingDependent && !preOutForm.not_in_booking) || (preOutForm.not_in_booking && preOutForm.exception_mode === 'hauler')) && <>
                   <Input
                     data-history-key="gateinout.hauler"
                     value={preOutForm.hauler}
@@ -1588,6 +1600,28 @@ export default function Index() {
               </ModernButton>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBookingMatchModal} onOpenChange={setShowBookingMatchModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Match Shipping Line</DialogTitle>
+            <DialogDescription>
+              Shipping line <span className="font-semibold">{bookingMatch.shippingLine || 'from the booking'}</span> was not found in the reference table. Select the matching client before saving.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label>Shipping Line / Client <span className="text-red-500">*</span></Label>
+            <Select value={bookingMatch.clientId} onValueChange={(value) => setBookingMatch((current) => ({ ...current, clientId: value }))}>
+              <SelectTrigger className="mt-2"><SelectValue placeholder="Select client" /></SelectTrigger>
+              <SelectContent>{clients.map((client) => <SelectItem key={client.c_id} value={String(client.c_id)}>{client.client_code} - {client.client_name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <ModernButton type="button" variant="toggle" onClick={() => setShowBookingMatchModal(false)}>Cancel</ModernButton>
+            <ModernButton type="button" variant="add" disabled={!bookingMatch.clientId || isAddingPreIn || isAddingPreOut} onClick={() => { setShowBookingMatchModal(false); if (bookingMatch.direction === 'IN') handleAddPreIn(); else handleAddPreOut(); }}>Save</ModernButton>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
