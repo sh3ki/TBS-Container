@@ -654,7 +654,7 @@ class GateinoutController extends Controller
             if (!in_array($exceptionMode, ['client', 'hauler'], true)) $exceptionMode = 'client';
             if ($notInBooking && $exceptionMode === 'hauler' && !$this->preInHaulerIsExcepted($hauler)) {
                 return response()->json([
-                    'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-In exception hauler.']
+                    'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-In hauler exception.']
                 ]);
             }
             
@@ -801,7 +801,7 @@ class GateinoutController extends Controller
                 );
                 if (!$isException) {
                     return response()->json([
-                        'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-Out exception hauler.']
+                        'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-Out hauler exception.']
                     ]);
                 }
             }
