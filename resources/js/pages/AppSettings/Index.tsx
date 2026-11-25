@@ -41,6 +41,7 @@ interface AppSettingsProps {
         dmr_time: string;
         dmr_sender_email: string;
         dmr_sender_password: string;
+        dmr_auto_send: boolean;
         dmr_sender_name: string;
         dmr_day_exceptions: string[];
         dmr_signature: string;
@@ -81,6 +82,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [dmrTime, setDmrTime] = useState(settings.dmr_time);
     const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
     const [dmrSenderPassword, setDmrSenderPassword] = useState(settings.dmr_sender_password);
+    const [dmrAutoSend, setDmrAutoSend] = useState(settings.dmr_auto_send);
     const [dmrSenderName, setDmrSenderName] = useState(settings.dmr_sender_name);
     const [showDmrSenderPassword, setShowDmrSenderPassword] = useState(false);
     const [dmrDayExceptions, setDmrDayExceptions] = useState<string[]>(settings.dmr_day_exceptions);
@@ -241,6 +243,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 dmr_sender_email: dmrSenderEmail || null,
                 ...(dmrSenderPassword ? { dmr_sender_password: dmrSenderPassword } : {}),
                 dmr_sender_name: dmrSenderName || null,
+                dmr_auto_send: dmrAutoSend,
                 dmr_day_exceptions: dmrDayExceptions,
                 dmr_signature: dmrSignature,
                 dmr_groups: dmrGroups.map((group) => ({
@@ -489,6 +492,16 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                 </button>
                             </div>
                             <p className="mt-1 text-xs text-gray-500">Used with the sender email to send DMR emails.</p>
+                        </div>
+                        <div>
+                            <Label className="text-sm font-semibold text-gray-900">AUTO SEND</Label>
+                            <div className="mt-2 flex h-11 items-center justify-between rounded-md border border-gray-300 px-3">
+                                <span className="text-sm text-gray-600">Send DMR on schedule</span>
+                                <ModernButton type="button" variant={dmrAutoSend ? 'primary' : 'secondary'} size="sm" icon={dmrAutoSend ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />} onClick={() => setDmrAutoSend((enabled) => !enabled)}>
+                                    {dmrAutoSend ? 'ON' : 'OFF'}
+                                </ModernButton>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Controls automatic DMR sending at the configured time and days.</p>
                         </div>
                         <div className="md:col-span-2">
                             <Label className="text-sm font-semibold text-gray-900">SIGNATURE</Label>
