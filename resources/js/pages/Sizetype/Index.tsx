@@ -16,6 +16,7 @@ interface SizeType extends Record<string, unknown> {
   size: string;
   type: string;
   description: string;
+  iso_code: string;
   date_added: string;
   archived: number;
   status: string;
@@ -362,6 +363,13 @@ export default function Index() {
                 label: 'Description',
                 render: (sizeType: SizeType) => (
                   <div className="text-sm text-gray-600">{sizeType.description || '-'}</div>
+                ),
+              },
+              {
+                key: 'iso_code',
+                label: 'ISO Code',
+                render: (sizeType: SizeType) => (
+                  <div className="font-semibold text-[#3E9AF4]">{sizeType.iso_code || '-'}</div>
                 ),
               },
               {
