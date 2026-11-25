@@ -35,6 +35,7 @@ interface AppSettingsProps {
         booking_system_timeout: number;
         calling_expiration_minutes: number | null;
         floating_expiration_minutes: number | null;
+        queue_internal_password_configured: boolean;
         dmr_time: string;
         dmr_sender_email: string;
         dmr_sender_password: string;
@@ -72,6 +73,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [bookingSystemTimeout, setBookingSystemTimeout] = useState(String(settings.booking_system_timeout));
     const [callingExpirationMinutes, setCallingExpirationMinutes] = useState(settings.calling_expiration_minutes === null ? '' : String(settings.calling_expiration_minutes));
     const [floatingExpirationMinutes, setFloatingExpirationMinutes] = useState(settings.floating_expiration_minutes === null ? '' : String(settings.floating_expiration_minutes));
+    const [queueInternalPassword, setQueueInternalPassword] = useState('');
     const [dmrTime, setDmrTime] = useState(settings.dmr_time);
     const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
     const [dmrSenderPassword, setDmrSenderPassword] = useState(settings.dmr_sender_password);
@@ -153,6 +155,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 section: 'queue',
                 calling_expiration_minutes: callingExpirationMinutes === '' ? null : Number(callingExpirationMinutes),
                 floating_expiration_minutes: floatingExpirationMinutes === '' ? null : Number(floatingExpirationMinutes),
+                ...(queueInternalPassword ? { queue_internal_password: queueInternalPassword } : {}),
             });
             success(response.data.message || 'Queue expiration settings updated successfully.');
         } catch (exception) {
@@ -574,6 +577,11 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                             <Label htmlFor="floating-expiration-minutes" className="text-sm font-semibold text-gray-900">FLOATING EXPIRATION (MINUTES)</Label>
                             <Input id="floating-expiration-minutes" type="number" min="1" step="1" value={floatingExpirationMinutes} onChange={(event) => setFloatingExpirationMinutes(event.target.value)} placeholder="Disabled" className="mt-2 h-11" />
                             <p className="mt-1 text-xs text-gray-500">Floating automatically changes to Forfeited. Leave blank to disable.</p>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Label htmlFor="queue-internal-password" className="text-sm font-semibold text-gray-900">QUEUE-INTERNAL PASSWORD</Label>
+                            <Input id="queue-internal-password" type="password" autoComplete="new-password" value={queueInternalPassword} onChange={(event) => setQueueInternalPassword(event.target.value)} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} placeholder={settings.queue_internal_password_configured ? 'Leave blank to keep current password' : 'Set Queue Internal password'} className="mt-2 h-11" />
+                            <p className="mt-1 text-xs text-gray-500">Used only to unlock /queue-internal. Passwords are stored hashed and cannot be displayed.</p>
                         </div>
                         <div className="flex items-center gap-3 md:col-span-2">
                             <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueExpirationSettings}>Save Settings</ModernButton>
