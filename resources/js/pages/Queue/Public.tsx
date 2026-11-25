@@ -67,7 +67,7 @@ export default function QueuePublic() {
                     <h1 className="mt-2 text-2xl font-bold" style={{ color: '#111827' }}>TBS QUEUE</h1>
                     <p className="mt-2 text-sm" style={{ color: '#68737B' }}>Enter your plate number to view the queue.</p>
                 </div>
-                <label htmlFor="queue-plate-login" className="block text-sm font-semibold" style={{ color: '#111827' }}>PLATE NUMBER OR QUEUE PASSWORD</label>
+                <label htmlFor="queue-plate-login" className="block text-center text-sm font-semibold" style={{ color: '#111827' }}>PLATE NUMBER</label>
                 <input id="queue-plate-login" type="text" value={plateNo} autoFocus autoComplete="off" onChange={(event) => setPlateNo(event.target.value)} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} className="mt-2 h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-4 text-base font-bold tracking-[0.08em] outline-none focus:border-[#3E9AF4] focus:ring-2 focus:ring-[#3E9AF4]/20" style={{ color: '#111827', backgroundColor: '#FFFFFF', colorScheme: 'light' }} />
                 {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
                 <button type="submit" disabled={!plateNo.trim() || submitting} className="mt-6 flex h-12 w-full items-center justify-center rounded-xl bg-[#3E9AF4] text-sm font-semibold text-white shadow-lg transition hover:bg-[#2785dc] disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Unlocking...' : 'Unlock Queue'}</button>
