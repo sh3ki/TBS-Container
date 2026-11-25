@@ -31,21 +31,25 @@ export function servingRuntime(servingAt: string | null | undefined, now: Date):
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-export function servingCardColors(servingAt: string | null | undefined, now: Date): CSSProperties {
-    const minutes = servingElapsedSeconds(servingAt, now) / 60;
-    if (minutes >= 60) return { backgroundColor: '#F1D5DE', borderColor: '#9F3853', color: '#202A35' };
-    if (minutes >= 45) return { backgroundColor: '#FEE2E2', borderColor: '#EF4444', color: '#7F1D1D' };
-    if (minutes >= 30) return { backgroundColor: '#FFEDD5', borderColor: '#F97316', color: '#9A3412' };
-    if (minutes >= 20) return { backgroundColor: '#FEF9C3', borderColor: '#EAB308', color: '#854D0E' };
+export function servingCardColors(servingAt: string | null | undefined, now: Date, greenOnly = false): CSSProperties {
+    if (!greenOnly) {
+        const minutes = servingElapsedSeconds(servingAt, now) / 60;
+        if (minutes >= 60) return { backgroundColor: '#F1D5DE', borderColor: '#9F3853', color: '#202A35' };
+        if (minutes >= 45) return { backgroundColor: '#FEE2E2', borderColor: '#EF4444', color: '#7F1D1D' };
+        if (minutes >= 30) return { backgroundColor: '#FFEDD5', borderColor: '#F97316', color: '#9A3412' };
+        if (minutes >= 20) return { backgroundColor: '#FEF9C3', borderColor: '#EAB308', color: '#854D0E' };
+    }
     return { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', color: '#065F46' };
 }
 
-export function servingAccentColors(servingAt: string | null | undefined, now: Date): CSSProperties {
-    const minutes = servingElapsedSeconds(servingAt, now) / 60;
-    if (minutes >= 60) return { backgroundColor: '#DFA1B2', color: '#8F2945' };
-    if (minutes >= 45) return { backgroundColor: '#FECACA', color: '#B91C1C' };
-    if (minutes >= 30) return { backgroundColor: '#FED7AA', color: '#C2410C' };
-    if (minutes >= 20) return { backgroundColor: '#FEF08A', color: '#A16207' };
+export function servingAccentColors(servingAt: string | null | undefined, now: Date, greenOnly = false): CSSProperties {
+    if (!greenOnly) {
+        const minutes = servingElapsedSeconds(servingAt, now) / 60;
+        if (minutes >= 60) return { backgroundColor: '#DFA1B2', color: '#8F2945' };
+        if (minutes >= 45) return { backgroundColor: '#FECACA', color: '#B91C1C' };
+        if (minutes >= 30) return { backgroundColor: '#FED7AA', color: '#C2410C' };
+        if (minutes >= 20) return { backgroundColor: '#FEF08A', color: '#A16207' };
+    }
     return { backgroundColor: '#D1FAE5', color: '#047857' };
 }
 
