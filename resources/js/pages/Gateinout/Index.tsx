@@ -29,6 +29,7 @@ interface PreInventoryRecord extends Record<string, unknown> {
   container_status?: string;
   size_type_id?: number;
   size_type_display?: string;
+  iso_code?: string;
   runtime: number;
   runtime_color: 'green' | 'orange' | 'red';
   date_added: string;
