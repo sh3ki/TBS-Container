@@ -24,6 +24,19 @@ interface QueueData {
     serving_capacity?: number;
 }
 
+function normalizePlate(value: string | null | undefined): string {
+    return String(value ?? '').replace(/[\s-]+/g, '').toUpperCase();
+}
+
+function filterWaitingEntries(entries: QueueEntry[], plateNo: string): QueueEntry[] {
+    if (!plateNo) return entries;
+    const matchingIndexes = entries
+        .map((entry, index) => normalizePlate(entry.plate_no) === plateNo ? index : -1)
+        .filter((index) => index >= 0);
+    if (matchingIndexes.length === 0) return [];
+    return entries.slice(0, Math.max(...matchingIndexes) + 1);
+}
+
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
 
 function useClock() {
@@ -83,12 +96,13 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
     );
 }
 
-export default function QueueDisplay({ greenServing = true }: { greenServing?: boolean } = {}) {
+export default function QueueDisplay({ greenServing = true, visiblePlateNo }: { greenServing?: boolean; visiblePlateNo?: string } = {}) {
     const now = useClock();
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [servingCapacity, setServingCapacity] = useState(0);
     const time = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
     const date = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).format(now);
+    const normalizedVisiblePlate = normalizePlate(visiblePlateNo);
 
     useEffect(() => {
         let active = true;
@@ -134,8 +148,8 @@ export default function QueueDisplay({ greenServing = true }: { greenServing?: b
 
                 <div className="queue-page-content flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-3 sm:gap-5 sm:p-6 lg:p-8" style={{ color: '#202a35', boxSizing: 'border-box' }}>
                     <div className="queue-grid grid min-h-0 gap-3 md:gap-4">
-                        <QueuePanel title="WAITING" direction="IN" entries={queue.waiting_in} kind="waiting" now={now} greenServing={greenServing} />
-                        <QueuePanel title="WAITING" direction="OUT" entries={queue.waiting_out} kind="waiting" now={now} greenServing={greenServing} />
+                        <QueuePanel title="WAITING" direction="IN" entries={filterWaitingEntries(queue.waiting_in, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
+                        <QueuePanel title="WAITING" direction="OUT" entries={filterWaitingEntries(queue.waiting_out, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
                         <QueuePanel title="SERVING" entries={queue.serving} kind="serving" servingCapacity={servingCapacity} now={now} greenServing={greenServing} />
                     </div>
 
