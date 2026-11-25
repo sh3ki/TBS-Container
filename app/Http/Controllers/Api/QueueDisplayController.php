@@ -35,9 +35,9 @@ class QueueDisplayController extends Controller
         $fullAccess = false;
         if (is_string($queuePassword) && $queuePassword !== '') {
             try {
-                $fullAccess = hash_equals((string) decrypt($queuePassword), $credential);
+                $fullAccess = hash_equals(strtoupper((string) decrypt($queuePassword)), strtoupper($credential));
             } catch (\Throwable) {
-                $fullAccess = Hash::check($credential, $queuePassword);
+                $fullAccess = Hash::check($credential, $queuePassword) || Hash::check(strtolower($credential), $queuePassword);
             }
         }
         $plateNo = strtoupper(preg_replace('/[\s-]+/', '', $credential) ?? '');
