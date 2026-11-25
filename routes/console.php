@@ -50,6 +50,13 @@ Schedule::command('dmr:send')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('queue:expire-statuses')
+    ->everyMinute()
+    ->timezone('Asia/Manila')
+    ->name('expire-queue-statuses')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ============================================================================
 // ADDITIONAL MAINTENANCE JOBS
 // ============================================================================
