@@ -473,6 +473,15 @@ class GateinoutController extends Controller
         ];
     }
 
+    private function sizeTypeIsoCode(int $sizeTypeId): string
+    {
+        if ($sizeTypeId <= 0) return '';
+
+        return (string) (DB::table('container_size_type')
+            ->where('s_id', $sizeTypeId)
+            ->value('iso_code') ?? '');
+    }
+
     private function preInHaulerIsExcepted(string $hauler): bool
     {
         $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('prein_hauler_exceptions');
@@ -725,7 +734,7 @@ class GateinoutController extends Controller
                     'size_type' => $matched['size_type'] ?? 0,
                     'cnt_class' => '',
                     'cnt_status' => '',
-                    'iso_code' => '',
+                    'iso_code' => $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
                     'date_mnfg' => '0000-00-00',
                     'checker_id' => 0,
                 ]);
@@ -860,7 +869,7 @@ class GateinoutController extends Controller
                     'size_type' => $matched['size_type'] ?? 0,
                     'cnt_class' => '',
                     'cnt_status' => '',
-                    'iso_code' => '',
+                    'iso_code' => $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
                     'date_mnfg' => '0000-00-00',
                     'checker_id' => 0,
                 ]);
@@ -1434,7 +1443,7 @@ class GateinoutController extends Controller
     public function getSizeTypeOptions()
     {
         try {
-            $sizeTypes = Cache::remember('gateinout.lookup.size_types.v1', 3600, fn () => DB::select("SELECT s_id, size, type FROM {$this->prefix}container_size_type WHERE archived = 0 ORDER BY size ASC, type ASC"));
+            $sizeTypes = Cache::remember('gateinout.lookup.size_types.v2', 3600, fn () => DB::select("SELECT s_id, size, type, iso_code FROM {$this->prefix}container_size_type WHERE archived = 0 ORDER BY size ASC, type ASC"));
             
             return response()->json([
                 'success' => true,
