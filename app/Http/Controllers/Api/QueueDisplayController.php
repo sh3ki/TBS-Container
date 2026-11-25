@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
 
@@ -23,13 +24,16 @@ class QueueDisplayController extends Controller
             'updated_at' => now(),
         ]);
 
-        return response()->json(['authenticated' => true, 'plate_no' => $session->plate_no]);
+        return response()->json(['authenticated' => true, 'plate_no' => $session->plate_no, 'full_access' => (bool) $session->full_access]);
     }
 
     public function login(Request $request)
     {
-        $validated = $request->validate(['plate_no' => ['required', 'string', 'max:30']]);
-        $plateNo = strtoupper(preg_replace('/[\s-]+/', '', trim((string) $validated['plate_no'])) ?? '');
+        $validated = $request->validate(['plate_no' => ['required', 'string', 'max:5000']]);
+        $credential = trim((string) $validated['plate_no']);
+        $queuePassword = DB::table('app_settings')->where('setting_id', 1)->value('queue_internal_password');
+        $fullAccess = is_string($queuePassword) && $queuePassword !== '' && Hash::check($credential, $queuePassword);
+        $plateNo = strtoupper(preg_replace('/[\s-]+/', '', $credential) ?? '');
         $entry = DB::table('queue_entries')
             ->whereRaw('UPPER(plate_no) = ?', [$plateNo])
             ->whereIn('status', ['waiting', 'calling', 'floating', 'serving'])
@@ -37,13 +41,14 @@ class QueueDisplayController extends Controller
             ->orderByDesc('updated_at')
             ->first(['id', 'plate_no']);
 
-        if (!$entry) return response()->json(['message' => 'Plate number is not active in the queue.'], 422);
+        if (!$fullAccess && !$entry) return response()->json(['message' => 'Enter an active plate number or the Queue password.'], 422);
 
         $rawToken = Str::random(64);
         $now = Carbon::now();
         DB::table('queue_display_sessions')->insert([
             'token_hash' => hash('sha256', $rawToken),
-            'plate_no' => strtoupper(preg_replace('/[\s-]+/', '', (string) $entry->plate_no) ?? ''),
+            'plate_no' => $fullAccess ? null : strtoupper(preg_replace('/[\s-]+/', '', (string) $entry->plate_no) ?? ''),
+            'full_access' => $fullAccess,
             'expires_at' => $now->copy()->addMinutes(30),
             'last_used_at' => $now,
             'ip_address' => $request->ip(),
@@ -54,7 +59,7 @@ class QueueDisplayController extends Controller
 
         $cookie = new Cookie(self::COOKIE, $rawToken, 0, '/', null, $request->isSecure(), true, false, 'lax');
 
-        return response()->json(['authenticated' => true, 'plate_no' => $plateNo])->cookie($cookie);
+        return response()->json(['authenticated' => true, 'plate_no' => $fullAccess ? null : $plateNo, 'full_access' => $fullAccess])->cookie($cookie);
     }
 
     public function logout(Request $request)
