@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
 
@@ -93,10 +94,15 @@ class QueueInternalController extends Controller
             return response()->json(['message' => 'Queue Internal session expired.'], 401);
         }
 
-        $entry = DB::table('queue_entries')->where('id', $entryId)->first(['plate_no', 'pre_inventory_id']);
+        $entry = DB::table('queue_entries')->where('id', $entryId)->first(['plate_no']);
         if (!$entry) {
             return response()->json(['message' => 'Queue entry not found.'], 404);
         }
+
+        $preInventoryId = Schema::hasColumn('queue_entries', 'pre_inventory_id')
+            ? DB::table('queue_entries')->where('id', $entryId)->value('pre_inventory_id')
+            : null;
+        $tablePrefix = DB::getTablePrefix();
 
         $query = DB::table('pre_inventory as p')
             ->leftJoin('clients as c', 'c.c_id', '=', 'p.client_id')
@@ -104,15 +110,15 @@ class QueueInternalController extends Controller
             ->where('p.status', 0)
             ->select([
                 'p.plate_no',
-                DB::raw("COALESCE(c.client_name, c.client_code, '-') as client"),
-                DB::raw("COALESCE(CONCAT(st.size, st.type), '-') as size_type"),
-                DB::raw("COALESCE(p.iso_code, '') as iso_code"),
-                DB::raw("COALESCE(NULLIF(p.hauler, ''), '-') as hauler"),
+                DB::raw("COALESCE({$tablePrefix}c.client_name, {$tablePrefix}c.client_code, '-') as client"),
+                DB::raw("COALESCE(CONCAT({$tablePrefix}st.size, {$tablePrefix}st.type), '-') as size_type"),
+                DB::raw("COALESCE({$tablePrefix}p.iso_code, '') as iso_code"),
+                DB::raw("COALESCE(NULLIF({$tablePrefix}p.hauler, ''), '-') as hauler"),
             ]);
 
-        $record = $entry->pre_inventory_id
-            ? $query->where('p.p_id', $entry->pre_inventory_id)->first()
-            : $query->whereRaw("REPLACE(REPLACE(UPPER(p.plate_no), '-', ''), ' ', '') = ?", [strtoupper(preg_replace('/[\\s-]+/', '', (string) $entry->plate_no) ?? '')])->first();
+        $record = $preInventoryId
+            ? $query->where('p.p_id', $preInventoryId)->first()
+            : $query->whereRaw("REPLACE(REPLACE(UPPER({$tablePrefix}p.plate_no), '-', ''), ' ', '') = ?", [strtoupper(preg_replace('/[\\s-]+/', '', (string) $entry->plate_no) ?? '')])->first();
 
         if (!$record) {
             return response()->json(['message' => 'Pre-inventory record not found.'], 404);
