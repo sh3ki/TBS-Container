@@ -100,7 +100,7 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
             if (activeGroup !== null) return;
             try { const response = await axios.get('/api/queue/manage'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ }
         };
-        refresh(); const timer = window.setInterval(refresh, 1000);
+        refresh(); const timer = window.setInterval(refresh, 3000);
         return () => { active = false; window.clearInterval(timer); };
     }, [activeGroup]);
     useEffect(() => {
@@ -110,7 +110,7 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
             if (response.data.success) setGuardAccounts(response.data.guards ?? []);
         }).catch(() => setGuardAccounts([]));
         loadGuards();
-        const timer = window.setInterval(loadGuards, 1000);
+        const timer = window.setInterval(loadGuards, 3000);
         return () => window.clearInterval(timer);
     }, [plannerMode, manualConfirmation]);
     const moveQueueEntry = (group: 'waiting_in' | 'waiting_out' | 'serving_in' | 'serving_out', from: number, to: number) => {
