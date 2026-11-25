@@ -585,6 +585,7 @@ class GateinoutController extends Controller
                     COALESCE(cs.status, '-') AS container_status,
                     CAST(COALESCE(p.size_type, 0) AS UNSIGNED) AS size_type_id,
                     COALESCE(CONCAT(st.size, st.type), '-') AS size_type_display,
+                    COALESCE(p.iso_code, '') AS iso_code,
                     p.date_added,
                     p.date_completed,
                     TIMESTAMPDIFF(
@@ -2178,7 +2179,7 @@ class GateinoutController extends Controller
                 SELECT 
                     i.i_id,
                     i.container_no,
-                    COALESCE(c.client_code, c.client_name, '-') AS client_name,
+                    COALESCE(c.client_name, c.client_code, '-') AS client_name,
                     c.c_id AS client_id,
                     CONCAT(st.size, st.type) AS size_type,
                     st.s_id AS sizetype_id,
@@ -2243,7 +2244,7 @@ class GateinoutController extends Controller
                     i.i_id,
                     i.container_no,
                     i.client_id,
-                    COALESCE(c.client_code, c.client_name, '-') AS client_name,
+                    COALESCE(c.client_name, c.client_code, '-') AS client_name,
                     i.size_type,
                     CONCAT(st.size, st.type) AS size_type_display,
                     i.iso_code,
