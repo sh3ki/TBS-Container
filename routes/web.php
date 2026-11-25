@@ -26,7 +26,7 @@ Route::get('/login', function () {
 
 // Public live queue display for yard monitors and drivers.
 Route::get('/queue', function () {
-    return Inertia::render('Queue/Display');
+    return Inertia::render('Queue/Public');
 })->name('queue.display');
 
 // Duplicate internal queue display for a second internal monitor/page.
