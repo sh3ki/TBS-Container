@@ -38,6 +38,7 @@ interface AppSettingsProps {
         calling_expiration_minutes: number | null;
         floating_expiration_minutes: number | null;
         queue_internal_password_configured: boolean;
+        queue_internal_password: string;
         dmr_time: string;
         dmr_sender_email: string;
         dmr_sender_password: string;
@@ -78,7 +79,8 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [bookingSystemTimeout, setBookingSystemTimeout] = useState(String(settings.booking_system_timeout));
     const [callingExpirationMinutes, setCallingExpirationMinutes] = useState(settings.calling_expiration_minutes === null ? '' : String(settings.calling_expiration_minutes));
     const [floatingExpirationMinutes, setFloatingExpirationMinutes] = useState(settings.floating_expiration_minutes === null ? '' : String(settings.floating_expiration_minutes));
-    const [queueInternalPassword, setQueueInternalPassword] = useState('');
+    const [queueInternalPassword, setQueueInternalPassword] = useState(settings.queue_internal_password);
+    const [showQueueInternalPassword, setShowQueueInternalPassword] = useState(false);
     const [dmrTime, setDmrTime] = useState(settings.dmr_time);
     const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
     const [dmrSenderPassword, setDmrSenderPassword] = useState(settings.dmr_sender_password);
@@ -615,8 +617,13 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         </div>
                         <div className="md:col-span-2">
                             <Label htmlFor="queue-internal-password" className="text-sm font-semibold text-gray-900">QUEUE-INTERNAL PASSWORD</Label>
-                            <Input id="queue-internal-password" type="password" autoComplete="new-password" value={queueInternalPassword} onChange={(event) => setQueueInternalPassword(event.target.value)} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} placeholder={settings.queue_internal_password_configured ? 'Leave blank to keep current password' : 'Set Queue Internal password'} className="mt-2 h-11" />
-                            <p className="mt-1 text-xs text-gray-500">Used only to unlock /queue-internal. Passwords are stored hashed and cannot be displayed.</p>
+                            <div className="relative mt-2">
+                                <Input id="queue-internal-password" type={showQueueInternalPassword ? 'text' : 'password'} autoComplete="new-password" value={queueInternalPassword} onChange={(event) => setQueueInternalPassword(event.target.value)} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} placeholder={settings.queue_internal_password_configured && !queueInternalPassword ? 'Existing password cannot be recovered; set a new one' : 'Set Queue Internal password'} className="h-11 pr-11" />
+                                <button type="button" onClick={() => setShowQueueInternalPassword((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900" aria-label={showQueueInternalPassword ? 'Hide password' : 'Show password'}>
+                                    {showQueueInternalPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Used to unlock /queue-internal and full access on /queue. Saved passwords can be displayed.</p>
                         </div>
                         <div className="flex items-center gap-3 md:col-span-2">
                             <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueExpirationSettings}>Save Settings</ModernButton>
