@@ -8,7 +8,8 @@ import { colors } from '@/lib/colors';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 import { ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
 
-interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; manual_reason?: string | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; }
+interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; manual_reason?: string | null; manual_guard_user_id?: number | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; }
+interface GuardAccount { user_id: number; username: string; full_name?: string | null; }
 interface QueueData { waiting_in: QueueEntry[]; waiting_out: QueueEntry[]; serving: QueueEntry[]; }
 interface QueuePageProps { servingCapacity?: number; }
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
@@ -84,6 +85,8 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
     const [serveConfirmation, setServeConfirmation] = useState<QueueEntry | null>(null);
     const [manualConfirmation, setManualConfirmation] = useState<QueueEntry | null>(null);
     const [manualReason, setManualReason] = useState('');
+    const [manualGuardUserId, setManualGuardUserId] = useState('');
+    const [guardAccounts, setGuardAccounts] = useState<GuardAccount[]>([]);
     const [manualId, setManualId] = useState<number | null>(null);
     const manualPending = queue.waiting_in.some((entry) => Boolean(entry.manual_reason)) || queue.waiting_out.some((entry) => Boolean(entry.manual_reason));
     const [statusConfirmation, setStatusConfirmation] = useState<{ entry: QueueEntry; status: 'calling' | 'floating' | 'forfeited' } | null>(null);
@@ -100,6 +103,12 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
         refresh(); const timer = window.setInterval(refresh, 1000);
         return () => { active = false; window.clearInterval(timer); };
     }, [activeGroup]);
+    useEffect(() => {
+        if (!plannerMode) return;
+        axios.get('/api/queue/guard-accounts').then((response) => {
+            if (response.data.success) setGuardAccounts(response.data.guards ?? []);
+        }).catch(() => setGuardAccounts([]));
+    }, [plannerMode]);
     const moveQueueEntry = (group: 'waiting_in' | 'waiting_out' | 'serving_in' | 'serving_out', from: number, to: number) => {
         setQueue((current) => {
             const servingDirection = group === 'serving_in' ? 'IN' : group === 'serving_out' ? 'OUT' : null;
@@ -178,16 +187,18 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
     const requestManualCapture = async (entry: QueueEntry) => {
         const reason = manualReason.trim();
         if (!reason) { error('Please enter a reason for manual capture.'); return; }
+        if (!manualGuardUserId) { error('Please select a Guard account.'); return; }
         setManualId(entry.id);
         try {
-            await axios.post('/api/gateinout/queue/manual', { id: entry.id, reason });
+            await axios.post('/api/gateinout/queue/manual', { id: entry.id, reason, guard_user_id: Number(manualGuardUserId) });
             setQueue((current) => ({
                 ...current,
-                waiting_in: current.waiting_in.map((item) => item.id === entry.id ? { ...item, manual_reason: reason } : item),
-                waiting_out: current.waiting_out.map((item) => item.id === entry.id ? { ...item, manual_reason: reason } : item),
+                waiting_in: current.waiting_in.map((item) => item.id === entry.id ? { ...item, manual_reason: reason, manual_guard_user_id: Number(manualGuardUserId) } : item),
+                waiting_out: current.waiting_out.map((item) => item.id === entry.id ? { ...item, manual_reason: reason, manual_guard_user_id: Number(manualGuardUserId) } : item),
             }));
             setManualConfirmation(null);
             setManualReason('');
+            setManualGuardUserId('');
             success(`Manual capture requested for ${entry.plate_no}.`);
         } catch (exception: any) {
             error(exception?.response?.data?.message ?? 'Unable to request manual capture.');
@@ -229,8 +240,8 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
                     {canEditQueue && <button type="button" onClick={openCapacitySettings} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
                 </div>
                 <div className="queue-list-grid grid min-h-0 gap-4">
-                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_in', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
-                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_out', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
+                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_in', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); setManualGuardUserId(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
+                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_out', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); setManualGuardUserId(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
                     <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving servingCapacity={servingCapacity} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} />
                 </div>
             </div>
@@ -251,7 +262,12 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
                     <div className="mb-5 flex items-start justify-between"><div><h2 className="text-xl font-bold text-gray-900">Manual plate capture</h2><p className="mt-1 text-sm text-gray-600">Request a manual photo for plate {manualConfirmation.plate_no}.</p></div><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="text-2xl leading-none text-gray-400">&times;</button></div>
                     <label className="block text-sm font-semibold text-gray-700" htmlFor="manual-capture-reason">Reason</label>
                     <textarea id="manual-capture-reason" autoFocus value={manualReason} onChange={(event) => setManualReason(event.target.value)} rows={4} maxLength={2000} placeholder="Enter the reason for manual capture" className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
-                    <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={manualId !== null || !manualReason.trim()} onClick={() => requestManualCapture(manualConfirmation)} className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><ScanLine className="h-4 w-4" />{manualId !== null ? 'Saving...' : 'Confirm Manual'}</button></div>
+                    <label className="mt-4 block text-sm font-semibold text-gray-700" htmlFor="manual-capture-guard">Guard account</label>
+                    <select id="manual-capture-guard" value={manualGuardUserId} onChange={(event) => setManualGuardUserId(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                        <option value="">Select Guard account</option>
+                        {guardAccounts.map((guard) => <option key={guard.user_id} value={guard.user_id}>{guard.username}{guard.full_name ? ` - ${guard.full_name}` : ''}</option>)}
+                    </select>
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={manualId !== null || !manualReason.trim() || !manualGuardUserId} onClick={() => requestManualCapture(manualConfirmation)} className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><ScanLine className="h-4 w-4" />{manualId !== null ? 'Saving...' : 'Confirm Manual'}</button></div>
                 </div>
             </div>}
             <ModernConfirmDialog
