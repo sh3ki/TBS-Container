@@ -68,6 +68,9 @@ interface ProcessGateOutModalProps {
         hauler?: string;
         date_added?: string | null;
         date_completed?: string | null;
+        size_type_id?: number;
+        size_type_display?: string;
+        iso_code?: string;
     } | null;
     statusOptions: Array<{ s_id: number; status: string }>;
     sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
@@ -203,7 +206,18 @@ export default function ProcessGateOutModal({
             if (record) {
                 const cleanedPlateNo = record.plate_no || '';
                 const cleanedHauler = record.hauler || '';
-                setFormData(prev => ({ ...initialFormData, plate_no: cleanedPlateNo, hauler: cleanedHauler, status: '', load: defaultLoadId }));
+                setFormData(prev => ({
+                    ...initialFormData,
+                    client_id: record.client_id || 0,
+                    client_name: record.client_name || '',
+                    size_type: record.size_type_id || 0,
+                    size_type_display: record.size_type_display || '',
+                    iso_code: record.iso_code || '',
+                    plate_no: cleanedPlateNo,
+                    hauler: cleanedHauler,
+                    status: '',
+                    load: defaultLoadId,
+                }));
 
                 // If record already has a container_no (selected by mobile/pre-inventory),
                 // strictly load data from pre-inventory DB and use its cnt_status.
@@ -964,15 +978,6 @@ export default function ProcessGateOutModal({
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </div>
-                            <div>
-                                <Label>Checker</Label>
-                                <Input
-                                    value={checkerName}
-                                    disabled
-                                    className="bg-gray-100 cursor-not-allowed"
-                                    placeholder="Auto-populated from system"
-                                />
                             </div>
                         </div>
 
