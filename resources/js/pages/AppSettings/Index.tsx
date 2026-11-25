@@ -187,6 +187,18 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         setDmrGroups((groups) => groups.map((group, groupIndex) => groupIndex === index ? { ...group, [field]: value } : group));
     };
 
+    const formatEmailList = (value: string) => value
+        .split(/[,;\s]+/)
+        .map((email) => email.trim())
+        .filter(Boolean)
+        .join(',\n');
+
+    const formatEmailListWhileTyping = (value: string) => {
+        const hasTrailingSeparator = /[,;\s]$/.test(value);
+        const formatted = formatEmailList(value);
+        return hasTrailingSeparator && formatted !== '' ? `${formatted},` : formatted;
+    };
+
     const addDmrGroup = () => {
         setDmrGroups((groups) => [...groups, { client_id: '', receiver_emails: '', cc_emails: '', subject: '', content: '' }]);
     };
@@ -222,7 +234,11 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 dmr_sender_name: dmrSenderName || null,
                 dmr_day_exceptions: dmrDayExceptions,
                 dmr_signature: dmrSignature,
-                dmr_groups: dmrGroups,
+                dmr_groups: dmrGroups.map((group) => ({
+                    ...group,
+                    receiver_emails: formatEmailList(group.receiver_emails),
+                    cc_emails: formatEmailList(group.cc_emails),
+                })),
             });
             success(response.data.message || 'DMR settings updated successfully.');
         } catch (exception) {
@@ -491,13 +507,13 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                         </div>
                                         <div>
                                             <Label htmlFor={`dmr-receiver-${index}`} className="text-sm font-semibold text-gray-900">RECEIVER EMAILS</Label>
-                                            <Input id={`dmr-receiver-${index}`} type="text" value={group.receiver_emails} onChange={(event) => updateDmrGroup(index, 'receiver_emails', event.target.value)} placeholder="receiver@example.com, another@example.com" className="mt-2 h-11" />
-                                            <p className="mt-1 text-xs text-gray-500">Separate multiple emails with commas.</p>
+                                            <textarea id={`dmr-receiver-${index}`} value={group.receiver_emails} onChange={(event) => updateDmrGroup(index, 'receiver_emails', formatEmailListWhileTyping(event.target.value))} onBlur={(event) => updateDmrGroup(index, 'receiver_emails', formatEmailList(event.target.value))} placeholder={'qwe@gmail.com,\nasd@gmail.com'} rows={5} style={{ colorScheme: 'light' }} className="mt-2 h-32 min-h-[7.5rem] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                            <p className="mt-1 text-xs text-gray-500">One email per line. The field can be resized vertically.</p>
                                         </div>
                                         <div>
                                             <Label htmlFor={`dmr-cc-${index}`} className="text-sm font-semibold text-gray-900">CC EMAILS</Label>
-                                            <Input id={`dmr-cc-${index}`} type="text" value={group.cc_emails} onChange={(event) => updateDmrGroup(index, 'cc_emails', event.target.value)} placeholder="cc@example.com" className="mt-2 h-11" />
-                                            <p className="mt-1 text-xs text-gray-500">Separate multiple emails with commas.</p>
+                                            <textarea id={`dmr-cc-${index}`} value={group.cc_emails} onChange={(event) => updateDmrGroup(index, 'cc_emails', formatEmailListWhileTyping(event.target.value))} onBlur={(event) => updateDmrGroup(index, 'cc_emails', formatEmailList(event.target.value))} placeholder="cc@example.com" rows={5} style={{ colorScheme: 'light' }} className="mt-2 h-32 min-h-[7.5rem] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                                            <p className="mt-1 text-xs text-gray-500">One email per line. The field can be resized vertically.</p>
                                         </div>
                                         <div className="md:col-span-2">
                                             <Label className="text-sm font-semibold text-gray-900">SUBJECT</Label>
