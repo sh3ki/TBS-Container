@@ -26,6 +26,7 @@ class SendDmrReports extends Command
         $exceptions = json_decode((string) ($settings?->dmr_day_exceptions ?? '[]'), true) ?: [];
 
         if (!$this->option('force')) {
+            if ($settings?->dmr_auto_send !== null && !(bool) $settings->dmr_auto_send) return self::SUCCESS;
             if (!$configuredTime || $now->format('H:i') !== substr($configuredTime, 0, 5)) return self::SUCCESS;
             if (in_array($now->format('l'), $exceptions, true)) return self::SUCCESS;
         }
