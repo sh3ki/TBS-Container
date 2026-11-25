@@ -568,12 +568,12 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         <div>
                             <Label htmlFor="calling-expiration-minutes" className="text-sm font-semibold text-gray-900">CALLING EXPIRATION (MINUTES)</Label>
                             <Input id="calling-expiration-minutes" type="number" min="1" step="1" value={callingExpirationMinutes} onChange={(event) => setCallingExpirationMinutes(event.target.value)} placeholder="Disabled" className="mt-2 h-11" />
-                            <p className="mt-1 text-xs text-gray-500">After this time, Calling automatically changes to Floating. Leave blank to disable.</p>
+                            <p className="mt-1 text-xs text-gray-500">Calling automatically changes to Floating. Leave blank to disable.</p>
                         </div>
                         <div>
                             <Label htmlFor="floating-expiration-minutes" className="text-sm font-semibold text-gray-900">FLOATING EXPIRATION (MINUTES)</Label>
                             <Input id="floating-expiration-minutes" type="number" min="1" step="1" value={floatingExpirationMinutes} onChange={(event) => setFloatingExpirationMinutes(event.target.value)} placeholder="Disabled" className="mt-2 h-11" />
-                            <p className="mt-1 text-xs text-gray-500">After this time, Floating automatically changes to Forfeited. Leave blank to disable.</p>
+                            <p className="mt-1 text-xs text-gray-500">Floating automatically changes to Forfeited. Leave blank to disable.</p>
                         </div>
                         <div className="flex items-center gap-3 md:col-span-2">
                             <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueExpirationSettings}>Save Settings</ModernButton>
