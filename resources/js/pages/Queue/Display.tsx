@@ -124,7 +124,7 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, onSe
             }
         };
         refresh();
-        const timer = window.setInterval(refresh, 1000);
+        const timer = window.setInterval(refresh, 5000);
         return () => { active = false; window.clearInterval(timer); };
     }, []);
 
