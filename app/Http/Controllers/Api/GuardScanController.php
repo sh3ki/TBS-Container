@@ -14,8 +14,14 @@ class GuardScanController extends Controller
     {
         $activeStatuses = ['waiting', 'calling', 'floating'];
         $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
-        $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
-        $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
+        $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
+        $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
+        $manualCapture = DB::table('queue_entries')
+            ->whereNotNull('manual_reason')
+            ->whereIn('status', $activeStatuses)
+            ->whereNull('completed_at')
+            ->orderBy('id')
+            ->first(['id', 'plate_no', 'direction', 'manual_reason']);
         $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
 
         return response()->json(['success' => true, 'data' => [
@@ -23,6 +29,7 @@ class GuardScanController extends Controller
             'waiting_out' => $waitingOut,
             'serving' => $serving,
             'serving_capacity' => $servingCapacity,
+            'manual_capture' => $manualCapture,
         ]]);
     }
 
@@ -38,6 +45,98 @@ class GuardScanController extends Controller
             // Zero means unlimited, while any positive value is enforced.
             'at_capacity' => $capacity > 0 && $current >= $capacity,
         ]);
+    }
+
+    public function manualCapture(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'queue_entry_id' => ['required', 'integer'],
+            'user_id' => ['nullable', 'integer'],
+        ]);
+
+        $entry = DB::table('queue_entries')
+            ->where('id', $validated['queue_entry_id'])
+            ->whereNotNull('manual_reason')
+            ->whereIn('status', ['waiting', 'calling', 'floating'])
+            ->whereNull('completed_at')
+            ->first();
+        if (!$entry) {
+            return response()->json(['success' => false, 'message' => 'This manual capture request is no longer active.'], 409);
+        }
+
+        $capacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
+        $current = (int) DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->count();
+        if ($capacity > 0 && $current >= $capacity) {
+            return response()->json(['success' => false, 'serving_capacity_full' => true, 'message' => 'Serving capacity is full.'], 409);
+        }
+
+        $temporaryDirectory = storage_path('app/guard-scan-tmp');
+        if (!is_dir($temporaryDirectory)) mkdir($temporaryDirectory, 0755, true);
+        $temporaryFilename = bin2hex(random_bytes(16)) . '.' . strtolower($request->file('image')->getClientOriginalExtension());
+        $request->file('image')->move($temporaryDirectory, $temporaryFilename);
+        $imagePath = $temporaryDirectory . DIRECTORY_SEPARATOR . $temporaryFilename;
+
+        try {
+            $servedEntry = DB::transaction(function () use ($entry) {
+                $locked = DB::table('queue_entries')
+                    ->where('id', $entry->id)
+                    ->whereNotNull('manual_reason')
+                    ->whereIn('status', ['waiting', 'calling', 'floating'])
+                    ->whereNull('completed_at')
+                    ->lockForUpdate()
+                    ->first();
+                abort_unless($locked, 409, 'This manual capture request is no longer active.');
+
+                $servingAt = now();
+                DB::table('queue_entries')->where('id', $locked->id)->update([
+                    'status' => 'serving',
+                    'waiting_number' => null,
+                    'serving_number' => null,
+                    'serving_at' => $servingAt,
+                    'updated_at' => $servingAt,
+                ]);
+
+                $serving = DB::table('queue_entries')
+                    ->where('direction', $locked->direction)
+                    ->where('status', 'serving')
+                    ->whereNull('completed_at')
+                    ->where('id', '<>', $locked->id)
+                    ->orderByRaw('CASE WHEN serving_at IS NULL THEN 1 ELSE 0 END')
+                    ->orderBy('serving_at')->orderBy('id')
+                    ->lockForUpdate()->get(['id']);
+                $servingIds = $serving->pluck('id')->map(fn ($id) => (int) $id)->all();
+                $servingIds[] = (int) $locked->id;
+                foreach ($servingIds as $index => $servingId) {
+                    DB::table('queue_entries')->where('id', $servingId)->update(['serving_number' => $index + 1, 'updated_at' => now()]);
+                }
+
+                $waiting = DB::table('queue_entries')
+                    ->where('direction', $locked->direction)
+                    ->whereIn('status', ['waiting', 'calling', 'floating'])
+                    ->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
+                foreach ($waiting as $index => $waitingEntry) {
+                    DB::table('queue_entries')->where('id', $waitingEntry->id)->update(['waiting_number' => $index + 1, 'updated_at' => now()]);
+                }
+
+                return DB::table('queue_entries')->where('id', $locked->id)->first();
+            });
+
+            $this->saveSuccessfulScanImage($imagePath, $servedEntry->direction, $servedEntry->plate_no);
+            DB::table('audit_logs')->insert([
+                'action' => 'SCAN',
+                'description' => sprintf('[MANUAL SCAN %s] Captured plate "%s" and moved to serving.', $servedEntry->direction, $servedEntry->plate_no),
+                'user_id' => $request->user()?->user_id ?? ($validated['user_id'] ?? 0),
+                'date_added' => now(),
+                'ip_address' => $request->ip(),
+            ]);
+            return response()->json(['success' => true, 'queue_updated' => true, 'plate_no' => $servedEntry->plate_no]);
+        } catch (\Throwable $exception) {
+            \Log::error('Guard manual plate capture failed', ['error' => $exception->getMessage(), 'queue_entry_id' => $entry->id]);
+            return response()->json(['success' => false, 'message' => 'Manual plate capture could not be completed.'], 500);
+        } finally {
+            @unlink($imagePath);
+        }
     }
 
     public function updateQueueStatus(Request $request)
