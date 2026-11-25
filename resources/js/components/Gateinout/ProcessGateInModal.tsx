@@ -455,15 +455,6 @@ export default function ProcessGateInModal({
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div>
-                                    <Label>Checker</Label>
-                                    <Input 
-                                        value={checkerName} 
-                                        disabled 
-                                        className="bg-gray-100 cursor-not-allowed"
-                                        placeholder="Auto-populated from system"
-                                    />
-                                </div>
                             </div>
 
                             {/* Column 2 */}
