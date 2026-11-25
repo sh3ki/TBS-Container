@@ -63,7 +63,12 @@ class SendDmrReports extends Command
                     continue;
                 }
                 $cc = $this->emails($group['cc_emails'] ?? '');
-                $subject = $this->replaceTokens(strip_tags((string) ($group['subject'] ?? '')), $dateLabel, (float) $utilization->utilization_percentage);
+                $subjectText = html_entity_decode(
+                    strip_tags((string) ($group['subject'] ?? '')),
+                    ENT_QUOTES | ENT_HTML5,
+                    'UTF-8'
+                );
+                $subject = $this->replaceTokens($subjectText, $dateLabel, (float) $utilization->utilization_percentage);
                 $content = $this->replaceTokens((string) ($group['content'] ?? ''), $dateLabel, (float) $utilization->utilization_percentage);
                 $signature = (string) ($settings?->dmr_signature ?? '');
                 $html = $content . ($signature !== '' ? '<br><br>' . $signature : '');
