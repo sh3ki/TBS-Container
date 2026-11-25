@@ -186,6 +186,8 @@ Route::middleware(['auth'])->group(function () {
                 'booking_system_username' => (string) ($settings?->booking_system_username ?: config('services.booking_system.username')),
                 'booking_system_password' => $decryptSetting($settings?->booking_system_password),
                 'booking_system_timeout' => (int) ($settings?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
+                'calling_expiration_minutes' => $settings?->calling_expiration_minutes !== null ? (int) $settings->calling_expiration_minutes : null,
+                'floating_expiration_minutes' => $settings?->floating_expiration_minutes !== null ? (int) $settings->floating_expiration_minutes : null,
                 'dmr_time' => (string) ($settings?->dmr_time ?? ''),
                 'dmr_sender_email' => (string) ($settings?->dmr_sender_email ?? ''),
                 'dmr_sender_password' => $decryptSetting($settings?->dmr_sender_password),
@@ -219,6 +221,8 @@ Route::middleware(['auth'])->group(function () {
             'prein_scraping_client_ids.*' => ['integer', 'exists:clients,c_id'],
             'booking_scraping_enabled' => ['sometimes', 'boolean'],
             'serving_capacity' => ['sometimes', 'integer', 'min:0'],
+            'calling_expiration_minutes' => ['nullable', 'integer', 'min:1'],
+            'floating_expiration_minutes' => ['nullable', 'integer', 'min:1'],
             'booking_system_url' => ['required_if:section,booking_credentials', 'url', 'max:2048'],
             'booking_system_login_url' => ['nullable', 'url', 'max:2048'],
             'booking_system_username' => ['required_if:section,booking_credentials', 'string', 'max:255'],
@@ -329,6 +333,12 @@ Route::middleware(['auth'])->group(function () {
             }
             if (array_key_exists('serving_capacity', $validated)) {
                 $updates['serving_capacity'] = (int) $validated['serving_capacity'];
+            }
+            if (array_key_exists('calling_expiration_minutes', $validated)) {
+                $updates['calling_expiration_minutes'] = $validated['calling_expiration_minutes'] !== null ? (int) $validated['calling_expiration_minutes'] : null;
+            }
+            if (array_key_exists('floating_expiration_minutes', $validated)) {
+                $updates['floating_expiration_minutes'] = $validated['floating_expiration_minutes'] !== null ? (int) $validated['floating_expiration_minutes'] : null;
             }
             if (array_key_exists('preout_hauler_exceptions', $validated)) {
                 $updates['preout_hauler_exceptions'] = collect(explode(',', (string) $validated['preout_hauler_exceptions']))
