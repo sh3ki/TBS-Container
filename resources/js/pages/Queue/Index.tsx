@@ -95,7 +95,7 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
             // Never overwrite the user's in-progress drag/reorder state with a
             // polling response from before the drop is committed.
             if (activeGroup !== null) return;
-            try { const response = await axios.get('/api/queue/display'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ }
+            try { const response = await axios.get('/api/queue/manage'); if (active && response.data.success) setQueue(response.data.data); } catch { /* keep the last live state */ }
         };
         refresh(); const timer = window.setInterval(refresh, 1000);
         return () => { active = false; window.clearInterval(timer); };
