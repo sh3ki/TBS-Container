@@ -1,14 +1,14 @@
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { Flag, List, Megaphone, Pause, Radio, RotateCw, Settings, Truck } from 'lucide-react';
+import { Flag, List, Megaphone, Pause, Radio, RotateCw, ScanLine, Settings, Truck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { colors } from '@/lib/colors';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 import { ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
 
-interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; }
+interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; manual_reason?: string | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; }
 interface QueueData { waiting_in: QueueEntry[]; waiting_out: QueueEntry[]; serving: QueueEntry[]; }
 interface QueuePageProps { servingCapacity?: number; }
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
@@ -32,7 +32,7 @@ function useClock() {
     return now;
 }
 
-function QueueColumn({ title, direction, group, entries, serving = false, servingCapacity = 0, plannerMode = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, servingId, onStatus, statusId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; servingCapacity?: number; plannerMode?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[], planner?: boolean) => void; onServe?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date }) {
+function QueueColumn({ title, direction, group, entries, serving = false, servingCapacity = 0, plannerMode = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, onManual, servingId, onStatus, statusId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; servingCapacity?: number; plannerMode?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[], planner?: boolean) => void; onServe?: (entry: QueueEntry) => void; onManual?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date }) {
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<number | null>(null);
     const longestPlateLength = serving ? Math.max(8, ...entries.map((entry) => entry.plate_no.length)) : 0;
@@ -46,7 +46,7 @@ function QueueColumn({ title, direction, group, entries, serving = false, servin
                     {!plannerMode && entry.status === 'waiting' && (!plannerMode || index === firstWaitingIndex) && <button type="button" disabled={statusId === entry.id} onClick={(event) => { event.stopPropagation(); onStatus?.(entry, 'calling'); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:opacity-60"><Megaphone className="h-3.5 w-3.5" />Call</button>}
                     {!plannerMode && entry.status === 'calling' && <button type="button" disabled={statusId === entry.id} onClick={(event) => { event.stopPropagation(); onStatus?.(entry, 'floating'); }} className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-60"><Pause className="h-3.5 w-3.5" />Float</button>}
                     {!plannerMode && entry.status === 'floating' && <button type="button" disabled={statusId === entry.id} onClick={(event) => { event.stopPropagation(); onStatus?.(entry, 'forfeited'); }} className="inline-flex items-center gap-1 rounded-lg bg-red-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-red-600 disabled:opacity-60"><Flag className="h-3.5 w-3.5" />Forfeit</button>}
-                    <button type="button" disabled={servingId === entry.id} onClick={(event) => { event.stopPropagation(); onServe?.(entry); }} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"><Truck className="h-3.5 w-3.5 text-white" />{servingId === entry.id ? 'Serving...' : 'Serve'}</button>
+                    {plannerMode ? (!entry.manual_reason && <button type="button" onClick={(event) => { event.stopPropagation(); onManual?.(entry); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600"><ScanLine className="h-3.5 w-3.5 text-white" />Manual</button>) : <button type="button" disabled={servingId === entry.id} onClick={(event) => { event.stopPropagation(); onServe?.(entry); }} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"><Truck className="h-3.5 w-3.5 text-white" />{servingId === entry.id ? 'Serving...' : 'Serve'}</button>}
                     </div>
                 </div>}
                 <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
@@ -82,6 +82,9 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
     const [savingCapacity, setSavingCapacity] = useState(false);
     const [servingId, setServingId] = useState<number | null>(null);
     const [serveConfirmation, setServeConfirmation] = useState<QueueEntry | null>(null);
+    const [manualConfirmation, setManualConfirmation] = useState<QueueEntry | null>(null);
+    const [manualReason, setManualReason] = useState('');
+    const [manualId, setManualId] = useState<number | null>(null);
     const [statusConfirmation, setStatusConfirmation] = useState<{ entry: QueueEntry; status: 'calling' | 'floating' | 'forfeited' } | null>(null);
     const [statusId, setStatusId] = useState<number | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
@@ -171,6 +174,24 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
             setServingId(null);
         }
     };
+    const requestManualCapture = async (entry: QueueEntry) => {
+        const reason = manualReason.trim();
+        if (!reason) { error('Please enter a reason for manual capture.'); return; }
+        setManualId(entry.id);
+        try {
+            await axios.post('/api/gateinout/queue/manual', { id: entry.id, reason });
+            setQueue((current) => ({
+                ...current,
+                waiting_in: current.waiting_in.map((item) => item.id === entry.id ? { ...item, manual_reason: reason } : item),
+                waiting_out: current.waiting_out.map((item) => item.id === entry.id ? { ...item, manual_reason: reason } : item),
+            }));
+            setManualConfirmation(null);
+            setManualReason('');
+            success(`Manual capture requested for ${entry.plate_no}.`);
+        } catch (exception: any) {
+            error(exception?.response?.data?.message ?? 'Unable to request manual capture.');
+        } finally { setManualId(null); }
+    };
     const updateQueueStatus = async (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => {
         setStatusId(entry.id);
         try {
@@ -207,8 +228,8 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
                     {canEditQueue && <button type="button" onClick={openCapacitySettings} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
                 </div>
                 <div className="queue-list-grid grid min-h-0 gap-4">
-                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_in', ids, planner)} onServe={setServeConfirmation} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
-                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_out', ids, planner)} onServe={setServeConfirmation} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
+                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_in', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
+                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_out', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
                     <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving servingCapacity={servingCapacity} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} />
                 </div>
             </div>
@@ -224,6 +245,14 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
                 cancelText="Cancel"
                 type="success"
             />
+            {manualConfirmation && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => manualId === null && setManualConfirmation(null)}>
+                <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                    <div className="mb-5 flex items-start justify-between"><div><h2 className="text-xl font-bold text-gray-900">Manual plate capture</h2><p className="mt-1 text-sm text-gray-600">Request a manual photo for plate {manualConfirmation.plate_no}.</p></div><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="text-2xl leading-none text-gray-400">&times;</button></div>
+                    <label className="block text-sm font-semibold text-gray-700" htmlFor="manual-capture-reason">Reason</label>
+                    <textarea id="manual-capture-reason" autoFocus value={manualReason} onChange={(event) => setManualReason(event.target.value)} rows={4} maxLength={2000} placeholder="Enter the reason for manual capture" className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={manualId !== null || !manualReason.trim()} onClick={() => requestManualCapture(manualConfirmation)} className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><ScanLine className="h-4 w-4" />{manualId !== null ? 'Saving...' : 'Confirm Manual'}</button></div>
+                </div>
+            </div>}
             <ModernConfirmDialog
                 open={statusConfirmation !== null}
                 onOpenChange={(open) => { if (!open && statusId === null) setStatusConfirmation(null); }}
