@@ -15,6 +15,8 @@ interface QueueEntry {
     status?: 'waiting' | 'calling' | 'floating' | 'serving' | 'completed' | 'forfeited';
     calling_at?: string | null;
     floating_at?: string | null;
+    size_type_size?: string | number | null;
+    size_type_type?: string | null;
 }
 
 interface QueueEntryDetails {
@@ -43,6 +45,13 @@ function filterWaitingEntries(entries: QueueEntry[], plateNo: string): QueueEntr
         .filter((index) => index >= 0);
     if (matchingIndexes.length === 0) return [];
     return entries.slice(0, Math.max(...matchingIndexes) + 1);
+}
+
+function queueSizeType(entry: QueueEntry): string {
+    const size = String(entry.size_type_size ?? '').trim();
+    const type = String(entry.size_type_type ?? '').trim();
+    if (!size || size === '0' || !type || type === '0') return '-';
+    return `${size}${type}`;
 }
 
 const emptyQueue: QueueData = { waiting_in: [], waiting_out: [], serving: [] };
@@ -96,7 +105,10 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
                                 {serving ? (greenServing ? 'NOW SERVING' : servingRuntime(entry.serving_at, now)) : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}
                             </p>
                         </div>
-                        <span className={`shrink-0 rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now, greenServing) : undefined}>{entry.direction ?? direction}</span>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                            <span className={`rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now, greenServing) : undefined}>{entry.direction ?? direction}</span>
+                            {onEntryClick && <span className="text-xs font-black tracking-wide" style={{ color: serving ? servingAccentColors(entry.serving_at, now, greenServing).color : isFloating ? '#C2410C' : activeStatus ? '#1D4ED8' : '#536170' }}>{queueSizeType(entry)}</span>}
+                        </div>
                     </article>;
                 })}
             </div>
