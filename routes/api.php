@@ -95,6 +95,7 @@ Route::prefix('mobile')->group(function () {
 // Guard App API namespace. Keep Guard traffic separate from the Checker app
 // while reusing the same server-side authorization and gate operations.
 Route::prefix('guard')->group(function () {
+    Route::post('/presence', [GuardScanController::class, 'heartbeat']);
     Route::post('/scan-truck-plate', [GuardScanController::class, 'scanTruckPlate']);
     Route::get('/queue/display', [GuardScanController::class, 'queueDisplay']);
     Route::get('/queue-capacity', [GuardScanController::class, 'queueCapacity']);
