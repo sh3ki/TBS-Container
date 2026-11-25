@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Cookie;
 
 class QueueInternalController extends Controller
 {
@@ -39,10 +40,9 @@ class QueueInternalController extends Controller
 
         $rawToken = Str::random(64);
         $now = Carbon::now();
-        $remember = (bool) ($validated['remember'] ?? false);
         DB::table('queue_internal_sessions')->insert([
             'token_hash' => hash('sha256', $rawToken),
-            'expires_at' => $now->copy()->addDays($remember ? 30 : 1),
+            'expires_at' => $now->copy()->addHours(2),
             'last_used_at' => $now,
             'ip_address' => $request->ip(),
             'user_agent' => (string) $request->userAgent(),
@@ -50,10 +50,13 @@ class QueueInternalController extends Controller
             'updated_at' => $now,
         ]);
 
-        $cookie = cookie(
+        // Remember Me controls browser password autofill on the client. The
+        // authentication cookie itself remains a browser-session cookie, while
+        // the server-side session always expires after two hours.
+        $cookie = new Cookie(
             self::COOKIE,
             $rawToken,
-            $remember ? 60 * 24 * 30 : 0,
+            null,
             '/',
             null,
             $request->isSecure(),
