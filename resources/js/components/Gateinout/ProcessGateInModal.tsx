@@ -91,6 +91,7 @@ export default function ProcessGateInModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showQueueConfirmation, setShowQueueConfirmation] = useState(false);
     const submitInProgressRef = useRef(false);
+    const [defaultLoadId, setDefaultLoadId] = useState('');
     const initialFormData = {
         date_manufactured: '',
         status: '',
@@ -116,6 +117,15 @@ export default function ProcessGateInModal({
     // use `showError` from parent page to ensure toast is rendered by page-level ToastContainer
 
     useEffect(() => {
+        const emptyLoad = loadOptions.find((load) => load.type.toLowerCase() === 'empty');
+        const loadId = emptyLoad?.l_id.toString() || '';
+        setDefaultLoadId(loadId);
+        if (open && loadId) {
+            setFormData((previous) => ({ ...previous, load: loadId }));
+        }
+    }, [loadOptions, open]);
+
+    useEffect(() => {
         // A modal instance must always start with a clean submission lock.
         submitInProgressRef.current = false;
         setIsSubmitting(false);
@@ -130,7 +140,7 @@ export default function ProcessGateInModal({
                 const cleanHauler = record.hauler && record.hauler.includes('-') ? '' : (record.hauler || '');
 
                 // Pre-fill plate_no and hauler, then fetch details
-                setFormData(prev => ({ ...initialFormData, plate_no: cleanPlateNo, hauler: cleanHauler }));
+                setFormData(prev => ({ ...initialFormData, plate_no: cleanPlateNo, hauler: cleanHauler, load: defaultLoadId }));
                 fetchContainerDetails(record.container_no);
             }
         } else {
