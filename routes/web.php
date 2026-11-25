@@ -28,6 +28,11 @@ Route::get('/queue', function () {
     return Inertia::render('Queue/Display');
 })->name('queue.display');
 
+// Duplicate internal queue display for a second internal monitor/page.
+Route::get('/queue-internal', function () {
+    return Inertia::render('Queue/Display');
+})->name('queue.internal');
+
 // Protected routes - Use 'auth' for web (session-based), not 'auth:sanctum'
 Route::middleware(['auth'])->group(function () {
     // Dashboard
