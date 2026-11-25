@@ -1438,13 +1438,17 @@ export default function Index() {
                     <div className="mb-3 grid grid-cols-2 rounded-md bg-gray-100 p-1">
                       {(['client', 'hauler'] as const).map((mode) => <button key={mode} type="button" onClick={() => setPreInForm({ ...preInForm, exception_mode: mode, client_id: '', hauler: '' })} className={`rounded px-3 py-2 text-sm font-semibold ${preInForm.exception_mode === mode ? 'bg-white text-[#2563EB] shadow-sm' : 'text-gray-600'}`}>{mode === 'client' ? 'Client' : 'Hauler'}</button>)}
                     </div>
-                    {preInForm.exception_mode === 'client' ? <Select value={preInForm.client_id} onValueChange={(value) => setPreInForm({ ...preInForm, client_id: value })}>
-                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select client" /></SelectTrigger>
+                    {preInForm.exception_mode === 'client' ? <>
+                      <Label className="text-gray-900">Client Exception <span className="text-red-500">*</span></Label>
+                      <Select value={preInForm.client_id} onValueChange={(value) => setPreInForm({ ...preInForm, client_id: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select client exception" /></SelectTrigger>
                       <SelectContent>{clientExceptionOptions.map((client) => <SelectItem key={client.c_id} value={client.hashed_c_id}>{client.client_code} - {client.client_name}</SelectItem>)}</SelectContent>
-                    </Select> : <Select value={preInForm.hauler} onValueChange={(value) => setPreInForm({ ...preInForm, hauler: value })}>
-                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select hauler" /></SelectTrigger>
+                    </Select></> : <>
+                      <Label className="text-gray-900">Hauler Exception <span className="text-red-500">*</span></Label>
+                      <Select value={preInForm.hauler} onValueChange={(value) => setPreInForm({ ...preInForm, hauler: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select hauler exception" /></SelectTrigger>
                       <SelectContent>{preInHaulerOptions.map((hauler) => <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>)}</SelectContent>
-                    </Select>}
+                    </Select></>}
                   </div>
                 )}
               </div>
@@ -1564,14 +1568,14 @@ export default function Index() {
                       </Select>
                     </> : <>
                       <Label className="text-gray-900">
-                        Exception Hauler <span className="text-red-500">*</span>
+                        Hauler Exception <span className="text-red-500">*</span>
                       </Label>
                       <Select
                         value={preOutForm.hauler}
                         onValueChange={(value) => setPreOutForm({ ...preOutForm, hauler: value })}
                       >
                         <SelectTrigger className="mt-2">
-                          <SelectValue placeholder="Select hauler " />
+                          <SelectValue placeholder="Select hauler exception" />
                         </SelectTrigger>
                         <SelectContent>
                           {preOutHaulerOptions.map((hauler) => (
