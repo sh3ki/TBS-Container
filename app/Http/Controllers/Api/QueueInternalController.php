@@ -87,6 +87,40 @@ class QueueInternalController extends Controller
         return response()->json(['authenticated' => false])->withoutCookie(self::COOKIE);
     }
 
+    public function entryDetails(Request $request, int $entryId)
+    {
+        if (!$this->findSession($request)) {
+            return response()->json(['message' => 'Queue Internal session expired.'], 401);
+        }
+
+        $entry = DB::table('queue_entries')->where('id', $entryId)->first(['plate_no', 'pre_inventory_id']);
+        if (!$entry) {
+            return response()->json(['message' => 'Queue entry not found.'], 404);
+        }
+
+        $query = DB::table('pre_inventory as p')
+            ->leftJoin('clients as c', 'c.c_id', '=', 'p.client_id')
+            ->leftJoin('container_size_type as st', 'st.s_id', '=', 'p.size_type')
+            ->where('p.status', 0)
+            ->select([
+                'p.plate_no',
+                DB::raw("COALESCE(c.client_name, c.client_code, '-') as client"),
+                DB::raw("COALESCE(CONCAT(st.size, st.type), '-') as size_type"),
+                DB::raw("COALESCE(p.iso_code, '') as iso_code"),
+                DB::raw("COALESCE(NULLIF(p.hauler, ''), '-') as hauler"),
+            ]);
+
+        $record = $entry->pre_inventory_id
+            ? $query->where('p.p_id', $entry->pre_inventory_id)->first()
+            : $query->whereRaw("REPLACE(REPLACE(UPPER(p.plate_no), '-', ''), ' ', '') = ?", [strtoupper(preg_replace('/[\\s-]+/', '', (string) $entry->plate_no) ?? '')])->first();
+
+        if (!$record) {
+            return response()->json(['message' => 'Pre-inventory record not found.'], 404);
+        }
+
+        return response()->json(['success' => true, 'data' => $record]);
+    }
+
     private function findSession(Request $request): ?object
     {
         $token = (string) $request->cookie(self::COOKIE, '');
