@@ -137,7 +137,6 @@ export default function ProcessGateInModal({
             // clear form when modal closes
             setFormData({ ...initialFormData });
             setCheckerName(currentUserFullName || '');
-            setAutoFillIsoCode(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [record, open]);
