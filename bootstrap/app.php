@@ -7,7 +7,10 @@ use App\Http\Middleware\TrackUserActivity;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Inertia\Inertia;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -41,5 +44,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
+            // Keep API/JSON responses on Laravel's normal response path.
+            // Browser users, whether logged in or not, receive the branded
+            // Inertia page instead.
+            if ($request->expectsJson()) {
+                return null;
+            }
+
+            return Inertia::render('errors/404', [
+                'authenticated' => auth()->check(),
+            ])
+                ->toResponse($request)
+                ->setStatusCode(404);
+        });
     })->create();
