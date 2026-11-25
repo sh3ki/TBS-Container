@@ -55,12 +55,15 @@ class BookingSystemService
         $searchEvent = $this->eventFromFunction($summary->body(), 'jSearch');
         if ($booking === null && $searchEvent !== null) {
             $today = Carbon::today(self::BOOKING_TIMEZONE);
-            $fromDate = $today->format('m/d/Y');
-            $toDate = $this->isLateNightBookingWindow()
-                ? $today->copy()->addDay()->format('m/d/Y')
-                : $fromDate;
-            $response = $this->brokerCall($client, $jar, $url, $searchEvent, [$fromDate, $toDate, '', '', '', $containerNo, '', '', '']);
-            $booking = $booking ?? $this->findBookingInBrokerResponse($response->body(), $containerNo);
+            $dateSearches = [$today];
+            if ($this->isLateNightBookingWindow()) $dateSearches[] = $today->copy()->addDay();
+
+            foreach ($dateSearches as $date) {
+                $dateText = $date->format('m/d/Y');
+                $response = $this->brokerCall($client, $jar, $url, $searchEvent, [$dateText, $dateText, '', '', '', $containerNo, '', '', '']);
+                $booking = $this->findBookingInBrokerResponse($response->body(), $containerNo);
+                if ($booking !== null) break;
+            }
         }
         if ($booking === null) $booking = $this->findBookingRow($summary->body(), $containerNo);
         if ($booking === null || !$this->isEligibleBooking($booking) || strtoupper($booking['status']) !== 'VERIFIED') {
@@ -152,12 +155,13 @@ class BookingSystemService
             $searchEvent = $this->eventFromFunction($summary->body(), 'jSearch');
             if ($searchEvent !== null) {
                 $today = Carbon::today(self::BOOKING_TIMEZONE);
-                $searchResponse = $this->brokerCall($client, $jar, $url, $searchEvent, [
-                    $today->format('m/d/Y'),
-                    $today->copy()->addDay()->format('m/d/Y'),
-                    '', '', '', '', '', '', '',
-                ]);
-                $body .= "\n" . $searchResponse->body();
+                foreach ([$today, $today->copy()->addDay()] as $date) {
+                    $dateText = $date->format('m/d/Y');
+                    $searchResponse = $this->brokerCall($client, $jar, $url, $searchEvent, [
+                        $dateText, $dateText, '', '', '', '', '', '', '',
+                    ]);
+                    $body .= "\n" . $searchResponse->body();
+                }
             }
         }
 
@@ -278,27 +282,33 @@ class BookingSystemService
     private function parseBrokerBookings(string $response): array
     {
         preg_match_all('/CSVRec="(.*?)"/s', $response, $matches);
-        $csv = null;
-        foreach (array_reverse($matches[1] ?? []) as $encoded) {
+        $csvs = [];
+        foreach ($matches[1] ?? [] as $encoded) {
             $candidate = json_decode('"' . $encoded . '"');
             if (is_string($candidate) && str_contains($candidate, 'Container No.')) {
-                $csv = $candidate;
-                break;
+                $csvs[] = $candidate;
             }
         }
-        if (!is_string($csv)) return [];
         $rows = [];
-        foreach (array_slice(preg_split('/\r\n|\n/', trim($csv)), 1) as $line) {
-            if ($line === '') continue;
-            $values = str_getcsv($line);
-            $rows[] = [
-                'ref_no' => trim((string) ($values[1] ?? '')),
-                'booking_date' => trim((string) ($values[2] ?? '')),
-                'time_slot' => trim((string) ($values[3] ?? '')),
-                'container_no' => trim((string) ($values[4] ?? '')),
-                'plate_no' => trim((string) ($values[8] ?? '')),
-                'status' => strtoupper(trim((string) ($values[12] ?? ''))),
-            ];
+        $seen = [];
+        foreach ($csvs as $csv) {
+            foreach (array_slice(preg_split('/\r\n|\n/', trim($csv)), 1) as $line) {
+                if ($line === '') continue;
+                $values = str_getcsv($line);
+                $row = [
+                    'ref_no' => trim((string) ($values[1] ?? '')),
+                    'booking_date' => trim((string) ($values[2] ?? '')),
+                    'time_slot' => trim((string) ($values[3] ?? '')),
+                    'container_no' => trim((string) ($values[4] ?? '')),
+                    'plate_no' => trim((string) ($values[8] ?? '')),
+                    'status' => strtoupper(trim((string) ($values[12] ?? ''))),
+                ];
+                $key = implode('|', [$row['ref_no'], $row['container_no'], $row['plate_no'], $row['booking_date'], $row['time_slot']]);
+                if (!isset($seen[$key])) {
+                    $seen[$key] = true;
+                    $rows[] = $row;
+                }
+            }
         }
         return $rows;
     }
