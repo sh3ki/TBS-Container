@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\ContainerImagesController;
 use App\Http\Controllers\Api\EdiController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\GuardScanController;
+use App\Http\Controllers\Api\QueueInternalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,6 +39,9 @@ use App\Http\Controllers\Api\GuardScanController;
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay']);
+Route::get('/queue-internal/session', [QueueInternalController::class, 'session']);
+Route::post('/queue-internal/login', [QueueInternalController::class, 'login']);
+Route::post('/queue-internal/logout', [QueueInternalController::class, 'logout']);
 
 // Mobile App API Routes (Plain text login - separate from main auth)
 Route::prefix('mobile')->group(function () {
