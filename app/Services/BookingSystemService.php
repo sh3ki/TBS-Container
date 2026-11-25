@@ -12,6 +12,8 @@ use DOMXPath;
 
 class BookingSystemService
 {
+    private const BOOKING_TIMEZONE = 'Asia/Manila';
+
     public function findVerifiedBooking(string $containerNo): array
     {
         ['url' => $url, 'username' => $username, 'password' => $password, 'login_url' => $loginUrl, 'timeout' => $timeout] = $this->credentials();
@@ -52,12 +54,16 @@ class BookingSystemService
         }
         $searchEvent = $this->eventFromFunction($summary->body(), 'jSearch');
         if ($booking === null && $searchEvent !== null) {
-            $date = Carbon::today()->format('m/d/Y');
-            $response = $this->brokerCall($client, $jar, $url, $searchEvent, [$date, $date, '', '', '', $containerNo, '', '', '']);
+            $today = Carbon::today(self::BOOKING_TIMEZONE);
+            $fromDate = $today->format('m/d/Y');
+            $toDate = $this->isLateNightBookingWindow()
+                ? $today->copy()->addDay()->format('m/d/Y')
+                : $fromDate;
+            $response = $this->brokerCall($client, $jar, $url, $searchEvent, [$fromDate, $toDate, '', '', '', $containerNo, '', '', '']);
             $booking = $booking ?? $this->findBookingInBrokerResponse($response->body(), $containerNo);
         }
         if ($booking === null) $booking = $this->findBookingRow($summary->body(), $containerNo);
-        if ($booking === null || strtoupper($booking['status']) !== 'VERIFIED') {
+        if ($booking === null || !$this->isEligibleBooking($booking) || strtoupper($booking['status']) !== 'VERIFIED') {
             throw new BookingLookupException('Booking is not verified in Booking System.');
         }
 
@@ -97,7 +103,7 @@ class BookingSystemService
 
         foreach ($this->parseBrokerBookings($response) as $booking) {
             if (self::normalizeIdentifier($booking['plate_no']) !== $normalizedPlateNo) continue;
-            if (strtoupper($booking['status']) !== 'VERIFIED') continue;
+            if (!$this->isEligibleBooking($booking) || strtoupper($booking['status']) !== 'VERIFIED') continue;
             if ($booking['ref_no'] !== '' && isset($excluded[$booking['ref_no']])) continue;
             try {
                 $booking['booking_time'] = $this->parseBookingTime($booking['booking_date'], $booking['time_slot']);
@@ -137,7 +143,25 @@ class BookingSystemService
         $initEvent = $this->eventFromFunction($summary->body(), 'jInitMe');
         if ($initEvent === null) throw new BookingLookupException('Unable to load Booking System records.');
         $response = $this->brokerCall($client, $jar, $url, $initEvent, []);
-        return $response->body();
+        $body = $response->body();
+
+        // The initial response can still be limited to today's records. In
+        // the late-night window, explicitly search through tomorrow so a
+        // verified 0000H booking can be found for Pre-Out as well.
+        if ($this->isLateNightBookingWindow()) {
+            $searchEvent = $this->eventFromFunction($summary->body(), 'jSearch');
+            if ($searchEvent !== null) {
+                $today = Carbon::today(self::BOOKING_TIMEZONE);
+                $searchResponse = $this->brokerCall($client, $jar, $url, $searchEvent, [
+                    $today->format('m/d/Y'),
+                    $today->copy()->addDay()->format('m/d/Y'),
+                    '', '', '', '', '', '', '',
+                ]);
+                $body .= "\n" . $searchResponse->body();
+            }
+        }
+
+        return $body;
     }
 
     private function credentials(): array
@@ -197,9 +221,52 @@ class BookingSystemService
     {
         $containerNo = self::normalizeIdentifier($containerNo);
         foreach ($this->parseBrokerBookings($response) as $booking) {
-            if (self::normalizeIdentifier($booking['container_no']) === $containerNo) return $booking;
+            if (self::normalizeIdentifier($booking['container_no']) !== $containerNo) continue;
+            if (!$this->isEligibleBooking($booking) || strtoupper($booking['status']) !== 'VERIFIED') continue;
+            return $booking;
         }
         return null;
+    }
+
+    private function isLateNightBookingWindow(): bool
+    {
+        $now = Carbon::now(self::BOOKING_TIMEZONE);
+        return $now->hour >= 23;
+    }
+
+    /**
+     * During 11:00 PM through 11:59 PM, tomorrow's midnight booking is also
+     * valid. At midnight the date has rolled over, so tomorrow is no longer
+     * treated as an exception; it is simply today's booking date.
+     */
+    private function isEligibleBooking(array $booking): bool
+    {
+        try {
+            $bookingDate = $this->parseBookingDate($booking['booking_date'] ?? '');
+        } catch (BookingLookupException) {
+            return false;
+        }
+
+        $today = Carbon::today(self::BOOKING_TIMEZONE);
+        if ($bookingDate->isSameDay($today)) return true;
+
+        return $this->isLateNightBookingWindow()
+            && $bookingDate->isSameDay($today->copy()->addDay())
+            && strtoupper(trim((string) ($booking['time_slot'] ?? ''))) === '0000H';
+    }
+
+    private function parseBookingDate(string $bookingDate): Carbon
+    {
+        $dateText = trim($bookingDate);
+        foreach (['m/d/Y', 'd/m/Y', 'Y-m-d'] as $format) {
+            try {
+                $date = Carbon::createFromFormat($format, $dateText, self::BOOKING_TIMEZONE);
+                if ($date !== false && $date->format($format) === $dateText) return $date->startOfDay();
+            } catch (\Throwable) {
+            }
+        }
+
+        throw new BookingLookupException('Verified booking has an invalid booking date.');
     }
 
     /** Compare container and plate identifiers without spaces or punctuation. */
@@ -267,6 +334,7 @@ class BookingSystemService
                 'ref_no' => $byHeader($headers, $values, ['ref. no.', 'ref no.', 'reference no.']),
                 'booking_date' => $byHeader($headers, $values, ['booking date']),
                 'time_slot' => $byHeader($headers, $values, ['time slot']),
+                'container_no' => $containerNo,
                 'status' => strtoupper($byHeader($headers, $values, ['booking status', 'status'])),
             ];
         }
