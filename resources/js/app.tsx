@@ -33,7 +33,7 @@ initializeTheme();
 // The public queue display is intended for an always-on monitor and must not
 // be redirected to login because of inactivity. Authenticated pages retain
 // the normal inactivity timeout.
-if (window.location.pathname !== '/queue') {
+if (window.location.pathname !== '/queue' && window.location.pathname !== '/queue-internal') {
     initializeInactivityMonitor();
 }
 
