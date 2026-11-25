@@ -199,6 +199,7 @@ Route::middleware(['auth'])->group(function () {
                 'calling_expiration_minutes' => $settings?->calling_expiration_minutes !== null ? (int) $settings->calling_expiration_minutes : null,
                 'floating_expiration_minutes' => $settings?->floating_expiration_minutes !== null ? (int) $settings->floating_expiration_minutes : null,
                 'queue_internal_password_configured' => filled($settings?->queue_internal_password),
+                'queue_internal_password' => $decryptSetting($settings?->queue_internal_password),
                 'dmr_time' => (string) ($settings?->dmr_time ?? ''),
                 'dmr_sender_email' => (string) ($settings?->dmr_sender_email ?? ''),
                 'dmr_sender_password' => $decryptSetting($settings?->dmr_sender_password),
@@ -364,7 +365,7 @@ Route::middleware(['auth'])->group(function () {
                 $updates['floating_expiration_minutes'] = $validated['floating_expiration_minutes'] !== null ? (int) $validated['floating_expiration_minutes'] : null;
             }
             if (!empty($validated['queue_internal_password'])) {
-                $updates['queue_internal_password'] = Hash::make($validated['queue_internal_password']);
+                $updates['queue_internal_password'] = encrypt($validated['queue_internal_password']);
             }
             if (array_key_exists('preout_hauler_exceptions', $validated)) {
                 $updates['preout_hauler_exceptions'] = collect(explode(',', (string) $validated['preout_hauler_exceptions']))
