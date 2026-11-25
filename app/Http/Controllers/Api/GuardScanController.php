@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Symfony\Component\Process\Process;
 
@@ -60,6 +61,38 @@ class GuardScanController extends Controller
             // Zero means unlimited, while any positive value is enforced.
             'at_capacity' => $capacity > 0 && $current >= $capacity,
         ]);
+    }
+
+    public function queueEntryDetails(Request $request, int $entryId)
+    {
+        abort_unless($this->guardUserId($request), 401, 'Guard session is invalid.');
+
+        $entry = DB::table('queue_entries')->where('id', $entryId)->first(['plate_no']);
+        if (!$entry) return response()->json(['success' => false, 'message' => 'Queue entry not found.'], 404);
+
+        $preInventoryId = Schema::hasColumn('queue_entries', 'pre_inventory_id')
+            ? DB::table('queue_entries')->where('id', $entryId)->value('pre_inventory_id')
+            : null;
+        $tablePrefix = DB::getTablePrefix();
+        $query = DB::table('pre_inventory as p')
+            ->leftJoin('clients as c', 'c.c_id', '=', 'p.client_id')
+            ->leftJoin('container_size_type as st', 'st.s_id', '=', 'p.size_type')
+            ->where('p.status', 0)
+            ->select([
+                'p.plate_no',
+                DB::raw("COALESCE({$tablePrefix}c.client_name, {$tablePrefix}c.client_code, '-') as client"),
+                DB::raw("COALESCE(CONCAT({$tablePrefix}st.size, {$tablePrefix}st.type), '-') as size_type"),
+                DB::raw("COALESCE({$tablePrefix}p.iso_code, '') as iso_code"),
+                DB::raw("COALESCE(NULLIF({$tablePrefix}p.hauler, ''), '-') as hauler"),
+            ]);
+
+        $record = $preInventoryId
+            ? $query->where('p.p_id', $preInventoryId)->first()
+            : $query->whereRaw("REPLACE(REPLACE(UPPER({$tablePrefix}p.plate_no), '-', ''), ' ', '') = ?", [strtoupper(preg_replace('/[\\s-]+/', '', (string) $entry->plate_no) ?? '')])->first();
+
+        if (!$record) return response()->json(['success' => false, 'message' => 'Pre-inventory record not found.'], 404);
+
+        return response()->json(['success' => true, 'data' => $record]);
     }
 
     public function manualCapture(Request $request)
