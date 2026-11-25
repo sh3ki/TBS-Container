@@ -55,12 +55,12 @@ class BookingSystemService
         $searchEvent = $this->eventFromFunction($summary->body(), 'jSearch');
         if ($booking === null && $searchEvent !== null) {
             $today = Carbon::today(self::BOOKING_TIMEZONE);
-            $dateSearches = [$today];
-            if ($this->isLateNightBookingWindow()) $dateSearches[] = $today->copy()->addDay();
+            $dateSearches = [[$today, '']];
+            if ($this->isLateNightBookingWindow()) $dateSearches[] = [$today->copy()->addDay(), '0000H'];
 
-            foreach ($dateSearches as $date) {
+            foreach ($dateSearches as [$date, $slot]) {
                 $dateText = $date->format('m/d/Y');
-                $response = $this->brokerCall($client, $jar, $url, $searchEvent, [$dateText, $dateText, '', '', '', $containerNo, '', '', '']);
+                $response = $this->brokerCall($client, $jar, $url, $searchEvent, [$dateText, $slot, '', '', '', '', '', '', '']);
                 $booking = $this->findBookingInBrokerResponse($response->body(), $containerNo);
                 if ($booking !== null) break;
             }
@@ -155,10 +155,10 @@ class BookingSystemService
             $searchEvent = $this->eventFromFunction($summary->body(), 'jSearch');
             if ($searchEvent !== null) {
                 $today = Carbon::today(self::BOOKING_TIMEZONE);
-                foreach ([$today, $today->copy()->addDay()] as $date) {
+                foreach ([[$today, ''], [$today->copy()->addDay(), '0000H']] as [$date, $slot]) {
                     $dateText = $date->format('m/d/Y');
                     $searchResponse = $this->brokerCall($client, $jar, $url, $searchEvent, [
-                        $dateText, $dateText, '', '', '', '', '', '', '',
+                        $dateText, $slot, '', '', '', '', '', '', '',
                     ]);
                     $body .= "\n" . $searchResponse->body();
                 }
