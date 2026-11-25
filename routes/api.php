@@ -86,6 +86,7 @@ Route::prefix('guard')->group(function () {
     Route::get('/queue/display', [GuardScanController::class, 'queueDisplay']);
     Route::get('/queue-capacity', [GuardScanController::class, 'queueCapacity']);
     Route::post('/queue/status', [GuardScanController::class, 'updateQueueStatus']);
+    Route::post('/manual-capture', [GuardScanController::class, 'manualCapture']);
     Route::get('/app-update', function () {
         $settings = DB::table('mobile_settings')->where('app_code', 'GUARD')->first();
 
@@ -316,6 +317,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::post('/process-out', [GateinoutController::class, 'processGateOut']);
         Route::post('/queue/reorder', [GateinoutController::class, 'reorderQueue']);
         Route::post('/queue/serve', [GateinoutController::class, 'serveQueueEntry']);
+        Route::post('/queue/manual', [GateinoutController::class, 'requestManualCapture']);
         Route::post('/queue/status', [GateinoutController::class, 'updateQueueStatus']);
         
         // Get pre-inventory data for React modals (ProcessGateInModal)
