@@ -1493,22 +1493,20 @@ export default function Index() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Truck plate number</p>
               </div>
-              <div>
+              {!preOutBookingDependent && !preOutForm.not_in_booking && <div>
                 <Label className="text-gray-900">
                   Hauler <span className="text-red-500">*</span>
                 </Label>
-                {((!preOutBookingDependent && !preOutForm.not_in_booking) || (preOutForm.not_in_booking && preOutForm.exception_mode === 'hauler')) && <>
-                  <Input
-                    data-history-key="gateinout.hauler"
-                    value={preOutForm.hauler}
-                    onChange={(e) =>
-                      setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
-                    }
-                    placeholder="Hauler/Trucking company name"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
-                </>}
-              </div>
+                <Input
+                  data-history-key="gateinout.hauler"
+                  value={preOutForm.hauler}
+                  onChange={(e) =>
+                    setPreOutForm({ ...preOutForm, hauler: e.target.value.toUpperCase() })
+                  }
+                  placeholder="Hauler/Trucking company name"
+                />
+                <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
+              </div>}
               <div className="rounded-lg border border-gray-200 p-3">
                 <button
                   type="button"
@@ -1573,7 +1571,7 @@ export default function Index() {
                         onValueChange={(value) => setPreOutForm({ ...preOutForm, hauler: value })}
                       >
                         <SelectTrigger className="mt-2">
-                          <SelectValue placeholder="Select exception hauler" />
+                          <SelectValue placeholder="Select hauler " />
                         </SelectTrigger>
                         <SelectContent>
                           {preOutHaulerOptions.map((hauler) => (
