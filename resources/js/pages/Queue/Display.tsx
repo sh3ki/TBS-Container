@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { BellRing, Box, CircleHelp, List, Megaphone, Radio, RotateCw, Truck } from 'lucide-react';
+import { BellRing, Box, CircleHelp, List, Megaphone, Radio, RotateCw, Truck, X } from 'lucide-react';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 
 interface QueueEntry {
@@ -15,6 +15,14 @@ interface QueueEntry {
     status?: 'waiting' | 'calling' | 'floating' | 'serving' | 'completed' | 'forfeited';
     calling_at?: string | null;
     floating_at?: string | null;
+}
+
+interface QueueEntryDetails {
+    plate_no: string;
+    client: string;
+    size_type: string;
+    iso_code: string;
+    hauler: string;
 }
 
 interface QueueData {
@@ -48,7 +56,7 @@ function useClock() {
     return now;
 }
 
-function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now, greenServing }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; servingCapacity?: number; now: Date; greenServing: boolean }) {
+function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now, greenServing, onEntryClick }: { title: string; direction?: 'IN' | 'OUT'; entries: QueueEntry[]; kind: 'waiting' | 'serving'; servingCapacity?: number; now: Date; greenServing: boolean; onEntryClick?: (entry: QueueEntry) => void }) {
     const serving = kind === 'serving';
     const servingInEntries = entries.filter((entry) => entry.direction === 'IN');
     const servingOutEntries = entries.filter((entry) => entry.direction === 'OUT');
@@ -78,7 +86,7 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
                     const activeColor = activeStatus ? activeQueueRuntimeColor(entry, now) : undefined;
                     const pulseClass = entry.status === 'calling' ? 'queue-calling-pulse' : entry.status === 'floating' ? 'queue-floating-pulse' : '';
                     const isFloating = entry.status === 'floating';
-                    return <article key={entry.id} style={serving ? { ...servingCardColors(entry.serving_at, now, greenServing), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : isFloating ? { backgroundColor: '#FFF7ED', borderColor: '#FDBA74', color: '#9A3412' } : activeStatus ? activeQueueCardColors() : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${pulseClass} ${serving ? 'queue-serving-card' : isFloating ? 'border-orange-300 bg-orange-50' : activeStatus ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
+                    return <article key={entry.id} onClick={() => onEntryClick?.(entry)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onEntryClick?.(entry); }} role={onEntryClick ? 'button' : undefined} tabIndex={onEntryClick ? 0 : undefined} style={serving ? { ...servingCardColors(entry.serving_at, now, greenServing), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : isFloating ? { backgroundColor: '#FFF7ED', borderColor: '#FDBA74', color: '#9A3412' } : activeStatus ? activeQueueCardColors() : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${pulseClass} ${serving ? 'queue-serving-card' : isFloating ? 'border-orange-300 bg-orange-50' : activeStatus ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'} ${onEntryClick ? 'cursor-pointer transition hover:brightness-95' : ''}`}>
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? '' : isFloating ? 'bg-orange-500 text-white' : activeStatus ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900, ...(serving ? servingAccentColors(entry.serving_at, now, greenServing) : {}) }}>
                             {serving ? <Truck className="h-7 w-7" /> : entry.status === 'calling' ? <Megaphone className="h-6 w-6" /> : entry.status === 'floating' ? <RotateCw className="h-6 w-6" /> : String(entry.waiting_number ?? index + 1).padStart(2, '0')}
                         </div>
@@ -96,15 +104,34 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
     );
 }
 
-export default function QueueDisplay({ greenServing = true, visiblePlateNo, showAll = false, showRulesModal = false, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; showAll?: boolean; showRulesModal?: boolean; onSessionExpired?: () => void } = {}) {
+export default function QueueDisplay({ greenServing = true, visiblePlateNo, showAll = false, showRulesModal = false, interactive = false, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; showAll?: boolean; showRulesModal?: boolean; interactive?: boolean; onSessionExpired?: () => void } = {}) {
     const now = useClock();
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [servingCapacity, setServingCapacity] = useState(0);
     const [rulesOpen, setRulesOpen] = useState(showRulesModal);
     const [advisoryLanguage, setAdvisoryLanguage] = useState<'en' | 'tl'>('en');
+    const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
+    const [entryDetails, setEntryDetails] = useState<QueueEntryDetails | null>(null);
+    const [entryDetailsLoading, setEntryDetailsLoading] = useState(false);
     const time = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
     const date = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).format(now);
     const normalizedVisiblePlate = normalizePlate(visiblePlateNo);
+
+    const openEntryDetails = async (entry: QueueEntry) => {
+        if (!interactive) return;
+        setSelectedEntry(entry);
+        setEntryDetails(null);
+        setEntryDetailsLoading(true);
+        try {
+            const response = await axios.get(`/api/queue-internal/entry/${entry.id}`);
+            setEntryDetails(response.data.data as QueueEntryDetails);
+        } catch (error: any) {
+            if (error?.response?.status === 401) onSessionExpired?.();
+            setEntryDetails(null);
+        } finally {
+            setEntryDetailsLoading(false);
+        }
+    };
 
     useEffect(() => {
         let active = true;
@@ -151,9 +178,9 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, show
 
                 <div className="queue-page-content flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-3 sm:gap-5 sm:p-6 lg:p-8" style={{ color: '#202a35', boxSizing: 'border-box' }}>
                     <div className="queue-grid grid min-h-0 gap-3 md:gap-4">
-                        <QueuePanel title="WAITING" direction="IN" entries={showAll ? queue.waiting_in : filterWaitingEntries(queue.waiting_in, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
-                        <QueuePanel title="WAITING" direction="OUT" entries={showAll ? queue.waiting_out : filterWaitingEntries(queue.waiting_out, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} />
-                        <QueuePanel title="SERVING" entries={queue.serving} kind="serving" servingCapacity={servingCapacity} now={now} greenServing={greenServing} />
+                        <QueuePanel title="WAITING" direction="IN" entries={showAll ? queue.waiting_in : filterWaitingEntries(queue.waiting_in, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} onEntryClick={interactive ? openEntryDetails : undefined} />
+                        <QueuePanel title="WAITING" direction="OUT" entries={showAll ? queue.waiting_out : filterWaitingEntries(queue.waiting_out, normalizedVisiblePlate)} kind="waiting" now={now} greenServing={greenServing} onEntryClick={interactive ? openEntryDetails : undefined} />
+                        <QueuePanel title="SERVING" entries={queue.serving} kind="serving" servingCapacity={servingCapacity} now={now} greenServing={greenServing} onEntryClick={interactive ? openEntryDetails : undefined} />
                     </div>
 
                     <aside className="queue-driver-notice flex shrink-0 items-start gap-3 rounded-xl border border-[#d8dde3] px-4 py-3 shadow-sm sm:items-center sm:px-5" style={{ backgroundColor: '#FFFFFF', color: '#31393C' }}>
@@ -166,6 +193,27 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, show
                     </aside>
                 </div>
             </main>}
+            {interactive && selectedEntry && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="queue-entry-details-title">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" style={{ color: '#202a35' }}>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Queue Entry</p>
+                                <h2 id="queue-entry-details-title" className="mt-1 text-2xl font-black tracking-wide">{selectedEntry.plate_no}</h2>
+                            </div>
+                            <button type="button" onClick={() => { setSelectedEntry(null); setEntryDetails(null); }} className="rounded-lg p-1 text-[#68737b] hover:bg-gray-100" aria-label="Close details"><X className="h-5 w-5" /></button>
+                        </div>
+                        <div className="mt-6 space-y-4">
+                            {entryDetailsLoading ? <p className="text-sm text-[#68737b]">Loading pre-inventory details...</p> : entryDetails ? <>
+                                <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Client</p><p className="mt-1 text-base font-semibold">{entryDetails.client || '-'}</p></div>
+                                <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Size/Type</p><p className="mt-1 text-base font-semibold">{entryDetails.size_type && entryDetails.size_type !== '0' ? entryDetails.size_type : '-'}</p></div>
+                                <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">ISO Code</p><p className="mt-1 text-base font-semibold">{entryDetails.iso_code || '-'}</p></div>
+                                <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Hauler</p><p className="mt-1 text-base font-semibold">{entryDetails.hauler || '-'}</p></div>
+                            </> : <p className="text-sm text-red-600">Pre-inventory details are unavailable.</p>}
+                        </div>
+                    </div>
+                </div>
+            )}
             {rulesOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="queue-rules-title">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" style={{ color: '#202a35' }}>
