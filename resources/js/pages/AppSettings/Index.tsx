@@ -79,7 +79,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [bookingSystemTimeout, setBookingSystemTimeout] = useState(String(settings.booking_system_timeout));
     const [callingExpirationMinutes, setCallingExpirationMinutes] = useState(settings.calling_expiration_minutes === null ? '' : String(settings.calling_expiration_minutes));
     const [floatingExpirationMinutes, setFloatingExpirationMinutes] = useState(settings.floating_expiration_minutes === null ? '' : String(settings.floating_expiration_minutes));
-    const [queueInternalPassword, setQueueInternalPassword] = useState(settings.queue_internal_password);
+    const [queueInternalPassword, setQueueInternalPassword] = useState(settings.queue_internal_password.toUpperCase());
     const [showQueueInternalPassword, setShowQueueInternalPassword] = useState(false);
     const [dmrTime, setDmrTime] = useState(settings.dmr_time);
     const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
@@ -618,7 +618,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         <div className="md:col-span-2">
                             <Label htmlFor="queue-internal-password" className="text-sm font-semibold text-gray-900">QUEUE-INTERNAL PASSWORD</Label>
                             <div className="relative mt-2">
-                                <Input id="queue-internal-password" type={showQueueInternalPassword ? 'text' : 'password'} autoComplete="new-password" value={queueInternalPassword} onChange={(event) => setQueueInternalPassword(event.target.value)} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} placeholder={settings.queue_internal_password_configured && !queueInternalPassword ? 'Existing password cannot be recovered; set a new one' : 'Set Queue Internal password'} className="h-11 pr-11" />
+                                <Input id="queue-internal-password" type={showQueueInternalPassword ? 'text' : 'password'} autoComplete="new-password" value={queueInternalPassword} onChange={(event) => setQueueInternalPassword(event.target.value.toUpperCase())} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} placeholder={settings.queue_internal_password_configured && !queueInternalPassword ? 'Existing password cannot be recovered; set a new one' : 'Set Queue Internal password'} className="h-11 pr-11 uppercase" />
                                 <button type="button" onClick={() => setShowQueueInternalPassword((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900" aria-label={showQueueInternalPassword ? 'Hide password' : 'Show password'}>
                                     {showQueueInternalPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
