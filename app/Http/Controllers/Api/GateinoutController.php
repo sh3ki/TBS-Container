@@ -302,8 +302,10 @@ class GateinoutController extends Controller
         abort_unless($canEdit, 403);
 
         return response()->json(['success' => true, 'guards' => DB::table('users')
-            ->where('is_guard', 1)->where('archived', 0)
-            ->orderBy('username')->get(['user_id', 'username', 'full_name'])]);
+            ->join('guard_presence', 'guard_presence.user_id', '=', 'users.user_id')
+            ->where('users.is_guard', 1)->where('users.archived', 0)
+            ->where('guard_presence.last_seen_at', '>=', now()->subSeconds(60))
+            ->orderBy('users.username')->get(['users.user_id', 'users.username', 'users.full_name'])]);
     }
 
     public function updateQueueStatus(Request $request)
