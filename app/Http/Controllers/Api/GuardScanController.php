@@ -81,7 +81,7 @@ class GuardScanController extends Controller
             ->select([
                 'p.plate_no',
                 DB::raw("COALESCE({$tablePrefix}c.client_name, {$tablePrefix}c.client_code, '-') as client"),
-                DB::raw("COALESCE(CONCAT({$tablePrefix}st.size, {$tablePrefix}st.type), '-') as size_type"),
+                DB::raw("COALESCE(CONCAT({$tablePrefix}st.size, ' ', {$tablePrefix}st.type), '-') as size_type"),
                 DB::raw("COALESCE({$tablePrefix}p.iso_code, '') as iso_code"),
                 DB::raw("COALESCE(NULLIF({$tablePrefix}p.hauler, ''), '-') as hauler"),
             ]);
