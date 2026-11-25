@@ -99,6 +99,7 @@ Route::prefix('guard')->group(function () {
     Route::post('/presence', [GuardScanController::class, 'heartbeat']);
     Route::post('/scan-truck-plate', [GuardScanController::class, 'scanTruckPlate']);
     Route::get('/queue/display', [GuardScanController::class, 'queueDisplay']);
+    Route::get('/queue/entry/{entryId}', [GuardScanController::class, 'queueEntryDetails']);
     Route::get('/queue-capacity', [GuardScanController::class, 'queueCapacity']);
     Route::post('/queue/status', [GuardScanController::class, 'updateQueueStatus']);
     Route::post('/manual-capture', [GuardScanController::class, 'manualCapture']);
