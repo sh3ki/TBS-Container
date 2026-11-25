@@ -43,6 +43,8 @@ Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay'])
     ->middleware(\App\Http\Middleware\QueueDisplayAccess::class);
 Route::get('/queue/manage', [GateinoutController::class, 'getQueueDisplay'])
     ->middleware('auth');
+Route::get('/queue/guard-accounts', [GateinoutController::class, 'getGuardAccounts'])
+    ->middleware('auth');
 Route::get('/queue/session', [QueueDisplayController::class, 'session']);
 Route::post('/queue/login', [QueueDisplayController::class, 'login']);
 Route::post('/queue/logout', [QueueDisplayController::class, 'logout']);
