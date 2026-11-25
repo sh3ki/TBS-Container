@@ -92,6 +92,8 @@ Route::middleware(['auth'])->group(function () {
             'preInHaulerExceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
             'preOutHaulerExceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
             'clientExceptionIds' => json_decode((string) ($settings?->prein_scraping_client_ids ?? '[]'), true) ?: [],
+            'preInBookingDependent' => (bool) ($settings?->prein_booking_dependent ?? true),
+            'preOutBookingDependent' => (bool) ($settings?->preout_booking_dependent ?? true),
         ]);
     })->name('gateinout.index');
 
@@ -187,6 +189,8 @@ Route::middleware(['auth'])->group(function () {
                 'prein_hauler_exceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
                 'prein_scraping_client_ids' => json_decode((string) ($settings?->prein_scraping_client_ids ?? '[]'), true) ?: [],
                 'booking_scraping_enabled' => (bool) ($settings?->booking_scraping_enabled ?? true),
+                'prein_booking_dependent' => (bool) ($settings?->prein_booking_dependent ?? true),
+                'preout_booking_dependent' => (bool) ($settings?->preout_booking_dependent ?? true),
                 'booking_system_url' => (string) ($settings?->booking_system_url ?: config('services.booking_system.url')),
                 'booking_system_login_url' => (string) ($settings?->booking_system_login_url ?: config('services.booking_system.login_url')),
                 'booking_system_username' => (string) ($settings?->booking_system_username ?: config('services.booking_system.username')),
@@ -227,6 +231,8 @@ Route::middleware(['auth'])->group(function () {
             'prein_scraping_client_ids' => ['sometimes', 'array'],
             'prein_scraping_client_ids.*' => ['integer', 'exists:clients,c_id'],
             'booking_scraping_enabled' => ['sometimes', 'boolean'],
+            'prein_booking_dependent' => ['sometimes', 'boolean'],
+            'preout_booking_dependent' => ['sometimes', 'boolean'],
             'serving_capacity' => ['sometimes', 'integer', 'min:0'],
             'calling_expiration_minutes' => ['nullable', 'integer', 'min:1'],
             'floating_expiration_minutes' => ['nullable', 'integer', 'min:1'],
@@ -338,6 +344,12 @@ Route::middleware(['auth'])->group(function () {
             $updates = ['updated_at' => now()];
             if (array_key_exists('booking_scraping_enabled', $validated)) {
                 $updates['booking_scraping_enabled'] = (bool) $validated['booking_scraping_enabled'];
+            }
+            if (array_key_exists('prein_booking_dependent', $validated)) {
+                $updates['prein_booking_dependent'] = (bool) $validated['prein_booking_dependent'];
+            }
+            if (array_key_exists('preout_booking_dependent', $validated)) {
+                $updates['preout_booking_dependent'] = (bool) $validated['preout_booking_dependent'];
             }
             if (array_key_exists('serving_capacity', $validated)) {
                 $updates['serving_capacity'] = (int) $validated['serving_capacity'];
