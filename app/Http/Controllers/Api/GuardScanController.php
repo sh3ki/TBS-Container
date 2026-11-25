@@ -29,8 +29,8 @@ class GuardScanController extends Controller
         $guardUserId = $this->guardUserId($request);
         $activeStatuses = ['waiting', 'calling', 'floating'];
         $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
-        $waitingIn = DB::table('queue_entries')->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
-        $waitingOut = DB::table('queue_entries')->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')->orderBy('waiting_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
+        $waitingIn = DB::table('queue_entries')->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')->where('queue_entries.direction', 'IN')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')->orderBy('queue_entries.waiting_number')->orderBy('queue_entries.id')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.direction', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.calling_at', 'queue_entries.floating_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
+        $waitingOut = DB::table('queue_entries')->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')->where('queue_entries.direction', 'OUT')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')->orderBy('queue_entries.waiting_number')->orderBy('queue_entries.id')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.direction', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.calling_at', 'queue_entries.floating_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
         $manualCapture = DB::table('queue_entries')
             ->whereNotNull('manual_reason')
             ->where('manual_guard_user_id', $guardUserId ?: 0)
@@ -38,7 +38,7 @@ class GuardScanController extends Controller
             ->whereNull('completed_at')
             ->orderBy('id')
             ->first(['id', 'plate_no', 'direction', 'manual_reason', 'manual_guard_user_id']);
-        $serving = DB::table('queue_entries')->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
+        $serving = DB::table('queue_entries')->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')->where('queue_entries.status', 'serving')->whereNull('queue_entries.completed_at')->orderBy('queue_entries.direction')->orderBy('queue_entries.serving_number')->orderBy('queue_entries.id')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.direction', 'queue_entries.serving_number', 'queue_entries.serving_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
 
         return response()->json(['success' => true, 'data' => [
             'waiting_in' => $waitingIn,
