@@ -37,10 +37,10 @@ class QueueInternalController extends Controller
         $valid = false;
         if ($storedPassword) {
             try {
-                $valid = hash_equals((string) decrypt($storedPassword), $validated['password']);
+                $valid = hash_equals(strtoupper((string) decrypt($storedPassword)), strtoupper($validated['password']));
             } catch (\Throwable) {
                 // Existing installations may still contain the old one-way hash.
-                $valid = Hash::check($validated['password'], $storedPassword);
+                $valid = Hash::check($validated['password'], $storedPassword) || Hash::check(strtolower($validated['password']), $storedPassword);
             }
         }
         if (!$valid) {
