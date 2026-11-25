@@ -33,8 +33,17 @@ class QueueInternalController extends Controller
             'password' => ['required', 'string', 'max:5000'],
             'remember' => ['sometimes', 'boolean'],
         ]);
-        $storedHash = DB::table('app_settings')->where('setting_id', 1)->value('queue_internal_password');
-        if (!$storedHash || !Hash::check($validated['password'], $storedHash)) {
+        $storedPassword = DB::table('app_settings')->where('setting_id', 1)->value('queue_internal_password');
+        $valid = false;
+        if ($storedPassword) {
+            try {
+                $valid = hash_equals((string) decrypt($storedPassword), $validated['password']);
+            } catch (\Throwable) {
+                // Existing installations may still contain the old one-way hash.
+                $valid = Hash::check($validated['password'], $storedPassword);
+            }
+        }
+        if (!$valid) {
             return response()->json(['message' => 'Invalid password.'], 422);
         }
 
