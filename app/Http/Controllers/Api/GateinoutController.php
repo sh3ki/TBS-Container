@@ -78,10 +78,10 @@ class GateinoutController extends Controller
             $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
             $waitingIn = DB::table('queue_entries')
                 ->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')
-                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
             $waitingOut = DB::table('queue_entries')
                 ->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')
-                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'calling_at', 'floating_at']);
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
             $serving = DB::table('queue_entries')
                 ->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')
                 ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
@@ -231,6 +231,59 @@ class GateinoutController extends Controller
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
+        return response()->json(['success' => true, 'entry' => $entry]);
+    }
+
+    public function requestManualCapture(Request $request)
+    {
+        $user = $request->user();
+        $canEdit = $user && DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->whereIn('pages.page', ['queue-planner'])
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.acs_edit', 1)
+            ->exists();
+        abort_unless($canEdit, 403);
+
+        $validated = $request->validate([
+            'id' => ['required', 'integer'],
+            'reason' => ['required', 'string', 'min:1', 'max:2000'],
+        ]);
+
+        $entry = DB::transaction(function () use ($validated) {
+            $entry = DB::table('queue_entries')
+                ->where('id', $validated['id'])
+                ->whereIn('status', ['waiting', 'calling', 'floating'])
+                ->whereNull('completed_at')
+                ->lockForUpdate()
+                ->first();
+            abort_unless($entry, 404, 'Queue entry not found.');
+
+            $activeManual = DB::table('queue_entries')
+                ->whereNotNull('manual_reason')
+                ->whereIn('status', ['waiting', 'calling', 'floating'])
+                ->whereNull('completed_at')
+                ->where('id', '<>', $entry->id)
+                ->lockForUpdate()
+                ->exists();
+            abort_unless(!$activeManual, 409, 'Another manual plate capture is already waiting for the Guard app.');
+
+            DB::table('queue_entries')->where('id', $entry->id)->update([
+                'manual_reason' => trim($validated['reason']),
+                'updated_at' => now(),
+            ]);
+
+            return DB::table('queue_entries')->where('id', $entry->id)->first();
+        });
+
+        DB::table('audit_logs')->insert([
+            'action' => 'EDIT',
+            'description' => sprintf('[QUEUE] Manual plate capture requested for "%s". Reason: %s', $entry->plate_no, $entry->manual_reason),
+            'user_id' => $user->user_id ?? auth()->id(),
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
+        ]);
+
         return response()->json(['success' => true, 'entry' => $entry]);
     }
 
