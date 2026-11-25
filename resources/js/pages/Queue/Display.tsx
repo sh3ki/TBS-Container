@@ -101,6 +101,7 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, show
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [servingCapacity, setServingCapacity] = useState(0);
     const [rulesOpen, setRulesOpen] = useState(showRulesModal);
+    const [advisoryLanguage, setAdvisoryLanguage] = useState<'en' | 'tl'>('en');
     const time = new Intl.DateTimeFormat('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
     const date = new Intl.DateTimeFormat('en-PH', { weekday: 'long', month: 'long', day: '2-digit', year: 'numeric' }).format(now);
     const normalizedVisiblePlate = normalizePlate(visiblePlateNo);
@@ -132,7 +133,7 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, show
     return (
         <>
             <Head title="Container Queue" />
-            <main className="flex flex-col overflow-hidden" style={{ height: '100dvh', backgroundColor: '#EDEEEB', color: '#202a35', colorScheme: 'light' }}>
+            {!rulesOpen && <main className="flex flex-col overflow-hidden" style={{ height: '100dvh', backgroundColor: '#EDEEEB', color: '#202a35', colorScheme: 'light' }}>
                 <header className="flex w-full shrink-0 items-center justify-between gap-2 bg-[#3E9AF4] px-2 py-2 text-white shadow-sm sm:gap-4 sm:px-6 sm:py-4">
                     <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/60 bg-white p-1 sm:h-14 sm:w-14"><img src="/apple-touch-icon.png" alt="TBS logo" className="h-full w-full object-contain" /></div>
@@ -164,32 +165,46 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, show
                         <Box className="ml-auto hidden h-7 w-7 shrink-0 text-[#3E9AF4] sm:block" />
                     </aside>
                 </div>
-            </main>
+            </main>}
             {rulesOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="queue-rules-title">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="queue-rules-title">
                     <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" style={{ color: '#202a35' }}>
-                        <div className="bg-[#3E9AF4] px-6 py-5 text-white sm:px-8">
-                            <div className="flex items-center gap-3">
-                                <CircleHelp className="h-8 w-8 shrink-0" />
-                                <div>
-                                    <h2 id="queue-rules-title" className="text-2xl font-black tracking-wide">RULES AND GUIDELINES</h2>
-                                    <p className="mt-1 text-sm text-white/90">Please read before viewing the queue.</p>
+                        <div className="bg-[#3E9AF4] px-4 py-5 text-white sm:px-8">
+                            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm sm:h-14 sm:w-14">
+                                    <img src="/apple-touch-icon.png" alt="TBS logo" className="h-full w-full object-contain" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 id="queue-rules-title" className="whitespace-nowrap text-xl font-black tracking-normal sm:text-2xl sm:tracking-wide">OFFICIAL ADVISORY</h2>
+                                    <p className="mt-1 text-sm text-white/90">Important service notice</p>
                                 </div>
                             </div>
                         </div>
                         <div className="max-h-[65vh] overflow-y-auto px-6 py-6 sm:px-8">
-                            <h3 className="text-lg font-extrabold text-[#31393C]">QUEUE RULES</h3>
-                            <ul className="mt-4 space-y-3 text-sm leading-6 text-[#536170] sm:text-base">
-                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">1.</span><span>Follow the queue order and wait until your plate number is called.</span></li>
-                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">2.</span><span>Keep your plate number visible and make sure your truck is ready when it is next in line.</span></li>
-                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">3.</span><span>Follow all instructions from the yard personnel and security guards.</span></li>
-                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">4.</span><span>Do not block the entrance, exit, or other trucks while waiting.</span></li>
-                                <li className="flex gap-3"><span className="font-black text-[#3E9AF4]">5.</span><span>Only authorized queue actions and status updates are permitted.</span></li>
-                            </ul>
-                            <p className="mt-6 rounded-lg bg-blue-50 px-4 py-3 text-sm font-semibold leading-5 text-blue-800">Failure to follow these guidelines may cause delays or removal from the queue.</p>
+                            <div className="text-justify">
+                                {advisoryLanguage === 'en' ? <>
+                                    <p className="text-sm leading-6 text-[#263238] sm:text-base">Dear Valued Clients and Trucking Partners,</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">Please be informed that TBS Container Yard OPC is currently implementing improvements to its <strong className="text-[#3E9AF4]">Truck Queue Management System</strong> as part of our ongoing commitment to enhancing yard operations and service efficiency.</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">This initiative aims to establish a more systematic, organized, and efficient truck queuing process, ensuring smoother traffic flow and a more convenient experience for all stakeholders.</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">We sincerely appreciate your patience, understanding, and continued cooperation as we implement these improvements.</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">Thank you for your continued trust and support.</p>
+                                    <p className="mt-4 text-sm font-bold leading-6 text-[#263238] sm:text-base">TBS CONTAINER YARD OPC</p>
+                                </> : <>
+                                    <p className="text-sm leading-6 text-[#263238] sm:text-base">Sa aming mga Pinahahalagahang Kliyente at Trucking Partners,</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">Ipinababatid po namin na kasalukuyang isinasagawa ng TBS Container Yard OPC ang pagpapahusay ng aming <strong className="text-[#3E9AF4]">Truck Queue Management System</strong> bilang bahagi ng patuloy na pagsisikap na mapabuti ang operasyon at kahusayan ng aming serbisyo sa loob ng yard.</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">Layunin ng inisyatibong ito na magkaroon ng mas sistematiko, maayos, at episyenteng proseso ng pagpila ng mga truck upang mas mapadali ang daloy ng trapiko at maging mas maginhawa ang transaksyon para sa lahat.</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">Lubos po kaming nagpapasalamat sa inyong pang-unawa, pasensya, at patuloy na pakikipagtulungan habang isinasagawa ang mga pagbabagong ito.</p>
+                                    <p className="mt-4 text-sm leading-6 text-[#263238] sm:text-base">Maraming salamat po sa inyong patuloy na tiwala at suporta.</p>
+                                    <p className="mt-4 text-sm font-bold leading-6 text-[#263238] sm:text-base">TBS CONTAINER YARD OPC</p>
+                                </>}
+                            </div>
                         </div>
-                        <div className="flex justify-end border-t border-gray-200 px-6 py-4 sm:px-8">
-                            <button type="button" onClick={() => setRulesOpen(false)} className="rounded-lg bg-[#3E9AF4] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#2785dc]">I UNDERSTAND</button>
+                        <div className="flex items-center justify-between gap-4 border-t border-gray-200 px-6 py-4 sm:px-8">
+                            <div className="inline-flex rounded-lg bg-[#eef2f6] p-1" role="tablist" aria-label="Advisory language">
+                                <button type="button" role="tab" aria-selected={advisoryLanguage === 'en'} onClick={() => setAdvisoryLanguage('en')} className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${advisoryLanguage === 'en' ? 'bg-white text-[#3E9AF4] shadow-sm' : 'text-[#68737b]'}`}>English</button>
+                                <button type="button" role="tab" aria-selected={advisoryLanguage === 'tl'} onClick={() => setAdvisoryLanguage('tl')} className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${advisoryLanguage === 'tl' ? 'bg-white text-[#3E9AF4] shadow-sm' : 'text-[#68737b]'}`}>Tagalog</button>
+                            </div>
+                            <button type="button" onClick={() => {}} className="rounded-lg bg-[#3E9AF4] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#2785dc]">I UNDERSTAND</button>
                         </div>
                     </div>
                 </div>
