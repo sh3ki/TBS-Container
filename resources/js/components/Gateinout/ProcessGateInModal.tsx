@@ -71,7 +71,7 @@ interface ProcessGateInModalProps {
         date_completed?: string | null;
     } | null;
     statusOptions: Array<{ s_id: number; status: string }>;
-    sizeTypeOptions: Array<{ s_id: number; size: string; type: string }>;
+    sizeTypeOptions: Array<{ s_id: number; size: string; type: string; iso_code?: string | null }>;
     loadOptions: Array<{ l_id: number; type: string }>;
     onSuccess: () => void;
     showError?: (message: string, title?: string) => void;
@@ -91,7 +91,6 @@ export default function ProcessGateInModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showQueueConfirmation, setShowQueueConfirmation] = useState(false);
     const submitInProgressRef = useRef(false);
-    const [autoFillIsoCode, setAutoFillIsoCode] = useState(false);
     const initialFormData = {
         date_manufactured: '',
         status: '',
@@ -124,7 +123,6 @@ export default function ProcessGateInModal({
             // reset to initial state each time modal opens
             setFormData({ ...initialFormData });
             setCheckerName(currentUserFullName || '');
-            setAutoFillIsoCode(false);
 
             if (record) {
                 // Clean plate_no and hauler: if contains "-", set as empty
@@ -149,10 +147,6 @@ export default function ProcessGateInModal({
             const response = await axios.get(`/api/gateinout/pre-inventory/${containerNo}`);
             if (response.data.success && response.data.data) {
                 const data = response.data.data;
-                const savedIsoCode = (data.iso_code || '').toString().trim();
-                const hasSavedSizeType = Boolean(data.sizetype_id && Number(data.sizetype_id) > 0);
-                const hasSavedIsoCode = Boolean(savedIsoCode && savedIsoCode !== '-' && savedIsoCode.toLowerCase() !== 'record not found');
-                setAutoFillIsoCode(!hasSavedSizeType && !hasSavedIsoCode);
                 setFormData(prev => ({
                     ...prev,
                     sizetype: data.sizetype_id ? data.sizetype_id.toString() : '',
@@ -170,11 +164,9 @@ export default function ProcessGateInModal({
                     setCheckerName(currentUserFullName || '');
                 }
             } else {
-                setAutoFillIsoCode(true);
             }
         } catch (error) {
             console.error('Error fetching container details:', error);
-            setAutoFillIsoCode(true);
             setCheckerName(currentUserFullName || '');
         }
     };
@@ -434,26 +426,10 @@ export default function ProcessGateInModal({
                                     <Label>Size/Type <span className="text-red-500">*</span></Label>
                                     <Select value={formData.sizetype} onValueChange={(value) => {
                                         const selected = sizeTypeOptions.find((option) => option.s_id.toString() === value);
-                                        const sizeTypeKey = selected ? `${selected.size}${selected.type}`.replace(/[\s-]/g, '').toUpperCase() : '';
-                                        const officialIsoBySizeType: Record<string, string> = {
-                                            '20DC': '22G1',
-                                            '20FR': '22P1',
-                                            '20OT': '22U1',
-                                            '20RF': '22R1',
-                                            '20RH': '25R1',
-                                            '40DC': '42G1',
-                                            '40FR': '42P1',
-                                            '40HC': '45G1',
-                                            '40OT': '42U1',
-                                            '40RH': '45R1',
-                                            '45HC': 'L5G1',
-                                        };
                                         setFormData((prev) => ({
                                             ...prev,
                                             sizetype: value,
-                                            iso_code: autoFillIsoCode && !prev.iso_code.trim()
-                                                ? (officialIsoBySizeType[sizeTypeKey] || prev.iso_code)
-                                                : prev.iso_code,
+                                            iso_code: selected?.iso_code || '',
                                         }));
                                     }}>
                                         <SelectTrigger><SelectValue placeholder="Select size/type" /></SelectTrigger>
@@ -466,7 +442,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>ISO Code <span className="text-red-500">*</span></Label>
-                                    <Input data-history-key="gateinout.iso_code" value={formData.iso_code} onChange={(e) => setFormData({ ...formData, iso_code: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.iso_code" value={formData.iso_code} readOnly />
                                 </div>
                                 <div>
                                     <Label>Class <span className="text-red-500">*</span></Label>
