@@ -96,7 +96,7 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
     );
 }
 
-export default function QueueDisplay({ greenServing = true, visiblePlateNo }: { greenServing?: boolean; visiblePlateNo?: string } = {}) {
+export default function QueueDisplay({ greenServing = true, visiblePlateNo, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; onSessionExpired?: () => void } = {}) {
     const now = useClock();
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [servingCapacity, setServingCapacity] = useState(0);
@@ -118,7 +118,8 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo }: { 
                     });
                     setServingCapacity(Number(live.serving_capacity ?? 0));
                 }
-            } catch (error) {
+            } catch (error: any) {
+                if (error?.response?.status === 401) onSessionExpired?.();
                 console.error('Failed to refresh queue display', error);
             }
         };
