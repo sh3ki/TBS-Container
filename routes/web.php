@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use App\Services\AuditService;
 use Inertia\Inertia;
@@ -30,7 +31,7 @@ Route::get('/queue', function () {
 
 // Duplicate internal queue display for a second internal monitor/page.
 Route::get('/queue-internal', function () {
-    return Inertia::render('Queue/Display');
+    return Inertia::render('Queue/Internal');
 })->name('queue.internal');
 
 // Protected routes - Use 'auth' for web (session-based), not 'auth:sanctum'
@@ -193,6 +194,7 @@ Route::middleware(['auth'])->group(function () {
                 'booking_system_timeout' => (int) ($settings?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
                 'calling_expiration_minutes' => $settings?->calling_expiration_minutes !== null ? (int) $settings->calling_expiration_minutes : null,
                 'floating_expiration_minutes' => $settings?->floating_expiration_minutes !== null ? (int) $settings->floating_expiration_minutes : null,
+                'queue_internal_password_configured' => filled($settings?->queue_internal_password),
                 'dmr_time' => (string) ($settings?->dmr_time ?? ''),
                 'dmr_sender_email' => (string) ($settings?->dmr_sender_email ?? ''),
                 'dmr_sender_password' => $decryptSetting($settings?->dmr_sender_password),
@@ -228,6 +230,7 @@ Route::middleware(['auth'])->group(function () {
             'serving_capacity' => ['sometimes', 'integer', 'min:0'],
             'calling_expiration_minutes' => ['nullable', 'integer', 'min:1'],
             'floating_expiration_minutes' => ['nullable', 'integer', 'min:1'],
+            'queue_internal_password' => ['nullable', 'string', 'max:5000'],
             'booking_system_url' => ['required_if:section,booking_credentials', 'url', 'max:2048'],
             'booking_system_login_url' => ['nullable', 'url', 'max:2048'],
             'booking_system_username' => ['required_if:section,booking_credentials', 'string', 'max:255'],
@@ -344,6 +347,9 @@ Route::middleware(['auth'])->group(function () {
             }
             if (array_key_exists('floating_expiration_minutes', $validated)) {
                 $updates['floating_expiration_minutes'] = $validated['floating_expiration_minutes'] !== null ? (int) $validated['floating_expiration_minutes'] : null;
+            }
+            if (!empty($validated['queue_internal_password'])) {
+                $updates['queue_internal_password'] = Hash::make($validated['queue_internal_password']);
             }
             if (array_key_exists('preout_hauler_exceptions', $validated)) {
                 $updates['preout_hauler_exceptions'] = collect(explode(',', (string) $validated['preout_hauler_exceptions']))
