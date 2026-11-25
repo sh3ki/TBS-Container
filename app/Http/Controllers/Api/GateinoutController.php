@@ -78,10 +78,10 @@ class GateinoutController extends Controller
             $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
             $waitingIn = DB::table('queue_entries')
                 ->where('direction', 'IN')->whereIn('status', $activeStatuses)->whereNull('completed_at')
-                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'manual_guard_user_id', 'calling_at', 'floating_at']);
             $waitingOut = DB::table('queue_entries')
                 ->where('direction', 'OUT')->whereIn('status', $activeStatuses)->whereNull('completed_at')
-                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'calling_at', 'floating_at']);
+                ->orderBy('waiting_number')->get(['id', 'plate_no', 'status', 'waiting_number', 'booking_time', 'manual_reason', 'manual_guard_user_id', 'calling_at', 'floating_at']);
             $serving = DB::table('queue_entries')
                 ->where('status', 'serving')->whereNull('completed_at')->orderBy('direction')->orderBy('serving_number')->orderBy('id')
                 ->get(['id', 'plate_no', 'direction', 'serving_number', 'serving_at']);
@@ -248,7 +248,9 @@ class GateinoutController extends Controller
         $validated = $request->validate([
             'id' => ['required', 'integer'],
             'reason' => ['required', 'string', 'min:1', 'max:2000'],
+            'guard_user_id' => ['required', 'integer', 'exists:users,user_id'],
         ]);
+        abort_unless(DB::table('users')->where('user_id', $validated['guard_user_id'])->where('is_guard', 1)->where('archived', 0)->exists(), 422, 'Selected account is not an active Guard account.');
 
         $entry = DB::transaction(function () use ($validated) {
             $entry = DB::table('queue_entries')
@@ -270,6 +272,7 @@ class GateinoutController extends Controller
 
             DB::table('queue_entries')->where('id', $entry->id)->update([
                 'manual_reason' => trim($validated['reason']),
+                'manual_guard_user_id' => $validated['guard_user_id'],
                 'updated_at' => now(),
             ]);
 
@@ -285,6 +288,22 @@ class GateinoutController extends Controller
         ]);
 
         return response()->json(['success' => true, 'entry' => $entry]);
+    }
+
+    public function getGuardAccounts(Request $request)
+    {
+        $user = $request->user();
+        $canEdit = $user && DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->where('pages.page', 'queue-planner')
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.acs_edit', 1)
+            ->exists();
+        abort_unless($canEdit, 403);
+
+        return response()->json(['success' => true, 'guards' => DB::table('users')
+            ->where('is_guard', 1)->where('archived', 0)
+            ->orderBy('username')->get(['user_id', 'username', 'full_name'])]);
     }
 
     public function updateQueueStatus(Request $request)
