@@ -98,7 +98,7 @@ export default function QueueInternal() {
     if (checking) {
         return <main className="flex min-h-screen items-center justify-center bg-[#0d2238]" />;
     }
-    if (authenticated) return <QueueDisplay greenServing={false} />;
+    if (authenticated) return <QueueDisplay greenServing={false} onSessionExpired={() => setAuthenticated(false)} />;
 
     return (
         <>
