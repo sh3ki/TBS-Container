@@ -7,6 +7,7 @@ import type { CSSProperties } from 'react';
 import { colors } from '@/lib/colors';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 import { ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; manual_reason?: string | null; manual_guard_user_id?: number | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; }
 interface GuardAccount { user_id: number; username: string; full_name?: string | null; }
@@ -264,13 +265,17 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
             {manualConfirmation && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => manualId === null && setManualConfirmation(null)}>
                 <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
                     <div className="mb-5 flex items-start justify-between"><div><h2 className="text-xl font-bold text-gray-900">Manual plate capture</h2><p className="mt-1 text-sm text-gray-600">Request a manual photo for plate {manualConfirmation.plate_no}.</p></div><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="text-2xl leading-none text-gray-400">&times;</button></div>
-                    <label className="block text-sm font-semibold text-gray-700" htmlFor="manual-capture-reason">Reason</label>
-                    <textarea id="manual-capture-reason" autoFocus value={manualReason} onChange={(event) => setManualReason(event.target.value)} rows={4} maxLength={2000} placeholder="Enter the reason for manual capture" className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
-                    <label className="mt-4 block text-sm font-semibold text-gray-700" htmlFor="manual-capture-guard">Guard account</label>
-                    <select id="manual-capture-guard" value={manualGuardUserId} onChange={(event) => setManualGuardUserId(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
-                        <option value="">Select Guard account</option>
-                        {guardAccounts.map((guard) => <option key={guard.user_id} value={guard.user_id}>{guard.username}{guard.full_name ? ` - ${guard.full_name}` : ''}</option>)}
-                    </select>
+                    <label className="block text-sm font-semibold text-gray-700" htmlFor="manual-capture-reason">Reason <span className="text-red-500">*</span></label>
+                    <textarea id="manual-capture-reason" required autoFocus value={manualReason} onChange={(event) => setManualReason(event.target.value)} rows={4} maxLength={2000} placeholder="Enter the reason for manual capture" className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    <label className="mt-4 block text-sm font-semibold text-gray-700" htmlFor="manual-capture-guard">Guard account <span className="text-red-500">*</span></label>
+                    <Select value={manualGuardUserId} onValueChange={setManualGuardUserId} required>
+                        <SelectTrigger id="manual-capture-guard" className="mt-2 h-11" aria-required="true" aria-invalid={!manualGuardUserId}>
+                            <SelectValue placeholder="Select Guard account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {guardAccounts.map((guard) => <SelectItem key={guard.user_id} value={String(guard.user_id)}>{guard.username}{guard.full_name ? ` - ${guard.full_name}` : ''}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
                     <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={manualId !== null} onClick={() => setManualConfirmation(null)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={manualId !== null || !manualReason.trim() || !manualGuardUserId} onClick={() => requestManualCapture(manualConfirmation)} className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><ScanLine className="h-4 w-4" />{manualId !== null ? 'Saving...' : 'Confirm Manual'}</button></div>
                 </div>
             </div>}
