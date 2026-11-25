@@ -56,7 +56,7 @@ class QueueInternalController extends Controller
         $cookie = new Cookie(
             self::COOKIE,
             $rawToken,
-            null,
+            0,
             '/',
             null,
             $request->isSecure(),
