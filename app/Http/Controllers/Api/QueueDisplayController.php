@@ -32,7 +32,14 @@ class QueueDisplayController extends Controller
         $validated = $request->validate(['plate_no' => ['required', 'string', 'max:5000']]);
         $credential = trim((string) $validated['plate_no']);
         $queuePassword = DB::table('app_settings')->where('setting_id', 1)->value('queue_internal_password');
-        $fullAccess = is_string($queuePassword) && $queuePassword !== '' && Hash::check($credential, $queuePassword);
+        $fullAccess = false;
+        if (is_string($queuePassword) && $queuePassword !== '') {
+            try {
+                $fullAccess = hash_equals((string) decrypt($queuePassword), $credential);
+            } catch (\Throwable) {
+                $fullAccess = Hash::check($credential, $queuePassword);
+            }
+        }
         $plateNo = strtoupper(preg_replace('/[\s-]+/', '', $credential) ?? '');
         $entry = DB::table('queue_entries')
             ->whereRaw('UPPER(plate_no) = ?', [$plateNo])
