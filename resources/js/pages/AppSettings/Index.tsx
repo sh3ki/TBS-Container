@@ -33,6 +33,8 @@ interface AppSettingsProps {
         booking_system_username: string;
         booking_system_password: string;
         booking_system_timeout: number;
+        calling_expiration_minutes: number | null;
+        floating_expiration_minutes: number | null;
         dmr_time: string;
         dmr_sender_email: string;
         dmr_sender_password: string;
@@ -68,6 +70,8 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [bookingSystemPassword, setBookingSystemPassword] = useState(settings.booking_system_password);
     const [showBookingSystemPassword, setShowBookingSystemPassword] = useState(false);
     const [bookingSystemTimeout, setBookingSystemTimeout] = useState(String(settings.booking_system_timeout));
+    const [callingExpirationMinutes, setCallingExpirationMinutes] = useState(settings.calling_expiration_minutes === null ? '' : String(settings.calling_expiration_minutes));
+    const [floatingExpirationMinutes, setFloatingExpirationMinutes] = useState(settings.floating_expiration_minutes === null ? '' : String(settings.floating_expiration_minutes));
     const [dmrTime, setDmrTime] = useState(settings.dmr_time);
     const [dmrSenderEmail, setDmrSenderEmail] = useState(settings.dmr_sender_email);
     const [dmrSenderPassword, setDmrSenderPassword] = useState(settings.dmr_sender_password);
@@ -137,6 +141,23 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         } catch (exception) {
             console.error('Failed to update Booking System Scraping settings:', exception);
             error('Failed to update Booking System Scraping settings.');
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    const saveQueueExpirationSettings = async () => {
+        setSaving('queue');
+        try {
+            const response = await axios.put('/app-settings', {
+                section: 'queue',
+                calling_expiration_minutes: callingExpirationMinutes === '' ? null : Number(callingExpirationMinutes),
+                floating_expiration_minutes: floatingExpirationMinutes === '' ? null : Number(floatingExpirationMinutes),
+            });
+            success(response.data.message || 'Queue expiration settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update Queue expiration settings:', exception);
+            error('Expiration values must be blank or whole numbers of at least 1 minute.');
         } finally {
             setSaving(null);
         }
@@ -522,6 +543,24 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         </div>
                         <div className="flex items-center gap-3 md:col-span-2">
                             <ModernButton type="button" variant="primary" loading={saving === 'utilization'} onClick={saveUtilizationSettings}>Save Settings</ModernButton>
+                        </div>
+                    </div>
+                </ModernCard>
+
+                <ModernCard title="Queue Settings" subtitle="Configure automatic calling and floating expiration" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                        <div>
+                            <Label htmlFor="calling-expiration-minutes" className="text-sm font-semibold text-gray-900">CALLING EXPIRATION (MINUTES)</Label>
+                            <Input id="calling-expiration-minutes" type="number" min="1" step="1" value={callingExpirationMinutes} onChange={(event) => setCallingExpirationMinutes(event.target.value)} placeholder="Disabled" className="mt-2 h-11" />
+                            <p className="mt-1 text-xs text-gray-500">After this time, Calling automatically changes to Floating. Leave blank to disable.</p>
+                        </div>
+                        <div>
+                            <Label htmlFor="floating-expiration-minutes" className="text-sm font-semibold text-gray-900">FLOATING EXPIRATION (MINUTES)</Label>
+                            <Input id="floating-expiration-minutes" type="number" min="1" step="1" value={floatingExpirationMinutes} onChange={(event) => setFloatingExpirationMinutes(event.target.value)} placeholder="Disabled" className="mt-2 h-11" />
+                            <p className="mt-1 text-xs text-gray-500">After this time, Floating automatically changes to Forfeited. Leave blank to disable.</p>
+                        </div>
+                        <div className="flex items-center gap-3 md:col-span-2">
+                            <ModernButton type="button" variant="primary" loading={saving === 'queue'} onClick={saveQueueExpirationSettings}>Save Settings</ModernButton>
                         </div>
                     </div>
                 </ModernCard>
