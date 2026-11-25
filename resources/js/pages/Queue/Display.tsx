@@ -105,7 +105,7 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
                                 {serving ? (greenServing ? 'NOW SERVING' : servingRuntime(entry.serving_at, now)) : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}
                             </p>
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="flex shrink-0 flex-col items-center gap-1">
                             <span className={`rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now, greenServing) : undefined}>{entry.direction ?? direction}</span>
                             {onEntryClick && <span className="text-xs font-black tracking-wide" style={{ color: serving ? servingAccentColors(entry.serving_at, now, greenServing).color : isFloating ? '#C2410C' : activeStatus ? '#1D4ED8' : '#536170' }}>{queueSizeType(entry)}</span>}
                         </div>
