@@ -442,6 +442,37 @@ class GateinoutController extends Controller
         return $value === null ? true : (bool) $value;
     }
 
+    private function preBookingDependent(string $direction): bool
+    {
+        $column = $direction === 'IN' ? 'prein_booking_dependent' : 'preout_booking_dependent';
+        $value = DB::table('app_settings')->where('setting_id', 1)->value($column);
+        return $value === null ? true : (bool) $value;
+    }
+
+    private function bookingReferenceValues(array $booking, ?int $manualClientId = null): array
+    {
+        $shippingLine = trim((string) ($booking['shipping_line'] ?? ''));
+        $sizeType = trim((string) ($booking['size_type'] ?? ''));
+        $shippingMatch = $shippingLine === '' ? null : DB::table('booking_scraping_shipping_line_matches')
+            ->whereRaw('LOWER(shipping_line) = ?', [mb_strtolower($shippingLine)])->first();
+        $sizeMatch = $sizeType === '' ? null : DB::table('booking_scraping_size_type_matches')
+            ->whereRaw('LOWER(size_type) = ?', [mb_strtolower($sizeType)])->first();
+
+        if (!$shippingMatch && !$manualClientId) {
+            return [
+                'error' => 'shipping_line',
+                'shipping_line' => $shippingLine,
+                'size_type' => $sizeType,
+            ];
+        }
+
+        return [
+            'client_id' => $manualClientId ?: (int) $shippingMatch->client_id,
+            'size_type' => $sizeMatch ? (int) $sizeMatch->size_type_id : null,
+            'hauler' => strtoupper(trim((string) ($booking['client'] ?? ''))),
+        ];
+    }
+
     private function preInHaulerIsExcepted(string $hauler): bool
     {
         $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('prein_hauler_exceptions');
@@ -604,6 +635,8 @@ class GateinoutController extends Controller
             $plateNo = strtoupper(trim((string) $request->input('pno')));
             $notInBooking = $request->boolean('not_in_booking');
             $hauler = strtoupper(trim((string) $request->input('hauler')));
+            $exceptionMode = $request->input('exception_mode', 'client');
+            $bookingDependent = $this->preBookingDependent('IN');
             
             // Validate container number length
             if (strlen($containerNo) !== 11) {
@@ -618,19 +651,20 @@ class GateinoutController extends Controller
                 ]);
             }
 
-            if ($notInBooking && !$this->preInHaulerIsExcepted($hauler)) {
+            if (!in_array($exceptionMode, ['client', 'hauler'], true)) $exceptionMode = 'client';
+            if ($notInBooking && $exceptionMode === 'hauler' && !$this->preInHaulerIsExcepted($hauler)) {
                 return response()->json([
                     'message' => ['danger', '<strong>Error!</strong> Please select a valid Pre-In exception hauler.']
                 ]);
             }
             
             // Check if client exists
-            $client = DB::selectOne(
+            $client = $clientId ? DB::selectOne(
                 "SELECT c_id FROM {$this->prefix}clients WHERE MD5(c_id) = :cid",
                 ['cid' => $clientId]
-            );
+            ) : null;
             
-            if (!$client) {
+            if (!$client && (!$notInBooking || $exceptionMode === 'client')) {
                 return response()->json([
                     'message' => ['danger', '<strong>Error!</strong> There\'s an error with your connection!']
                 ]);
@@ -638,7 +672,7 @@ class GateinoutController extends Controller
 
             // Serialize requests for the same container/client so rapid or
             // concurrent submissions cannot both pass the duplicate check.
-            $lock = Cache::lock('gateinout:pre-in:' . md5($containerNo . '|' . $client->c_id), 10);
+            $lock = Cache::lock('gateinout:pre-in:' . md5($containerNo . '|' . ($client?->c_id ?? 'hauler')), 10);
             if (!$lock->get()) {
                 return response()->json([
                     'message' => ['danger', '<strong>Alert!</strong> This Pre-In is already being added.']
@@ -649,7 +683,7 @@ class GateinoutController extends Controller
                 DB::beginTransaction();
             
                 // Validate container can gate in while holding the lock.
-                $validation = PreInventory::checkContainerCanGateIn($containerNo, $client->c_id);
+                $validation = PreInventory::checkContainerCanGateIn($containerNo, $client?->c_id ?? 0);
             
                 if (!$validation['valid']) {
                     DB::rollBack();
@@ -660,23 +694,33 @@ class GateinoutController extends Controller
 
                 // Booking System verification is deliberately performed last,
                 // after every local Pre-In validation has passed.
-                $booking = $this->bookingScrapingEnabled() && !$notInBooking && !$this->preInClientIsExcepted((int) $client->c_id)
+                $booking = $this->bookingScrapingEnabled() && !$notInBooking && ($bookingDependent || ($client && !$this->preInClientIsExcepted((int) $client->c_id)))
                     ? app(BookingSystemService::class)->findVerifiedBooking($containerNo)
                     : null;
+                $matched = $booking && $bookingDependent ? $this->bookingReferenceValues($booking, $request->filled('booking_match_client_id') ? (int) $request->input('booking_match_client_id') : null) : null;
+                if (isset($matched['error'])) {
+                    DB::rollBack();
+                    return response()->json(['booking_match_required' => true, 'match_type' => 'shipping_line', 'shipping_line' => $matched['shipping_line'], 'message' => 'Shipping line requires manual selection.'], 422);
+                }
+                $resolvedClientId = $matched['client_id'] ?? ($client?->c_id ?? null);
+                if (!$resolvedClientId && (!$notInBooking || $exceptionMode === 'client')) {
+                    DB::rollBack();
+                    return response()->json(['message' => ['danger', '<strong>Error!</strong> Please select a client or hauler.']]);
+                }
             
                 // Insert Pre-IN record
                 $preInventoryId = DB::table('pre_inventory')->insertGetId([
                     'container_no' => $containerNo,
-                    'client_id' => $client->c_id,
+                    'client_id' => $resolvedClientId,
                     'plate_no' => $plateNo,
-                    'hauler' => $notInBooking ? $hauler : null,
+                    'hauler' => $matched['hauler'] ?? ($notInBooking && $exceptionMode === 'hauler' ? $hauler : null),
                     'gate_status' => 'IN',
                     'user_id' => Auth::check() ? Auth::user()->user_id : 0,
                     'status' => 0,
                     'inv_id' => 0,
                     'date_added' => date('Y-m-d H:i:s'),
                     'remarks' => '',
-                    'size_type' => 0,
+                    'size_type' => $matched['size_type'] ?? null,
                     'cnt_class' => '',
                     'cnt_status' => '',
                     'iso_code' => '',
@@ -687,7 +731,9 @@ class GateinoutController extends Controller
                 $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
             
                 // Log audit - ADD action for pre-in
-                $clientName = DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $client->c_id])->client_name ?? 'Unknown';
+                $clientName = $resolvedClientId
+                    ? (DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $resolvedClientId])->client_name ?? 'Unknown')
+                    : 'HAULER';
             
                 DB::table('audit_logs')->insert([
                 'action' => 'ADD',
@@ -729,6 +775,7 @@ class GateinoutController extends Controller
             $notInBooking = $request->boolean('not_in_booking');
             $exceptionMode = $request->input('exception_mode', 'client');
             $clientId = null;
+            $bookingDependent = $this->preBookingDependent('OUT');
 
             if (!in_array($exceptionMode, ['client', 'hauler'], true)) {
                 $exceptionMode = 'client';
@@ -759,7 +806,7 @@ class GateinoutController extends Controller
                 }
             }
             
-            if (empty($plateNo) || empty($hauler)) {
+            if (empty($plateNo) || ($notInBooking && $exceptionMode === 'hauler' && empty($hauler)) || (!$notInBooking && !$bookingDependent && empty($hauler))) {
                 return response()->json([
                     'message' => ['danger', '<strong>Error!</strong> Invalid plate number input!']
                 ]);
@@ -777,6 +824,7 @@ class GateinoutController extends Controller
 
             try {
                 $booking = null;
+                $matched = null;
                 if ($this->bookingScrapingEnabled() && !$notInBooking) {
                     $usedRefNos = DB::table('queue_entries')
                         ->whereNotNull('ref_no')
@@ -785,6 +833,13 @@ class GateinoutController extends Controller
                         ->all();
                     $booking = app(BookingSystemService::class)->findEarliestVerifiedBookingByPlate($plateNo, $usedRefNos);
                 }
+
+                $matched = $booking && $bookingDependent ? $this->bookingReferenceValues($booking, $request->filled('booking_match_client_id') ? (int) $request->input('booking_match_client_id') : null) : null;
+                if (isset($matched['error'])) {
+                    return response()->json(['booking_match_required' => true, 'match_type' => 'shipping_line', 'shipping_line' => $matched['shipping_line'], 'message' => 'Shipping line requires manual selection.'], 422);
+                }
+                $clientId = $matched['client_id'] ?? $clientId;
+                $hauler = $matched['hauler'] ?? $hauler;
 
                 DB::beginTransaction();
             
@@ -800,7 +855,7 @@ class GateinoutController extends Controller
                     'inv_id' => 0,
                     'date_added' => date('Y-m-d H:i:s'),
                     'remarks' => '',
-                    'size_type' => 0,
+                    'size_type' => $matched['size_type'] ?? null,
                     'cnt_class' => '',
                     'cnt_status' => '',
                     'iso_code' => '',
