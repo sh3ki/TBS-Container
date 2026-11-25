@@ -94,6 +94,10 @@ class BookingSystemService
         return [
             'ref_no' => $booking['ref_no'],
             'booking_time' => $date->format('Y-m-d H:i:s'),
+            'plate_no' => $booking['plate_no'] ?? '',
+            'shipping_line' => $booking['shipping_line'] ?? '',
+            'size_type' => $booking['size_type'] ?? '',
+            'client' => $booking['client'] ?? '',
         ];
     }
 
@@ -121,6 +125,10 @@ class BookingSystemService
         return [
             'ref_no' => $candidates[0]['ref_no'],
             'booking_time' => $candidates[0]['booking_time'],
+            'plate_no' => $candidates[0]['plate_no'] ?? '',
+            'shipping_line' => $candidates[0]['shipping_line'] ?? '',
+            'size_type' => $candidates[0]['size_type'] ?? '',
+            'client' => $candidates[0]['client'] ?? '',
         ];
     }
 
@@ -300,8 +308,14 @@ class BookingSystemService
                     'booking_date' => trim((string) ($values[2] ?? '')),
                     'time_slot' => trim((string) ($values[3] ?? '')),
                     'container_no' => trim((string) ($values[4] ?? '')),
+                    'size_type' => trim((string) ($values[5] ?? '')),
+                    'client' => trim((string) ($values[6] ?? '')),
+                    'shipping_line' => trim((string) ($values[7] ?? '')),
                     'plate_no' => trim((string) ($values[8] ?? '')),
-                    'status' => strtoupper(trim((string) ($values[12] ?? ''))),
+                    // Keep the established CSV status position first; some
+                    // Booking System responses include an extra trailing
+                    // column, so retain the adjacent fallback as well.
+                    'status' => strtoupper(trim((string) ($values[12] ?? $values[13] ?? ''))),
                 ];
                 $key = implode('|', [$row['ref_no'], $row['container_no'], $row['plate_no'], $row['booking_date'], $row['time_slot']]);
                 if (!isset($seen[$key])) {
@@ -345,6 +359,10 @@ class BookingSystemService
                 'booking_date' => $byHeader($headers, $values, ['booking date']),
                 'time_slot' => $byHeader($headers, $values, ['time slot']),
                 'container_no' => $containerNo,
+                'size_type' => $byHeader($headers, $values, ['size/type', 'size type']),
+                'client' => $byHeader($headers, $values, ['client']),
+                'shipping_line' => $byHeader($headers, $values, ['shipping line']),
+                'plate_no' => $byHeader($headers, $values, ['plate no.', 'plate no', 'plate number']),
                 'status' => strtoupper($byHeader($headers, $values, ['booking status', 'status'])),
             ];
         }
