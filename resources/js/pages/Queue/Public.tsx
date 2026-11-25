@@ -8,6 +8,7 @@ export default function QueuePublic() {
     const [checking, setChecking] = useState(true);
     const [authenticated, setAuthenticated] = useState(false);
     const [authenticatedPlate, setAuthenticatedPlate] = useState('');
+    const [fullAccess, setFullAccess] = useState(false);
     const [plateNo, setPlateNo] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -17,6 +18,7 @@ export default function QueuePublic() {
             .then((response) => {
                 setAuthenticated(response.data.authenticated === true);
                 setAuthenticatedPlate(String(response.data.plate_no ?? ''));
+                setFullAccess(response.data.full_access === true);
             })
             .catch(() => setAuthenticated(false))
             .finally(() => setChecking(false));
@@ -31,7 +33,8 @@ export default function QueuePublic() {
             const response = await axios.post('/api/queue/login', { plate_no: plateNo.trim().toUpperCase().replace(/[\s-]+/g, '') });
             if (response.data.authenticated === true) {
                 setAuthenticated(true);
-                setAuthenticatedPlate(String(response.data.plate_no ?? plateNo).replace(/[\s-]+/g, '').toUpperCase());
+                setAuthenticatedPlate(String(response.data.plate_no ?? '').replace(/[\s-]+/g, '').toUpperCase());
+                setFullAccess(response.data.full_access === true);
                 setPlateNo('');
             } else {
                 setError('Unable to unlock Queue.');
@@ -44,7 +47,7 @@ export default function QueuePublic() {
     };
 
     if (checking) return <main className="flex min-h-screen items-center justify-center bg-[#0d2238]" />;
-    if (authenticated) return <QueueDisplay visiblePlateNo={authenticatedPlate} onSessionExpired={() => setAuthenticated(false)} />;
+    if (authenticated) return <QueueDisplay visiblePlateNo={authenticatedPlate} showAll={fullAccess} showRulesModal onSessionExpired={() => setAuthenticated(false)} />;
 
     return <>
         <Head title="Queue" />
@@ -64,8 +67,8 @@ export default function QueuePublic() {
                     <h1 className="mt-2 text-2xl font-bold" style={{ color: '#111827' }}>TBS QUEUE</h1>
                     <p className="mt-2 text-sm" style={{ color: '#68737B' }}>Enter your plate number to view the queue.</p>
                 </div>
-                <label htmlFor="queue-plate-login" className="block text-sm font-semibold" style={{ color: '#111827' }}>PLATE NUMBER</label>
-                <input id="queue-plate-login" type="text" value={plateNo} autoFocus autoComplete="off" onChange={(event) => setPlateNo(event.target.value.toUpperCase())} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} className="mt-2 h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-4 text-base font-bold uppercase tracking-[0.18em] outline-none focus:border-[#3E9AF4] focus:ring-2 focus:ring-[#3E9AF4]/20" style={{ color: '#111827', backgroundColor: '#FFFFFF', colorScheme: 'light' }} />
+                <label htmlFor="queue-plate-login" className="block text-sm font-semibold" style={{ color: '#111827' }}>PLATE NUMBER OR QUEUE PASSWORD</label>
+                <input id="queue-plate-login" type="text" value={plateNo} autoFocus autoComplete="off" onChange={(event) => setPlateNo(event.target.value)} onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onPaste={(event) => event.preventDefault()} className="mt-2 h-12 w-full rounded-xl border border-[#cbd5e1] bg-white px-4 text-base font-bold tracking-[0.08em] outline-none focus:border-[#3E9AF4] focus:ring-2 focus:ring-[#3E9AF4]/20" style={{ color: '#111827', backgroundColor: '#FFFFFF', colorScheme: 'light' }} />
                 {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
                 <button type="submit" disabled={!plateNo.trim() || submitting} className="mt-6 flex h-12 w-full items-center justify-center rounded-xl bg-[#3E9AF4] text-sm font-semibold text-white shadow-lg transition hover:bg-[#2785dc] disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Unlocking...' : 'Unlock Queue'}</button>
             </form>
