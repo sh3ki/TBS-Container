@@ -664,7 +664,9 @@ class GateinoutController extends Controller
                 ['cid' => $clientId]
             ) : null;
             
-            if (!$client && (!$notInBooking || $exceptionMode === 'client')) {
+            $clientRequiredLocally = (!$notInBooking && !$bookingDependent)
+                || ($notInBooking && $exceptionMode === 'client');
+            if (!$client && $clientRequiredLocally) {
                 return response()->json([
                     'message' => ['danger', '<strong>Error!</strong> There\'s an error with your connection!']
                 ]);
