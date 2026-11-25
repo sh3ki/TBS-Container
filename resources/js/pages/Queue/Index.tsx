@@ -105,10 +105,14 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
     }, [activeGroup]);
     useEffect(() => {
         if (!plannerMode) return;
-        axios.get('/api/queue/guard-accounts').then((response) => {
+        if (!manualConfirmation) return;
+        const loadGuards = () => axios.get('/api/queue/guard-accounts').then((response) => {
             if (response.data.success) setGuardAccounts(response.data.guards ?? []);
         }).catch(() => setGuardAccounts([]));
-    }, [plannerMode]);
+        loadGuards();
+        const timer = window.setInterval(loadGuards, 1000);
+        return () => window.clearInterval(timer);
+    }, [plannerMode, manualConfirmation]);
     const moveQueueEntry = (group: 'waiting_in' | 'waiting_out' | 'serving_in' | 'serving_out', from: number, to: number) => {
         setQueue((current) => {
             const servingDirection = group === 'serving_in' ? 'IN' : group === 'serving_out' ? 'OUT' : null;
