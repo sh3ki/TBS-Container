@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\EdiController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\GuardScanController;
 use App\Http\Controllers\Api\QueueInternalController;
+use App\Http\Controllers\Api\QueueDisplayController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,7 +39,11 @@ use App\Http\Controllers\Api\QueueInternalController;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay']);
+Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay'])
+    ->middleware(\App\Http\Middleware\QueueDisplayAccess::class);
+Route::get('/queue/session', [QueueDisplayController::class, 'session']);
+Route::post('/queue/login', [QueueDisplayController::class, 'login']);
+Route::post('/queue/logout', [QueueDisplayController::class, 'logout']);
 Route::get('/queue-internal/session', [QueueInternalController::class, 'session']);
 Route::post('/queue-internal/login', [QueueInternalController::class, 'login']);
 Route::post('/queue-internal/logout', [QueueInternalController::class, 'logout']);
