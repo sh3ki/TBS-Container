@@ -165,6 +165,9 @@ export default function Index() {
   const clientExceptionOptions = clients.filter((client) =>
     clientExceptionIds.map(Number).includes(Number(client.c_id))
   );
+  const preInClientOptions = clients.filter((client) =>
+    !clientExceptionIds.map(Number).includes(Number(client.c_id))
+  );
 
   const [editPreInForm, setEditPreInForm] = useState<EditPreInFormData>({
     id: '',
@@ -1378,7 +1381,7 @@ export default function Index() {
                     <SelectValue placeholder="Select client" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clients.map((client) => (
+                    {preInClientOptions.map((client) => (
                       <SelectItem key={client.c_id} value={client.hashed_c_id}>
                         {client.client_code} - {client.client_name}
                       </SelectItem>
