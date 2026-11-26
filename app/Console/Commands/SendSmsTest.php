@@ -24,7 +24,7 @@ class SendSmsTest extends Command
             return self::FAILURE;
         }
 
-        $this->info('SMSGate accepted the message. Check the recipient phone.');
+        $this->info('SMS provider accepted the message. Check the recipient phone.');
         return self::SUCCESS;
     }
 }
