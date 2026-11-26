@@ -47,7 +47,7 @@ export default function QueuePublic() {
     };
 
     if (checking) return <main className="flex min-h-screen items-center justify-center bg-[#0d2238]" />;
-    if (authenticated) return <QueueDisplay visiblePlateNo={authenticatedPlate} showAll={fullAccess} showRulesModal onSessionExpired={() => setAuthenticated(false)} />;
+    if (authenticated) return <QueueDisplay visiblePlateNo={authenticatedPlate} showAll={fullAccess} showRulesModal allowRulesDismiss={fullAccess} onSessionExpired={() => setAuthenticated(false)} />;
 
     return <>
         <Head title="Queue" />
