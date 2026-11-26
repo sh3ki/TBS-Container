@@ -219,6 +219,12 @@ Route::middleware(['auth'])->group(function () {
                 'smtp_password' => $decryptSetting($settings?->smtp_password),
                 'smtp_from_email' => (string) ($settings?->smtp_from_email ?? ''),
                 'smtp_from_name' => (string) ($settings?->smtp_from_name ?? ''),
+                'sms_driver' => (string) ($settings?->sms_driver ?: env('SMS_DRIVER', 'philsms')),
+                'philsms_api_url' => (string) ($settings?->philsms_api_url ?: env('PHILSMS_API_URL', 'https://app.philsms.com/api/v3/sms/send')),
+                'philsms_api_token' => '',
+                'philsms_api_token_configured' => filled($settings?->philsms_api_token),
+                'philsms_sender_id' => (string) ($settings?->philsms_sender_id ?: env('PHILSMS_SENDER_ID', 'TBSYARD')),
+                'philsms_timeout' => (int) ($settings?->philsms_timeout ?: env('PHILSMS_TIMEOUT', 20)),
             ],
             'clients' => $clients,
         ]);
@@ -226,7 +232,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::put('/app-settings', function (Request $request, AuditService $auditService) {
         $rules = [
-            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials,dmr,utilization,smtp'],
+            'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials,dmr,utilization,smtp,sms'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
@@ -270,6 +276,11 @@ Route::middleware(['auth'])->group(function () {
             'smtp_password' => ['nullable', 'string', 'max:5000'],
             'smtp_from_email' => ['required_if:section,smtp', 'email', 'max:255'],
             'smtp_from_name' => ['nullable', 'string', 'max:255'],
+            'sms_driver' => ['required_if:section,sms', 'in:philsms,smsgate'],
+            'philsms_api_url' => ['required_if:section,sms', 'url', 'max:2048'],
+            'philsms_api_token' => ['nullable', 'string', 'max:5000'],
+            'philsms_sender_id' => ['required_if:section,sms', 'string', 'max:11'],
+            'philsms_timeout' => ['required_if:section,sms', 'integer', 'min:1', 'max:300'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
@@ -326,6 +337,22 @@ Route::middleware(['auth'])->group(function () {
             DB::table('app_settings')->where('setting_id', 1)->update($updates);
 
             return response()->json(['message' => 'SMTP settings updated successfully.']);
+        }
+
+        if ($validated['section'] === 'sms') {
+            $updates = [
+                'sms_driver' => $validated['sms_driver'],
+                'philsms_api_url' => $validated['philsms_api_url'],
+                'philsms_sender_id' => $validated['philsms_sender_id'],
+                'philsms_timeout' => (int) $validated['philsms_timeout'],
+                'updated_at' => now(),
+            ];
+            if (!empty($validated['philsms_api_token'])) {
+                $updates['philsms_api_token'] = encrypt($validated['philsms_api_token']);
+            }
+            DB::table('app_settings')->where('setting_id', 1)->update($updates);
+
+            return response()->json(['message' => 'SMS settings updated successfully.']);
         }
 
         if ($validated['section'] === 'booking_credentials') {
