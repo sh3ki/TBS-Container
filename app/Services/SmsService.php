@@ -41,7 +41,11 @@ class SmsService
                 ];
             }
 
-            // Prepare SMS gateway request
+            if (config('services.sms.driver') === 'smsgate') {
+                return $this->sendViaSmsGate($formattedMobile, $message);
+            }
+
+            // Prepare legacy SMS gateway request
             $response = Http::timeout(10)
                 ->withBasicAuth($this->username, $this->password)
                 ->post($this->gatewayUrl, [
@@ -102,12 +106,6 @@ class SmsService
             return $mobile;
         }
 
-        // Check if it starts with +639 (custom prefix) - 13 digits
-        if (strlen($mobile) === 13 && substr($mobile, 0, 4) === '+639') {
-            // Convert to 09 format
-            return '09' . substr($mobile, 4);
-        }
-
         // Check if it starts with 639 (without +) - 12 digits
         if (strlen($mobile) === 12 && substr($mobile, 0, 3) === '639') {
             // Convert to 09 format
@@ -116,6 +114,48 @@ class SmsService
 
         // Invalid format
         return null;
+    }
+
+    /** Send through SMS Gateway for Android (SMSGate). */
+    protected function sendViaSmsGate(string $mobile, string $message): array
+    {
+        $settings = config('services.sms.smsgate');
+        $payload = [
+            'textMessage' => ['text' => $message],
+            'phoneNumbers' => [$this->toInternationalNumber($mobile)],
+            'simNumber' => $settings['sim_number'],
+        ];
+
+        if (!empty($settings['device_id'])) {
+            $payload['deviceId'] = $settings['device_id'];
+        }
+
+        $response = Http::timeout($settings['timeout'])
+            ->withBasicAuth($settings['username'], $settings['password'])
+            ->acceptJson()
+            ->post($settings['url'], $payload);
+
+        if ($response->successful()) {
+            Log::info('SMS accepted by SMSGate', [
+                'mobile' => $this->toInternationalNumber($mobile),
+                'response' => $response->json(),
+            ]);
+
+            return ['success' => true, 'response' => $response->json()];
+        }
+
+        Log::error('SMSGate rejected SMS', [
+            'mobile' => $this->toInternationalNumber($mobile),
+            'status' => $response->status(),
+            'error' => $response->body(),
+        ]);
+
+        return ['success' => false, 'error' => 'SMSGate returned error: ' . $response->status()];
+    }
+
+    protected function toInternationalNumber(string $mobile): string
+    {
+        return '+63' . substr($mobile, 1);
     }
 
     /**
