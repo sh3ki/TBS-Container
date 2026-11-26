@@ -26,7 +26,7 @@ class QueueDisplayAccess
         if ($token === '') return false;
 
         $session = DB::table($table)->where('token_hash', hash('sha256', $token))->first();
-        if (!$session || Carbon::parse($session->expires_at)->isPast()) {
+        if (!$session || ($session->expires_at !== null && Carbon::parse($session->expires_at)->isPast())) {
             if ($session) DB::table($table)->where('id', $session->id)->delete();
             return false;
         }
