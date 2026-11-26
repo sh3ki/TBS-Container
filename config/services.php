@@ -87,6 +87,12 @@ return [
             'sim_number' => env('SMSGATE_SIM_NUMBER'),
             'timeout' => (int) env('SMSGATE_TIMEOUT', 20),
         ],
+        'philsms' => [
+            'url' => env('PHILSMS_API_URL', 'https://app.philsms.com/api/v3/sms/send'),
+            'api_token' => env('PHILSMS_API_TOKEN'),
+            'sender_id' => env('PHILSMS_SENDER_ID', 'TBSYARD'),
+            'timeout' => (int) env('PHILSMS_TIMEOUT', 20),
+        ],
     ],
 
     /*
