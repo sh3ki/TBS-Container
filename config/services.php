@@ -84,7 +84,7 @@ return [
             'username' => env('SMSGATE_USERNAME'),
             'password' => env('SMSGATE_PASSWORD'),
             'device_id' => env('SMSGATE_DEVICE_ID'),
-            'sim_number' => (int) env('SMSGATE_SIM_NUMBER', 1),
+            'sim_number' => env('SMSGATE_SIM_NUMBER'),
             'timeout' => (int) env('SMSGATE_TIMEOUT', 20),
         ],
     ],
