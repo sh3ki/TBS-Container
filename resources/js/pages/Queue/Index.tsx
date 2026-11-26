@@ -1,15 +1,16 @@
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { Flag, List, Megaphone, Pause, Radio, RotateCw, ScanLine, Settings, Truck } from 'lucide-react';
+import { Flag, List, Megaphone, Pause, Radio, RotateCw, ScanLine, Settings, Truck, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { colors } from '@/lib/colors';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 import { ModernConfirmDialog, ToastContainer, useModernToast } from '@/components/modern';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; manual_reason?: string | null; manual_guard_user_id?: number | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; }
+interface QueueEntry { id: number; plate_no: string; direction?: 'IN' | 'OUT'; waiting_number?: number; serving_number?: number; booking_time?: string | null; manual_reason?: string | null; manual_guard_user_id?: number | null; serving_at?: string | null; status?: string; calling_at?: string | null; floating_at?: string | null; size_type_size?: string | number | null; size_type_type?: string | null; }
+interface QueueEntryDetails { client?: string | null; size_type?: string | null; iso_code?: string | null; hauler?: string | null; }
 interface GuardAccount { user_id: number; username: string; full_name?: string | null; }
 interface QueueData { waiting_in: QueueEntry[]; waiting_out: QueueEntry[]; serving: QueueEntry[]; }
 interface QueuePageProps { servingCapacity?: number; }
@@ -23,6 +24,13 @@ function formatBookingTime(value?: string | null): string {
     return Number.isNaN(parsed.getTime())
         ? '--:--'
         : parsed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function queueSizeType(entry: QueueEntry): string {
+    const size = String(entry.size_type_size ?? '').trim();
+    const type = String(entry.size_type_type ?? '').trim();
+    if (!size || size === '0' || !type || type === '0') return '-';
+    return `${size}${type}`;
 }
 
 function bookingTimeTextColor(value: string | null | undefined, now: Date): string | undefined {
@@ -71,11 +79,24 @@ function autoScrollWhileDragging(clientY: number) {
     if (distance !== 0) window.scrollBy({ top: distance, behavior: 'auto' });
 }
 
-function QueueColumn({ title, direction, group, entries, serving = false, servingCapacity = 0, plannerMode = false, manualPending = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, onManual, servingId, onStatus, statusId, now }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; servingCapacity?: number; plannerMode?: boolean; manualPending?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[], planner?: boolean) => void; onServe?: (entry: QueueEntry) => void; onManual?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date }) {
+function QueueColumn({ title, direction, group, entries, serving = false, servingCapacity = 0, plannerMode = false, manualPending = false, canEdit, activeGroup, setActiveGroup, onMove, onCommit, onServe, onManual, servingId, onStatus, statusId, now, onEntryClick }: { title: string; direction?: 'IN' | 'OUT'; group: 'waiting_in' | 'waiting_out' | 'serving'; entries: QueueEntry[]; serving?: boolean; servingCapacity?: number; plannerMode?: boolean; manualPending?: boolean; canEdit: boolean; activeGroup: string | null; setActiveGroup: (group: string | null) => void; onMove: (from: number, to: number, direction?: 'IN' | 'OUT') => void; onCommit: (direction?: 'IN' | 'OUT', ids?: number[], planner?: boolean) => void; onServe?: (entry: QueueEntry) => void; onManual?: (entry: QueueEntry) => void; servingId?: number | null; onStatus?: (entry: QueueEntry, status: 'calling' | 'floating' | 'forfeited') => void; statusId?: number | null; now: Date; onEntryClick?: (entry: QueueEntry) => void }) {
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<number | null>(null);
     const longestPlateLength = serving ? Math.max(8, ...entries.map((entry) => entry.plate_no.length)) : 0;
     const servingCardWidth = `${longestPlateLength * 1.25 + 9}rem`;
+    const handleEntryPanelClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (!onEntryClick || dragging !== null || activeGroup !== null) return;
+        const article = (event.target as HTMLElement).closest<HTMLElement>('article[data-queue-group]');
+        if (!article) return;
+        const articleGroup = article.dataset.queueGroup;
+        const articleIndex = Number(article.dataset.queueIndex);
+        const source = articleGroup === 'serving_in'
+            ? entries.filter((entry) => entry.direction === 'IN')
+            : articleGroup === 'serving_out'
+                ? entries.filter((entry) => entry.direction === 'OUT')
+                : entries;
+        if (Number.isInteger(articleIndex) && source[articleIndex]) onEntryClick(source[articleIndex]);
+    };
     const renderEntries = (list: QueueEntry[], listGroup: string, listDirection?: 'IN' | 'OUT') => list.length === 0 ? <div className="flex min-h-[220px] flex-col items-center justify-center text-center text-[#68737b]"><List className="mb-3 h-8 w-8 text-[#3E9AF4]" /><p className="font-semibold">Queue is empty</p></div> : list.map((entry, index) => { const activeStatus = entry.status === 'calling' || entry.status === 'floating'; const activeColor = activeStatus ? activeQueueRuntimeColor(entry, now) : undefined; const pulseClass = entry.status === 'calling' ? 'queue-calling-pulse' : entry.status === 'floating' ? 'queue-floating-pulse' : ''; const isFloating = entry.status === 'floating'; const firstWaitingIndex = list.findIndex((item) => item.status === 'waiting'); const canDragEntry = canEdit && (!plannerMode || (!serving && entry.status === 'calling')); const canDropEntry = canDragEntry && (!plannerMode || (!serving && list[index]?.status === 'calling' && dragging !== null && list[dragging]?.status === 'calling')); const finishTouchDrag = () => { if (dragging !== null && activeGroup === listGroup) onCommit(listDirection, list.filter((item) => !plannerMode || item.status === 'calling').map((item) => item.id), plannerMode); setDragging(null); setDropTarget(null); setActiveGroup(null); }; return <article key={entry.id} data-queue-group={listGroup} data-queue-index={index} draggable={canDragEntry} onTouchStart={(event) => { if (!canDragEntry || (event.target as HTMLElement).closest('button')) return; setDragging(index); setActiveGroup(listGroup); }} onTouchMove={(event) => { if (dragging === null || activeGroup !== listGroup) return; event.preventDefault(); const touch = event.touches[0]; autoScrollWhileDragging(touch.clientY); const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-queue-group]'); if (target?.dataset.queueGroup !== listGroup) return; const targetIndex = Number(target.dataset.queueIndex); if (Number.isInteger(targetIndex) && targetIndex !== dragging && canDropEntry) { onMove(dragging, targetIndex, listDirection); setDragging(targetIndex); setDropTarget(targetIndex); } }} onTouchEnd={(event) => { event.preventDefault(); finishTouchDrag(); }} onDragStart={(event) => { if (!canDragEntry) return; setDragging(index); setActiveGroup(listGroup); event.dataTransfer.setData('queue-group', listGroup); event.dataTransfer.effectAllowed = 'move'; }} onDragOver={(event) => { if (activeGroup === listGroup) { event.preventDefault(); autoScrollWhileDragging(event.clientY); if (canDropEntry) { event.dataTransfer.dropEffect = 'move'; setDropTarget(index); if (dragging !== null && dragging !== index) { onMove(dragging, index, listDirection); setDragging(index); } } } }} onDragLeave={() => setDropTarget(null)} onDrop={(event) => { event.preventDefault(); if (canDropEntry && activeGroup === listGroup) onCommit(listDirection, list.filter((item) => !plannerMode || item.status === 'calling').map((item) => item.id), plannerMode); setDragging(null); setDropTarget(null); setActiveGroup(null); }} onDragEnd={() => { setDragging(null); setDropTarget(null); setActiveGroup(null); }} style={serving ? servingCardColors(entry.serving_at, now) : isFloating ? { backgroundColor: '#FFF7ED', borderColor: '#FDBA74', color: '#9A3412' } : activeStatus ? activeQueueCardColors() : undefined} className={`relative flex items-center gap-3 rounded-lg border px-3 py-3 transition-all duration-200 ease-out ${pulseClass} ${dragging === index && activeGroup === listGroup ? 'scale-[1.02] cursor-grabbing opacity-50 shadow-lg' : canDragEntry ? 'cursor-grab touch-none' : ''} ${dropTarget === index && activeGroup === listGroup ? 'border-t-4 border-t-blue-500' : ''} ${serving ? '' : isFloating ? 'border-orange-300 bg-orange-50' : activeStatus ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'}`}>
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-black ${serving ? '' : isFloating ? 'bg-orange-500 text-white' : activeStatus ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{serving ? <Truck className="h-5 w-5" /> : entry.status === 'calling' ? <Megaphone className="h-5 w-5" /> : entry.status === 'floating' ? <RotateCw className="h-5 w-5" /> : String(entry.waiting_number ?? index + 1).padStart(2, '0')}</div>
                 <div className="min-w-0 flex-1"><p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-xl font-extrabold tracking-wide`} style={{ color: serving ? servingPlateTextColor() : '#202a35' }}>{entry.plate_no}</p><p className={`text-xs font-bold ${serving ? '' : activeStatus ? 'text-blue-700' : 'text-[#68737b]'}`} style={serving ? { color: servingAccentColors(entry.serving_at, now).color } : activeStatus ? { color: activeColor } : undefined}>{serving ? servingRuntime(entry.serving_at, now) : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}</p></div>
@@ -87,9 +108,14 @@ function QueueColumn({ title, direction, group, entries, serving = false, servin
                     {plannerMode ? <button type="button" disabled={manualPending || Boolean(entry.manual_reason)} title={manualPending || entry.manual_reason ? 'Manual capture already requested.' : 'Request manual capture'} onClick={(event) => { event.stopPropagation(); onManual?.(entry); }} className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"><ScanLine className="h-3.5 w-3.5 text-white" />Manual</button> : <button type="button" disabled={servingId === entry.id} onClick={(event) => { event.stopPropagation(); onServe?.(entry); }} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 disabled:opacity-60"><Truck className="h-3.5 w-3.5 text-white" />{servingId === entry.id ? 'Serving...' : 'Serve'}</button>}
                     </div>
                 </div>}
-                <div className="flex shrink-0 flex-col items-center gap-1">
-                    <span className={`rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
-                    {!serving && <span className="rounded-md bg-transparent px-2 py-1 text-xs font-bold tabular-nums text-slate-600" style={{ color: bookingTimeTextColor(entry.booking_time, now) }} title="Booking time">{formatBookingTime(entry.booking_time)}</span>}
+                <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex flex-col items-center gap-0.5">
+                        <span className={`rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now) : undefined}>{entry.direction ?? direction}</span>
+                        <div className="flex items-center justify-center gap-1">
+                            <span className="text-xs font-black tracking-wide" style={{ color: serving ? servingAccentColors(entry.serving_at, now).color : isFloating ? '#C2410C' : activeStatus ? '#1D4ED8' : '#536170' }}>{queueSizeType(entry)}</span>
+                            {!serving && <span className="rounded-md bg-transparent px-1 py-1 text-xs font-bold tabular-nums text-slate-600" style={{ color: bookingTimeTextColor(entry.booking_time, now) }} title="Booking time">{formatBookingTime(entry.booking_time)}</span>}
+                        </div>
+                    </div>
                 </div>
             </article>; });
     return <section className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-xl border border-[#d8dde3] bg-white shadow-sm">
@@ -100,7 +126,7 @@ function QueueColumn({ title, direction, group, entries, serving = false, servin
             </div>
             <span className="text-2xl font-black tabular-nums">{serving ? `${String(entries.length).padStart(2, '0')}/${String(servingCapacity).padStart(2, '0')}` : String(entries.length).padStart(2, '0')}</span>
         </header>
-        <div className={serving ? 'queue-serving-content grid content-start gap-3 p-3' : 'space-y-3 p-3'} style={serving ? { '--serving-card-width': servingCardWidth } as CSSProperties : undefined}>
+        <div onClick={handleEntryPanelClick} className={serving ? 'queue-serving-content grid content-start gap-3 p-3' : 'space-y-3 p-3'} style={serving ? { '--serving-card-width': servingCardWidth } as CSSProperties : undefined}>
             {serving ? <>
                 <div className="queue-serving-column"><div className="space-y-3">{renderEntries(entries.filter((entry) => entry.direction === 'IN'), 'serving_in', 'IN')}</div></div>
                 <div className="queue-serving-column"><div className="space-y-3">{renderEntries(entries.filter((entry) => entry.direction === 'OUT'), 'serving_out', 'OUT')}</div></div>
@@ -131,6 +157,9 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
     const manualPending = queue.waiting_in.some((entry) => Boolean(entry.manual_reason)) || queue.waiting_out.some((entry) => Boolean(entry.manual_reason));
     const [statusConfirmation, setStatusConfirmation] = useState<{ entry: QueueEntry; status: 'calling' | 'floating' | 'forfeited' } | null>(null);
     const [statusId, setStatusId] = useState<number | null>(null);
+    const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
+    const [entryDetails, setEntryDetails] = useState<QueueEntryDetails | null>(null);
+    const [entryDetailsLoading, setEntryDetailsLoading] = useState(false);
     const { toasts, removeToast, success, error } = useModernToast();
     useEffect(() => {
         let active = true;
@@ -265,6 +294,19 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
             setStatusId(null);
         }
     };
+    const openEntryDetails = async (entry: QueueEntry) => {
+        setSelectedEntry(entry);
+        setEntryDetails(null);
+        setEntryDetailsLoading(true);
+        try {
+            const response = await axios.get(`/api/queue-internal/entry/${entry.id}`);
+            if (response.data.success) setEntryDetails(response.data.data as QueueEntryDetails);
+        } catch {
+            setEntryDetails(null);
+        } finally {
+            setEntryDetailsLoading(false);
+        }
+    };
     return (
         <AuthenticatedLayout>
             <Head title={plannerMode ? 'Queue Planner' : 'Queue Admin'} />
@@ -284,9 +326,9 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
                     {canEditQueue && <button type="button" onClick={openCapacitySettings} className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm" style={{ backgroundColor: colors.brand.primary }}><Settings className="h-5 w-5" /> Queue Settings</button>}
                 </div>
                 <div className="queue-list-grid grid min-h-0 gap-4">
-                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_in', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); setManualGuardUserId(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
-                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_out', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); setManualGuardUserId(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} />
-                    <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving servingCapacity={servingCapacity} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} />
+                    <QueueColumn title="WAITING" direction="IN" group="waiting_in" entries={queue.waiting_in} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_in', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_in', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); setManualGuardUserId(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} onEntryClick={openEntryDetails} />
+                    <QueueColumn title="WAITING" direction="OUT" group="waiting_out" entries={queue.waiting_out} plannerMode={plannerMode} manualPending={manualPending} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to) => moveQueueEntry('waiting_out', from, to)} onCommit={(_, ids, planner) => commitQueueOrder('waiting_out', ids, planner)} onServe={setServeConfirmation} onManual={(entry) => { setManualConfirmation(entry); setManualReason(''); setManualGuardUserId(''); }} servingId={servingId} onStatus={(entry, status) => setStatusConfirmation({ entry, status })} statusId={statusId} now={now} onEntryClick={openEntryDetails} />
+                    <QueueColumn title="SERVING" group="serving" entries={queue.serving} serving servingCapacity={servingCapacity} plannerMode={plannerMode} canEdit={canEditQueue} activeGroup={activeGroup} setActiveGroup={setActiveGroup} onMove={(from, to, direction) => moveQueueEntry(direction === 'IN' ? 'serving_in' : 'serving_out', from, to)} onCommit={(direction) => commitQueueOrder(direction === 'IN' ? 'serving_in' : 'serving_out')} now={now} onEntryClick={openEntryDetails} />
                 </div>
             </div>
             <ModernConfirmDialog
@@ -337,6 +379,20 @@ export default function QueueIndex({ plannerMode = false }: { plannerMode?: bool
                     <input id="serving-capacity" type="number" min="0" step="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-black outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
                     <p className="mt-2 text-xs text-gray-500">Set to 0 for unlimited serving capacity.</p>
                     <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setCapacityOpen(false)} className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700">Cancel</button><button type="button" disabled={savingCapacity} onClick={saveCapacity} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: colors.brand.primary }}>{savingCapacity ? 'Saving...' : 'Save Settings'}</button></div>
+                </div>
+            </div>}
+            {selectedEntry && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6" role="dialog" aria-modal="true" onClick={() => { setSelectedEntry(null); setEntryDetails(null); }}>
+                <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                    <div className="mb-5 flex items-start justify-between">
+                        <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Queue Entry</p><h2 className="mt-1 text-2xl font-black tracking-wide text-[#202a35]">{selectedEntry.plate_no}</h2></div>
+                        <button type="button" onClick={() => { setSelectedEntry(null); setEntryDetails(null); }} className="rounded-lg p-1 text-[#68737b] hover:bg-gray-100" aria-label="Close details"><X className="h-5 w-5" /></button>
+                    </div>
+                    {entryDetailsLoading ? <p className="text-sm text-[#68737b]">Loading pre-inventory details...</p> : entryDetails ? <div className="space-y-4">
+                        <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Client</p><p className="mt-1 text-base font-semibold text-[#202a35]">{entryDetails.client || '-'}</p></div>
+                        <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Size/Type</p><p className="mt-1 text-base font-semibold text-[#202a35]">{entryDetails.size_type && entryDetails.size_type !== '0' ? entryDetails.size_type : '-'}</p></div>
+                        <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">ISO Code</p><p className="mt-1 text-base font-semibold text-[#202a35]">{entryDetails.iso_code || '-'}</p></div>
+                        <div><p className="text-xs font-bold uppercase tracking-wider text-[#68737b]">Hauler</p><p className="mt-1 text-base font-semibold text-[#202a35]">{entryDetails.hauler || '-'}</p></div>
+                    </div> : <p className="text-sm text-red-600">Pre-inventory details are unavailable.</p>}
                 </div>
             </div>}
             <ToastContainer toasts={toasts} removeToast={removeToast} />
