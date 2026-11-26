@@ -123,8 +123,11 @@ class SmsService
         $payload = [
             'textMessage' => ['text' => $message],
             'phoneNumbers' => [$this->toInternationalNumber($mobile)],
-            'simNumber' => $settings['sim_number'],
         ];
+
+        if ($settings['sim_number'] !== null && $settings['sim_number'] !== '') {
+            $payload['simNumber'] = (int) $settings['sim_number'];
+        }
 
         if (!empty($settings['device_id'])) {
             $payload['deviceId'] = $settings['device_id'];
