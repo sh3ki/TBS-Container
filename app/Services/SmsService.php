@@ -45,6 +45,10 @@ class SmsService
                 return $this->sendViaSmsGate($formattedMobile, $message);
             }
 
+            if (config('services.sms.driver') === 'philsms') {
+                return $this->sendViaPhilSms($formattedMobile, $message);
+            }
+
             // Prepare legacy SMS gateway request
             $response = Http::timeout(10)
                 ->withBasicAuth($this->username, $this->password)
@@ -163,6 +167,45 @@ class SmsService
     protected function toInternationalNumber(string $mobile): string
     {
         return '+63' . substr($mobile, 1);
+    }
+
+    /** Send through the PhilSMS REST API. */
+    protected function sendViaPhilSms(string $mobile, string $message): array
+    {
+        $settings = config('services.sms.philsms');
+        $response = Http::timeout($settings['timeout'])
+            ->withToken($settings['api_token'])
+            ->acceptJson()
+            ->post($settings['url'], [
+                'recipient' => $this->toInternationalNumber($mobile),
+                'sender_id' => $settings['sender_id'],
+                'type' => 'plain',
+                'message' => $message,
+            ]);
+
+        $body = $response->json();
+        $accepted = $response->successful() && ($body['status'] ?? null) === 'success';
+
+        if ($accepted) {
+            Log::info('SMS accepted by PhilSMS', [
+                'mobile' => $this->toInternationalNumber($mobile),
+                'response' => $body,
+            ]);
+
+            return ['success' => true, 'response' => $body];
+        }
+
+        Log::error('PhilSMS rejected SMS', [
+            'mobile' => $this->toInternationalNumber($mobile),
+            'status' => $response->status(),
+            'error' => $response->body(),
+        ]);
+
+        return [
+            'success' => false,
+            'error' => 'PhilSMS returned error: ' . $response->status()
+                . ' (' . str($response->body())->limit(300) . ')',
+        ];
     }
 
     /**
