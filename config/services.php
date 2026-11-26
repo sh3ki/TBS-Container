@@ -66,6 +66,7 @@ return [
     */
 
     'sms' => [
+        'driver' => env('SMS_DRIVER', 'legacy'),
         'gateway_url' => env('SMS_GATEWAY_URL', 'http://172.16.1.91:80/sendsms'),
         'username' => env('SMS_GATEWAY_USER', 'admin'),
         'password' => env('SMS_GATEWAY_PASSWORD', 'passw0rd'),
@@ -78,6 +79,14 @@ return [
         'custom_length' => 13,
         'normal_prefix' => '09',
         'custom_prefix' => '+639',
+        'smsgate' => [
+            'url' => env('SMSGATE_API_URL', 'https://api.sms-gate.app/3rdparty/v1/messages'),
+            'username' => env('SMSGATE_USERNAME'),
+            'password' => env('SMSGATE_PASSWORD'),
+            'device_id' => env('SMSGATE_DEVICE_ID'),
+            'sim_number' => (int) env('SMSGATE_SIM_NUMBER', 1),
+            'timeout' => (int) env('SMSGATE_TIMEOUT', 20),
+        ],
     ],
 
     /*
