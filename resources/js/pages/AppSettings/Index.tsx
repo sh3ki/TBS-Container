@@ -58,6 +58,12 @@ interface AppSettingsProps {
         smtp_password: string;
         smtp_from_email: string;
         smtp_from_name: string;
+        sms_driver: string;
+        philsms_api_url: string;
+        philsms_api_token: string;
+        philsms_api_token_configured: boolean;
+        philsms_sender_id: string;
+        philsms_timeout: number;
     };
 }
 
@@ -116,7 +122,13 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [smtpFromEmail, setSmtpFromEmail] = useState(settings.smtp_from_email);
     const [smtpFromName, setSmtpFromName] = useState(settings.smtp_from_name);
     const [showSmtpPassword, setShowSmtpPassword] = useState(false);
-    const [saving, setSaving] = useState<'docs' | 'queue' | 'booking' | 'smtp' | 'dmr' | 'utilization' | null>(null);
+    const [smsDriver, setSmsDriver] = useState(settings.sms_driver || 'philsms');
+    const [philsmsApiUrl, setPhilsmsApiUrl] = useState(settings.philsms_api_url);
+    const [philsmsApiToken, setPhilsmsApiToken] = useState(settings.philsms_api_token);
+    const [philsmsSenderId, setPhilsmsSenderId] = useState(settings.philsms_sender_id);
+    const [philsmsTimeout, setPhilsmsTimeout] = useState(String(settings.philsms_timeout));
+    const [showPhilsmsApiToken, setShowPhilsmsApiToken] = useState(false);
+    const [saving, setSaving] = useState<'docs' | 'queue' | 'booking' | 'smtp' | 'sms' | 'dmr' | 'utilization' | null>(null);
     const { toasts, removeToast, success, error } = useModernToast();
 
     const saveDocsSettings = async () => {
@@ -299,6 +311,26 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         } catch (exception) {
             console.error('Failed to update SMTP settings:', exception);
             error('Please check the SMTP host, port, encryption, and from email fields.');
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    const saveSmsSettings = async () => {
+        setSaving('sms');
+        try {
+            const response = await axios.put('/app-settings', {
+                section: 'sms',
+                sms_driver: smsDriver,
+                philsms_api_url: philsmsApiUrl,
+                ...(philsmsApiToken ? { philsms_api_token: philsmsApiToken } : {}),
+                philsms_sender_id: philsmsSenderId.toUpperCase(),
+                philsms_timeout: Number(philsmsTimeout),
+            });
+            success(response.data.message || 'SMS settings updated successfully.');
+        } catch (exception) {
+            console.error('Failed to update SMS settings:', exception);
+            error('Please check the SMS provider, API URL, token, sender ID, and timeout.');
         } finally {
             setSaving(null);
         }
@@ -688,6 +720,47 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                             <ModernButton type="button" variant="primary" loading={saving === 'docs'} onClick={saveDocsSettings}>
                                 Save Settings
                             </ModernButton>
+                        </div>
+                    </div>
+                </ModernCard>
+
+                <ModernCard title="SMS Settings" subtitle="Configure the SMS provider used by TBS notifications" icon={<Settings className="h-5 w-5 text-white" />}>
+                    <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                        <div>
+                            <Label htmlFor="sms-driver" className="text-sm font-semibold text-gray-900">SMS PROVIDER</Label>
+                            <Select value={smsDriver} onValueChange={setSmsDriver}>
+                                <SelectTrigger id="sms-driver" className="mt-2 h-11"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="philsms">PhilSMS</SelectItem>
+                                    <SelectItem value="smsgate">SMSGate</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="philsms-timeout" className="text-sm font-semibold text-gray-900">TIMEOUT (SECONDS)</Label>
+                            <Input id="philsms-timeout" type="number" min="1" max="300" value={philsmsTimeout} onChange={(event) => setPhilsmsTimeout(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <Label htmlFor="philsms-api-url" className="text-sm font-semibold text-gray-900">PHILSMS API URL</Label>
+                            <Input id="philsms-api-url" type="url" value={philsmsApiUrl} onChange={(event) => setPhilsmsApiUrl(event.target.value)} className="mt-2 h-11" />
+                        </div>
+                        <div>
+                            <Label htmlFor="philsms-api-token" className="text-sm font-semibold text-gray-900">PHILSMS API TOKEN</Label>
+                            <div className="relative mt-2">
+                                <Input id="philsms-api-token" type={showPhilsmsApiToken ? 'text' : 'password'} autoComplete="new-password" value={philsmsApiToken} onChange={(event) => setPhilsmsApiToken(event.target.value)} placeholder={settings.philsms_api_token_configured ? 'Saved token is protected; enter a new token to replace it' : 'Enter PhilSMS API token'} className="h-11 pr-11" />
+                                <button type="button" onClick={() => setShowPhilsmsApiToken((visible) => !visible)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900" aria-label={showPhilsmsApiToken ? 'Hide API token' : 'Show API token'}>
+                                    {showPhilsmsApiToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Stored encrypted in the database.</p>
+                        </div>
+                        <div>
+                            <Label htmlFor="philsms-sender-id" className="text-sm font-semibold text-gray-900">SENDER ID</Label>
+                            <Input id="philsms-sender-id" type="text" maxLength={11} value={philsmsSenderId} onChange={(event) => setPhilsmsSenderId(event.target.value.toUpperCase())} className="mt-2 h-11 uppercase" />
+                            <p className="mt-1 text-xs text-gray-500">Use your approved PhilSMS sender ID, maximum 11 characters.</p>
+                        </div>
+                        <div className="flex items-center gap-3 md:col-span-2">
+                            <ModernButton type="button" variant="primary" loading={saving === 'sms'} onClick={saveSmsSettings}>Save Settings</ModernButton>
                         </div>
                     </div>
                 </ModernCard>
