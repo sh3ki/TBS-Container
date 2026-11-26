@@ -56,7 +56,7 @@ class QueueDisplayController extends Controller
             'token_hash' => hash('sha256', $rawToken),
             'plate_no' => $fullAccess ? null : strtoupper(preg_replace('/[\s-]+/', '', (string) $entry->plate_no) ?? ''),
             'full_access' => $fullAccess,
-            'expires_at' => $now->copy()->addMinutes(30),
+            'expires_at' => $fullAccess ? null : $now->copy()->addMinutes(30),
             'last_used_at' => $now,
             'ip_address' => $request->ip(),
             'user_agent' => (string) $request->userAgent(),
@@ -85,7 +85,7 @@ class QueueDisplayController extends Controller
         if ($token === '') return null;
 
         $session = DB::table('queue_display_sessions')->where('token_hash', hash('sha256', $token))->first();
-        if (!$session || Carbon::parse($session->expires_at)->isPast()) {
+        if (!$session || ($session->expires_at !== null && Carbon::parse($session->expires_at)->isPast())) {
             if ($session) DB::table('queue_display_sessions')->where('id', $session->id)->delete();
             return null;
         }
