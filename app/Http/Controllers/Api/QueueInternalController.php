@@ -90,7 +90,7 @@ class QueueInternalController extends Controller
 
     public function entryDetails(Request $request, int $entryId)
     {
-        if (!$this->findSession($request)) {
+        if (!$this->findSession($request) && !auth()->check()) {
             return response()->json(['message' => 'Queue Internal session expired.'], 401);
         }
 
