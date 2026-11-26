@@ -150,7 +150,11 @@ class SmsService
             'error' => $response->body(),
         ]);
 
-        return ['success' => false, 'error' => 'SMSGate returned error: ' . $response->status()];
+        return [
+            'success' => false,
+            'error' => 'SMSGate returned error: ' . $response->status()
+                . ' (' . str($response->body())->limit(300) . ')',
+        ];
     }
 
     protected function toInternationalNumber(string $mobile): string
