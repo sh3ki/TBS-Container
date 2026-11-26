@@ -116,7 +116,7 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
     );
 }
 
-export default function QueueDisplay({ greenServing = true, visiblePlateNo, showAll = false, showRulesModal = false, interactive = false, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; showAll?: boolean; showRulesModal?: boolean; interactive?: boolean; onSessionExpired?: () => void } = {}) {
+export default function QueueDisplay({ greenServing = true, visiblePlateNo, showAll = false, showRulesModal = false, allowRulesDismiss = false, interactive = false, onSessionExpired }: { greenServing?: boolean; visiblePlateNo?: string; showAll?: boolean; showRulesModal?: boolean; allowRulesDismiss?: boolean; interactive?: boolean; onSessionExpired?: () => void } = {}) {
     const now = useClock();
     const [queue, setQueue] = useState<QueueData>(emptyQueue);
     const [servingCapacity, setServingCapacity] = useState(0);
@@ -264,7 +264,7 @@ export default function QueueDisplay({ greenServing = true, visiblePlateNo, show
                                 <button type="button" role="tab" aria-selected={advisoryLanguage === 'en'} onClick={() => setAdvisoryLanguage('en')} className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${advisoryLanguage === 'en' ? 'bg-white text-[#3E9AF4] shadow-sm' : 'text-[#68737b]'}`}>English</button>
                                 <button type="button" role="tab" aria-selected={advisoryLanguage === 'tl'} onClick={() => setAdvisoryLanguage('tl')} className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${advisoryLanguage === 'tl' ? 'bg-white text-[#3E9AF4] shadow-sm' : 'text-[#68737b]'}`}>Tagalog</button>
                             </div>
-                            <button type="button" onClick={() => {}} className="rounded-lg bg-[#3E9AF4] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#2785dc]">I UNDERSTAND</button>
+                            <button type="button" onClick={allowRulesDismiss ? () => setRulesOpen(false) : undefined} className="rounded-lg bg-[#3E9AF4] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#2785dc]">I UNDERSTAND</button>
                         </div>
                     </div>
                 </div>
