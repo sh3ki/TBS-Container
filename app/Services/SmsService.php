@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class SmsService
 {
@@ -41,11 +42,13 @@ class SmsService
                 ];
             }
 
-            if (config('services.sms.driver') === 'smsgate') {
+            $smsSettings = $this->getSmsSettings();
+
+            if ($smsSettings['driver'] === 'smsgate') {
                 return $this->sendViaSmsGate($formattedMobile, $message);
             }
 
-            if (config('services.sms.driver') === 'philsms') {
+            if ($smsSettings['driver'] === 'philsms') {
                 return $this->sendViaPhilSms($formattedMobile, $message);
             }
 
@@ -172,7 +175,7 @@ class SmsService
     /** Send through the PhilSMS REST API. */
     protected function sendViaPhilSms(string $mobile, string $message): array
     {
-        $settings = config('services.sms.philsms');
+        $settings = $this->getSmsSettings()['philsms'];
         $response = Http::timeout($settings['timeout'])
             ->withToken($settings['api_token'])
             ->acceptJson()
@@ -205,6 +208,38 @@ class SmsService
             'success' => false,
             'error' => 'PhilSMS returned error: ' . $response->status()
                 . ' (' . str($response->body())->limit(300) . ')',
+        ];
+    }
+
+    /**
+     * Read SMS settings from the database, with environment configuration as
+     * a fallback until the settings migration has been applied.
+     */
+    protected function getSmsSettings(): array
+    {
+        $stored = DB::table('app_settings')->where('setting_id', 1)->first();
+        $decrypt = static function (?string $value): ?string {
+            if (!$value) {
+                return null;
+            }
+
+            try {
+                return decrypt($value);
+            } catch (\Throwable) {
+                return $value;
+            }
+        };
+
+        $philsms = config('services.sms.philsms');
+
+        return [
+            'driver' => $stored?->sms_driver ?: config('services.sms.driver', 'legacy'),
+            'philsms' => [
+                'url' => $stored?->philsms_api_url ?: $philsms['url'],
+                'api_token' => $decrypt($stored?->philsms_api_token) ?: $philsms['api_token'],
+                'sender_id' => $stored?->philsms_sender_id ?: $philsms['sender_id'],
+                'timeout' => (int) ($stored?->philsms_timeout ?: $philsms['timeout']),
+            ],
         ];
     }
 
