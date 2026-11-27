@@ -38,6 +38,19 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
 
 const currentManufacturedYear = () => new Date().getFullYear();
 
+const formatPhilippinePhone = (value: string): string => {
+    let digits = value.replace(/\D/g, '');
+    if (digits.startsWith('63')) digits = digits.slice(2);
+    if (digits.startsWith('0')) digits = digits.slice(1);
+    if (digits && digits[0] !== '9') return '';
+    if (!digits) return '';
+    const national = digits.slice(0, 10);
+    const formatted = national.length <= 3 ? national : national.length <= 6
+        ? `${national.slice(0, 3)}-${national.slice(3)}`
+        : `${national.slice(0, 3)}-${national.slice(3, 6)}-${national.slice(6)}`;
+    return `+63  ${formatted}`;
+};
+
 const formatManufacturedInput = (value: string, previousValue: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 6);
     if (!digits) return '';
@@ -66,6 +79,7 @@ interface ProcessGateInModalProps {
         client_id: number;
         client_name: string;
         plate_no?: string;
+        phone_number?: string | null;
         hauler?: string;
         date_added?: string | null;
         date_completed?: string | null;
@@ -140,7 +154,7 @@ export default function ProcessGateInModal({
                 const cleanHauler = record.hauler && record.hauler.includes('-') ? '' : (record.hauler || '');
 
                 // Pre-fill plate_no and hauler, then fetch details
-                setFormData(prev => ({ ...initialFormData, plate_no: cleanPlateNo, hauler: cleanHauler, load: defaultLoadId }));
+                setFormData(prev => ({ ...initialFormData, plate_no: cleanPlateNo, hauler: cleanHauler, contact_no: formatPhilippinePhone(record.phone_number || ''), load: defaultLoadId }));
                 fetchContainerDetails(record.container_no);
             }
         } else {
@@ -163,6 +177,7 @@ export default function ProcessGateInModal({
                     date_manufactured: data.date_mnfg ? formatDateForDisplay(data.date_mnfg) : '',
                     class: data.cnt_class || '',
                     status: data.cnt_status ? data.cnt_status.toString() : '',
+                    contact_no: formatPhilippinePhone(data.phone_number || ''),
                     remarks: data.remarks || '',
                 }));
                 
@@ -265,6 +280,10 @@ export default function ProcessGateInModal({
                 return;
             }
         }
+        if (!/^\+639\d{9}$/.test(formData.contact_no.replace(/[\s-]/g, ''))) {
+            (showError ? showError('Contact No. must use +63  9XX-XXX-XXXX format.') : alert('Contact No. must use +63  9XX-XXX-XXXX format.'));
+            return;
+        }
         
         await handleConfirm();
     };
@@ -310,7 +329,7 @@ export default function ProcessGateInModal({
                 license_no: formData.license_no.toUpperCase(),
                 location: formData.location.toUpperCase(),
                 chasis: formData.chasis.toUpperCase(),
-                contact_no: formData.contact_no.toUpperCase(),
+                contact_no: formData.contact_no.replace(/[\s-]/g, ''),
                 bol: formData.bill_of_lading.toUpperCase(),
                 remarks: formData.remarks.toUpperCase(),
                 checker: checkerToSave,
@@ -526,7 +545,7 @@ export default function ProcessGateInModal({
                                 </div>
                                 <div>
                                     <Label>Contact No. <span className="text-red-500">*</span></Label>
-                                    <Input data-history-key="gateinout.contact_no" value={formData.contact_no} onChange={(e) => setFormData({ ...formData, contact_no: e.target.value.toUpperCase() })} />
+                                    <Input data-history-key="gateinout.contact_no" value={formData.contact_no || '+63  '} maxLength={17} placeholder="+63  9XX-XXX-XXXX" onChange={(e) => setFormData({ ...formData, contact_no: formatPhilippinePhone(e.target.value) })} />
                                 </div>
                                 <div>
                                     <Label>Bill of Lading <span className="text-red-500">*</span></Label>
