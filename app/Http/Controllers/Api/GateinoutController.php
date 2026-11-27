@@ -135,7 +135,6 @@ class GateinoutController extends Controller
             'direction' => ['required', 'in:IN,OUT'],
             'planner' => ['sometimes', 'boolean'],
         ]);
-
         $userId = $request->user()?->user_id ?? auth()->id();
 
         DB::transaction(function () use ($validated, $userId): void {
@@ -345,6 +344,7 @@ class GateinoutController extends Controller
             'standby_id' => ['nullable', 'integer', 'exists:queue_standby_status,id'],
             'context' => ['nullable', 'in:planner,admin'],
         ]);
+        abort_unless($validated['status'] !== 'standby' || !empty($validated['standby_id']), 422, 'A standby reason is required.');
 
         $transition = DB::transaction(function () use ($validated) {
             $entry = DB::table('queue_entries')->where('id', $validated['id'])->lockForUpdate()->first();
@@ -414,14 +414,27 @@ class GateinoutController extends Controller
             ];
         });
 
+        $description = sprintf(
+            '[QUEUE] Change plate number "%s" status from %s to %s.',
+            $transition['entry']->plate_no,
+            $transition['from_status'],
+            $transition['entry']->status,
+        );
+        if ($transition['entry']->status === 'standby') {
+            $standbyCode = DB::table('queue_standby_status')
+                ->where('id', $transition['entry']->standby_id)
+                ->value('code');
+            $description = sprintf(
+                '%s Standby code: "%s". Direction: %s.',
+                $description,
+                $standbyCode,
+                $transition['entry']->direction,
+            );
+        }
+
         DB::table('audit_logs')->insert([
             'action' => 'EDIT',
-            'description' => sprintf(
-                '[QUEUE] Change plate number "%s" status from %s to %s.',
-                $transition['entry']->plate_no,
-                $transition['from_status'],
-                $transition['entry']->status,
-            ),
+            'description' => $description,
             'user_id' => $user->user_id ?? auth()->id(),
             'date_added' => now(),
             'ip_address' => $request->ip(),
@@ -433,6 +446,87 @@ class GateinoutController extends Controller
         );
 
         return response()->json(['success' => true, 'entry' => $transition['entry']]);
+    }
+
+    public function bulkStandbyQueueEntries(Request $request)
+    {
+        $user = $request->user();
+        $canEdit = $user && DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->whereIn('pages.page', ['queue-admin', 'queue-planner'])
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.acs_edit', 1)
+            ->exists();
+        abort_unless($canEdit, 403);
+
+        $validated = $request->validate([
+            'direction' => ['required', 'in:IN,OUT'],
+            'quantity' => ['required', 'integer', 'min:0'],
+            'standby_id' => ['required', 'integer', 'exists:queue_standby_status,id'],
+            'context' => ['nullable', 'in:planner,admin'],
+        ]);
+
+        $result = DB::transaction(function () use ($validated, $request, $user) {
+            $entries = DB::table('queue_entries')
+                ->where('direction', $validated['direction'])
+                ->where('status', 'waiting')
+                ->whereNull('completed_at')
+                ->orderBy('waiting_number')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id', 'plate_no']);
+
+            $selected = (int) $validated['quantity'] === 0
+                ? $entries
+                : $entries->take((int) $validated['quantity']);
+            abort_unless($selected->isNotEmpty(), 409, 'No waiting queue entries found in the selected direction.');
+
+            $timestamp = now();
+            foreach ($selected as $entry) {
+                DB::table('queue_entries')->where('id', $entry->id)->update([
+                    'status' => 'standby',
+                    'standby_id' => $validated['standby_id'],
+                    'standby_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ]);
+            }
+
+            $standbyCode = DB::table('queue_standby_status')
+                ->where('id', $validated['standby_id'])
+                ->value('code');
+            $plates = $selected->pluck('plate_no')->implode(', ');
+            DB::table('audit_logs')->insert([
+                'action' => 'EDIT',
+                'description' => sprintf(
+                    '[QUEUE] Bulk standby applied. Standby code: "%s". Direction: %s. Plates: %s.',
+                    $standbyCode,
+                    $validated['direction'],
+                    $plates,
+                ),
+                'user_id' => $user->user_id ?? auth()->id(),
+                'date_added' => $timestamp,
+                'ip_address' => $request->ip(),
+            ]);
+
+            return [
+                'ids' => $selected->pluck('id')->map(fn ($id) => (int) $id)->all(),
+                'plates' => $selected->pluck('plate_no')->values()->all(),
+                'code' => $standbyCode,
+            ];
+        });
+
+        foreach ($result['ids'] as $entryId) {
+            try {
+                app(SmsService::class)->sendQueueStatusForEntry($entryId, 'standby');
+            } catch (\Throwable $exception) {
+                Log::warning('Bulk standby SMS failed', [
+                    'queue_entry_id' => $entryId,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json(['success' => true, 'data' => $result]);
     }
 
     private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): int
