@@ -15,6 +15,7 @@ class PreInventory extends Model
         'client_id',
         'container_no',
         'plate_no',
+        'phone_number',
         'hauler',
         'gate_status',
         'user_id',
