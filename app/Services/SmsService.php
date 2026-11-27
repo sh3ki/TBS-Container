@@ -98,6 +98,33 @@ class SmsService
     }
 
     /**
+     * Send a queue-status SMS using the configured header, status message,
+     * and footer. Standby uses its selected standby-status message.
+     */
+    public function sendQueueStatus(string $mobile, string $status, ?int $standbyStatusId = null, ?string $port = null): array
+    {
+        $settings = $this->getSmsSettings();
+        $message = $status === 'standby' && $standbyStatusId
+            ? DB::table('queue_standby_status')->where('id', $standbyStatusId)->value('message')
+            : DB::table('queue_status_messages')->where('status', $status)->value('message');
+
+        if (!$message) {
+            return [
+                'success' => false,
+                'error' => 'No SMS message is configured for queue status: ' . $status,
+            ];
+        }
+
+        $parts = array_filter([
+            trim((string) ($settings['header'] ?? '')),
+            trim((string) $message),
+            trim((string) ($settings['footer'] ?? '')),
+        ], static fn (string $part): bool => $part !== '');
+
+        return $this->send($mobile, implode("\n", $parts), $port);
+    }
+
+    /**
      * Format mobile number for SMS gateway.
      *
      * @param string $mobile
@@ -235,6 +262,8 @@ class SmsService
 
         return [
             'driver' => $stored?->sms_driver ?: config('services.sms.driver', 'legacy'),
+            'header' => (string) ($stored?->sms_header_text ?? ''),
+            'footer' => (string) ($stored?->sms_footer_text ?? ''),
             'smsgate' => [
                 'url' => $stored?->smsgate_api_url ?: $smsgate['url'],
                 'username' => $stored?->smsgate_username ?: $smsgate['username'],
