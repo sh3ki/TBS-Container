@@ -486,6 +486,10 @@ export default function Index() {
       error('Please select a client');
       return;
     }
+    if (preInForm.not_in_booking && !preInForm.client_id) {
+      error('Please select a client for Not in Booking');
+      return;
+    }
     if (!preInForm.plate_no.trim()) {
       error('Plate number is required');
       return;
@@ -1517,7 +1521,13 @@ export default function Index() {
                       <Select value={preInForm.hauler} onValueChange={(value) => setPreInForm({ ...preInForm, hauler: value })}>
                       <SelectTrigger className="mt-2"><SelectValue placeholder="Select hauler exception" /></SelectTrigger>
                       <SelectContent>{preInHaulerOptions.map((hauler) => <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>)}</SelectContent>
-                    </Select></>}
+                    </Select>
+                    <Label className="mt-3 text-gray-900">Client <span className="text-red-500">*</span></Label>
+                    <Select value={preInForm.client_id} onValueChange={(value) => setPreInForm({ ...preInForm, client_id: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select client" /></SelectTrigger>
+                      <SelectContent>{preInClientOptions.map((client) => <SelectItem key={client.c_id} value={client.hashed_c_id}>{client.client_code} - {client.client_name}</SelectItem>)}</SelectContent>
+                    </Select>
+                    </>}
                     <Label className="mt-3 text-gray-900">Size/Type <span className="text-red-500">*</span></Label>
                     <Select value={preInForm.size_type} onValueChange={(value) => setPreInForm({ ...preInForm, size_type: value })}>
                       <SelectTrigger className="mt-2"><SelectValue placeholder="Select size/type" /></SelectTrigger>
