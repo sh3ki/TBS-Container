@@ -219,12 +219,14 @@ Route::middleware(['auth'])->group(function () {
                 'smtp_password' => $decryptSetting($settings?->smtp_password),
                 'smtp_from_email' => (string) ($settings?->smtp_from_email ?? ''),
                 'smtp_from_name' => (string) ($settings?->smtp_from_name ?? ''),
-                'sms_driver' => (string) ($settings?->sms_driver ?: env('SMS_DRIVER', 'philsms')),
-                'philsms_api_url' => (string) ($settings?->philsms_api_url ?: env('PHILSMS_API_URL', 'https://app.philsms.com/api/v3/sms/send')),
-                'philsms_api_token' => '',
-                'philsms_api_token_configured' => filled($settings?->philsms_api_token),
-                'philsms_sender_id' => (string) ($settings?->philsms_sender_id ?: env('PHILSMS_SENDER_ID', 'TBSYARD')),
-                'philsms_timeout' => (int) ($settings?->philsms_timeout ?: env('PHILSMS_TIMEOUT', 20)),
+                'sms_driver' => 'smsgate',
+                'smsgate_api_url' => (string) ($settings?->smsgate_api_url ?: env('SMSGATE_API_URL', 'https://api.sms-gate.app/3rdparty/v1/messages')),
+                'smsgate_username' => (string) ($settings?->smsgate_username ?: env('SMSGATE_USERNAME', '')),
+                'smsgate_password' => $decryptSetting($settings?->smsgate_password),
+                'smsgate_password_configured' => filled($settings?->smsgate_password),
+                'smsgate_device_id' => (string) ($settings?->smsgate_device_id ?: env('SMSGATE_DEVICE_ID', '')),
+                'smsgate_sim_number' => $settings?->smsgate_sim_number !== null ? (string) $settings->smsgate_sim_number : (string) env('SMSGATE_SIM_NUMBER', ''),
+                'smsgate_timeout' => (int) ($settings?->smsgate_timeout ?: env('SMSGATE_TIMEOUT', 20)),
             ],
             'clients' => $clients,
         ]);
@@ -276,11 +278,13 @@ Route::middleware(['auth'])->group(function () {
             'smtp_password' => ['nullable', 'string', 'max:5000'],
             'smtp_from_email' => ['required_if:section,smtp', 'email', 'max:255'],
             'smtp_from_name' => ['nullable', 'string', 'max:255'],
-            'sms_driver' => ['required_if:section,sms', 'in:philsms,smsgate'],
-            'philsms_api_url' => ['required_if:section,sms', 'url', 'max:2048'],
-            'philsms_api_token' => ['nullable', 'string', 'max:5000'],
-            'philsms_sender_id' => ['required_if:section,sms', 'string', 'max:11'],
-            'philsms_timeout' => ['required_if:section,sms', 'integer', 'min:1', 'max:300'],
+            'sms_driver' => ['required_if:section,sms', 'in:smsgate'],
+            'smsgate_api_url' => ['required_if:section,sms', 'url', 'max:2048'],
+            'smsgate_username' => ['required_if:section,sms', 'string', 'max:255'],
+            'smsgate_password' => ['nullable', 'string', 'max:5000'],
+            'smsgate_device_id' => ['nullable', 'string', 'max:255'],
+            'smsgate_sim_number' => ['nullable', 'integer', 'min:1', 'max:3'],
+            'smsgate_timeout' => ['required_if:section,sms', 'integer', 'min:1', 'max:300'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
@@ -341,14 +345,16 @@ Route::middleware(['auth'])->group(function () {
 
         if ($validated['section'] === 'sms') {
             $updates = [
-                'sms_driver' => $validated['sms_driver'],
-                'philsms_api_url' => $validated['philsms_api_url'],
-                'philsms_sender_id' => $validated['philsms_sender_id'],
-                'philsms_timeout' => (int) $validated['philsms_timeout'],
+                'sms_driver' => 'smsgate',
+                'smsgate_api_url' => $validated['smsgate_api_url'],
+                'smsgate_username' => $validated['smsgate_username'],
+                'smsgate_device_id' => $validated['smsgate_device_id'] ?? null,
+                'smsgate_sim_number' => $validated['smsgate_sim_number'] ?? null,
+                'smsgate_timeout' => (int) $validated['smsgate_timeout'],
                 'updated_at' => now(),
             ];
-            if (!empty($validated['philsms_api_token'])) {
-                $updates['philsms_api_token'] = encrypt($validated['philsms_api_token']);
+            if (!empty($validated['smsgate_password'])) {
+                $updates['smsgate_password'] = encrypt($validated['smsgate_password']);
             }
             DB::table('app_settings')->where('setting_id', 1)->update($updates);
 
