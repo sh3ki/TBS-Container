@@ -1112,9 +1112,24 @@ export default function QueueIndex({
         setStandbySelection(null);
         setSelectedStandbyId('');
     };
+    const selectedBulkStandby = standbyStatuses.find(
+        (status) => String(status.id) === bulkStandbyId,
+    );
+    const requiredBulkStandbySize =
+        selectedBulkStandby?.code === 'S1'
+            ? '40'
+            : selectedBulkStandby?.code === 'S2'
+              ? '20'
+              : null;
     const bulkWaitingEntries = (
         bulkStandbyDirection === 'IN' ? queue.waiting_in : queue.waiting_out
-    ).filter((entry) => entry.status === 'waiting');
+    ).filter(
+        (entry) =>
+            entry.status === 'waiting' &&
+            (requiredBulkStandbySize === null ||
+                String(entry.size_type_size ?? '').trim() ===
+                    requiredBulkStandbySize),
+    );
     const saveBulkStandby = async () => {
         if (!bulkStandbyId) {
             error('Please select a standby reason.');
@@ -1164,9 +1179,6 @@ export default function QueueIndex({
         }
         setBulkStandbyConfirmationOpen(true);
     };
-    const selectedBulkStandby = standbyStatuses.find(
-        (status) => String(status.id) === bulkStandbyId,
-    );
     const openEntryDetails = async (entry: QueueEntry) => {
         setSelectedEntry(entry);
         setEntryDetails(null);
@@ -1350,7 +1362,10 @@ export default function QueueIndex({
                             </p>
                             <Select
                                 value={bulkStandbyId}
-                                onValueChange={setBulkStandbyId}
+                                onValueChange={(value) => {
+                                    setBulkStandbyId(value);
+                                    setBulkStandbyQuantity('0');
+                                }}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select standby reason" />
