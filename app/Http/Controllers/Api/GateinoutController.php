@@ -867,7 +867,11 @@ class GateinoutController extends Controller
                 ]);
             }
 
-            if ($phoneNumber !== '' && !preg_match('/^\+639[0-9]{9}$/', $phoneNumber)) {
+            if ($phoneNumber === '') {
+                return response()->json(['message' => ['danger', '<strong>Error!</strong> Phone number is required.']]);
+            }
+
+            if (!preg_match('/^\+639[0-9]{9}$/', $phoneNumber)) {
                 return response()->json(['message' => ['danger', '<strong>Error!</strong> Phone number must start with +639 and contain 10 digits after +63.']]);
             }
 
@@ -967,14 +971,20 @@ class GateinoutController extends Controller
 
                 $queueEntryId = $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
             
-                // Log audit - ADD action for pre-in
+                // Log the complete data saved for both the Pre-IN record and its queue entry.
+                $savedPreInventory = (array) DB::table('pre_inventory')->where('p_id', $preInventoryId)->first();
+                $savedQueueEntry = (array) DB::table('queue_entries')->where('id', $queueEntryId)->first();
                 $clientName = $resolvedClientId
                     ? (DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $resolvedClientId])->client_name ?? 'Unknown')
                     : 'HAULER';
             
                 DB::table('audit_logs')->insert([
                 'action' => 'ADD',
-                'description' => '[GATE IN/OUT] Added Pre-In record for container "' . $containerNo . '", Client: "' . $clientName . '"',
+                'description' => '[GATE IN/OUT] Added Pre-In record. Saved data: ' . json_encode([
+                    'pre_inventory' => $savedPreInventory,
+                    'queue_entry' => $savedQueueEntry,
+                    'client_name' => $clientName,
+                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
@@ -1053,7 +1063,11 @@ class GateinoutController extends Controller
                 ]);
             }
 
-            if ($phoneNumber !== '' && !preg_match('/^\+639[0-9]{9}$/', $phoneNumber)) {
+            if ($phoneNumber === '') {
+                return response()->json(['message' => ['danger', '<strong>Error!</strong> Phone number is required.']]);
+            }
+
+            if (!preg_match('/^\+639[0-9]{9}$/', $phoneNumber)) {
                 return response()->json(['message' => ['danger', '<strong>Error!</strong> Phone number must start with +639 and contain 10 digits after +63.']]);
             }
 
@@ -1125,10 +1139,15 @@ class GateinoutController extends Controller
 
                 $queueEntryId = $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking, (int) $preInventoryId);
             
-                // Log audit - ADD action for pre-out
+                // Log the complete data saved for both the Pre-OUT record and its queue entry.
+                $savedPreInventory = (array) DB::table('pre_inventory')->where('p_id', $preInventoryId)->first();
+                $savedQueueEntry = (array) DB::table('queue_entries')->where('id', $queueEntryId)->first();
                 DB::table('audit_logs')->insert([
                 'action' => 'ADD',
-                'description' => '[GATE IN/OUT] Added Pre-Out record for Plate No: "' . $plateNo . '", Hauler: "' . $hauler . '"',
+                'description' => '[GATE IN/OUT] Added Pre-Out record. Saved data: ' . json_encode([
+                    'pre_inventory' => $savedPreInventory,
+                    'queue_entry' => $savedQueueEntry,
+                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
