@@ -551,20 +551,24 @@ function QueueColumn({
                                                 Call
                                             </button>
                                         )}
-                                    {entry.status === 'calling' && (
-                                        <button
-                                            type="button"
-                                            disabled={statusId === entry.id}
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                onStatus?.(entry, 'floating');
-                                            }}
-                                            className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-60"
-                                        >
-                                            <Pause className="h-3.5 w-3.5" />
-                                            Float
-                                        </button>
-                                    )}
+                                    {!plannerMode &&
+                                        entry.status === 'calling' && (
+                                            <button
+                                                type="button"
+                                                disabled={statusId === entry.id}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onStatus?.(
+                                                        entry,
+                                                        'floating',
+                                                    );
+                                                }}
+                                                className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-60"
+                                            >
+                                                <Pause className="h-3.5 w-3.5" />
+                                                Float
+                                            </button>
+                                        )}
                                     {!plannerMode &&
                                         entry.status === 'floating' && (
                                             <button
