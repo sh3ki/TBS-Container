@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { BellRing, Box, CircleHelp, List, Megaphone, Radio, RotateCw, Truck, X } from 'lucide-react';
+import { BellRing, Box, CircleHelp, List, Megaphone, Pause, Radio, RotateCw, Truck, X } from 'lucide-react';
 import { activeQueueCardColors, activeQueueLabel, activeQueueRuntime, activeQueueRuntimeColor, servingAccentColors, servingCardColors, servingPlateTextColor, servingRuntime } from '@/lib/queueServing';
 
 interface QueueEntry {
@@ -12,7 +12,7 @@ interface QueueEntry {
     waiting_number?: number;
     serving_number?: number;
     serving_at?: string | null;
-    status?: 'waiting' | 'calling' | 'floating' | 'serving' | 'completed' | 'forfeited';
+    status?: 'waiting' | 'standby' | 'calling' | 'floating' | 'serving' | 'completed' | 'forfeited';
     calling_at?: string | null;
     floating_at?: string | null;
     size_type_size?: string | number | null;
@@ -92,22 +92,23 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
                     </div>
                 ) : entries.map((entry, index) => {
                     const activeStatus = entry.status === 'calling' || entry.status === 'floating';
+                    const isStandby = entry.status === 'standby';
                     const activeColor = activeStatus ? activeQueueRuntimeColor(entry, now) : undefined;
-                    const pulseClass = entry.status === 'calling' ? 'queue-calling-pulse' : entry.status === 'floating' ? 'queue-floating-pulse' : '';
+                    const pulseClass = entry.status === 'calling' ? 'queue-calling-pulse' : entry.status === 'floating' || entry.status === 'standby' ? 'queue-floating-pulse' : '';
                     const isFloating = entry.status === 'floating';
-                    return <article key={entry.id} onClick={() => onEntryClick?.(entry)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onEntryClick?.(entry); }} role={onEntryClick ? 'button' : undefined} tabIndex={onEntryClick ? 0 : undefined} style={serving ? { ...servingCardColors(entry.serving_at, now, greenServing), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : isFloating ? { backgroundColor: '#FFF7ED', borderColor: '#FDBA74', color: '#9A3412' } : activeStatus ? activeQueueCardColors() : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${pulseClass} ${serving ? 'queue-serving-card' : isFloating ? 'border-orange-300 bg-orange-50' : activeStatus ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'} ${onEntryClick ? 'cursor-pointer transition hover:brightness-95' : ''}`}>
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? '' : isFloating ? 'bg-orange-500 text-white' : activeStatus ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900, ...(serving ? servingAccentColors(entry.serving_at, now, greenServing) : {}) }}>
-                            {serving ? <Truck className="h-7 w-7" /> : entry.status === 'calling' ? <Megaphone className="h-6 w-6" /> : entry.status === 'floating' ? <RotateCw className="h-6 w-6" /> : String(entry.waiting_number ?? index + 1).padStart(2, '0')}
+                    return <article key={entry.id} onClick={() => onEntryClick?.(entry)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onEntryClick?.(entry); }} role={onEntryClick ? 'button' : undefined} tabIndex={onEntryClick ? 0 : undefined} style={serving ? { ...servingCardColors(entry.serving_at, now, greenServing), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : isStandby ? { backgroundColor: '#FEFCE8', borderColor: '#FACC15', color: '#854D0E' } : isFloating ? { backgroundColor: '#FFF7ED', borderColor: '#FDBA74', color: '#9A3412' } : activeStatus ? activeQueueCardColors() : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${pulseClass} ${serving ? 'queue-serving-card' : isStandby ? 'border-yellow-300 bg-yellow-50' : isFloating ? 'border-orange-300 bg-orange-50' : activeStatus ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'} ${onEntryClick ? 'cursor-pointer transition hover:brightness-95' : ''}`}>
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg sm:h-12 sm:w-12 sm:text-xl ${serving ? '' : isStandby ? 'bg-yellow-400 text-yellow-950' : isFloating ? 'bg-orange-500 text-white' : activeStatus ? 'bg-[#3E9AF4] text-white' : 'bg-[#e5e8ec] text-[#536170]'}`} style={{ fontWeight: 900, ...(serving ? servingAccentColors(entry.serving_at, now, greenServing) : {}) }}>
+                            {serving ? <Truck className="h-7 w-7" /> : entry.status === 'standby' ? <Pause className="h-6 w-6 text-white" /> : entry.status === 'calling' ? <Megaphone className="h-6 w-6" /> : entry.status === 'floating' ? <RotateCw className="h-6 w-6" /> : String(entry.waiting_number ?? index + 1).padStart(2, '0')}
                         </div>
                         <div className="min-w-0 flex-1">
                             <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em', color: serving ? servingPlateTextColor() : '#202a35' }}>{entry.plate_no}</p>
-                            <p className={`mt-1 text-xs sm:text-sm ${serving ? '' : activeStatus ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now, greenServing).color } : activeStatus ? { color: activeColor } : {}) }}>
-                                {serving ? (greenServing ? 'NOW SERVING' : servingRuntime(entry.serving_at, now)) : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}
+                            <p className={`mt-1 text-xs sm:text-sm ${serving ? '' : isStandby ? 'text-yellow-700' : activeStatus ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now, greenServing).color } : isStandby ? { color: '#A16207' } : activeStatus ? { color: activeColor } : {}) }}>
+                                {serving ? (greenServing ? 'NOW SERVING' : servingRuntime(entry.serving_at, now)) : isStandby ? 'Stand By' : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}
                             </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-center gap-1">
-                            <span className={`rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now, greenServing) : undefined}>{entry.direction ?? direction}</span>
-                            {onEntryClick && <span className="text-xs font-black tracking-wide" style={{ color: serving ? servingAccentColors(entry.serving_at, now, greenServing).color : isFloating ? '#C2410C' : activeStatus ? '#1D4ED8' : '#536170' }}>{queueSizeType(entry)}</span>}
+                            <span className={`rounded-md px-3 py-1.5 text-sm font-black tracking-wide ${serving ? '' : isStandby ? 'bg-yellow-100 text-yellow-800' : isFloating ? 'bg-orange-100 text-orange-700' : activeStatus ? 'bg-blue-100 text-blue-700' : 'bg-[#e5e8ec] text-[#536170]'}`} style={serving ? servingAccentColors(entry.serving_at, now, greenServing) : undefined}>{entry.direction ?? direction}</span>
+                            <span className="text-xs font-black tracking-wide" style={{ color: serving ? servingAccentColors(entry.serving_at, now, greenServing).color : isStandby ? '#A16207' : isFloating ? '#C2410C' : activeStatus ? '#1D4ED8' : '#536170' }}>{queueSizeType(entry)}</span>
                         </div>
                     </article>;
                 })}
