@@ -104,20 +104,20 @@ class SmsService
     public function sendQueueStatus(string $mobile, string $status, ?int $standbyStatusId = null, ?string $port = null): array
     {
         $settings = $this->getSmsSettings();
-        $message = $status === 'standby' && $standbyStatusId
-            ? DB::table('queue_standby_status')->where('id', $standbyStatusId)->value('message')
-            : DB::table('queue_status_messages')->where('status', $status)->value('message');
+        $configuredMessage = $status === 'standby' && $standbyStatusId
+            ? DB::table('queue_standby_status')->where('id', $standbyStatusId)->first(['message', 'enabled'])
+            : DB::table('queue_status_messages')->where('status', $status)->first(['message', 'enabled']);
 
-        if (!$message) {
+        if (!$configuredMessage || !$configuredMessage->enabled) {
             return [
                 'success' => false,
-                'error' => 'No SMS message is configured for queue status: ' . $status,
+                'error' => 'SMS is disabled or not configured for queue status: ' . $status,
             ];
         }
 
         $parts = array_filter([
             trim((string) ($settings['header'] ?? '')),
-            trim((string) $message),
+            trim((string) $configuredMessage->message),
             trim((string) ($settings['footer'] ?? '')),
         ], static fn (string $part): bool => $part !== '');
 
