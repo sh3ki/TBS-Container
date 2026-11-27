@@ -167,20 +167,22 @@ Route::middleware(['auth'])->group(function () {
         $settings = DB::table('app_settings')->where('setting_id', 1)->first();
         $queueStatusMessages = DB::table('queue_status_messages')
             ->orderByRaw("FIELD(status, 'waiting', 'calling', 'arrived', 'floating', 'serving', 'completed', 'forfeited')")
-            ->get(['id', 'status', 'message'])
+            ->get(['id', 'status', 'message', 'enabled'])
             ->map(fn ($message) => [
                 'id' => (int) $message->id,
                 'status' => (string) $message->status,
                 'message' => (string) $message->message,
+                'enabled' => (bool) $message->enabled,
             ])->values()->all();
         $standbyStatusMessages = DB::table('queue_standby_status')
             ->orderBy('code')
-            ->get(['id', 'code', 'name', 'message'])
+            ->get(['id', 'code', 'name', 'message', 'enabled'])
             ->map(fn ($status) => [
                 'id' => (int) $status->id,
                 'code' => (string) $status->code,
                 'name' => (string) $status->name,
                 'message' => (string) $status->message,
+                'enabled' => (bool) $status->enabled,
             ])->values()->all();
         $clients = DB::table('clients')
             ->orderBy('client_name')
@@ -271,9 +273,11 @@ Route::middleware(['auth'])->group(function () {
             'queue_status_messages' => ['sometimes', 'array'],
             'queue_status_messages.*.id' => ['required', 'integer', 'exists:queue_status_messages,id'],
             'queue_status_messages.*.message' => ['required', 'string', 'max:100000'],
+            'queue_status_messages.*.enabled' => ['required', 'boolean'],
             'standby_status_messages' => ['sometimes', 'array'],
             'standby_status_messages.*.id' => ['required', 'integer', 'exists:queue_standby_status,id'],
             'standby_status_messages.*.message' => ['required', 'string', 'max:100000'],
+            'standby_status_messages.*.enabled' => ['required', 'boolean'],
             'booking_system_url' => ['required_if:section,booking_credentials', 'url', 'max:2048'],
             'booking_system_login_url' => ['nullable', 'url', 'max:2048'],
             'booking_system_username' => ['required_if:section,booking_credentials', 'string', 'max:255'],
@@ -450,11 +454,13 @@ Route::middleware(['auth'])->group(function () {
             foreach ($validated['queue_status_messages'] ?? [] as $message) {
                 DB::table('queue_status_messages')->where('id', $message['id'])->update([
                     'message' => $message['message'],
+                    'enabled' => (bool) $message['enabled'],
                 ]);
             }
             foreach ($validated['standby_status_messages'] ?? [] as $message) {
                 DB::table('queue_standby_status')->where('id', $message['id'])->update([
                     'message' => $message['message'],
+                    'enabled' => (bool) $message['enabled'],
                     'updated_at' => now(),
                 ]);
             }
