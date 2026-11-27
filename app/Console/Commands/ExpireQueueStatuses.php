@@ -54,7 +54,10 @@ class ExpireQueueStatuses extends Command
                 $this->logAutomaticTransition($entry->plate_no, 'calling', 'floating', $now);
                 return true;
             });
-            if ($didChange) $changed++;
+            if ($didChange) {
+                $changed++;
+                app(\App\Services\SmsService::class)->sendQueueStatusForEntry((int) $id, 'floating');
+            }
         }
 
         return $changed;
@@ -98,7 +101,10 @@ class ExpireQueueStatuses extends Command
                 $this->logAutomaticTransition($entry->plate_no, 'floating', 'forfeited', $now);
                 return true;
             });
-            if ($didChange) $changed++;
+            if ($didChange) {
+                $changed++;
+                app(\App\Services\SmsService::class)->sendQueueStatusForEntry((int) $id, 'forfeited');
+            }
         }
 
         return $changed;
