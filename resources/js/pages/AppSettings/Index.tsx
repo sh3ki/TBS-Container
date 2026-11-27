@@ -104,6 +104,8 @@ interface AppSettingsProps {
         smsgate_device_id: string;
         smsgate_sim_number: string;
         smsgate_timeout: number;
+        sms_header_text: string;
+        sms_footer_text: string;
     };
 }
 
@@ -258,6 +260,12 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
         String(settings.smsgate_timeout),
     );
     const [showSmsgatePassword, setShowSmsgatePassword] = useState(false);
+    const [smsHeaderText, setSmsHeaderText] = useState(
+        settings.sms_header_text,
+    );
+    const [smsFooterText, setSmsFooterText] = useState(
+        settings.sms_footer_text,
+    );
     const [saving, setSaving] = useState<
         | 'docs'
         | 'queue'
@@ -347,25 +355,6 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
             error(
                 'Expiration values must be blank or whole numbers of at least 1 minute.',
             );
-        } finally {
-            setSaving(null);
-        }
-    };
-
-    const saveQueueMessages = async () => {
-        setSaving('queue');
-        try {
-            const response = await axios.put('/app-settings', {
-                section: 'queue',
-                queue_status_messages: queueStatusMessages,
-                standby_status_messages: standbyStatusMessages,
-            });
-            success(
-                response.data.message || 'Queue messages updated successfully.',
-            );
-        } catch (exception) {
-            console.error('Failed to update Queue messages:', exception);
-            error('Failed to update Queue messages.');
         } finally {
             setSaving(null);
         }
@@ -564,15 +553,17 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 smsgate_sim_number:
                     smsgateSimNumber === '' ? null : Number(smsgateSimNumber),
                 smsgate_timeout: Number(smsgateTimeout),
+                sms_header_text: smsHeaderText || null,
+                sms_footer_text: smsFooterText || null,
+                queue_status_messages: queueStatusMessages,
+                standby_status_messages: standbyStatusMessages,
             });
             success(
                 response.data.message || 'SMS settings updated successfully.',
             );
         } catch (exception) {
             console.error('Failed to update SMS settings:', exception);
-            error(
-                'Please check the SMSGate API URL, username, password, device ID, SIM number, and timeout.',
-            );
+            error('Please check the SMS and SMSGate settings.');
         } finally {
             setSaving(null);
         }
@@ -1848,117 +1839,6 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                 </ModernButton>
                             </div>
                         </div>
-
-                        <div className="mt-8 border-t border-gray-200 pt-6">
-                            <h3 className="text-lg font-bold text-gray-900">
-                                Queue Status SMS Messages
-                            </h3>
-                            <p className="mt-1 text-sm text-gray-500">
-                                Edit the message sent when a truck reaches each
-                                queue status.
-                            </p>
-                            <div className="mt-4 grid max-w-4xl gap-4">
-                                {queueStatusMessages.map(
-                                    (statusMessage, index) => (
-                                        <div key={statusMessage.id}>
-                                            <Label
-                                                htmlFor={`queue-status-message-${statusMessage.id}`}
-                                                className="text-sm font-semibold text-gray-900 uppercase"
-                                            >
-                                                {statusMessage.status}
-                                            </Label>
-                                            <textarea
-                                                id={`queue-status-message-${statusMessage.id}`}
-                                                value={statusMessage.message}
-                                                onChange={(event) =>
-                                                    setQueueStatusMessages(
-                                                        (messages) =>
-                                                            messages.map(
-                                                                (
-                                                                    message,
-                                                                    messageIndex,
-                                                                ) =>
-                                                                    messageIndex ===
-                                                                    index
-                                                                        ? {
-                                                                              ...message,
-                                                                              message:
-                                                                                  event
-                                                                                      .target
-                                                                                      .value,
-                                                                          }
-                                                                        : message,
-                                                            ),
-                                                    )
-                                                }
-                                                rows={3}
-                                                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                            />
-                                        </div>
-                                    ),
-                                )}
-                            </div>
-
-                            <h3 className="mt-8 text-lg font-bold text-gray-900">
-                                Standby SMS Messages
-                            </h3>
-                            <p className="mt-1 text-sm text-gray-500">
-                                Standby messages use the selected standby code
-                                and reason.
-                            </p>
-                            <div className="mt-4 grid max-w-4xl gap-4">
-                                {standbyStatusMessages.map(
-                                    (statusMessage, index) => (
-                                        <div key={statusMessage.id}>
-                                            <Label
-                                                htmlFor={`standby-status-message-${statusMessage.id}`}
-                                                className="text-sm font-semibold text-gray-900 uppercase"
-                                            >
-                                                {statusMessage.code} —{' '}
-                                                {statusMessage.name}
-                                            </Label>
-                                            <textarea
-                                                id={`standby-status-message-${statusMessage.id}`}
-                                                value={statusMessage.message}
-                                                onChange={(event) =>
-                                                    setStandbyStatusMessages(
-                                                        (messages) =>
-                                                            messages.map(
-                                                                (
-                                                                    message,
-                                                                    messageIndex,
-                                                                ) =>
-                                                                    messageIndex ===
-                                                                    index
-                                                                        ? {
-                                                                              ...message,
-                                                                              message:
-                                                                                  event
-                                                                                      .target
-                                                                                      .value,
-                                                                          }
-                                                                        : message,
-                                                            ),
-                                                    )
-                                                }
-                                                rows={3}
-                                                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                            />
-                                        </div>
-                                    ),
-                                )}
-                            </div>
-                            <div className="mt-6 flex items-center gap-3">
-                                <ModernButton
-                                    type="button"
-                                    variant="primary"
-                                    loading={saving === 'queue'}
-                                    onClick={saveQueueMessages}
-                                >
-                                    Save Queue Messages
-                                </ModernButton>
-                            </div>
-                        </div>
                     </ModernCard>
 
                     <ModernCard
@@ -2207,6 +2087,145 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                 <p className="mt-1 text-xs text-gray-500">
                                     Leave blank for a single-SIM phone.
                                 </p>
+                            </div>
+                            <div className="md:col-span-2">
+                                <Label
+                                    htmlFor="sms-header-text"
+                                    className="text-sm font-semibold text-gray-900"
+                                >
+                                    SMS HEADER TEXT
+                                </Label>
+                                <textarea
+                                    id="sms-header-text"
+                                    value={smsHeaderText}
+                                    onChange={(event) =>
+                                        setSmsHeaderText(event.target.value)
+                                    }
+                                    rows={2}
+                                    placeholder="Optional text placed before the queue message"
+                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <Label
+                                    htmlFor="sms-footer-text"
+                                    className="text-sm font-semibold text-gray-900"
+                                >
+                                    SMS FOOTER TEXT
+                                </Label>
+                                <textarea
+                                    id="sms-footer-text"
+                                    value={smsFooterText}
+                                    onChange={(event) =>
+                                        setSmsFooterText(event.target.value)
+                                    }
+                                    rows={2}
+                                    placeholder="Optional text placed after the queue message"
+                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                            <div className="border-t border-gray-200 pt-6 md:col-span-2">
+                                <h3 className="text-lg font-bold text-gray-900">
+                                    Queue Status SMS Messages
+                                </h3>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    The final SMS format is header, queue
+                                    message, then footer.
+                                </p>
+                                <div className="mt-4 grid gap-4">
+                                    {queueStatusMessages.map(
+                                        (statusMessage, index) => (
+                                            <div key={statusMessage.id}>
+                                                <Label
+                                                    htmlFor={`queue-status-message-${statusMessage.id}`}
+                                                    className="text-sm font-semibold text-gray-900 uppercase"
+                                                >
+                                                    {statusMessage.status}
+                                                </Label>
+                                                <textarea
+                                                    id={`queue-status-message-${statusMessage.id}`}
+                                                    value={
+                                                        statusMessage.message
+                                                    }
+                                                    onChange={(event) =>
+                                                        setQueueStatusMessages(
+                                                            (messages) =>
+                                                                messages.map(
+                                                                    (
+                                                                        message,
+                                                                        messageIndex,
+                                                                    ) =>
+                                                                        messageIndex ===
+                                                                        index
+                                                                            ? {
+                                                                                  ...message,
+                                                                                  message:
+                                                                                      event
+                                                                                          .target
+                                                                                          .value,
+                                                                              }
+                                                                            : message,
+                                                                ),
+                                                        )
+                                                    }
+                                                    rows={3}
+                                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                                />
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
+                                <h3 className="mt-8 text-lg font-bold text-gray-900">
+                                    Standby SMS Messages
+                                </h3>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Standby messages use the selected standby
+                                    code and reason.
+                                </p>
+                                <div className="mt-4 grid gap-4">
+                                    {standbyStatusMessages.map(
+                                        (statusMessage, index) => (
+                                            <div key={statusMessage.id}>
+                                                <Label
+                                                    htmlFor={`standby-status-message-${statusMessage.id}`}
+                                                    className="text-sm font-semibold text-gray-900 uppercase"
+                                                >
+                                                    {statusMessage.code} —{' '}
+                                                    {statusMessage.name}
+                                                </Label>
+                                                <textarea
+                                                    id={`standby-status-message-${statusMessage.id}`}
+                                                    value={
+                                                        statusMessage.message
+                                                    }
+                                                    onChange={(event) =>
+                                                        setStandbyStatusMessages(
+                                                            (messages) =>
+                                                                messages.map(
+                                                                    (
+                                                                        message,
+                                                                        messageIndex,
+                                                                    ) =>
+                                                                        messageIndex ===
+                                                                        index
+                                                                            ? {
+                                                                                  ...message,
+                                                                                  message:
+                                                                                      event
+                                                                                          .target
+                                                                                          .value,
+                                                                              }
+                                                                            : message,
+                                                                ),
+                                                        )
+                                                    }
+                                                    rows={3}
+                                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                                />
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-3 md:col-span-2">
                                 <ModernButton
