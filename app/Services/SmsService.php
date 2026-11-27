@@ -121,7 +121,7 @@ class SmsService
             trim((string) ($settings['footer'] ?? '')),
         ], static fn (string $part): bool => $part !== '');
 
-        return $this->send($mobile, implode("\n", $parts), $port);
+        return $this->send($mobile, implode("\n\n", $parts), $port);
     }
 
     /**
