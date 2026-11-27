@@ -22,6 +22,7 @@ interface PreInventoryRecord extends Record<string, unknown> {
   client_name: string;
   client_code: string;
   plate_no: string;
+  phone_number?: string | null;
   hauler: string;
   gate_status: 'IN' | 'OUT';
   status: 'pending' | 'processed';
@@ -47,6 +48,8 @@ interface PreInFormData {
   container_no: string;
   client_id: string;
   plate_no: string;
+  phone_number: string;
+  size_type: string;
   not_in_booking: boolean;
   hauler: string;
   exception_mode: 'client' | 'hauler';
@@ -54,6 +57,8 @@ interface PreInFormData {
 
 interface PreOutFormData {
   plate_no: string;
+  phone_number: string;
+  size_type: string;
   hauler: string;
   not_in_booking: boolean;
   exception_mode: 'client' | 'hauler';
@@ -76,6 +81,21 @@ interface EditPreOutFormData {
 }
 
 type BadgeVariant = 'success' | 'error' | 'warning' | 'info' | 'default';
+
+const formatPhilippinePhone = (value: string): string => {
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('63')) digits = digits.slice(2);
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  if (digits && digits[0] !== '9') return '';
+  if (!digits) return '';
+  const national = digits.slice(0, 10);
+  const formatted = national.length <= 3
+    ? national
+    : national.length <= 6
+      ? `${national.slice(0, 3)}-${national.slice(3)}`
+      : `${national.slice(0, 3)}-${national.slice(3, 6)}-${national.slice(6)}`;
+  return `+63  ${formatted}`;
+};
 
 const getContainerStatusVariant = (status: string): BadgeVariant => {
   if (status === 'AVL' || status === 'RPR') return 'success';
@@ -150,12 +170,16 @@ export default function Index() {
     container_no: '',
     client_id: '',
     plate_no: '',
+    phone_number: '',
+    size_type: '',
     not_in_booking: false,
     hauler: '',
     exception_mode: 'client',
   });
   const [preOutForm, setPreOutForm] = useState<PreOutFormData>({
     plate_no: '',
+    phone_number: '',
+    size_type: '',
     hauler: '',
     not_in_booking: false,
     exception_mode: 'client',
@@ -466,8 +490,16 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
+    if (preInForm.phone_number && !/^\+639\d{9}$/.test(preInForm.phone_number.replace(/[\s-]/g, ''))) {
+      error('Phone number must contain +639 followed by 9 more numbers.');
+      return;
+    }
     if (preInForm.not_in_booking && preInForm.exception_mode === 'hauler' && !preInForm.hauler) {
       error('Please select a hauler for Not in Booking');
+      return;
+    }
+    if (preInForm.not_in_booking && !preInForm.size_type) {
+      error('Please select a size/type for Not in Booking');
       return;
     }
     handleAddPreIn();
@@ -483,6 +515,8 @@ export default function Index() {
         cno: preInForm.container_no.toUpperCase(),
         client: preInForm.client_id,
         pno: preInForm.plate_no.trim().toUpperCase(),
+        phone_number: preInForm.phone_number.replace(/[\s-]/g, ''),
+        size_type: preInForm.not_in_booking ? preInForm.size_type : undefined,
         not_in_booking: preInForm.not_in_booking,
         hauler: preInForm.hauler,
         exception_mode: preInForm.exception_mode,
@@ -494,7 +528,7 @@ export default function Index() {
         if (type === 'success') {
           success('Pre-In added successfully');
           setShowAddPreInModal(false);
-          setPreInForm({ container_no: '', client_id: '', plate_no: '', not_in_booking: false, hauler: '', exception_mode: 'client' });
+          setPreInForm({ container_no: '', client_id: '', plate_no: '', phone_number: '', size_type: '', not_in_booking: false, hauler: '', exception_mode: 'client' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -520,6 +554,10 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
+    if (preOutForm.phone_number && !/^\+639\d{9}$/.test(preOutForm.phone_number.replace(/[\s-]/g, ''))) {
+      error('Phone number must contain +639 followed by 9 more numbers.');
+      return;
+    }
     if ((!preOutBookingDependent && !preOutForm.not_in_booking) || (preOutForm.not_in_booking && preOutForm.exception_mode === 'hauler')) {
       if (!preOutForm.hauler.trim()) {
       error(preOutForm.not_in_booking ? 'Please select a hauler for Not in Booking' : 'Hauler is required');
@@ -528,6 +566,10 @@ export default function Index() {
     }
     if (preOutForm.not_in_booking && preOutForm.exception_mode === 'client' && !preOutForm.client_id) {
       error('Please select a client exception');
+      return;
+    }
+    if (preOutForm.not_in_booking && !preOutForm.size_type) {
+      error('Please select a size/type for Not in Booking');
       return;
     }
     handleAddPreOut();
@@ -541,6 +583,8 @@ export default function Index() {
     try {
       const response = await axios.post('/api/gateinout/check-container-out', {
         pno: preOutForm.plate_no,
+        phone_number: preOutForm.phone_number.replace(/[\s-]/g, ''),
+        size_type: preOutForm.not_in_booking ? preOutForm.size_type : undefined,
         hauler: preOutForm.hauler,
         not_in_booking: preOutForm.not_in_booking,
         exception_mode: preOutForm.exception_mode,
@@ -554,7 +598,7 @@ export default function Index() {
           saveFieldHistory({ 'gateinout.plate_no': preOutForm.plate_no, 'gateinout.hauler': preOutForm.hauler });
           success('Pre-Out added successfully');
           setShowAddPreOutModal(false);
-          setPreOutForm({ plate_no: '', hauler: '', not_in_booking: false, exception_mode: 'client', client_id: '' });
+          setPreOutForm({ plate_no: '', phone_number: '', size_type: '', hauler: '', not_in_booking: false, exception_mode: 'client', client_id: '' });
           await fetchData();
         } else {
           error(msg.replace(/<[^>]*>/g, ''));
@@ -1416,6 +1460,16 @@ export default function Index() {
                   required
                 />
               </div>
+              <div>
+                <Label className="text-gray-900">Phone Number <span className="text-gray-500">(Optional)</span></Label>
+                <Input
+                  value={preInForm.phone_number || '+63  '}
+                  onChange={(e) => setPreInForm({ ...preInForm, phone_number: formatPhilippinePhone(e.target.value) })}
+                  placeholder="+63  9XX-XXX-XXXX"
+                  maxLength={17}
+                  type="tel"
+                />
+              </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <button
                   type="button"
@@ -1453,6 +1507,13 @@ export default function Index() {
                       <SelectTrigger className="mt-2"><SelectValue placeholder="Select hauler exception" /></SelectTrigger>
                       <SelectContent>{preInHaulerOptions.map((hauler) => <SelectItem key={hauler} value={hauler}>{hauler}</SelectItem>)}</SelectContent>
                     </Select></>}
+                    <Label className="mt-3 text-gray-900">Size/Type <span className="text-red-500">*</span></Label>
+                    <Select value={preInForm.size_type} onValueChange={(value) => setPreInForm({ ...preInForm, size_type: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select size/type" /></SelectTrigger>
+                      <SelectContent>
+                        {sizeTypeOptions.map((option) => <SelectItem key={option.s_id} value={String(option.s_id)}>{option.size} {option.type}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>
@@ -1515,6 +1576,16 @@ export default function Index() {
                 />
                 <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
               </div>}
+              <div>
+                <Label className="text-gray-900">Phone Number <span className="text-gray-500">(Optional)</span></Label>
+                <Input
+                  value={preOutForm.phone_number || '+63  '}
+                  onChange={(e) => setPreOutForm({ ...preOutForm, phone_number: formatPhilippinePhone(e.target.value) })}
+                  placeholder="+63  9XX-XXX-XXXX"
+                  maxLength={17}
+                  type="tel"
+                />
+              </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <button
                   type="button"
@@ -1588,6 +1659,13 @@ export default function Index() {
                         </SelectContent>
                       </Select>
                     </>}
+                    <Label className="mt-3 text-gray-900">Size/Type <span className="text-red-500">*</span></Label>
+                    <Select value={preOutForm.size_type} onValueChange={(value) => setPreOutForm({ ...preOutForm, size_type: value })}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select size/type" /></SelectTrigger>
+                      <SelectContent>
+                        {sizeTypeOptions.map((option) => <SelectItem key={option.s_id} value={String(option.s_id)}>{option.size} {option.type}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>
