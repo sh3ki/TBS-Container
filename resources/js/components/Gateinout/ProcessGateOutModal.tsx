@@ -56,6 +56,19 @@ const parseRemainingContainerList = (value: unknown): string[] => {
     return text.split(',').map((container) => container.replace(/\s+/g, '').toUpperCase()).filter(Boolean);
 };
 
+const formatPhilippinePhone = (value: string): string => {
+    let digits = value.replace(/\D/g, '');
+    if (digits.startsWith('63')) digits = digits.slice(2);
+    if (digits.startsWith('0')) digits = digits.slice(1);
+    if (digits && digits[0] !== '9') return '';
+    if (!digits) return '';
+    const national = digits.slice(0, 10);
+    const formatted = national.length <= 3 ? national : national.length <= 6
+        ? `${national.slice(0, 3)}-${national.slice(3)}`
+        : `${national.slice(0, 3)}-${national.slice(3, 6)}-${national.slice(6)}`;
+    return `+63  ${formatted}`;
+};
+
 interface ProcessGateOutModalProps {
     open: boolean;
     onClose: () => void;
@@ -65,6 +78,7 @@ interface ProcessGateOutModalProps {
         client_id: number;
         client_name: string;
         plate_no?: string;
+        phone_number?: string | null;
         hauler?: string;
         date_added?: string | null;
         date_completed?: string | null;
@@ -215,9 +229,16 @@ export default function ProcessGateOutModal({
                     iso_code: record.iso_code || '',
                     plate_no: cleanedPlateNo,
                     hauler: cleanedHauler,
+                    contact_no: formatPhilippinePhone(record.phone_number || ''),
                     status: '',
                     load: defaultLoadId,
                 }));
+
+                void fetchPreInventoryFallback(record.container_no).then((preInventory) => {
+                    if (preInventory?.phone_number) {
+                        setFormData(prev => ({ ...prev, contact_no: formatPhilippinePhone(preInventory.phone_number) }));
+                    }
+                });
 
                 // If record already has a container_no (selected by mobile/pre-inventory),
                 // strictly load data from pre-inventory DB and use its cnt_status.
@@ -263,6 +284,7 @@ export default function ProcessGateOutModal({
                     size_type_display: sizeTypeDisplay,
                     iso_code: data.iso_code || '',
                     plate_no: record?.plate_no || data.plate_no || '',
+                    contact_no: formatPhilippinePhone(record?.phone_number || ''),
                     hauler: record?.hauler || data.hauler || '',
                     approval_remarks: data.approval_notes || '',
                     gate_in_remarks: data.remarks || '',
@@ -324,6 +346,7 @@ export default function ProcessGateOutModal({
                     iso_code: pre.iso_code || '',
                     plate_no: record?.plate_no || pre.plate_no || '',
                     hauler: record?.hauler || pre.hauler || '',
+                    contact_no: formatPhilippinePhone(record?.phone_number || pre.phone_number || ''),
                     approval_remarks: pre.approval_notes || '',
                     gate_in_remarks: pre.inventory_remarks || '',
                     remarks: pre.remarks || '',
@@ -553,7 +576,7 @@ export default function ProcessGateOutModal({
                     location: '',
                     load: defaultLoadId, // Load defaults to 'Empty' l_id
                     chasis: '',
-                    contact_no: '',
+                    contact_no: formatPhilippinePhone(record?.phone_number || (pre && pre.phone_number) || ''),
                     booking: '',
                     seal_no: '',
                     approval_remarks: (inventoryData && inventoryData.approval_notes) || (pre && pre.approval_notes) || '',
@@ -609,8 +632,11 @@ export default function ProcessGateOutModal({
     };
 
     const handleInputChange = (field: string, value: string | number) => {
-        const uppercaseFields = ['vessel', 'voyage', 'hauler', 'hauler_driver', 'license_no', 'location', 'chasis', 'contact_no', 'seal_no', 'remarks'];
-        setFormData((prev) => ({ ...prev, [field]: typeof value === 'string' && uppercaseFields.includes(field) ? value.toUpperCase() : value }));
+        const uppercaseFields = ['vessel', 'voyage', 'hauler', 'hauler_driver', 'license_no', 'location', 'chasis', 'seal_no', 'remarks'];
+        const nextValue = field === 'contact_no' && typeof value === 'string'
+            ? formatPhilippinePhone(value)
+            : typeof value === 'string' && uppercaseFields.includes(field) ? value.toUpperCase() : value;
+        setFormData((prev) => ({ ...prev, [field]: nextValue }));
     };
 
     // Fetch bookings list for autocomplete
@@ -740,6 +766,10 @@ export default function ProcessGateOutModal({
             (showError ? showError('Please enter Contact No.') : alert('Please enter Contact No.'));
             return;
         }
+        if (!/^\+639\d{9}$/.test(formData.contact_no.replace(/[\s-]/g, ''))) {
+            (showError ? showError('Contact No. must use +63  9XX-XXX-XXXX format.') : alert('Contact No. must use +63  9XX-XXX-XXXX format.'));
+            return;
+        }
         if (!formData.booking || formData.booking.trim() === '') {
             (showError ? showError('Please enter Booking number') : alert('Please enter Booking number'));
             return;
@@ -789,7 +819,7 @@ export default function ProcessGateOutModal({
                 location: formData.location.toUpperCase(),
                 load_type: parseInt(formData.load),
                 chasis: formData.chasis.toUpperCase(),
-                contact_no: formData.contact_no.toUpperCase(),
+                contact_no: formData.contact_no.replace(/[\s-]/g, ''),
                 shipper: formData.shipper,
                 booking_no: formData.booking,
                 seal_no: formData.seal_no.toUpperCase(),
@@ -1081,7 +1111,9 @@ export default function ProcessGateOutModal({
                                 <Input
                                     data-history-key="gateinout.contact_no"
                                     data-field="contact_no"
-                                    value={formData.contact_no}
+                                    value={formData.contact_no || '+63  '}
+                                    maxLength={17}
+                                    placeholder="+63  9XX-XXX-XXXX"
                                     onChange={(e) => handleInputChange('contact_no', e.target.value)}
                                     disabled={!isContainerSelected}
                                 />
