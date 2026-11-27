@@ -179,6 +179,7 @@ class GuardScanController extends Controller
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
+            app(\App\Services\SmsService::class)->sendQueueStatusForEntry((int) $servedEntry->id, 'serving');
             return response()->json(['success' => true, 'queue_updated' => true, 'plate_no' => $servedEntry->plate_no]);
         } catch (\Throwable $exception) {
             \Log::error('Guard manual plate capture failed', ['error' => $exception->getMessage(), 'queue_entry_id' => $entry->id]);
@@ -256,6 +257,11 @@ class GuardScanController extends Controller
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
+
+        app(\App\Services\SmsService::class)->sendQueueStatusForEntry(
+            (int) $transition['entry']->id,
+            (string) $transition['entry']->status,
+        );
 
         return response()->json(['success' => true, 'entry' => $transition['entry']]);
     }
@@ -455,6 +461,7 @@ class GuardScanController extends Controller
                 'date_added' => now(),
                 'ip_address' => $request->ip(),
             ]);
+            app(\App\Services\SmsService::class)->sendQueueStatusForEntry((int) $queue['entry']->id, 'serving');
         }
 
         @unlink($imagePath);
