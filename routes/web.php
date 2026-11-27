@@ -250,6 +250,7 @@ Route::middleware(['auth'])->group(function () {
                 'smsgate_timeout' => (int) ($settings?->smsgate_timeout ?: env('SMSGATE_TIMEOUT', 20)),
                 'sms_header_text' => (string) ($settings?->sms_header_text ?? ''),
                 'sms_footer_text' => (string) ($settings?->sms_footer_text ?? ''),
+                'smsgate_webhook_url' => (string) ($settings?->smsgate_webhook_url ?? ''),
             ],
             'clients' => $clients,
         ]);
@@ -318,6 +319,7 @@ Route::middleware(['auth'])->group(function () {
             'smsgate_timeout' => ['required_if:section,sms', 'integer', 'min:1', 'max:300'],
             'sms_header_text' => ['nullable', 'string', 'max:100000'],
             'sms_footer_text' => ['nullable', 'string', 'max:100000'],
+            'smsgate_webhook_url' => ['nullable', 'url', 'max:2048'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
@@ -386,6 +388,7 @@ Route::middleware(['auth'])->group(function () {
                 'smsgate_timeout' => (int) $validated['smsgate_timeout'],
                 'sms_header_text' => $validated['sms_header_text'] ?? null,
                 'sms_footer_text' => $validated['sms_footer_text'] ?? null,
+                'smsgate_webhook_url' => $validated['smsgate_webhook_url'] ?? null,
                 'updated_at' => now(),
             ];
             if (!empty($validated['smsgate_password'])) {
