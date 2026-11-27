@@ -39,6 +39,43 @@ use App\Http\Controllers\Api\QueueDisplayController;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/webhooks/smsgate', function (Request $request) {
+    $event = (string) $request->input('event', '');
+    $payload = (array) $request->input('payload', []);
+    $messageId = $payload['messageId'] ?? null;
+
+    if (!$messageId) {
+        return response()->json(['success' => true]);
+    }
+
+    $status = match ($event) {
+        'sms:sent' => 'sent',
+        'sms:delivered' => 'delivered',
+        'sms:failed' => 'failed',
+        'sms:cancelled' => 'cancelled',
+        default => null,
+    };
+
+    if (!$status) {
+        return response()->json(['success' => true]);
+    }
+
+    $updates = [
+        'status' => $status,
+        'webhook_payload' => json_encode($request->json()->all()),
+        'updated_at' => now(),
+    ];
+    if (!empty($payload['recipient'])) $updates['recipient'] = $payload['recipient'];
+    if ($status === 'delivered') $updates['delivered_at'] = now();
+    if (in_array($status, ['failed', 'cancelled'], true)) {
+        $updates['failed_at'] = now();
+        $updates['error_message'] = $payload['reason'] ?? ($status === 'cancelled' ? 'Message cancelled.' : 'Message failed.');
+    }
+
+    DB::table('sms_delivery_logs')->where('provider_message_id', $messageId)->update($updates);
+
+    return response()->json(['success' => true]);
+});
 Route::get('/queue/display', [GateinoutController::class, 'getQueueDisplay'])
     ->middleware(\App\Http\Middleware\QueueDisplayAccess::class);
 Route::get('/queue/manage', [GateinoutController::class, 'getQueueDisplay'])
