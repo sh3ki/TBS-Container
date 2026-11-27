@@ -375,7 +375,6 @@ function QueueColumn({
                             )
                                 return;
                             event.preventDefault();
-                            const touch = event.touches[0];
                             autoScrollWhileDragging(touch.clientY);
                             const target = document
                                 .elementFromPoint(touch.clientX, touch.clientY)
