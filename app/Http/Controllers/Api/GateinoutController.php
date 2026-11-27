@@ -74,7 +74,7 @@ class GateinoutController extends Controller
     public function getQueueDisplay()
     {
         try {
-            $activeStatuses = ['waiting', 'calling', 'floating'];
+            $activeStatuses = ['waiting', 'standby', 'calling', 'floating'];
             $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
             $waitingIn = DB::table('queue_entries')
                 ->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')
@@ -327,7 +327,7 @@ class GateinoutController extends Controller
 
         $validated = $request->validate([
             'id' => ['required', 'integer'],
-            'status' => ['required', 'in:calling,floating,forfeited'],
+            'status' => ['required', 'in:calling,floating,forfeited,standby'],
         ]);
 
         $transition = DB::transaction(function () use ($validated) {
@@ -339,6 +339,7 @@ class GateinoutController extends Controller
                 'calling' => ['waiting'],
                 'floating' => ['calling'],
                 'forfeited' => ['floating'],
+                'standby' => ['waiting'],
             };
             abort_unless(in_array($entry->status, $allowedPreviousStatus, true), 409, 'This queue status transition is not allowed.');
 
@@ -585,6 +586,7 @@ class GateinoutController extends Controller
                     COALESCE(NULLIF(p.hauler, ''), '-') AS hauler,
                     COALESCE(NULLIF(p.container_no, ''), '-') AS container_no,
                     COALESCE(NULLIF(p.plate_no, ''), '-') AS plate_no,
+                    p.phone_number,
                     p.gate_status,
                     CASE WHEN p.status = 0 THEN 'pending' ELSE 'processed' END AS status,
                     CAST(COALESCE(p.cnt_status, 0) AS UNSIGNED) AS container_status_id,
@@ -649,6 +651,8 @@ class GateinoutController extends Controller
             $containerNo = strtoupper(trim((string) $request->input('cno')));
             $clientId = $request->input('client');
             $plateNo = strtoupper(trim((string) $request->input('pno')));
+            $phoneNumber = preg_replace('/[\s-]+/', '', trim((string) $request->input('phone_number')));
+            $requestedSizeType = $request->input('size_type');
             $notInBooking = $request->boolean('not_in_booking');
             $hauler = strtoupper(trim((string) $request->input('hauler')));
             $exceptionMode = $request->input('exception_mode', 'client');
@@ -665,6 +669,24 @@ class GateinoutController extends Controller
                 return response()->json([
                     'message' => ['danger', '<strong>Error!</strong> Plate number is required.']
                 ]);
+            }
+
+            if ($phoneNumber !== '' && !preg_match('/^\+639[0-9]{9}$/', $phoneNumber)) {
+                return response()->json(['message' => ['danger', '<strong>Error!</strong> Phone number must start with +639 and contain 10 digits after +63.']]);
+            }
+
+            $selectedSizeType = null;
+            if ($notInBooking) {
+                if (!is_numeric($requestedSizeType) || (int) $requestedSizeType < 1) {
+                    return response()->json(['message' => ['danger', '<strong>Error!</strong> Please select a size/type for Not in Booking.']]);
+                }
+                $selectedSizeType = DB::table('container_size_type')
+                    ->where('s_id', (int) $requestedSizeType)
+                    ->where('archived', 0)
+                    ->first(['s_id', 'iso_code']);
+                if (!$selectedSizeType) {
+                    return response()->json(['message' => ['danger', '<strong>Error!</strong> The selected size/type is invalid.']]);
+                }
             }
 
             if (!in_array($exceptionMode, ['client', 'hauler'], true)) $exceptionMode = 'client';
@@ -731,6 +753,7 @@ class GateinoutController extends Controller
                     'container_no' => $containerNo,
                     'client_id' => $resolvedClientId,
                     'plate_no' => $plateNo,
+                    'phone_number' => $phoneNumber !== '' ? $phoneNumber : null,
                     'hauler' => $matched['hauler'] ?? ($notInBooking && $exceptionMode === 'hauler' ? $hauler : null),
                     'gate_status' => 'IN',
                     'user_id' => Auth::check() ? Auth::user()->user_id : 0,
@@ -738,10 +761,10 @@ class GateinoutController extends Controller
                     'inv_id' => 0,
                     'date_added' => date('Y-m-d H:i:s'),
                     'remarks' => '',
-                    'size_type' => $matched['size_type'] ?? 0,
+                    'size_type' => $notInBooking ? (int) $selectedSizeType->s_id : ($matched['size_type'] ?? 0),
                     'cnt_class' => '',
                     'cnt_status' => '',
-                    'iso_code' => $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
+                    'iso_code' => $notInBooking ? (string) ($selectedSizeType->iso_code ?? '') : $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
                     'date_mnfg' => '0000-00-00',
                     'checker_id' => 0,
                 ]);
@@ -789,6 +812,8 @@ class GateinoutController extends Controller
     {
         try {
             $plateNo = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim((string) $request->input('pno'))));
+            $phoneNumber = preg_replace('/[\s-]+/', '', trim((string) $request->input('phone_number')));
+            $requestedSizeType = $request->input('size_type');
             $hauler = strtoupper(trim((string) $request->input('hauler')));
             $notInBooking = $request->boolean('not_in_booking');
             $exceptionMode = $request->input('exception_mode', 'client');
@@ -830,6 +855,24 @@ class GateinoutController extends Controller
                 ]);
             }
 
+            if ($phoneNumber !== '' && !preg_match('/^\+639[0-9]{9}$/', $phoneNumber)) {
+                return response()->json(['message' => ['danger', '<strong>Error!</strong> Phone number must start with +639 and contain 10 digits after +63.']]);
+            }
+
+            $selectedSizeType = null;
+            if ($notInBooking) {
+                if (!is_numeric($requestedSizeType) || (int) $requestedSizeType < 1) {
+                    return response()->json(['message' => ['danger', '<strong>Error!</strong> Please select a size/type for Not in Booking.']]);
+                }
+                $selectedSizeType = DB::table('container_size_type')
+                    ->where('s_id', (int) $requestedSizeType)
+                    ->where('archived', 0)
+                    ->first(['s_id', 'iso_code']);
+                if (!$selectedSizeType) {
+                    return response()->json(['message' => ['danger', '<strong>Error!</strong> The selected size/type is invalid.']]);
+                }
+            }
+
             // Serialize identical Pre-Out submissions while the insert is
             // performed. Multiple pending Pre-Out records may use the same
             // plate number and hauler.
@@ -866,6 +909,7 @@ class GateinoutController extends Controller
                     'container_no' => '',
                     'client_id' => $clientId,
                     'plate_no' => $plateNo,
+                    'phone_number' => $phoneNumber !== '' ? $phoneNumber : null,
                     'hauler' => $hauler,
                     'gate_status' => 'OUT',
                     'user_id' => Auth::check() ? Auth::user()->user_id : 0,
@@ -873,10 +917,10 @@ class GateinoutController extends Controller
                     'inv_id' => 0,
                     'date_added' => date('Y-m-d H:i:s'),
                     'remarks' => '',
-                    'size_type' => $matched['size_type'] ?? 0,
+                    'size_type' => $notInBooking ? (int) $selectedSizeType->s_id : ($matched['size_type'] ?? 0),
                     'cnt_class' => '',
                     'cnt_status' => '',
-                    'iso_code' => $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
+                    'iso_code' => $notInBooking ? (string) ($selectedSizeType->iso_code ?? '') : $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
                     'date_mnfg' => '0000-00-00',
                     'checker_id' => 0,
                 ]);
@@ -2583,6 +2627,7 @@ class GateinoutController extends Controller
                     p.cnt_class as cnt_class,
                     CAST(COALESCE(p.cnt_status, 0) AS UNSIGNED) as cnt_status,
                     p.date_mnfg,
+                    p.phone_number,
                     p.remarks,
                     i.remarks as inventory_remarks,
                     p.checker_id,
