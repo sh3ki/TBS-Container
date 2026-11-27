@@ -108,6 +108,7 @@ interface AppSettingsProps {
         smsgate_timeout: number;
         sms_header_text: string;
         sms_footer_text: string;
+        smsgate_webhook_url: string;
     };
 }
 
@@ -267,6 +268,9 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     );
     const [smsFooterText, setSmsFooterText] = useState(
         settings.sms_footer_text,
+    );
+    const [smsgateWebhookUrl, setSmsgateWebhookUrl] = useState(
+        settings.smsgate_webhook_url,
     );
     const [saving, setSaving] = useState<
         | 'docs'
@@ -557,6 +561,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 smsgate_timeout: Number(smsgateTimeout),
                 sms_header_text: smsHeaderText || null,
                 sms_footer_text: smsFooterText || null,
+                smsgate_webhook_url: smsgateWebhookUrl || null,
                 queue_status_messages: queueStatusMessages,
                 standby_status_messages: standbyStatusMessages,
             });
@@ -1983,6 +1988,20 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                     className="mt-2 h-11"
                                 />
                             </div>
+                            <div className="md:col-span-2">
+                                <Label htmlFor="smsgate-webhook-url" className="text-sm font-semibold text-gray-900">
+                                    SMSGATE WEBHOOK URL (OPTIONAL)
+                                </Label>
+                                <Input
+                                    id="smsgate-webhook-url"
+                                    type="url"
+                                    value={smsgateWebhookUrl}
+                                    onChange={(event) => setSmsgateWebhookUrl(event.target.value)}
+                                    placeholder="https://your-domain.com/api/webhooks/smsgate"
+                                    className="mt-2 h-11"
+                                />
+                                <p className="mt-1 text-xs text-gray-500">Register this URL in SMSGate for SMS Sent, Delivered, and Failed events.</p>
+                            </div>
                             <div>
                                 <Label
                                     htmlFor="smsgate-username"
@@ -2225,48 +2244,50 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                     {standbyStatusMessages.map(
                                         (statusMessage, index) => (
                                             <div key={statusMessage.id}>
-                                                <Label
-                                                    htmlFor={`standby-status-message-${statusMessage.id}`}
-                                                    className="text-sm font-semibold text-gray-900 uppercase"
-                                                >
-                                                    {statusMessage.code} —{' '}
-                                                    {statusMessage.name}
-                                                </Label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setStandbyStatusMessages(
-                                                            (messages) =>
-                                                                messages.map(
-                                                                    (
-                                                                        message,
-                                                                        messageIndex,
-                                                                    ) =>
-                                                                        messageIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...message,
-                                                                                  enabled:
-                                                                                      !message.enabled,
-                                                                              }
-                                                                            : message,
-                                                                ),
-                                                        )
-                                                    }
-                                                    className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
-                                                    aria-pressed={
-                                                        statusMessage.enabled
-                                                    }
-                                                >
-                                                    {statusMessage.enabled ? (
-                                                        <ToggleRight className="h-4 w-4" />
-                                                    ) : (
-                                                        <ToggleLeft className="h-4 w-4" />
-                                                    )}{' '}
-                                                    {statusMessage.enabled
-                                                        ? 'On'
-                                                        : 'Off'}
-                                                </button>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <Label
+                                                        htmlFor={`standby-status-message-${statusMessage.id}`}
+                                                        className="text-sm font-semibold text-gray-900 uppercase"
+                                                    >
+                                                        {statusMessage.code} —{' '}
+                                                        {statusMessage.name}
+                                                    </Label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setStandbyStatusMessages(
+                                                                (messages) =>
+                                                                    messages.map(
+                                                                        (
+                                                                            message,
+                                                                            messageIndex,
+                                                                        ) =>
+                                                                            messageIndex ===
+                                                                            index
+                                                                                ? {
+                                                                                      ...message,
+                                                                                      enabled:
+                                                                                          !message.enabled,
+                                                                                  }
+                                                                                : message,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
+                                                        aria-pressed={
+                                                            statusMessage.enabled
+                                                        }
+                                                    >
+                                                        {statusMessage.enabled ? (
+                                                            <ToggleRight className="h-4 w-4" />
+                                                        ) : (
+                                                            <ToggleLeft className="h-4 w-4" />
+                                                        )}{' '}
+                                                        {statusMessage.enabled
+                                                            ? 'On'
+                                                            : 'Off'}
+                                                    </button>
+                                                </div>
                                                 <textarea
                                                     id={`standby-status-message-${statusMessage.id}`}
                                                     value={
