@@ -32,6 +32,7 @@ import {
     Trash2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface DmrGroup {
     client_id: string;
@@ -113,6 +114,13 @@ interface AppSettingsProps {
 }
 
 export default function AppSettings({ settings, clients }: AppSettingsProps) {
+    const [settingsRightColumn, setSettingsRightColumn] =
+        useState<HTMLElement | null>(null);
+    useEffect(() => {
+        setSettingsRightColumn(
+            document.getElementById('app-settings-right-column'),
+        );
+    }, []);
     const [incomingRate, setIncomingRate] = useState(
         String(settings.incoming_rate),
     );
@@ -173,6 +181,10 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [standbyStatusMessages, setStandbyStatusMessages] = useState(
         settings.standby_status_messages,
     );
+    const [queueStatusMessagesOpen, setQueueStatusMessagesOpen] =
+        useState(false);
+    const [standbyStatusMessagesOpen, setStandbyStatusMessagesOpen] =
+        useState(false);
     const [queueInternalPassword, setQueueInternalPassword] = useState(
         settings.queue_internal_password.toUpperCase(),
     );
@@ -599,6 +611,10 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 </div>
 
                 <div className="relative space-y-0 [&>div]:mb-6 lg:[&>div]:w-[calc(50%-0.75rem)]">
+                    <div
+                        id="app-settings-right-column"
+                        className="lg:absolute lg:top-0 lg:right-0 lg:flex lg:w-[calc(50%-0.75rem)] lg:flex-col-reverse lg:gap-6"
+                    />
                     <ModernCard
                         title="Booking System Scraping Settings"
                         subtitle="Configure Booking System verification for Add Pre-In and Add Pre-Out"
@@ -1124,499 +1140,536 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         </div>
                     </ModernCard>
 
-                    <ModernCard
-                        title="DMR Settings"
-                        subtitle="Configure the DMR schedule, sender, signature, and client-specific email content"
-                        icon={<Settings className="h-5 w-5 text-white" />}
-                    >
-                        <div className="grid max-w-5xl gap-4 md:grid-cols-2">
-                            <div>
-                                <Label
-                                    htmlFor="dmr-time"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    TIME
-                                </Label>
-                                <Input
-                                    id="dmr-time"
-                                    type="time"
-                                    value={dmrTime}
-                                    onChange={(event) =>
-                                        setDmrTime(event.target.value)
-                                    }
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="dmr-day-exceptions"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    DAY EXCEPTIONS
-                                </Label>
-                                <div className="mt-2">
-                                    <MultiSelect
-                                        options={[
-                                            'Sunday',
-                                            'Monday',
-                                            'Tuesday',
-                                            'Wednesday',
-                                            'Thursday',
-                                            'Friday',
-                                            'Saturday',
-                                        ].map((day) => ({
-                                            value: day,
-                                            label: day,
-                                        }))}
-                                        value={dmrDayExceptions}
-                                        onChange={setDmrDayExceptions}
-                                        placeholder="Select exception days"
-                                        searchPlaceholder="Search days..."
-                                    />
-                                </div>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    The DMR worker will skip sending on selected
-                                    days.
-                                </p>
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="dmr-sender-email"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SENDER EMAIL
-                                </Label>
-                                <Input
-                                    id="dmr-sender-email"
-                                    type="email"
-                                    value={dmrSenderEmail}
-                                    onChange={(event) =>
-                                        setDmrSenderEmail(event.target.value)
-                                    }
-                                    placeholder="sender@example.com"
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="dmr-sender-name"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SENDER NAME
-                                </Label>
-                                <Input
-                                    id="dmr-sender-name"
-                                    value={dmrSenderName}
-                                    onChange={(event) =>
-                                        setDmrSenderName(event.target.value)
-                                    }
-                                    placeholder="TBS Container Yard"
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="dmr-sender-password"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SENDER PASSWORD
-                                </Label>
-                                <div className="relative mt-2">
-                                    <Input
-                                        id="dmr-sender-password"
-                                        type={
-                                            showDmrSenderPassword
-                                                ? 'text'
-                                                : 'password'
-                                        }
-                                        value={dmrSenderPassword}
-                                        onChange={(event) =>
-                                            setDmrSenderPassword(
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="Leave blank to keep current password"
-                                        className="h-11 pr-11"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowDmrSenderPassword(
-                                                (visible) => !visible,
-                                            )
-                                        }
-                                        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900"
-                                        aria-label={
-                                            showDmrSenderPassword
-                                                ? 'Hide password'
-                                                : 'Show password'
-                                        }
-                                    >
-                                        {showDmrSenderPassword ? (
-                                            <EyeOff className="h-4 w-4" />
-                                        ) : (
-                                            <Eye className="h-4 w-4" />
-                                        )}
-                                    </button>
-                                </div>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Used with the sender email to send DMR
-                                    emails.
-                                </p>
-                            </div>
-                            <div>
-                                <Label className="text-sm font-semibold text-gray-900">
-                                    AUTO SEND
-                                </Label>
-                                <div className="mt-2 flex h-11 items-center justify-between rounded-md border border-gray-300 px-3">
-                                    <span className="text-sm text-gray-600">
-                                        Send DMR on schedule
-                                    </span>
-                                    <ModernButton
-                                        type="button"
-                                        variant={
-                                            dmrAutoSend
-                                                ? 'primary'
-                                                : 'secondary'
-                                        }
-                                        size="sm"
-                                        icon={
-                                            dmrAutoSend ? (
-                                                <ToggleRight className="h-5 w-5" />
-                                            ) : (
-                                                <ToggleLeft className="h-5 w-5" />
-                                            )
-                                        }
-                                        onClick={() =>
-                                            setDmrAutoSend(
-                                                (enabled) => !enabled,
-                                            )
-                                        }
-                                    >
-                                        {dmrAutoSend ? 'ON' : 'OFF'}
-                                    </ModernButton>
-                                </div>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Controls automatic DMR sending at the
-                                    configured time and days.
-                                </p>
-                            </div>
-                            <div className="md:col-span-2">
-                                <Label className="text-sm font-semibold text-gray-900">
-                                    SIGNATURE
-                                </Label>
-                                <RichTextEditor
-                                    value={dmrSignature}
-                                    onChange={setDmrSignature}
-                                    placeholder="Enter the default DMR signature..."
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
-                            <div>
-                                <h4 className="font-semibold text-gray-900">
-                                    Client Email Groups
-                                </h4>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Configure a separate recipient list,
-                                    subject, and message for each client.
-                                </p>
-                            </div>
-                            <ModernButton
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                icon={<Plus className="h-4 w-4" />}
-                                onClick={addDmrGroup}
+                    {settingsRightColumn &&
+                        createPortal(
+                            <ModernCard
+                                title="DMR Settings"
+                                subtitle="Configure the DMR schedule, sender, signature, and client-specific email content"
+                                icon={
+                                    <Settings className="h-5 w-5 text-white" />
+                                }
                             >
-                                Add Group
-                            </ModernButton>
-                        </div>
-
-                        <div className="mt-4 space-y-5">
-                            {dmrGroups.length === 0 && (
-                                <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
-                                    No client groups added yet.
-                                </p>
-                            )}
-                            {dmrGroups.map((group, index) => {
-                                const selectedClientIds = new Set(
-                                    dmrGroups
-                                        .filter(
-                                            (_, groupIndex) =>
-                                                groupIndex !== index,
-                                        )
-                                        .map((item) => item.client_id)
-                                        .filter(Boolean),
-                                );
-                                return (
-                                    <div
-                                        key={`dmr-group-${index}`}
-                                        className="rounded-xl border border-gray-200 bg-gray-50 p-5"
-                                    >
-                                        <div className="mb-4 flex items-center justify-between">
+                                <div className="grid max-w-5xl gap-4 md:grid-cols-2">
+                                    <div>
+                                        <Label
+                                            htmlFor="dmr-time"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            TIME
+                                        </Label>
+                                        <Input
+                                            id="dmr-time"
+                                            type="time"
+                                            value={dmrTime}
+                                            onChange={(event) =>
+                                                setDmrTime(event.target.value)
+                                            }
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="dmr-day-exceptions"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            DAY EXCEPTIONS
+                                        </Label>
+                                        <div className="mt-2">
+                                            <MultiSelect
+                                                options={[
+                                                    'Sunday',
+                                                    'Monday',
+                                                    'Tuesday',
+                                                    'Wednesday',
+                                                    'Thursday',
+                                                    'Friday',
+                                                    'Saturday',
+                                                ].map((day) => ({
+                                                    value: day,
+                                                    label: day,
+                                                }))}
+                                                value={dmrDayExceptions}
+                                                onChange={setDmrDayExceptions}
+                                                placeholder="Select exception days"
+                                                searchPlaceholder="Search days..."
+                                            />
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            The DMR worker will skip sending on
+                                            selected days.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="dmr-sender-email"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SENDER EMAIL
+                                        </Label>
+                                        <Input
+                                            id="dmr-sender-email"
+                                            type="email"
+                                            value={dmrSenderEmail}
+                                            onChange={(event) =>
+                                                setDmrSenderEmail(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="sender@example.com"
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="dmr-sender-name"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SENDER NAME
+                                        </Label>
+                                        <Input
+                                            id="dmr-sender-name"
+                                            value={dmrSenderName}
+                                            onChange={(event) =>
+                                                setDmrSenderName(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="TBS Container Yard"
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="dmr-sender-password"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SENDER PASSWORD
+                                        </Label>
+                                        <div className="relative mt-2">
+                                            <Input
+                                                id="dmr-sender-password"
+                                                type={
+                                                    showDmrSenderPassword
+                                                        ? 'text'
+                                                        : 'password'
+                                                }
+                                                value={dmrSenderPassword}
+                                                onChange={(event) =>
+                                                    setDmrSenderPassword(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Leave blank to keep current password"
+                                                className="h-11 pr-11"
+                                            />
                                             <button
                                                 type="button"
                                                 onClick={() =>
-                                                    toggleDmrGroup(index)
+                                                    setShowDmrSenderPassword(
+                                                        (visible) => !visible,
+                                                    )
                                                 }
-                                                className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600"
-                                                aria-expanded={
-                                                    !collapsedDmrGroups[
-                                                        String(index)
-                                                    ]
+                                                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900"
+                                                aria-label={
+                                                    showDmrSenderPassword
+                                                        ? 'Hide password'
+                                                        : 'Show password'
                                                 }
-                                                aria-controls={`dmr-group-content-${index}`}
                                             >
-                                                {collapsedDmrGroups[
-                                                    String(index)
-                                                ] ? (
-                                                    <ChevronDown className="h-5 w-5" />
+                                                {showDmrSenderPassword ? (
+                                                    <EyeOff className="h-4 w-4" />
                                                 ) : (
-                                                    <ChevronUp className="h-5 w-5" />
+                                                    <Eye className="h-4 w-4" />
                                                 )}
-                                                Group {index + 1}
                                             </button>
-                                            <div className="flex items-center gap-2">
-                                                <ModernButton
-                                                    type="button"
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    icon={
-                                                        <Copy className="h-4 w-4" />
-                                                    }
-                                                    onClick={() =>
-                                                        duplicateDmrGroup(index)
-                                                    }
-                                                >
-                                                    Duplicate
-                                                </ModernButton>
-                                                <ModernButton
-                                                    type="button"
-                                                    variant="delete"
-                                                    size="sm"
-                                                    icon={
-                                                        <Trash2 className="h-4 w-4" />
-                                                    }
-                                                    onClick={() =>
-                                                        removeDmrGroup(index)
-                                                    }
-                                                >
-                                                    Remove
-                                                </ModernButton>
-                                            </div>
                                         </div>
-                                        <div
-                                            id={`dmr-group-content-${index}`}
-                                            className={
-                                                collapsedDmrGroups[
-                                                    String(index)
-                                                ]
-                                                    ? 'hidden'
-                                                    : 'grid gap-4 md:grid-cols-2'
-                                            }
-                                        >
-                                            <div className="md:col-span-2">
-                                                <Label
-                                                    htmlFor={`dmr-client-${index}`}
-                                                    className="text-sm font-semibold text-gray-900"
-                                                >
-                                                    CLIENT
-                                                </Label>
-                                                <Select
-                                                    value={
-                                                        group.client_id ||
-                                                        undefined
-                                                    }
-                                                    onValueChange={(value) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'client_id',
-                                                            value,
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        id={`dmr-client-${index}`}
-                                                        className="mt-2 h-11 w-full"
-                                                    >
-                                                        <SelectValue placeholder="Select a client" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {clients
-                                                            .filter(
-                                                                (client) =>
-                                                                    !selectedClientIds.has(
-                                                                        String(
-                                                                            client.c_id,
-                                                                        ),
-                                                                    ) ||
-                                                                    String(
-                                                                        client.c_id,
-                                                                    ) ===
-                                                                        group.client_id,
-                                                            )
-                                                            .map((client) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        client.c_id
-                                                                    }
-                                                                    value={String(
-                                                                        client.c_id,
-                                                                    )}
-                                                                >
-                                                                    {
-                                                                        client.client_name
-                                                                    }
-                                                                    {client.client_code
-                                                                        ? ` (${client.client_code})`
-                                                                        : ''}
-                                                                </SelectItem>
-                                                            ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <Label
-                                                    htmlFor={`dmr-receiver-${index}`}
-                                                    className="text-sm font-semibold text-gray-900"
-                                                >
-                                                    RECEIVER EMAILS
-                                                </Label>
-                                                <textarea
-                                                    id={`dmr-receiver-${index}`}
-                                                    value={
-                                                        group.receiver_emails
-                                                    }
-                                                    onChange={(event) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'receiver_emails',
-                                                            formatEmailListWhileTyping(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                        )
-                                                    }
-                                                    onBlur={(event) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'receiver_emails',
-                                                            formatEmailList(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                        )
-                                                    }
-                                                    placeholder={
-                                                        'qwe@gmail.com,\nasd@gmail.com'
-                                                    }
-                                                    rows={5}
-                                                    style={{
-                                                        colorScheme: 'light',
-                                                    }}
-                                                    className="mt-2 h-32 min-h-[7.5rem] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                                />
-                                                <p className="mt-1 text-xs text-gray-500">
-                                                    One email per line. The
-                                                    field can be resized
-                                                    vertically.
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <Label
-                                                    htmlFor={`dmr-cc-${index}`}
-                                                    className="text-sm font-semibold text-gray-900"
-                                                >
-                                                    CC EMAILS
-                                                </Label>
-                                                <textarea
-                                                    id={`dmr-cc-${index}`}
-                                                    value={group.cc_emails}
-                                                    onChange={(event) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'cc_emails',
-                                                            formatEmailListWhileTyping(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                        )
-                                                    }
-                                                    onBlur={(event) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'cc_emails',
-                                                            formatEmailList(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                        )
-                                                    }
-                                                    placeholder="cc@example.com"
-                                                    rows={5}
-                                                    style={{
-                                                        colorScheme: 'light',
-                                                    }}
-                                                    className="mt-2 h-32 min-h-[7.5rem] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                                />
-                                                <p className="mt-1 text-xs text-gray-500">
-                                                    One email per line. The
-                                                    field can be resized
-                                                    vertically.
-                                                </p>
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <Label className="text-sm font-semibold text-gray-900">
-                                                    SUBJECT
-                                                </Label>
-                                                <RichTextEditor
-                                                    value={group.subject}
-                                                    onChange={(value) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'subject',
-                                                            value,
-                                                        )
-                                                    }
-                                                    placeholder="Enter the email subject..."
-                                                    minHeight="90px"
-                                                />
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <Label className="text-sm font-semibold text-gray-900">
-                                                    CONTENT
-                                                </Label>
-                                                <RichTextEditor
-                                                    value={group.content}
-                                                    onChange={(value) =>
-                                                        updateDmrGroup(
-                                                            index,
-                                                            'content',
-                                                            value,
-                                                        )
-                                                    }
-                                                    placeholder="Enter the email content..."
-                                                    minHeight="180px"
-                                                />
-                                            </div>
-                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Used with the sender email to send
+                                            DMR emails.
+                                        </p>
                                     </div>
-                                );
-                            })}
-                        </div>
-                        <div className="mt-6 flex items-center gap-3">
-                            <ModernButton
-                                type="button"
-                                variant="primary"
-                                loading={saving === 'dmr'}
-                                onClick={saveDmrSettings}
-                            >
-                                Save Settings
-                            </ModernButton>
-                        </div>
-                    </ModernCard>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-900">
+                                            AUTO SEND
+                                        </Label>
+                                        <div className="mt-2 flex h-11 items-center justify-between rounded-md border border-gray-300 px-3">
+                                            <span className="text-sm text-gray-600">
+                                                Send DMR on schedule
+                                            </span>
+                                            <ModernButton
+                                                type="button"
+                                                variant={
+                                                    dmrAutoSend
+                                                        ? 'primary'
+                                                        : 'secondary'
+                                                }
+                                                size="sm"
+                                                icon={
+                                                    dmrAutoSend ? (
+                                                        <ToggleRight className="h-5 w-5" />
+                                                    ) : (
+                                                        <ToggleLeft className="h-5 w-5" />
+                                                    )
+                                                }
+                                                onClick={() =>
+                                                    setDmrAutoSend(
+                                                        (enabled) => !enabled,
+                                                    )
+                                                }
+                                            >
+                                                {dmrAutoSend ? 'ON' : 'OFF'}
+                                            </ModernButton>
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Controls automatic DMR sending at
+                                            the configured time and days.
+                                        </p>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label className="text-sm font-semibold text-gray-900">
+                                            SIGNATURE
+                                        </Label>
+                                        <RichTextEditor
+                                            value={dmrSignature}
+                                            onChange={setDmrSignature}
+                                            placeholder="Enter the default DMR signature..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900">
+                                            Client Email Groups
+                                        </h4>
+                                        <p className="mt-1 text-sm text-gray-500">
+                                            Configure a separate recipient list,
+                                            subject, and message for each
+                                            client.
+                                        </p>
+                                    </div>
+                                    <ModernButton
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        icon={<Plus className="h-4 w-4" />}
+                                        onClick={addDmrGroup}
+                                    >
+                                        Add Group
+                                    </ModernButton>
+                                </div>
+
+                                <div className="mt-4 space-y-5">
+                                    {dmrGroups.length === 0 && (
+                                        <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">
+                                            No client groups added yet.
+                                        </p>
+                                    )}
+                                    {dmrGroups.map((group, index) => {
+                                        const selectedClientIds = new Set(
+                                            dmrGroups
+                                                .filter(
+                                                    (_, groupIndex) =>
+                                                        groupIndex !== index,
+                                                )
+                                                .map((item) => item.client_id)
+                                                .filter(Boolean),
+                                        );
+                                        return (
+                                            <div
+                                                key={`dmr-group-${index}`}
+                                                className="rounded-xl border border-gray-200 bg-gray-50 p-5"
+                                            >
+                                                <div className="mb-4 flex items-center justify-between">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            toggleDmrGroup(
+                                                                index,
+                                                            )
+                                                        }
+                                                        className="flex items-center gap-2 font-semibold text-gray-900 hover:text-blue-600"
+                                                        aria-expanded={
+                                                            !collapsedDmrGroups[
+                                                                String(index)
+                                                            ]
+                                                        }
+                                                        aria-controls={`dmr-group-content-${index}`}
+                                                    >
+                                                        {collapsedDmrGroups[
+                                                            String(index)
+                                                        ] ? (
+                                                            <ChevronDown className="h-5 w-5" />
+                                                        ) : (
+                                                            <ChevronUp className="h-5 w-5" />
+                                                        )}
+                                                        Group {index + 1}
+                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <ModernButton
+                                                            type="button"
+                                                            variant="secondary"
+                                                            size="sm"
+                                                            icon={
+                                                                <Copy className="h-4 w-4" />
+                                                            }
+                                                            onClick={() =>
+                                                                duplicateDmrGroup(
+                                                                    index,
+                                                                )
+                                                            }
+                                                        >
+                                                            Duplicate
+                                                        </ModernButton>
+                                                        <ModernButton
+                                                            type="button"
+                                                            variant="delete"
+                                                            size="sm"
+                                                            icon={
+                                                                <Trash2 className="h-4 w-4" />
+                                                            }
+                                                            onClick={() =>
+                                                                removeDmrGroup(
+                                                                    index,
+                                                                )
+                                                            }
+                                                        >
+                                                            Remove
+                                                        </ModernButton>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    id={`dmr-group-content-${index}`}
+                                                    className={
+                                                        collapsedDmrGroups[
+                                                            String(index)
+                                                        ]
+                                                            ? 'hidden'
+                                                            : 'grid gap-4 md:grid-cols-2'
+                                                    }
+                                                >
+                                                    <div className="md:col-span-2">
+                                                        <Label
+                                                            htmlFor={`dmr-client-${index}`}
+                                                            className="text-sm font-semibold text-gray-900"
+                                                        >
+                                                            CLIENT
+                                                        </Label>
+                                                        <Select
+                                                            value={
+                                                                group.client_id ||
+                                                                undefined
+                                                            }
+                                                            onValueChange={(
+                                                                value,
+                                                            ) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'client_id',
+                                                                    value,
+                                                                )
+                                                            }
+                                                        >
+                                                            <SelectTrigger
+                                                                id={`dmr-client-${index}`}
+                                                                className="mt-2 h-11 w-full"
+                                                            >
+                                                                <SelectValue placeholder="Select a client" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {clients
+                                                                    .filter(
+                                                                        (
+                                                                            client,
+                                                                        ) =>
+                                                                            !selectedClientIds.has(
+                                                                                String(
+                                                                                    client.c_id,
+                                                                                ),
+                                                                            ) ||
+                                                                            String(
+                                                                                client.c_id,
+                                                                            ) ===
+                                                                                group.client_id,
+                                                                    )
+                                                                    .map(
+                                                                        (
+                                                                            client,
+                                                                        ) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    client.c_id
+                                                                                }
+                                                                                value={String(
+                                                                                    client.c_id,
+                                                                                )}
+                                                                            >
+                                                                                {
+                                                                                    client.client_name
+                                                                                }
+                                                                                {client.client_code
+                                                                                    ? ` (${client.client_code})`
+                                                                                    : ''}
+                                                                            </SelectItem>
+                                                                        ),
+                                                                    )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            htmlFor={`dmr-receiver-${index}`}
+                                                            className="text-sm font-semibold text-gray-900"
+                                                        >
+                                                            RECEIVER EMAILS
+                                                        </Label>
+                                                        <textarea
+                                                            id={`dmr-receiver-${index}`}
+                                                            value={
+                                                                group.receiver_emails
+                                                            }
+                                                            onChange={(event) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'receiver_emails',
+                                                                    formatEmailListWhileTyping(
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                    ),
+                                                                )
+                                                            }
+                                                            onBlur={(event) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'receiver_emails',
+                                                                    formatEmailList(
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                    ),
+                                                                )
+                                                            }
+                                                            placeholder={
+                                                                'qwe@gmail.com,\nasd@gmail.com'
+                                                            }
+                                                            rows={5}
+                                                            style={{
+                                                                colorScheme:
+                                                                    'light',
+                                                            }}
+                                                            className="mt-2 h-32 min-h-[7.5rem] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                        />
+                                                        <p className="mt-1 text-xs text-gray-500">
+                                                            One email per line.
+                                                            The field can be
+                                                            resized vertically.
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label
+                                                            htmlFor={`dmr-cc-${index}`}
+                                                            className="text-sm font-semibold text-gray-900"
+                                                        >
+                                                            CC EMAILS
+                                                        </Label>
+                                                        <textarea
+                                                            id={`dmr-cc-${index}`}
+                                                            value={
+                                                                group.cc_emails
+                                                            }
+                                                            onChange={(event) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'cc_emails',
+                                                                    formatEmailListWhileTyping(
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                    ),
+                                                                )
+                                                            }
+                                                            onBlur={(event) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'cc_emails',
+                                                                    formatEmailList(
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                    ),
+                                                                )
+                                                            }
+                                                            placeholder="cc@example.com"
+                                                            rows={5}
+                                                            style={{
+                                                                colorScheme:
+                                                                    'light',
+                                                            }}
+                                                            className="mt-2 h-32 min-h-[7.5rem] w-full resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                                        />
+                                                        <p className="mt-1 text-xs text-gray-500">
+                                                            One email per line.
+                                                            The field can be
+                                                            resized vertically.
+                                                        </p>
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <Label className="text-sm font-semibold text-gray-900">
+                                                            SUBJECT
+                                                        </Label>
+                                                        <RichTextEditor
+                                                            value={
+                                                                group.subject
+                                                            }
+                                                            onChange={(value) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'subject',
+                                                                    value,
+                                                                )
+                                                            }
+                                                            placeholder="Enter the email subject..."
+                                                            minHeight="90px"
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <Label className="text-sm font-semibold text-gray-900">
+                                                            CONTENT
+                                                        </Label>
+                                                        <RichTextEditor
+                                                            value={
+                                                                group.content
+                                                            }
+                                                            onChange={(value) =>
+                                                                updateDmrGroup(
+                                                                    index,
+                                                                    'content',
+                                                                    value,
+                                                                )
+                                                            }
+                                                            placeholder="Enter the email content..."
+                                                            minHeight="180px"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-6 flex items-center gap-3">
+                                    <ModernButton
+                                        type="button"
+                                        variant="primary"
+                                        loading={saving === 'dmr'}
+                                        onClick={saveDmrSettings}
+                                    >
+                                        Save Settings
+                                    </ModernButton>
+                                </div>
+                            </ModernCard>,
+                            settingsRightColumn,
+                        )}
 
                     <ModernCard
                         title="Utilization Settings"
@@ -1931,416 +1984,517 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         </div>
                     </ModernCard>
 
-                    <ModernCard
-                        title="SMS Settings"
-                        subtitle="Configure the SMS provider used by TBS notifications"
-                        icon={<Settings className="h-5 w-5 text-white" />}
-                    >
-                        <div className="grid max-w-4xl gap-4 md:grid-cols-2">
-                            <div>
-                                <Label
-                                    htmlFor="sms-driver"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMS PROVIDER
-                                </Label>
-                                <Input
-                                    id="sms-driver"
-                                    value="SMSGate"
-                                    readOnly
-                                    className="mt-2 h-11 bg-gray-100"
-                                />
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="smsgate-timeout"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    TIMEOUT (SECONDS)
-                                </Label>
-                                <Input
-                                    id="smsgate-timeout"
-                                    type="number"
-                                    min="1"
-                                    max="300"
-                                    value={smsgateTimeout}
-                                    onChange={(event) =>
-                                        setSmsgateTimeout(event.target.value)
-                                    }
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <Label
-                                    htmlFor="smsgate-api-url"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMSGATE API URL
-                                </Label>
-                                <Input
-                                    id="smsgate-api-url"
-                                    type="url"
-                                    value={smsgateApiUrl}
-                                    onChange={(event) =>
-                                        setSmsgateApiUrl(event.target.value)
-                                    }
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <Label
-                                    htmlFor="smsgate-webhook-url"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMSGATE WEBHOOK URL (OPTIONAL)
-                                </Label>
-                                <Input
-                                    id="smsgate-webhook-url"
-                                    type="url"
-                                    value={smsgateWebhookUrl}
-                                    onChange={(event) =>
-                                        setSmsgateWebhookUrl(event.target.value)
-                                    }
-                                    placeholder="https://your-domain.com/api/webhooks/smsgate"
-                                    className="mt-2 h-11"
-                                />
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Register this URL in SMSGate for SMS Sent,
-                                    Delivered, and Failed events.
-                                </p>
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="smsgate-username"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMSGATE USERNAME
-                                </Label>
-                                <Input
-                                    id="smsgate-username"
-                                    type="text"
-                                    value={smsgateUsername}
-                                    onChange={(event) =>
-                                        setSmsgateUsername(event.target.value)
-                                    }
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="smsgate-device-id"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMSGATE DEVICE ID
-                                </Label>
-                                <Input
-                                    id="smsgate-device-id"
-                                    type="text"
-                                    value={smsgateDeviceId}
-                                    onChange={(event) =>
-                                        setSmsgateDeviceId(event.target.value)
-                                    }
-                                    className="mt-2 h-11"
-                                />
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="smsgate-password"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMSGATE PASSWORD
-                                </Label>
-                                <div className="relative mt-2">
-                                    <Input
-                                        id="smsgate-password"
-                                        type={
-                                            showSmsgatePassword
-                                                ? 'text'
-                                                : 'password'
-                                        }
-                                        autoComplete="new-password"
-                                        value={smsgatePassword}
-                                        onChange={(event) =>
-                                            setSmsgatePassword(
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="Enter SMSGate password"
-                                        className="h-11 pr-11"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowSmsgatePassword(
-                                                (visible) => !visible,
-                                            )
-                                        }
-                                        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900"
-                                        aria-label={
-                                            showSmsgatePassword
-                                                ? 'Hide password'
-                                                : 'Show password'
-                                        }
-                                    >
-                                        {showSmsgatePassword ? (
-                                            <EyeOff className="h-4 w-4" />
-                                        ) : (
-                                            <Eye className="h-4 w-4" />
+                    {settingsRightColumn &&
+                        createPortal(
+                            <ModernCard
+                                title="SMS Settings"
+                                subtitle="Configure the SMS provider used by TBS notifications"
+                                icon={
+                                    <Settings className="h-5 w-5 text-white" />
+                                }
+                            >
+                                <div className="grid max-w-4xl gap-4 md:grid-cols-2">
+                                    <div>
+                                        <Label
+                                            htmlFor="sms-driver"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMS PROVIDER
+                                        </Label>
+                                        <Input
+                                            id="sms-driver"
+                                            value="SMSGate"
+                                            readOnly
+                                            className="mt-2 h-11 bg-gray-100"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="smsgate-timeout"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            TIMEOUT (SECONDS)
+                                        </Label>
+                                        <Input
+                                            id="smsgate-timeout"
+                                            type="number"
+                                            min="1"
+                                            max="300"
+                                            value={smsgateTimeout}
+                                            onChange={(event) =>
+                                                setSmsgateTimeout(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label
+                                            htmlFor="smsgate-api-url"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMSGATE API URL
+                                        </Label>
+                                        <Input
+                                            id="smsgate-api-url"
+                                            type="url"
+                                            value={smsgateApiUrl}
+                                            onChange={(event) =>
+                                                setSmsgateApiUrl(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label
+                                            htmlFor="smsgate-webhook-url"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMSGATE WEBHOOK URL (OPTIONAL)
+                                        </Label>
+                                        <Input
+                                            id="smsgate-webhook-url"
+                                            type="url"
+                                            value={smsgateWebhookUrl}
+                                            onChange={(event) =>
+                                                setSmsgateWebhookUrl(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="https://your-domain.com/api/webhooks/smsgate"
+                                            className="mt-2 h-11"
+                                        />
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Register this URL in SMSGate for SMS
+                                            Sent, Delivered, and Failed events.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="smsgate-username"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMSGATE USERNAME
+                                        </Label>
+                                        <Input
+                                            id="smsgate-username"
+                                            type="text"
+                                            value={smsgateUsername}
+                                            onChange={(event) =>
+                                                setSmsgateUsername(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="smsgate-device-id"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMSGATE DEVICE ID
+                                        </Label>
+                                        <Input
+                                            id="smsgate-device-id"
+                                            type="text"
+                                            value={smsgateDeviceId}
+                                            onChange={(event) =>
+                                                setSmsgateDeviceId(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            className="mt-2 h-11"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="smsgate-password"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMSGATE PASSWORD
+                                        </Label>
+                                        <div className="relative mt-2">
+                                            <Input
+                                                id="smsgate-password"
+                                                type={
+                                                    showSmsgatePassword
+                                                        ? 'text'
+                                                        : 'password'
+                                                }
+                                                autoComplete="new-password"
+                                                value={smsgatePassword}
+                                                onChange={(event) =>
+                                                    setSmsgatePassword(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                                placeholder="Enter SMSGate password"
+                                                className="h-11 pr-11"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowSmsgatePassword(
+                                                        (visible) => !visible,
+                                                    )
+                                                }
+                                                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-900"
+                                                aria-label={
+                                                    showSmsgatePassword
+                                                        ? 'Hide password'
+                                                        : 'Show password'
+                                                }
+                                            >
+                                                {showSmsgatePassword ? (
+                                                    <EyeOff className="h-4 w-4" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4" />
+                                                )}
+                                            </button>
+                                        </div>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Stored encrypted in the database.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <Label
+                                            htmlFor="smsgate-sim-number"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SIM NUMBER (OPTIONAL)
+                                        </Label>
+                                        <Input
+                                            id="smsgate-sim-number"
+                                            type="number"
+                                            min="1"
+                                            max="3"
+                                            value={smsgateSimNumber}
+                                            onChange={(event) =>
+                                                setSmsgateSimNumber(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            placeholder="Blank for default SIM"
+                                            className="mt-2 h-11"
+                                        />
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Leave blank for a single-SIM phone.
+                                        </p>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label
+                                            htmlFor="sms-header-text"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMS HEADER TEXT
+                                        </Label>
+                                        <textarea
+                                            id="sms-header-text"
+                                            value={smsHeaderText}
+                                            onChange={(event) =>
+                                                setSmsHeaderText(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            rows={2}
+                                            placeholder="Optional text placed before the queue message"
+                                            className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label
+                                            htmlFor="sms-footer-text"
+                                            className="text-sm font-semibold text-gray-900"
+                                        >
+                                            SMS FOOTER TEXT
+                                        </Label>
+                                        <textarea
+                                            id="sms-footer-text"
+                                            value={smsFooterText}
+                                            onChange={(event) =>
+                                                setSmsFooterText(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            rows={2}
+                                            placeholder="Optional text placed after the queue message"
+                                            className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                        />
+                                    </div>
+                                    <div className="border-t border-gray-200 pt-6 md:col-span-2">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setQueueStatusMessagesOpen(
+                                                    (open) => !open,
+                                                )
+                                            }
+                                            className="flex w-full items-center justify-between text-left"
+                                            aria-expanded={
+                                                queueStatusMessagesOpen
+                                            }
+                                        >
+                                            <span className="text-lg font-bold text-gray-900">
+                                                Queue Status SMS Messages
+                                            </span>
+                                            {queueStatusMessagesOpen ? (
+                                                <ChevronUp className="h-5 w-5 text-gray-500" />
+                                            ) : (
+                                                <ChevronDown className="h-5 w-5 text-gray-500" />
+                                            )}
+                                        </button>
+                                        {queueStatusMessagesOpen && (
+                                            <>
+                                                <p className="mt-1 text-sm text-gray-500">
+                                                    The final SMS format is
+                                                    header, queue message, then
+                                                    footer.
+                                                </p>
+                                                <div className="mt-4 grid gap-4">
+                                                    {queueStatusMessages.map(
+                                                        (
+                                                            statusMessage,
+                                                            index,
+                                                        ) => (
+                                                            <div
+                                                                key={
+                                                                    statusMessage.id
+                                                                }
+                                                            >
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <Label
+                                                                        htmlFor={`queue-status-message-${statusMessage.id}`}
+                                                                        className="text-sm font-semibold text-gray-900 uppercase"
+                                                                    >
+                                                                        {
+                                                                            statusMessage.status
+                                                                        }
+                                                                    </Label>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            setQueueStatusMessages(
+                                                                                (
+                                                                                    messages,
+                                                                                ) =>
+                                                                                    messages.map(
+                                                                                        (
+                                                                                            message,
+                                                                                            messageIndex,
+                                                                                        ) =>
+                                                                                            messageIndex ===
+                                                                                            index
+                                                                                                ? {
+                                                                                                      ...message,
+                                                                                                      enabled:
+                                                                                                          !message.enabled,
+                                                                                                  }
+                                                                                                : message,
+                                                                                    ),
+                                                                            )
+                                                                        }
+                                                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
+                                                                        aria-pressed={
+                                                                            statusMessage.enabled
+                                                                        }
+                                                                    >
+                                                                        {statusMessage.enabled ? (
+                                                                            <ToggleRight className="h-4 w-4" />
+                                                                        ) : (
+                                                                            <ToggleLeft className="h-4 w-4" />
+                                                                        )}{' '}
+                                                                        {statusMessage.enabled
+                                                                            ? 'On'
+                                                                            : 'Off'}
+                                                                    </button>
+                                                                </div>
+                                                                <textarea
+                                                                    id={`queue-status-message-${statusMessage.id}`}
+                                                                    value={
+                                                                        statusMessage.message
+                                                                    }
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) =>
+                                                                        setQueueStatusMessages(
+                                                                            (
+                                                                                messages,
+                                                                            ) =>
+                                                                                messages.map(
+                                                                                    (
+                                                                                        message,
+                                                                                        messageIndex,
+                                                                                    ) =>
+                                                                                        messageIndex ===
+                                                                                        index
+                                                                                            ? {
+                                                                                                  ...message,
+                                                                                                  message:
+                                                                                                      event
+                                                                                                          .target
+                                                                                                          .value,
+                                                                                              }
+                                                                                            : message,
+                                                                                ),
+                                                                        )
+                                                                    }
+                                                                    rows={3}
+                                                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                                                />
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            </>
                                         )}
-                                    </button>
-                                </div>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Stored encrypted in the database.
-                                </p>
-                            </div>
-                            <div>
-                                <Label
-                                    htmlFor="smsgate-sim-number"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SIM NUMBER (OPTIONAL)
-                                </Label>
-                                <Input
-                                    id="smsgate-sim-number"
-                                    type="number"
-                                    min="1"
-                                    max="3"
-                                    value={smsgateSimNumber}
-                                    onChange={(event) =>
-                                        setSmsgateSimNumber(event.target.value)
-                                    }
-                                    placeholder="Blank for default SIM"
-                                    className="mt-2 h-11"
-                                />
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Leave blank for a single-SIM phone.
-                                </p>
-                            </div>
-                            <div className="md:col-span-2">
-                                <Label
-                                    htmlFor="sms-header-text"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMS HEADER TEXT
-                                </Label>
-                                <textarea
-                                    id="sms-header-text"
-                                    value={smsHeaderText}
-                                    onChange={(event) =>
-                                        setSmsHeaderText(event.target.value)
-                                    }
-                                    rows={2}
-                                    placeholder="Optional text placed before the queue message"
-                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <Label
-                                    htmlFor="sms-footer-text"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    SMS FOOTER TEXT
-                                </Label>
-                                <textarea
-                                    id="sms-footer-text"
-                                    value={smsFooterText}
-                                    onChange={(event) =>
-                                        setSmsFooterText(event.target.value)
-                                    }
-                                    rows={2}
-                                    placeholder="Optional text placed after the queue message"
-                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                />
-                            </div>
-                            <div className="border-t border-gray-200 pt-6 md:col-span-2">
-                                <h3 className="text-lg font-bold text-gray-900">
-                                    Queue Status SMS Messages
-                                </h3>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    The final SMS format is header, queue
-                                    message, then footer.
-                                </p>
-                                <div className="mt-4 grid gap-4">
-                                    {queueStatusMessages.map(
-                                        (statusMessage, index) => (
-                                            <div key={statusMessage.id}>
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <Label
-                                                        htmlFor={`queue-status-message-${statusMessage.id}`}
-                                                        className="text-sm font-semibold text-gray-900 uppercase"
-                                                    >
-                                                        {statusMessage.status}
-                                                    </Label>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setQueueStatusMessages(
-                                                                (messages) =>
-                                                                    messages.map(
-                                                                        (
-                                                                            message,
-                                                                            messageIndex,
-                                                                        ) =>
-                                                                            messageIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...message,
-                                                                                      enabled:
-                                                                                          !message.enabled,
-                                                                                  }
-                                                                                : message,
-                                                                    ),
-                                                            )
-                                                        }
-                                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
-                                                        aria-pressed={
-                                                            statusMessage.enabled
-                                                        }
-                                                    >
-                                                        {statusMessage.enabled ? (
-                                                            <ToggleRight className="h-4 w-4" />
-                                                        ) : (
-                                                            <ToggleLeft className="h-4 w-4" />
-                                                        )}{' '}
-                                                        {statusMessage.enabled
-                                                            ? 'On'
-                                                            : 'Off'}
-                                                    </button>
-                                                </div>
-                                                <textarea
-                                                    id={`queue-status-message-${statusMessage.id}`}
-                                                    value={
-                                                        statusMessage.message
-                                                    }
-                                                    onChange={(event) =>
-                                                        setQueueStatusMessages(
-                                                            (messages) =>
-                                                                messages.map(
-                                                                    (
-                                                                        message,
-                                                                        messageIndex,
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setStandbyStatusMessagesOpen(
+                                                    (open) => !open,
+                                                )
+                                            }
+                                            className="mt-8 flex w-full items-center justify-between text-left"
+                                            aria-expanded={
+                                                standbyStatusMessagesOpen
+                                            }
+                                        >
+                                            <span className="text-lg font-bold text-gray-900">
+                                                Standby SMS Messages
+                                            </span>
+                                            {standbyStatusMessagesOpen ? (
+                                                <ChevronUp className="h-5 w-5 text-gray-500" />
+                                            ) : (
+                                                <ChevronDown className="h-5 w-5 text-gray-500" />
+                                            )}
+                                        </button>
+                                        {standbyStatusMessagesOpen && (
+                                            <>
+                                                <p className="mt-1 text-sm text-gray-500">
+                                                    Standby messages use the
+                                                    selected standby code and
+                                                    reason.
+                                                </p>
+                                                <div className="mt-4 grid gap-4">
+                                                    {standbyStatusMessages.map(
+                                                        (
+                                                            statusMessage,
+                                                            index,
+                                                        ) => (
+                                                            <div
+                                                                key={
+                                                                    statusMessage.id
+                                                                }
+                                                            >
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <Label
+                                                                        htmlFor={`standby-status-message-${statusMessage.id}`}
+                                                                        className="text-sm font-semibold text-gray-900 uppercase"
+                                                                    >
+                                                                        {
+                                                                            statusMessage.code
+                                                                        }{' '}
+                                                                        —{' '}
+                                                                        {
+                                                                            statusMessage.name
+                                                                        }
+                                                                    </Label>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            setStandbyStatusMessages(
+                                                                                (
+                                                                                    messages,
+                                                                                ) =>
+                                                                                    messages.map(
+                                                                                        (
+                                                                                            message,
+                                                                                            messageIndex,
+                                                                                        ) =>
+                                                                                            messageIndex ===
+                                                                                            index
+                                                                                                ? {
+                                                                                                      ...message,
+                                                                                                      enabled:
+                                                                                                          !message.enabled,
+                                                                                                  }
+                                                                                                : message,
+                                                                                    ),
+                                                                            )
+                                                                        }
+                                                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
+                                                                        aria-pressed={
+                                                                            statusMessage.enabled
+                                                                        }
+                                                                    >
+                                                                        {statusMessage.enabled ? (
+                                                                            <ToggleRight className="h-4 w-4" />
+                                                                        ) : (
+                                                                            <ToggleLeft className="h-4 w-4" />
+                                                                        )}{' '}
+                                                                        {statusMessage.enabled
+                                                                            ? 'On'
+                                                                            : 'Off'}
+                                                                    </button>
+                                                                </div>
+                                                                <textarea
+                                                                    id={`standby-status-message-${statusMessage.id}`}
+                                                                    value={
+                                                                        statusMessage.message
+                                                                    }
+                                                                    onChange={(
+                                                                        event,
                                                                     ) =>
-                                                                        messageIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...message,
-                                                                                  message:
-                                                                                      event
-                                                                                          .target
-                                                                                          .value,
-                                                                              }
-                                                                            : message,
-                                                                ),
-                                                        )
-                                                    }
-                                                    rows={3}
-                                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                                />
-                                            </div>
-                                        ),
-                                    )}
-                                </div>
-                                <h3 className="mt-8 text-lg font-bold text-gray-900">
-                                    Standby SMS Messages
-                                </h3>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Standby messages use the selected standby
-                                    code and reason.
-                                </p>
-                                <div className="mt-4 grid gap-4">
-                                    {standbyStatusMessages.map(
-                                        (statusMessage, index) => (
-                                            <div key={statusMessage.id}>
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <Label
-                                                        htmlFor={`standby-status-message-${statusMessage.id}`}
-                                                        className="text-sm font-semibold text-gray-900 uppercase"
-                                                    >
-                                                        {statusMessage.code} —{' '}
-                                                        {statusMessage.name}
-                                                    </Label>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setStandbyStatusMessages(
-                                                                (messages) =>
-                                                                    messages.map(
-                                                                        (
-                                                                            message,
-                                                                            messageIndex,
-                                                                        ) =>
-                                                                            messageIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...message,
-                                                                                      enabled:
-                                                                                          !message.enabled,
-                                                                                  }
-                                                                                : message,
-                                                                    ),
-                                                            )
-                                                        }
-                                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
-                                                        aria-pressed={
-                                                            statusMessage.enabled
-                                                        }
-                                                    >
-                                                        {statusMessage.enabled ? (
-                                                            <ToggleRight className="h-4 w-4" />
-                                                        ) : (
-                                                            <ToggleLeft className="h-4 w-4" />
-                                                        )}{' '}
-                                                        {statusMessage.enabled
-                                                            ? 'On'
-                                                            : 'Off'}
-                                                    </button>
+                                                                        setStandbyStatusMessages(
+                                                                            (
+                                                                                messages,
+                                                                            ) =>
+                                                                                messages.map(
+                                                                                    (
+                                                                                        message,
+                                                                                        messageIndex,
+                                                                                    ) =>
+                                                                                        messageIndex ===
+                                                                                        index
+                                                                                            ? {
+                                                                                                  ...message,
+                                                                                                  message:
+                                                                                                      event
+                                                                                                          .target
+                                                                                                          .value,
+                                                                                              }
+                                                                                            : message,
+                                                                                ),
+                                                                        )
+                                                                    }
+                                                                    rows={3}
+                                                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                                                />
+                                                            </div>
+                                                        ),
+                                                    )}
                                                 </div>
-                                                <textarea
-                                                    id={`standby-status-message-${statusMessage.id}`}
-                                                    value={
-                                                        statusMessage.message
-                                                    }
-                                                    onChange={(event) =>
-                                                        setStandbyStatusMessages(
-                                                            (messages) =>
-                                                                messages.map(
-                                                                    (
-                                                                        message,
-                                                                        messageIndex,
-                                                                    ) =>
-                                                                        messageIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...message,
-                                                                                  message:
-                                                                                      event
-                                                                                          .target
-                                                                                          .value,
-                                                                              }
-                                                                            : message,
-                                                                ),
-                                                        )
-                                                    }
-                                                    rows={3}
-                                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                                                />
-                                            </div>
-                                        ),
-                                    )}
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3 md:col-span-2">
+                                        <ModernButton
+                                            type="button"
+                                            variant="primary"
+                                            loading={saving === 'sms'}
+                                            onClick={saveSmsSettings}
+                                        >
+                                            Save Settings
+                                        </ModernButton>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-3 md:col-span-2">
-                                <ModernButton
-                                    type="button"
-                                    variant="primary"
-                                    loading={saving === 'sms'}
-                                    onClick={saveSmsSettings}
-                                >
-                                    Save Settings
-                                </ModernButton>
-                            </div>
-                        </div>
-                    </ModernCard>
+                            </ModernCard>,
+                            settingsRightColumn,
+                        )}
                 </div>
             </div>
             <ToastContainer toasts={toasts} removeToast={removeToast} />
