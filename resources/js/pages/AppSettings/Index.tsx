@@ -45,6 +45,7 @@ interface QueueStatusMessage {
     id: number;
     status: string;
     message: string;
+    enabled: boolean;
 }
 
 interface StandbyStatusMessage {
@@ -52,6 +53,7 @@ interface StandbyStatusMessage {
     code: string;
     name: string;
     message: string;
+    enabled: boolean;
 }
 
 interface AppSettingsProps {
@@ -2136,12 +2138,49 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                     {queueStatusMessages.map(
                                         (statusMessage, index) => (
                                             <div key={statusMessage.id}>
-                                                <Label
-                                                    htmlFor={`queue-status-message-${statusMessage.id}`}
-                                                    className="text-sm font-semibold text-gray-900 uppercase"
-                                                >
-                                                    {statusMessage.status}
-                                                </Label>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <Label
+                                                        htmlFor={`queue-status-message-${statusMessage.id}`}
+                                                        className="text-sm font-semibold text-gray-900 uppercase"
+                                                    >
+                                                        {statusMessage.status}
+                                                    </Label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setQueueStatusMessages(
+                                                                (messages) =>
+                                                                    messages.map(
+                                                                        (
+                                                                            message,
+                                                                            messageIndex,
+                                                                        ) =>
+                                                                            messageIndex ===
+                                                                            index
+                                                                                ? {
+                                                                                      ...message,
+                                                                                      enabled:
+                                                                                          !message.enabled,
+                                                                                  }
+                                                                                : message,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
+                                                        aria-pressed={
+                                                            statusMessage.enabled
+                                                        }
+                                                    >
+                                                        {statusMessage.enabled ? (
+                                                            <ToggleRight className="h-4 w-4" />
+                                                        ) : (
+                                                            <ToggleLeft className="h-4 w-4" />
+                                                        )}{' '}
+                                                        {statusMessage.enabled
+                                                            ? 'On'
+                                                            : 'Off'}
+                                                    </button>
+                                                </div>
                                                 <textarea
                                                     id={`queue-status-message-${statusMessage.id}`}
                                                     value={
@@ -2193,6 +2232,41 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                                     {statusMessage.code} —{' '}
                                                     {statusMessage.name}
                                                 </Label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setStandbyStatusMessages(
+                                                            (messages) =>
+                                                                messages.map(
+                                                                    (
+                                                                        message,
+                                                                        messageIndex,
+                                                                    ) =>
+                                                                        messageIndex ===
+                                                                        index
+                                                                            ? {
+                                                                                  ...message,
+                                                                                  enabled:
+                                                                                      !message.enabled,
+                                                                              }
+                                                                            : message,
+                                                                ),
+                                                        )
+                                                    }
+                                                    className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold ${statusMessage.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}
+                                                    aria-pressed={
+                                                        statusMessage.enabled
+                                                    }
+                                                >
+                                                    {statusMessage.enabled ? (
+                                                        <ToggleRight className="h-4 w-4" />
+                                                    ) : (
+                                                        <ToggleLeft className="h-4 w-4" />
+                                                    )}{' '}
+                                                    {statusMessage.enabled
+                                                        ? 'On'
+                                                        : 'Off'}
+                                                </button>
                                                 <textarea
                                                     id={`standby-status-message-${statusMessage.id}`}
                                                     value={
