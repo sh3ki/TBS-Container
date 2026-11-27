@@ -44,7 +44,7 @@ import {
     X,
 } from 'lucide-react';
 import type { CSSProperties, MouseEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface QueueEntry {
     id: number;
@@ -231,6 +231,9 @@ function QueueColumn({
 }) {
     const [dragging, setDragging] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<number | null>(null);
+    const touchDragTimer = useRef<number | null>(null);
+    const touchDragging = useRef(false);
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
     const longestPlateLength = serving
         ? Math.max(8, ...entries.map((entry) => entry.plate_no.length))
         : 0;
@@ -241,6 +244,12 @@ function QueueColumn({
             'article[data-queue-group]',
         );
         if (!article) return;
+        if (
+            (event.target as HTMLElement).closest(
+                'button, input, textarea, select',
+            )
+        )
+            return;
         const articleGroup = article.dataset.queueGroup;
         const articleIndex = Number(article.dataset.queueIndex);
         const source =
@@ -330,11 +339,40 @@ function QueueColumn({
                                 (event.target as HTMLElement).closest('button')
                             )
                                 return;
-                            setDragging(index);
-                            setActiveGroup(listGroup);
+                            const touch = event.touches[0];
+                            touchDragging.current = false;
+                            touchStart.current = {
+                                x: touch.clientX,
+                                y: touch.clientY,
+                            };
+                            if (touchDragTimer.current !== null)
+                                window.clearTimeout(touchDragTimer.current);
+                            touchDragTimer.current = window.setTimeout(() => {
+                                touchDragging.current = true;
+                                setDragging(index);
+                                setActiveGroup(listGroup);
+                            }, 500);
                         }}
                         onTouchMove={(event) => {
-                            if (dragging === null || activeGroup !== listGroup)
+                            const touch = event.touches[0];
+                            const start = touchStart.current;
+                            if (
+                                !touchDragging.current &&
+                                start &&
+                                (Math.abs(touch.clientX - start.x) > 8 ||
+                                    Math.abs(touch.clientY - start.y) > 8)
+                            ) {
+                                if (touchDragTimer.current !== null)
+                                    window.clearTimeout(touchDragTimer.current);
+                                touchDragTimer.current = null;
+                                touchStart.current = null;
+                                return;
+                            }
+                            if (
+                                !touchDragging.current ||
+                                dragging === null ||
+                                activeGroup !== listGroup
+                            )
                                 return;
                             event.preventDefault();
                             const touch = event.touches[0];
@@ -358,8 +396,24 @@ function QueueColumn({
                             }
                         }}
                         onTouchEnd={(event) => {
+                            if (touchDragTimer.current !== null)
+                                window.clearTimeout(touchDragTimer.current);
+                            touchDragTimer.current = null;
+                            touchStart.current = null;
+                            if (!touchDragging.current) return;
                             event.preventDefault();
+                            touchDragging.current = false;
                             finishTouchDrag();
+                        }}
+                        onTouchCancel={() => {
+                            if (touchDragTimer.current !== null)
+                                window.clearTimeout(touchDragTimer.current);
+                            touchDragTimer.current = null;
+                            touchStart.current = null;
+                            touchDragging.current = false;
+                            setDragging(null);
+                            setDropTarget(null);
+                            setActiveGroup(null);
                         }}
                         onDragStart={(event) => {
                             if (!canDragEntry) return;
