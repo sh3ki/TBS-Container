@@ -341,12 +341,14 @@ class GateinoutController extends Controller
             'id' => ['required', 'integer'],
             'status' => ['required', 'in:calling,floating,forfeited,standby'],
             'standby_id' => ['nullable', 'integer', 'exists:queue_standby_status,id'],
+            'context' => ['nullable', 'in:planner,admin'],
         ]);
 
         $transition = DB::transaction(function () use ($validated) {
             $entry = DB::table('queue_entries')->where('id', $validated['id'])->lockForUpdate()->first();
             abort_unless($entry, 404, 'Queue entry not found.');
             $fromStatus = $entry->status;
+            $context = $validated['context'] ?? 'admin';
 
             $allowedPreviousStatus = match ($validated['status']) {
                 'calling' => ['waiting', 'standby'],
@@ -355,6 +357,40 @@ class GateinoutController extends Controller
                 'standby' => ['waiting'],
             };
             abort_unless(in_array($entry->status, $allowedPreviousStatus, true), 409, 'This queue status transition is not allowed.');
+
+            if ($context === 'planner' && $validated['status'] === 'calling') {
+                $firstEligible = $entry->status === 'standby'
+                    ? DB::table('queue_entries')
+                        ->where('direction', $entry->direction)
+                        ->where('status', 'standby')
+                        ->where('standby_id', $entry->standby_id)
+                        ->whereNull('completed_at')
+                        ->orderBy('waiting_number')
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->first()
+                    : DB::table('queue_entries')
+                        ->where('direction', $entry->direction)
+                        ->where('status', 'waiting')
+                        ->whereNull('completed_at')
+                        ->orderBy('waiting_number')
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->first();
+                abort_unless($firstEligible && (int) $firstEligible->id === (int) $entry->id, 409, 'Only the first eligible truck can be called from Queue Planner.');
+            }
+
+            if ($context === 'planner' && $validated['status'] === 'standby') {
+                $firstWaiting = DB::table('queue_entries')
+                    ->where('direction', $entry->direction)
+                    ->where('status', 'waiting')
+                    ->whereNull('completed_at')
+                    ->orderBy('waiting_number')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->first();
+                abort_unless($firstWaiting && (int) $firstWaiting->id === (int) $entry->id, 409, 'Only the first waiting truck can be placed on standby from Queue Planner.');
+            }
 
             $transitionAt = now();
             $timestampColumn = $validated['status'] . '_at';
