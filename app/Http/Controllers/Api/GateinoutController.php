@@ -237,7 +237,7 @@ class GateinoutController extends Controller
             }
             array_splice($servingIds, $insertAt, 0, [(int) $entry->id]);
             foreach ($servingIds as $index => $servingId) DB::table('queue_entries')->where('id', $servingId)->update(['serving_number' => $index + 1, 'updated_at' => now()]);
-            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->whereIn('status', ['waiting', 'calling', 'floating'])->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
+            $waiting = DB::table('queue_entries')->where('direction', $entry->direction)->whereIn('status', ['waiting', 'standby', 'calling', 'floating'])->orderBy('waiting_number')->orderBy('id')->lockForUpdate()->get(['id']);
             foreach ($waiting as $index => $waitingEntry) DB::table('queue_entries')->where('id', $waitingEntry->id)->update(['waiting_number' => $index + 1, 'updated_at' => now()]);
             $servingNumber = (int) DB::table('queue_entries')->where('id', $entry->id)->value('serving_number');
             return ['id' => (int) $entry->id, 'plate_no' => $entry->plate_no, 'direction' => $entry->direction, 'serving_number' => $servingNumber];
@@ -549,7 +549,7 @@ class GateinoutController extends Controller
         $queueEntries = DB::table($table)
             ->where('direction', $direction)
             ->where('id', '<>', $newId)
-            ->whereIn('status', ['waiting', 'calling', 'floating'])
+            ->whereIn('status', ['waiting', 'standby', 'calling', 'floating'])
             ->orderBy('waiting_number')
             ->orderBy('id')
             ->lockForUpdate()
@@ -575,6 +575,12 @@ class GateinoutController extends Controller
         $waiting = $latestActiveIndex >= 0
             ? $queueEntries->slice($latestActiveIndex + 1)->values()
             : $queueEntries;
+
+        // Waiting and standby entries share the booking-time order. Calling
+        // and floating entries remain protected at the front of the queue.
+        $waiting = $waiting->sortBy(function ($queuedEntry) {
+            return strtotime((string) $queuedEntry->booking_time) ?: PHP_INT_MAX;
+        })->values();
 
         $insertAt = count($waiting);
         foreach ($waiting as $index => $queuedEntry) {
