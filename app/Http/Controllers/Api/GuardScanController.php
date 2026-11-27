@@ -223,13 +223,18 @@ class GuardScanController extends Controller
                     ->lockForUpdate()
                     ->first();
                 abort_unless($firstEntry && (int) $firstEntry->id === (int) $entry->id, 409, 'Only the first waiting truck can be called.');
+                $transitionAt = now();
+                // Write only calling_at. Existing floating_at, standby_at,
+                // serving_at, and other history fields must be preserved.
                 DB::table('queue_entries')->where('id', $entry->id)->update([
-                    'status' => 'calling', 'calling_at' => now(), 'updated_at' => now(),
+                    'status' => 'calling', 'calling_at' => $transitionAt, 'updated_at' => $transitionAt,
                 ]);
             } else {
                 abort_unless($entry->status === 'calling', 409, 'Only calling trucks can be floated.');
+                $transitionAt = now();
+                // Write only floating_at; never clear the earlier status time.
                 DB::table('queue_entries')->where('id', $entry->id)->update([
-                    'status' => 'floating', 'floating_at' => now(), 'updated_at' => now(),
+                    'status' => 'floating', 'floating_at' => $transitionAt, 'updated_at' => $transitionAt,
                 ]);
             }
 
@@ -367,6 +372,8 @@ class GuardScanController extends Controller
             }
 
             $servingAt = now();
+            // Moving a scanned truck to serving must preserve every previous
+            // queue-status timestamp; only serving_at is added here.
             DB::table('queue_entries')->where('id', $entry->id)->update([
                 'status' => 'serving',
                 'waiting_number' => null,
