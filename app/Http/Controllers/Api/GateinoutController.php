@@ -79,13 +79,15 @@ class GateinoutController extends Controller
             $waitingIn = DB::table('queue_entries')
                 ->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')
                 ->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')
+                ->leftJoin('queue_standby_status as queue_standby', 'queue_standby.id', '=', 'queue_entries.standby_id')
                 ->where('queue_entries.direction', 'IN')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')
-                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
+                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', DB::raw('COALESCE(queue_entries.standby_at, queue_entries.updated_at) as standby_at'), 'queue_standby.code as standby_code', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
             $waitingOut = DB::table('queue_entries')
                 ->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')
                 ->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')
+                ->leftJoin('queue_standby_status as queue_standby', 'queue_standby.id', '=', 'queue_entries.standby_id')
                 ->where('queue_entries.direction', 'OUT')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')
-                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
+                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', DB::raw('COALESCE(queue_entries.standby_at, queue_entries.updated_at) as standby_at'), 'queue_standby.code as standby_code', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
             $serving = DB::table('queue_entries')
                 ->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')
                 ->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')
