@@ -246,6 +246,8 @@ Route::middleware(['auth'])->group(function () {
                 'smsgate_device_id' => (string) ($settings?->smsgate_device_id ?: env('SMSGATE_DEVICE_ID', '')),
                 'smsgate_sim_number' => $settings?->smsgate_sim_number !== null ? (string) $settings->smsgate_sim_number : (string) env('SMSGATE_SIM_NUMBER', ''),
                 'smsgate_timeout' => (int) ($settings?->smsgate_timeout ?: env('SMSGATE_TIMEOUT', 20)),
+                'sms_header_text' => (string) ($settings?->sms_header_text ?? ''),
+                'sms_footer_text' => (string) ($settings?->sms_footer_text ?? ''),
             ],
             'clients' => $clients,
         ]);
@@ -310,6 +312,8 @@ Route::middleware(['auth'])->group(function () {
             'smsgate_device_id' => ['nullable', 'string', 'max:255'],
             'smsgate_sim_number' => ['nullable', 'integer', 'min:1', 'max:3'],
             'smsgate_timeout' => ['required_if:section,sms', 'integer', 'min:1', 'max:300'],
+            'sms_header_text' => ['nullable', 'string', 'max:100000'],
+            'sms_footer_text' => ['nullable', 'string', 'max:100000'],
         ];
         if ($request->input('section') === 'docs_fee') {
             $rules['incoming_rate'] = ['required', 'numeric', 'gt:0'];
@@ -376,6 +380,8 @@ Route::middleware(['auth'])->group(function () {
                 'smsgate_device_id' => $validated['smsgate_device_id'] ?? null,
                 'smsgate_sim_number' => $validated['smsgate_sim_number'] ?? null,
                 'smsgate_timeout' => (int) $validated['smsgate_timeout'],
+                'sms_header_text' => $validated['sms_header_text'] ?? null,
+                'sms_footer_text' => $validated['sms_footer_text'] ?? null,
                 'updated_at' => now(),
             ];
             if (!empty($validated['smsgate_password'])) {
