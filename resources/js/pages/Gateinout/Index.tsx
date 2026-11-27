@@ -632,12 +632,13 @@ export default function Index() {
     }
   };
 
-  const handleEditPreIn = async (record: PreInventoryRecord) => {
-    // Use the client_id from the record directly
+  const handleEditPreIn = (record: PreInventoryRecord) => {
+    // A client may be null for older or hauler-based Pre-In records.
+    // Keep the client dropdown empty, but still open the edit modal.
     setEditPreInForm({
       id: record.hashed_id,
       container_no: record.container_no,
-      client_id: record.client_id.toString(),
+      client_id: record.client_id == null ? '' : String(record.client_id),
       plate_no: record.plate_no || '',
       hauler: record.hauler || '',
     });
