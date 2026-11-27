@@ -15,6 +15,8 @@ interface QueueEntry {
     status?: 'waiting' | 'standby' | 'calling' | 'floating' | 'serving' | 'completed' | 'forfeited';
     calling_at?: string | null;
     floating_at?: string | null;
+    standby_at?: string | null;
+    standby_code?: string | null;
     size_type_size?: string | number | null;
     size_type_type?: string | null;
 }
@@ -93,7 +95,7 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
                 ) : entries.map((entry, index) => {
                     const activeStatus = entry.status === 'calling' || entry.status === 'floating';
                     const isStandby = entry.status === 'standby';
-                    const activeColor = activeStatus ? activeQueueRuntimeColor(entry, now) : undefined;
+                    const activeColor = activeStatus || isStandby ? activeQueueRuntimeColor(entry, now) : undefined;
                     const pulseClass = entry.status === 'calling' ? 'queue-calling-pulse' : entry.status === 'floating' || entry.status === 'standby' ? 'queue-floating-pulse' : '';
                     const isFloating = entry.status === 'floating';
                     return <article key={entry.id} onClick={() => onEntryClick?.(entry)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onEntryClick?.(entry); }} role={onEntryClick ? 'button' : undefined} tabIndex={onEntryClick ? 0 : undefined} style={serving ? { ...servingCardColors(entry.serving_at, now, greenServing), gridColumn: entry.direction === 'OUT' ? 2 : 1, gridRow: (entry.direction === 'OUT' ? servingOutEntries : servingInEntries).indexOf(entry) + 1 } : isStandby ? { backgroundColor: '#FEFCE8', borderColor: '#FACC15', color: '#854D0E' } : isFloating ? { backgroundColor: '#FFF7ED', borderColor: '#FDBA74', color: '#9A3412' } : activeStatus ? activeQueueCardColors() : undefined} className={`flex items-center gap-3 rounded-xl border px-3 py-3 sm:gap-4 sm:px-4 ${pulseClass} ${serving ? 'queue-serving-card' : isStandby ? 'border-yellow-300 bg-yellow-50' : isFloating ? 'border-orange-300 bg-orange-50' : activeStatus ? 'border-blue-200 bg-blue-50' : 'border-[#dfe3e8] bg-[#f8f9fa]'} ${onEntryClick ? 'cursor-pointer transition hover:brightness-95' : ''}`}>
@@ -102,8 +104,9 @@ function QueuePanel({ title, direction, entries, kind, servingCapacity = 0, now,
                         </div>
                         <div className="min-w-0 flex-1">
                             <p className={`${serving ? 'whitespace-nowrap' : 'break-all'} text-2xl leading-tight sm:text-3xl`} style={{ fontWeight: 800, letterSpacing: '0.04em', color: serving ? servingPlateTextColor() : '#202a35' }}>{entry.plate_no}</p>
-                            <p className={`mt-1 text-xs sm:text-sm ${serving ? '' : isStandby ? 'text-yellow-700' : activeStatus ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now, greenServing).color } : isStandby ? { color: '#A16207' } : activeStatus ? { color: activeColor } : {}) }}>
-                                {serving ? (greenServing ? 'NOW SERVING' : servingRuntime(entry.serving_at, now)) : isStandby ? 'Stand By' : activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}
+                            <p className={`mt-1 flex items-center gap-2 text-xs sm:text-sm ${serving ? '' : isStandby ? 'text-yellow-700' : activeStatus ? 'text-blue-700' : 'text-[#68737b]'}`} style={{ fontWeight: 700, ...(serving ? { color: servingAccentColors(entry.serving_at, now, greenServing).color } : isStandby || activeStatus ? { color: activeColor } : {}) }}>
+                                {serving ? (greenServing ? 'NOW SERVING' : servingRuntime(entry.serving_at, now)) : isStandby || activeStatus ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}` : 'Waiting'}
+                                {isStandby && entry.standby_code && <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-[11px] font-black tracking-wide text-yellow-800">{entry.standby_code}</span>}
                             </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-center gap-1">
