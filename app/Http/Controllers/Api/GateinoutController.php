@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PreInventory;
 use App\Exceptions\BookingLookupException;
 use App\Services\BookingSystemService;
+use App\Services\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -249,6 +250,7 @@ class GateinoutController extends Controller
             'date_added' => now(),
             'ip_address' => $request->ip(),
         ]);
+        app(SmsService::class)->sendQueueStatusForEntry((int) $entry['id'], 'serving');
         return response()->json(['success' => true, 'entry' => $entry]);
     }
 
@@ -425,10 +427,15 @@ class GateinoutController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
+        app(SmsService::class)->sendQueueStatusForEntry(
+            (int) $transition['entry']->id,
+            (string) $transition['entry']->status,
+        );
+
         return response()->json(['success' => true, 'entry' => $transition['entry']]);
     }
 
-    private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): void
+    private function addQueueEntry(string $plateNo, string $direction, ?array $booking = null, ?int $preInventoryId = null): int
     {
         $table = 'queue_entries';
         $newId = DB::table($table)->insertGetId([
@@ -494,6 +501,8 @@ class GateinoutController extends Controller
                 'updated_at' => now(),
             ]);
         }
+
+        return (int) $newId;
     }
 
     private function bookingScrapingEnabled(): bool
@@ -565,7 +574,7 @@ class GateinoutController extends Controller
         return is_array($configured) && in_array($clientId, array_map('intval', $configured), true);
     }
 
-    private function completeQueueEntryForPreInventory(int $preInventoryId, string $direction, $completedAt): void
+    private function completeQueueEntryForPreInventory(int $preInventoryId, string $direction, $completedAt): ?int
     {
         $entry = DB::table('queue_entries')
             ->where('pre_inventory_id', $preInventoryId)
@@ -575,7 +584,7 @@ class GateinoutController extends Controller
             ->first();
 
         if (!$entry) {
-            return;
+            return null;
         }
 
         $wasServing = $entry->status === 'serving';
@@ -619,6 +628,8 @@ class GateinoutController extends Controller
                 ]);
             }
         }
+
+        return (int) $entry->id;
     }
 
     /**
@@ -708,6 +719,7 @@ class GateinoutController extends Controller
             $clientId = $request->input('client');
             $plateNo = strtoupper(trim((string) $request->input('pno')));
             $phoneNumber = preg_replace('/[\s-]+/', '', trim((string) $request->input('phone_number')));
+            if ($phoneNumber === '+63') $phoneNumber = '';
             $requestedSizeType = $request->input('size_type');
             $notInBooking = $request->boolean('not_in_booking');
             $hauler = strtoupper(trim((string) $request->input('hauler')));
@@ -825,7 +837,7 @@ class GateinoutController extends Controller
                     'checker_id' => 0,
                 ]);
 
-                $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
+                $queueEntryId = $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
             
                 // Log audit - ADD action for pre-in
                 $clientName = $resolvedClientId
@@ -841,6 +853,7 @@ class GateinoutController extends Controller
                 ]);
 
                 DB::commit();
+                app(SmsService::class)->sendQueueStatusForEntry((int) $queueEntryId, 'waiting');
             
                 return response()->json([
                     'message' => ['success', '<strong>Success!</strong> Pre-In has been added!']
@@ -869,6 +882,7 @@ class GateinoutController extends Controller
         try {
             $plateNo = strtoupper(preg_replace('/[^A-Z0-9]/i', '', trim((string) $request->input('pno'))));
             $phoneNumber = preg_replace('/[\s-]+/', '', trim((string) $request->input('phone_number')));
+            if ($phoneNumber === '+63') $phoneNumber = '';
             $requestedSizeType = $request->input('size_type');
             $hauler = strtoupper(trim((string) $request->input('hauler')));
             $notInBooking = $request->boolean('not_in_booking');
@@ -981,7 +995,7 @@ class GateinoutController extends Controller
                     'checker_id' => 0,
                 ]);
 
-                $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking, (int) $preInventoryId);
+                $queueEntryId = $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking, (int) $preInventoryId);
             
                 // Log audit - ADD action for pre-out
                 DB::table('audit_logs')->insert([
@@ -993,6 +1007,7 @@ class GateinoutController extends Controller
                 ]);
 
                 DB::commit();
+                app(SmsService::class)->sendQueueStatusForEntry((int) $queueEntryId, 'waiting');
             
                 return response()->json([
                     'message' => ['success', '<strong>Success!</strong> Pre-Out has been added!']
@@ -1745,7 +1760,7 @@ class GateinoutController extends Controller
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
                     [$inventoryId, $completionTime, $validated['p_id']]
                 );
-                $this->completeQueueEntryForPreInventory($validated['p_id'], 'IN', $completionTime);
+                $completedQueueEntryId = $this->completeQueueEntryForPreInventory($validated['p_id'], 'IN', $completionTime);
 
                 $this->moveContainerPicturesToCompletionDate(
                     oldDateCompleted: $preRecord->date_completed,
@@ -1791,6 +1806,9 @@ class GateinoutController extends Controller
                 ]);
 
                 DB::commit();
+                if ($completedQueueEntryId) {
+                    app(SmsService::class)->sendQueueStatusForEntry($completedQueueEntryId, 'completed');
+                }
 
                 return response()->json([
                     'success' => true,
@@ -1967,7 +1985,7 @@ class GateinoutController extends Controller
                     "UPDATE {$this->prefix}pre_inventory SET status = 1, inv_id = ?, date_completed = ? WHERE p_id = ?",
                     [$outInventoryId, $completionTime, $validated['p_id']]
                 );
-                $this->completeQueueEntryForPreInventory($validated['p_id'], 'OUT', $completionTime);
+                $completedQueueEntryId = $this->completeQueueEntryForPreInventory($validated['p_id'], 'OUT', $completionTime);
 
                 $this->moveContainerPicturesToCompletionDate(
                     oldDateCompleted: $preRecord->date_completed,
@@ -2076,6 +2094,9 @@ class GateinoutController extends Controller
                 ]);
 
                 DB::commit();
+                if ($completedQueueEntryId) {
+                    app(SmsService::class)->sendQueueStatusForEntry($completedQueueEntryId, 'completed');
+                }
 
                 return response()->json([
                     'success' => true,
