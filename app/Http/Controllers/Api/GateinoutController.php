@@ -682,6 +682,18 @@ class GateinoutController extends Controller
             ->value('iso_code') ?? '');
     }
 
+    private function formatPreInventoryAuditFields(array $fields): string
+    {
+        $parts = [];
+
+        foreach ($fields as $label => $value) {
+            if ($value === null || trim((string) $value) === '') continue;
+            $parts[] = $label . ': "' . $value . '"';
+        }
+
+        return $parts ? ', ' . implode(', ', $parts) : '';
+    }
+
     private function preInHaulerIsExcepted(string $hauler): bool
     {
         $configured = (string) DB::table('app_settings')->where('setting_id', 1)->value('prein_hauler_exceptions');
@@ -883,7 +895,7 @@ class GateinoutController extends Controller
                 $selectedSizeType = DB::table('container_size_type')
                     ->where('s_id', (int) $requestedSizeType)
                     ->where('archived', 0)
-                    ->first(['s_id', 'iso_code']);
+                    ->first(['s_id', 'size', 'type', 'iso_code']);
                 if (!$selectedSizeType) {
                     return response()->json(['message' => ['danger', '<strong>Error!</strong> The selected size/type is invalid.']]);
                 }
@@ -971,20 +983,28 @@ class GateinoutController extends Controller
 
                 $queueEntryId = $this->addQueueEntry($plateNo, 'IN', $booking, (int) $preInventoryId);
             
-                // Log the complete data saved for both the Pre-IN record and its queue entry.
-                $savedPreInventory = (array) DB::table('pre_inventory')->where('p_id', $preInventoryId)->first();
-                $savedQueueEntry = (array) DB::table('queue_entries')->where('id', $queueEntryId)->first();
                 $clientName = $resolvedClientId
-                    ? (DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $resolvedClientId])->client_name ?? 'Unknown')
-                    : 'HAULER';
+                    ? (DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $resolvedClientId])->client_name ?? null)
+                    : null;
+                $sizeType = $notInBooking
+                    ? (string) (($selectedSizeType->size ?? '') . ($selectedSizeType->type ?? ''))
+                    : (string) DB::table('container_size_type')
+                        ->where('s_id', (int) ($matched['size_type'] ?? 0))
+                        ->selectRaw('CONCAT(size, type) as size_type_display')
+                        ->value('size_type_display');
+                $auditDescription = '[GATE IN/OUT] Added Pre-In record for container "' . $containerNo . '"'
+                    . $this->formatPreInventoryAuditFields([
+                        'Client' => $clientName,
+                        'Plate No.' => $plateNo,
+                        'Phone' => $phoneNumber,
+                        'Hauler' => $matched['hauler'] ?? ($notInBooking && $exceptionMode === 'hauler' ? $hauler : null),
+                        'Size/Type' => $sizeType,
+                        'ISO Code' => $notInBooking ? ($selectedSizeType->iso_code ?? '') : $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
+                    ]);
             
                 DB::table('audit_logs')->insert([
                 'action' => 'ADD',
-                'description' => '[GATE IN/OUT] Added Pre-In record. Saved data: ' . json_encode([
-                    'pre_inventory' => $savedPreInventory,
-                    'queue_entry' => $savedQueueEntry,
-                    'client_name' => $clientName,
-                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'description' => $auditDescription,
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
@@ -1079,7 +1099,7 @@ class GateinoutController extends Controller
                 $selectedSizeType = DB::table('container_size_type')
                     ->where('s_id', (int) $requestedSizeType)
                     ->where('archived', 0)
-                    ->first(['s_id', 'iso_code']);
+                    ->first(['s_id', 'size', 'type', 'iso_code']);
                 if (!$selectedSizeType) {
                     return response()->json(['message' => ['danger', '<strong>Error!</strong> The selected size/type is invalid.']]);
                 }
@@ -1139,15 +1159,27 @@ class GateinoutController extends Controller
 
                 $queueEntryId = $this->addQueueEntry(strtoupper($plateNo), 'OUT', $booking, (int) $preInventoryId);
             
-                // Log the complete data saved for both the Pre-OUT record and its queue entry.
-                $savedPreInventory = (array) DB::table('pre_inventory')->where('p_id', $preInventoryId)->first();
-                $savedQueueEntry = (array) DB::table('queue_entries')->where('id', $queueEntryId)->first();
+                $clientName = $clientId
+                    ? (DB::selectOne("SELECT client_name FROM {$this->prefix}clients WHERE c_id = :cid", ['cid' => $clientId])->client_name ?? null)
+                    : null;
+                $sizeType = $notInBooking
+                    ? (string) (($selectedSizeType->size ?? '') . ($selectedSizeType->type ?? ''))
+                    : (string) DB::table('container_size_type')
+                        ->where('s_id', (int) ($matched['size_type'] ?? 0))
+                        ->selectRaw('CONCAT(size, type) as size_type_display')
+                        ->value('size_type_display');
+                $auditDescription = '[GATE IN/OUT] Added Pre-Out record'
+                    . $this->formatPreInventoryAuditFields([
+                        'Plate No.' => $plateNo,
+                        'Phone' => $phoneNumber,
+                        'Size/Type' => $sizeType,
+                        'ISO Code' => $notInBooking ? ($selectedSizeType->iso_code ?? '') : $this->sizeTypeIsoCode((int) ($matched['size_type'] ?? 0)),
+                        'Client' => $clientName,
+                        'Hauler' => $hauler,
+                    ]);
                 DB::table('audit_logs')->insert([
                 'action' => 'ADD',
-                'description' => '[GATE IN/OUT] Added Pre-Out record. Saved data: ' . json_encode([
-                    'pre_inventory' => $savedPreInventory,
-                    'queue_entry' => $savedQueueEntry,
-                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'description' => $auditDescription,
                 'user_id' => auth()->user()->user_id ?? null,
                 'date_added' => now(),
                 'ip_address' => request()->ip(),
