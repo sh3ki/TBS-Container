@@ -165,6 +165,23 @@ Route::middleware(['auth'])->group(function () {
     // App Settings
     Route::get('/app-settings', function () {
         $settings = DB::table('app_settings')->where('setting_id', 1)->first();
+        $queueStatusMessages = DB::table('queue_status_messages')
+            ->orderByRaw("FIELD(status, 'waiting', 'calling', 'arrived', 'floating', 'serving', 'completed', 'forfeited')")
+            ->get(['id', 'status', 'message'])
+            ->map(fn ($message) => [
+                'id' => (int) $message->id,
+                'status' => (string) $message->status,
+                'message' => (string) $message->message,
+            ])->values()->all();
+        $standbyStatusMessages = DB::table('queue_standby_status')
+            ->orderBy('code')
+            ->get(['id', 'code', 'name', 'message'])
+            ->map(fn ($status) => [
+                'id' => (int) $status->id,
+                'code' => (string) $status->code,
+                'name' => (string) $status->name,
+                'message' => (string) $status->message,
+            ])->values()->all();
         $clients = DB::table('clients')
             ->orderBy('client_name')
             ->get(['c_id', 'client_name', 'client_code']);
@@ -198,6 +215,8 @@ Route::middleware(['auth'])->group(function () {
                 'booking_system_timeout' => (int) ($settings?->booking_system_timeout ?: config('services.booking_system.timeout', 20)),
                 'calling_expiration_minutes' => $settings?->calling_expiration_minutes !== null ? (int) $settings->calling_expiration_minutes : null,
                 'floating_expiration_minutes' => $settings?->floating_expiration_minutes !== null ? (int) $settings->floating_expiration_minutes : null,
+                'queue_status_messages' => $queueStatusMessages,
+                'standby_status_messages' => $standbyStatusMessages,
                 'queue_internal_password_configured' => filled($settings?->queue_internal_password),
                 'queue_internal_password' => $decryptSetting($settings?->queue_internal_password),
                 'dmr_time' => (string) ($settings?->dmr_time ?? ''),
@@ -247,6 +266,12 @@ Route::middleware(['auth'])->group(function () {
             'calling_expiration_minutes' => ['nullable', 'integer', 'min:1'],
             'floating_expiration_minutes' => ['nullable', 'integer', 'min:1'],
             'queue_internal_password' => ['nullable', 'string', 'max:5000'],
+            'queue_status_messages' => ['sometimes', 'array'],
+            'queue_status_messages.*.id' => ['required', 'integer', 'exists:queue_status_messages,id'],
+            'queue_status_messages.*.message' => ['required', 'string', 'max:100000'],
+            'standby_status_messages' => ['sometimes', 'array'],
+            'standby_status_messages.*.id' => ['required', 'integer', 'exists:queue_standby_status,id'],
+            'standby_status_messages.*.message' => ['required', 'string', 'max:100000'],
             'booking_system_url' => ['required_if:section,booking_credentials', 'url', 'max:2048'],
             'booking_system_login_url' => ['nullable', 'url', 'max:2048'],
             'booking_system_username' => ['required_if:section,booking_credentials', 'string', 'max:255'],
@@ -414,6 +439,18 @@ Route::middleware(['auth'])->group(function () {
                 $updates['prein_scraping_client_ids'] = json_encode(
                     collect($validated['prein_scraping_client_ids'])->map(fn ($id): int => (int) $id)->unique()->values()->all()
                 );
+            }
+
+            foreach ($validated['queue_status_messages'] ?? [] as $message) {
+                DB::table('queue_status_messages')->where('id', $message['id'])->update([
+                    'message' => $message['message'],
+                ]);
+            }
+            foreach ($validated['standby_status_messages'] ?? [] as $message) {
+                DB::table('queue_standby_status')->where('id', $message['id'])->update([
+                    'message' => $message['message'],
+                    'updated_at' => now(),
+                ]);
             }
             DB::table('app_settings')->where('setting_id', 1)->update($updates);
 
