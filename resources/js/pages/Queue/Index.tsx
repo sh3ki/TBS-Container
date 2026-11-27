@@ -818,6 +818,13 @@ export default function QueueIndex({
         null,
     );
     const [selectedStandbyId, setSelectedStandbyId] = useState('');
+    const [bulkStandbyOpen, setBulkStandbyOpen] = useState(false);
+    const [bulkStandbyDirection, setBulkStandbyDirection] = useState<
+        'IN' | 'OUT'
+    >('IN');
+    const [bulkStandbyId, setBulkStandbyId] = useState('');
+    const [bulkStandbyQuantity, setBulkStandbyQuantity] = useState('0');
+    const [bulkStandbyPending, setBulkStandbyPending] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
     const [entryDetails, setEntryDetails] = useState<QueueEntryDetails | null>(
         null,
@@ -1103,6 +1110,47 @@ export default function QueueIndex({
         setStandbySelection(null);
         setSelectedStandbyId('');
     };
+    const bulkWaitingEntries = (
+        bulkStandbyDirection === 'IN' ? queue.waiting_in : queue.waiting_out
+    ).filter((entry) => entry.status === 'waiting');
+    const saveBulkStandby = async () => {
+        if (!bulkStandbyId) {
+            error('Please select a standby reason.');
+            return;
+        }
+        if (bulkWaitingEntries.length === 0) {
+            error(`There are no waiting trucks in the selected direction.`);
+            return;
+        }
+        setBulkStandbyPending(true);
+        try {
+            const response = await axios.post(
+                '/api/gateinout/queue/standby-bulk',
+                {
+                    direction: bulkStandbyDirection,
+                    quantity: Number(bulkStandbyQuantity),
+                    standby_id: Number(bulkStandbyId),
+                    context: plannerMode ? 'planner' : 'admin',
+                },
+            );
+            const plates = response.data?.data?.plates ?? [];
+            success(
+                `${plates.length} truck${plates.length === 1 ? '' : 's'} placed on standby.`,
+            );
+            setBulkStandbyOpen(false);
+            setBulkStandbyId('');
+            setBulkStandbyQuantity('0');
+            const refreshed = await axios.get('/api/queue/manage');
+            if (refreshed.data.success) setQueue(refreshed.data.data);
+        } catch (exception: any) {
+            error(
+                exception?.response?.data?.message ??
+                    'Unable to place the selected trucks on standby.',
+            );
+        } finally {
+            setBulkStandbyPending(false);
+        }
+    };
     const openEntryDetails = async (entry: QueueEntry) => {
         setSelectedEntry(entry);
         setEntryDetails(null);
@@ -1147,14 +1195,30 @@ export default function QueueIndex({
                         </div>
                     </div>
                     {canEditQueue && (
-                        <button
-                            type="button"
-                            onClick={openCapacitySettings}
-                            className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm"
-                            style={{ backgroundColor: colors.brand.primary }}
-                        >
-                            <Settings className="h-5 w-5" /> Queue Settings
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setBulkStandbyDirection('IN');
+                                    setBulkStandbyQuantity('0');
+                                    setBulkStandbyId('');
+                                    setBulkStandbyOpen(true);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-5 py-3 text-base font-semibold text-white shadow-sm"
+                            >
+                                <Pause className="h-5 w-5" /> Standby
+                            </button>
+                            <button
+                                type="button"
+                                onClick={openCapacitySettings}
+                                className="inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-semibold text-white shadow-sm"
+                                style={{
+                                    backgroundColor: colors.brand.primary,
+                                }}
+                            >
+                                <Settings className="h-5 w-5" /> Queue Settings
+                            </button>
+                        </div>
                     )}
                 </div>
                 <div className="queue-list-grid grid min-h-0 gap-4">
@@ -1251,6 +1315,122 @@ export default function QueueIndex({
                     />
                 </div>
             </div>
+            <Dialog
+                open={bulkStandbyOpen}
+                onOpenChange={(open) => {
+                    if (!open && !bulkStandbyPending) setBulkStandbyOpen(false);
+                }}
+            >
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Place Waiting Trucks on Standby
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div>
+                            <p className="mb-2 text-sm font-semibold text-gray-700">
+                                Standby reason
+                            </p>
+                            <Select
+                                value={bulkStandbyId}
+                                onValueChange={setBulkStandbyId}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select standby reason" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {standbyStatuses.map((status) => (
+                                        <SelectItem
+                                            key={status.id}
+                                            value={String(status.id)}
+                                        >
+                                            {status.code} - {status.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <p className="mb-2 text-sm font-semibold text-gray-700">
+                                Queue direction
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                                {(['IN', 'OUT'] as const).map((direction) => (
+                                    <button
+                                        key={direction}
+                                        type="button"
+                                        onClick={() => {
+                                            setBulkStandbyDirection(direction);
+                                            setBulkStandbyQuantity('0');
+                                        }}
+                                        className={`rounded-lg border px-4 py-2.5 text-sm font-bold ${
+                                            bulkStandbyDirection === direction
+                                                ? 'border-blue-500 bg-blue-500 text-white'
+                                                : 'border-gray-300 bg-white text-gray-700'
+                                        }`}
+                                    >
+                                        WAITING {direction}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <p className="mb-2 text-sm font-semibold text-gray-700">
+                                Quantity
+                            </p>
+                            <Select
+                                value={bulkStandbyQuantity}
+                                onValueChange={setBulkStandbyQuantity}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="0">ALL</SelectItem>
+                                    {bulkWaitingEntries.map((_, index) => (
+                                        <SelectItem
+                                            key={index + 1}
+                                            value={String(index + 1)}
+                                        >
+                                            {index + 1}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="mt-2 text-xs text-gray-500">
+                                {bulkWaitingEntries.length} waiting truck
+                                {bulkWaitingEntries.length === 1
+                                    ? ''
+                                    : 's'}{' '}
+                                available.
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <button
+                            type="button"
+                            onClick={() => setBulkStandbyOpen(false)}
+                            disabled={bulkStandbyPending}
+                            className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-60"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={
+                                bulkStandbyPending ||
+                                !bulkStandbyId ||
+                                bulkWaitingEntries.length === 0
+                            }
+                            onClick={saveBulkStandby}
+                            className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                        >
+                            {bulkStandbyPending ? 'Saving...' : 'Set Standby'}
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <Dialog
                 open={standbySelection !== null}
                 onOpenChange={(open) => {
