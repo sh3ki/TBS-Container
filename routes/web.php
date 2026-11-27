@@ -394,6 +394,21 @@ Route::middleware(['auth'])->group(function () {
             if (!empty($validated['smsgate_password'])) {
                 $updates['smsgate_password'] = encrypt($validated['smsgate_password']);
             }
+
+            foreach ($validated['queue_status_messages'] ?? [] as $message) {
+                DB::table('queue_status_messages')->where('id', $message['id'])->update([
+                    'message' => $message['message'],
+                    'enabled' => (bool) $message['enabled'],
+                ]);
+            }
+            foreach ($validated['standby_status_messages'] ?? [] as $message) {
+                DB::table('queue_standby_status')->where('id', $message['id'])->update([
+                    'message' => $message['message'],
+                    'enabled' => (bool) $message['enabled'],
+                    'updated_at' => now(),
+                ]);
+            }
+
             DB::table('app_settings')->where('setting_id', 1)->update($updates);
 
             return response()->json(['message' => 'SMS settings updated successfully.']);
@@ -514,9 +529,24 @@ Route::middleware(['auth'])->group(function () {
             'serving_capacity' => ['required', 'integer', 'min:0'],
         ]);
 
+        $oldCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
+        $newCapacity = (int) $validated['serving_capacity'];
+
         DB::table('app_settings')->where('setting_id', 1)->update([
-            'serving_capacity' => (int) $validated['serving_capacity'],
+            'serving_capacity' => $newCapacity,
             'updated_at' => now(),
+        ]);
+
+        DB::table('audit_logs')->insert([
+            'action' => 'EDIT',
+            'description' => sprintf(
+                '[QUEUE] Updated serving capacity from %d to %d.',
+                $oldCapacity,
+                $newCapacity,
+            ),
+            'user_id' => $request->user()?->user_id ?? auth()->id(),
+            'date_added' => now(),
+            'ip_address' => $request->ip(),
         ]);
 
         return response()->json(['message' => 'Queue settings updated successfully.']);
