@@ -490,7 +490,12 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
-    if (preInForm.phone_number && !/^\+639\d{9}$/.test(preInForm.phone_number.replace(/[\s-]/g, ''))) {
+    const preInPhone = preInForm.phone_number.replace(/[\s-]/g, '');
+    if (!preInPhone || preInPhone === '+63') {
+      error('Phone number is required');
+      return;
+    }
+    if (!/^\+639\d{9}$/.test(preInPhone)) {
       error('Phone number must contain +639 followed by 9 more numbers.');
       return;
     }
@@ -554,7 +559,12 @@ export default function Index() {
       error('Plate number is required');
       return;
     }
-    if (preOutForm.phone_number && !/^\+639\d{9}$/.test(preOutForm.phone_number.replace(/[\s-]/g, ''))) {
+    const preOutPhone = preOutForm.phone_number.replace(/[\s-]/g, '');
+    if (!preOutPhone || preOutPhone === '+63') {
+      error('Phone number is required');
+      return;
+    }
+    if (!/^\+639\d{9}$/.test(preOutPhone)) {
       error('Phone number must contain +639 followed by 9 more numbers.');
       return;
     }
@@ -1461,13 +1471,14 @@ export default function Index() {
                 />
               </div>
               <div>
-                <Label className="text-gray-900">Phone Number <span className="text-gray-500">(Optional)</span></Label>
+                <Label className="text-gray-900">Phone Number <span className="text-red-500">*</span></Label>
                 <Input
                   value={preInForm.phone_number || '+63  '}
                   onChange={(e) => setPreInForm({ ...preInForm, phone_number: formatPhilippinePhone(e.target.value) })}
                   placeholder="+63  9XX-XXX-XXXX"
                   maxLength={17}
                   type="tel"
+                  required
                 />
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
@@ -1577,13 +1588,14 @@ export default function Index() {
                 <p className="text-xs text-gray-500 mt-1">EX: NJM, GOLINK, AIT, MMLRR</p>
               </div>}
               <div>
-                <Label className="text-gray-900">Phone Number <span className="text-gray-500">(Optional)</span></Label>
+                <Label className="text-gray-900">Phone Number <span className="text-red-500">*</span></Label>
                 <Input
                   value={preOutForm.phone_number || '+63  '}
                   onChange={(e) => setPreOutForm({ ...preOutForm, phone_number: formatPhilippinePhone(e.target.value) })}
                   placeholder="+63  9XX-XXX-XXXX"
                   maxLength={17}
                   type="tel"
+                  required
                 />
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
