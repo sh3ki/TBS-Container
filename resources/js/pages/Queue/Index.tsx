@@ -825,6 +825,8 @@ export default function QueueIndex({
     const [bulkStandbyId, setBulkStandbyId] = useState('');
     const [bulkStandbyQuantity, setBulkStandbyQuantity] = useState('0');
     const [bulkStandbyPending, setBulkStandbyPending] = useState(false);
+    const [bulkStandbyConfirmationOpen, setBulkStandbyConfirmationOpen] =
+        useState(false);
     const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
     const [entryDetails, setEntryDetails] = useState<QueueEntryDetails | null>(
         null,
@@ -1151,6 +1153,20 @@ export default function QueueIndex({
             setBulkStandbyPending(false);
         }
     };
+    const requestBulkStandby = () => {
+        if (!bulkStandbyId) {
+            error('Please select a standby reason.');
+            return;
+        }
+        if (bulkWaitingEntries.length === 0) {
+            error('There are no waiting trucks in the selected direction.');
+            return;
+        }
+        setBulkStandbyConfirmationOpen(true);
+    };
+    const selectedBulkStandby = standbyStatuses.find(
+        (status) => String(status.id) === bulkStandbyId,
+    );
     const openEntryDetails = async (entry: QueueEntry) => {
         setSelectedEntry(entry);
         setEntryDetails(null);
@@ -1423,7 +1439,7 @@ export default function QueueIndex({
                                 !bulkStandbyId ||
                                 bulkWaitingEntries.length === 0
                             }
-                            onClick={saveBulkStandby}
+                            onClick={requestBulkStandby}
                             className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                         >
                             {bulkStandbyPending ? 'Saving...' : 'Set Standby'}
@@ -1431,6 +1447,22 @@ export default function QueueIndex({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <ModernConfirmDialog
+                open={bulkStandbyConfirmationOpen}
+                onOpenChange={(open) => {
+                    if (!bulkStandbyPending)
+                        setBulkStandbyConfirmationOpen(open);
+                }}
+                onConfirm={async () => {
+                    setBulkStandbyConfirmationOpen(false);
+                    await saveBulkStandby();
+                }}
+                title="Place trucks on standby?"
+                description={`This will place ${bulkStandbyQuantity === '0' ? 'ALL' : bulkStandbyQuantity} WAITING ${bulkStandbyDirection} truck${bulkWaitingEntries.length === 1 ? '' : 's'} on standby under ${selectedBulkStandby ? `${selectedBulkStandby.code} - ${selectedBulkStandby.name}` : 'the selected reason'}.`}
+                confirmText="Confirm Standby"
+                cancelText="Cancel"
+                type="warning"
+            />
             <Dialog
                 open={standbySelection !== null}
                 onOpenChange={(open) => {
