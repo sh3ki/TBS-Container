@@ -167,7 +167,7 @@ class SmsService
 
         $parts = array_filter([
             trim((string) ($settings['header'] ?? '')),
-            trim((string) $configuredMessage->message),
+            strtoupper($status) . "\n" . trim((string) $configuredMessage->message),
             trim((string) ($settings['footer'] ?? '')),
         ], static fn (string $part): bool => $part !== '');
 
