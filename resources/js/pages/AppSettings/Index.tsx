@@ -1989,18 +1989,26 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                 />
                             </div>
                             <div className="md:col-span-2">
-                                <Label htmlFor="smsgate-webhook-url" className="text-sm font-semibold text-gray-900">
+                                <Label
+                                    htmlFor="smsgate-webhook-url"
+                                    className="text-sm font-semibold text-gray-900"
+                                >
                                     SMSGATE WEBHOOK URL (OPTIONAL)
                                 </Label>
                                 <Input
                                     id="smsgate-webhook-url"
                                     type="url"
                                     value={smsgateWebhookUrl}
-                                    onChange={(event) => setSmsgateWebhookUrl(event.target.value)}
+                                    onChange={(event) =>
+                                        setSmsgateWebhookUrl(event.target.value)
+                                    }
                                     placeholder="https://your-domain.com/api/webhooks/smsgate"
                                     className="mt-2 h-11"
                                 />
-                                <p className="mt-1 text-xs text-gray-500">Register this URL in SMSGate for SMS Sent, Delivered, and Failed events.</p>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Register this URL in SMSGate for SMS Sent,
+                                    Delivered, and Failed events.
+                                </p>
                             </div>
                             <div>
                                 <Label
