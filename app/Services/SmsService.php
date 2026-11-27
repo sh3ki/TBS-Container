@@ -45,7 +45,7 @@ class SmsService
             $smsSettings = $this->getSmsSettings();
 
             if ($smsSettings['driver'] === 'smsgate') {
-                return $this->sendViaSmsGate($formattedMobile, $message);
+                return $this->sendViaSmsGate($formattedMobile, $message, $smsSettings['smsgate']);
             }
 
             if ($smsSettings['driver'] === 'philsms') {
@@ -124,9 +124,9 @@ class SmsService
     }
 
     /** Send through SMS Gateway for Android (SMSGate). */
-    protected function sendViaSmsGate(string $mobile, string $message): array
+    protected function sendViaSmsGate(string $mobile, string $message, ?array $settings = null): array
     {
-        $settings = config('services.sms.smsgate');
+        $settings ??= config('services.sms.smsgate');
         $payload = [
             'textMessage' => ['text' => $message],
             'phoneNumbers' => [$this->toInternationalNumber($mobile)],
@@ -231,9 +231,18 @@ class SmsService
         };
 
         $philsms = config('services.sms.philsms');
+        $smsgate = config('services.sms.smsgate');
 
         return [
             'driver' => $stored?->sms_driver ?: config('services.sms.driver', 'legacy'),
+            'smsgate' => [
+                'url' => $stored?->smsgate_api_url ?: $smsgate['url'],
+                'username' => $stored?->smsgate_username ?: $smsgate['username'],
+                'password' => $decrypt($stored?->smsgate_password) ?: $smsgate['password'],
+                'device_id' => $stored?->smsgate_device_id ?: $smsgate['device_id'],
+                'sim_number' => $stored?->smsgate_sim_number,
+                'timeout' => (int) ($stored?->smsgate_timeout ?: $smsgate['timeout']),
+            ],
             'philsms' => [
                 'url' => $stored?->philsms_api_url ?: $philsms['url'],
                 'api_token' => $decrypt($stored?->philsms_api_token) ?: $philsms['api_token'],
