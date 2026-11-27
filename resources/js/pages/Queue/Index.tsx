@@ -282,6 +282,14 @@ function QueueColumn({
                 const firstWaitingIndex = list.findIndex(
                     (item) => item.status === 'waiting',
                 );
+                const firstStandbyCodeIndex =
+                    entry.status === 'standby'
+                        ? list.findIndex(
+                              (item) =>
+                                  item.status === 'standby' &&
+                                  item.standby_code === entry.standby_code,
+                          )
+                        : -1;
                 const canDragEntry =
                     canEdit &&
                     !isStandby &&
@@ -489,7 +497,8 @@ function QueueColumn({
                             <div className="flex shrink-0 items-center gap-2">
                                 <div className="flex flex-col items-stretch gap-1.5">
                                     {entry.status === 'waiting' &&
-                                        index === firstWaitingIndex && (
+                                        (!plannerMode ||
+                                            index === firstWaitingIndex) && (
                                             <button
                                                 type="button"
                                                 disabled={statusId === entry.id}
@@ -506,9 +515,9 @@ function QueueColumn({
                                                 Call
                                             </button>
                                         )}
-                                    {plannerMode &&
-                                        entry.status === 'waiting' &&
-                                        index === firstWaitingIndex && (
+                                    {entry.status === 'waiting' &&
+                                        (!plannerMode ||
+                                            index === firstWaitingIndex) && (
                                             <button
                                                 type="button"
                                                 disabled={statusId === entry.id}
@@ -522,20 +531,26 @@ function QueueColumn({
                                                 Standby
                                             </button>
                                         )}
-                                    {entry.status === 'standby' && (
-                                        <button
-                                            type="button"
-                                            disabled={statusId === entry.id}
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                onStatus?.(entry, 'calling');
-                                            }}
-                                            className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:opacity-60"
-                                        >
-                                            <Megaphone className="h-3.5 w-3.5" />
-                                            Call
-                                        </button>
-                                    )}
+                                    {entry.status === 'standby' &&
+                                        (!plannerMode ||
+                                            index ===
+                                                firstStandbyCodeIndex) && (
+                                            <button
+                                                type="button"
+                                                disabled={statusId === entry.id}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onStatus?.(
+                                                        entry,
+                                                        'calling',
+                                                    );
+                                                }}
+                                                className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:opacity-60"
+                                            >
+                                                <Megaphone className="h-3.5 w-3.5" />
+                                                Call
+                                            </button>
+                                        )}
                                     {entry.status === 'calling' && (
                                         <button
                                             type="button"
@@ -1035,6 +1050,7 @@ export default function QueueIndex({
                 id: entry.id,
                 status,
                 standby_id: status === 'standby' ? standbyId : undefined,
+                context: plannerMode ? 'planner' : 'admin',
             });
             const updated = response.data.entry as QueueEntry;
             setQueue((current) => ({
