@@ -364,9 +364,12 @@ class GuardScanController extends Controller
 
             // Only the first calling truck in its direction may be scanned.
             $firstCallingEntry = $entries->first(fn ($item) => $item->status === 'calling');
-            $isEligible = $entry->status === 'calling'
-                && $firstCallingEntry
-                && (int) $firstCallingEntry->id === (int) $entry->id;
+            // The first CALLING truck remains the only calling entry that can
+            // be scanned, while every FLOATING truck is also eligible to scan.
+            $isEligible = $entry->status === 'floating'
+                || ($entry->status === 'calling'
+                    && $firstCallingEntry
+                    && (int) $firstCallingEntry->id === (int) $entry->id);
             if (! $isEligible) {
                 return [
                     'entry' => null,
@@ -400,7 +403,7 @@ class GuardScanController extends Controller
             // the scanned truck, independently for IN or OUT.
             $waiting = DB::table('queue_entries')
                 ->where('direction', $entry->direction)
-                ->whereIn('status', ['waiting', 'calling', 'floating'])
+                ->whereIn('status', ['waiting', 'standby', 'calling', 'floating'])
                 ->orderBy('waiting_number')
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -429,7 +432,7 @@ class GuardScanController extends Controller
             @unlink($imagePath);
             $message = ($queue['entry_status'] ?? null) === 'waiting'
                 ? "Plate {$plateNo} is still WAITING. Please set plate {$plateNo} to CALLING first before scanning."
-                : "Plate {$plateNo} cannot be scanned yet. Only the first calling truck in the WAITING {$direction} queue can be scanned.";
+                : "Plate {$plateNo} cannot be scanned yet. Only the first calling truck or a floating truck in the WAITING {$direction} queue can be scanned.";
             return response()->json([
                 'success' => false,
                 'not_next_line' => true,
