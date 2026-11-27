@@ -1128,7 +1128,6 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                         title="DMR Settings"
                         subtitle="Configure the DMR schedule, sender, signature, and client-specific email content"
                         icon={<Settings className="h-5 w-5 text-white" />}
-                        className="lg:absolute lg:top-0 lg:right-0"
                     >
                         <div className="grid max-w-5xl gap-4 md:grid-cols-2">
                             <div>
