@@ -27,7 +27,7 @@ class GuardScanController extends Controller
     public function queueDisplay(Request $request)
     {
         $guardUserId = $this->guardUserId($request);
-        $activeStatuses = ['waiting', 'calling', 'floating'];
+        $activeStatuses = ['waiting', 'standby', 'calling', 'floating'];
         $servingCapacity = (int) (DB::table('app_settings')->where('setting_id', 1)->value('serving_capacity') ?? 0);
         $waitingIn = DB::table('queue_entries')->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')->where('queue_entries.direction', 'IN')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')->orderBy('queue_entries.waiting_number')->orderBy('queue_entries.id')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.direction', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.calling_at', 'queue_entries.floating_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
         $waitingOut = DB::table('queue_entries')->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')->where('queue_entries.direction', 'OUT')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')->orderBy('queue_entries.waiting_number')->orderBy('queue_entries.id')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.direction', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.calling_at', 'queue_entries.floating_at', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
@@ -351,11 +351,11 @@ class GuardScanController extends Controller
                 ];
             }
 
-            // Floating trucks may be scanned from any position. Calling trucks
-            // may only be scanned when they are first in their direction.
+            // Only the first calling truck in its direction may be scanned.
             $firstCallingEntry = $entries->first(fn ($item) => $item->status === 'calling');
-            $isEligible = $entry->status === 'floating'
-                || ($entry->status === 'calling' && $firstCallingEntry && (int) $firstCallingEntry->id === (int) $entry->id);
+            $isEligible = $entry->status === 'calling'
+                && $firstCallingEntry
+                && (int) $firstCallingEntry->id === (int) $entry->id;
             if (! $isEligible) {
                 return [
                     'entry' => null,
@@ -416,7 +416,7 @@ class GuardScanController extends Controller
             @unlink($imagePath);
             $message = ($queue['entry_status'] ?? null) === 'waiting'
                 ? "Plate {$plateNo} is still WAITING. Please set plate {$plateNo} to CALLING first before scanning."
-                : "Plate {$plateNo} cannot be scanned yet. Only floating trucks or the first calling truck in the WAITING {$direction} queue can be scanned.";
+                : "Plate {$plateNo} cannot be scanned yet. Only the first calling truck in the WAITING {$direction} queue can be scanned.";
             return response()->json([
                 'success' => false,
                 'not_next_line' => true,
