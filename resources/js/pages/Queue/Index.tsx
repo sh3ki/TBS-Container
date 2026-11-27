@@ -4,6 +4,13 @@ import {
     useModernToast,
 } from '@/components/modern';
 import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -62,6 +69,12 @@ interface QueueEntryDetails {
     size_type?: string | null;
     iso_code?: string | null;
     hauler?: string | null;
+}
+interface StandbyStatus {
+    id: number;
+    code: string;
+    name: string;
+    message?: string | null;
 }
 interface GuardAccount {
     user_id: number;
@@ -180,6 +193,7 @@ function QueueColumn({
     onCommit,
     onServe,
     onManual,
+    onStandby,
     servingId,
     onStatus,
     statusId,
@@ -205,6 +219,7 @@ function QueueColumn({
     ) => void;
     onServe?: (entry: QueueEntry) => void;
     onManual?: (entry: QueueEntry) => void;
+    onStandby?: (entry: QueueEntry) => void;
     servingId?: number | null;
     onStatus?: (
         entry: QueueEntry,
@@ -252,9 +267,10 @@ function QueueColumn({
                 const activeStatus =
                     entry.status === 'calling' || entry.status === 'floating';
                 const isStandby = entry.status === 'standby';
-                const activeColor = activeStatus || isStandby
-                    ? activeQueueRuntimeColor(entry, now)
-                    : undefined;
+                const activeColor =
+                    activeStatus || isStandby
+                        ? activeQueueRuntimeColor(entry, now)
+                        : undefined;
                 const pulseClass =
                     entry.status === 'calling'
                         ? 'queue-calling-pulse'
@@ -453,16 +469,20 @@ function QueueColumn({
                                               ).color,
                                           }
                                         : isStandby || activeStatus
-                                            ? { color: activeColor }
-                                            : undefined
+                                          ? { color: activeColor }
+                                          : undefined
                                 }
                             >
                                 {serving
                                     ? servingRuntime(entry.serving_at, now)
                                     : isStandby || activeStatus
                                       ? `${activeQueueLabel(entry)} - ${activeQueueRuntime(entry, now)}`
-                                        : 'Waiting'}
-                                {isStandby && entry.standby_code && <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-[11px] font-black tracking-wide text-yellow-800">{entry.standby_code}</span>}
+                                      : 'Waiting'}
+                                {isStandby && entry.standby_code && (
+                                    <span className="rounded-md bg-yellow-100 px-2 py-0.5 text-[11px] font-black tracking-wide text-yellow-800">
+                                        {entry.standby_code}
+                                    </span>
+                                )}
                             </p>
                         </div>
                         {!serving && canEdit && (
@@ -487,16 +507,14 @@ function QueueColumn({
                                             </button>
                                         )}
                                     {plannerMode &&
-                                        entry.status === 'waiting' && (
+                                        entry.status === 'waiting' &&
+                                        index === firstWaitingIndex && (
                                             <button
                                                 type="button"
                                                 disabled={statusId === entry.id}
                                                 onClick={(event) => {
                                                     event.stopPropagation();
-                                                    onStatus?.(
-                                                        entry,
-                                                        'standby',
-                                                    );
+                                                    onStandby?.(entry);
                                                 }}
                                                 className="inline-flex items-center gap-1 rounded-lg bg-yellow-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-yellow-600 disabled:opacity-60"
                                             >
@@ -504,6 +522,20 @@ function QueueColumn({
                                                 Standby
                                             </button>
                                         )}
+                                    {entry.status === 'standby' && (
+                                        <button
+                                            type="button"
+                                            disabled={statusId === entry.id}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                onStatus?.(entry, 'calling');
+                                            }}
+                                            className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:opacity-60"
+                                        >
+                                            <Megaphone className="h-3.5 w-3.5" />
+                                            Call
+                                        </button>
+                                    )}
                                     {entry.status === 'calling' && (
                                         <button
                                             type="button"
@@ -553,7 +585,7 @@ function QueueColumn({
                                                 event.stopPropagation();
                                                 onManual?.(entry);
                                             }}
-                                            className="inline-flex items-center gap-1 rounded-lg bg-blue-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             <ScanLine className="h-3.5 w-3.5 text-white" />
                                             Manual
@@ -592,7 +624,7 @@ function QueueColumn({
                                 >
                                     {entry.direction ?? direction}
                                 </span>
-                                <div className="flex items-center justify-center gap-1">
+                                <div className="flex items-center justify-center gap-0.5">
                                     <span
                                         className="text-xs font-black tracking-wide"
                                         style={{
@@ -614,7 +646,7 @@ function QueueColumn({
                                     </span>
                                     {!serving && (
                                         <span
-                                            className="rounded-md bg-transparent px-1 py-1 text-xs font-bold text-slate-600 tabular-nums"
+                                            className="rounded-md bg-transparent px-0.5 py-1 text-xs font-bold text-slate-600 tabular-nums"
                                             style={{
                                                 color: bookingTimeTextColor(
                                                     entry.booking_time,
@@ -762,6 +794,11 @@ export default function QueueIndex({
         status: 'calling' | 'floating' | 'forfeited' | 'standby';
     } | null>(null);
     const [statusId, setStatusId] = useState<number | null>(null);
+    const [standbyStatuses, setStandbyStatuses] = useState<StandbyStatus[]>([]);
+    const [standbySelection, setStandbySelection] = useState<QueueEntry | null>(
+        null,
+    );
+    const [selectedStandbyId, setSelectedStandbyId] = useState('');
     const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
     const [entryDetails, setEntryDetails] = useState<QueueEntryDetails | null>(
         null,
@@ -789,6 +826,15 @@ export default function QueueIndex({
             window.clearInterval(timer);
         };
     }, [activeGroup]);
+    useEffect(() => {
+        axios
+            .get('/api/queue/standby-statuses')
+            .then((response) => {
+                if (response.data.success)
+                    setStandbyStatuses(response.data.data ?? []);
+            })
+            .catch(() => setStandbyStatuses([]));
+    }, []);
     useEffect(() => {
         if (!plannerMode) return;
         if (!manualConfirmation) return;
@@ -981,12 +1027,14 @@ export default function QueueIndex({
     const updateQueueStatus = async (
         entry: QueueEntry,
         status: 'calling' | 'floating' | 'forfeited' | 'standby',
+        standbyId?: number,
     ) => {
         setStatusId(entry.id);
         try {
             const response = await axios.post('/api/gateinout/queue/status', {
                 id: entry.id,
                 status,
+                standby_id: status === 'standby' ? standbyId : undefined,
             });
             const updated = response.data.entry as QueueEntry;
             setQueue((current) => ({
@@ -1017,6 +1065,23 @@ export default function QueueIndex({
         } finally {
             setStatusId(null);
         }
+    };
+    const openStandbySelection = (entry: QueueEntry) => {
+        setStandbySelection(entry);
+        setSelectedStandbyId('');
+    };
+    const confirmStandbySelection = async () => {
+        if (!standbySelection || !selectedStandbyId) {
+            error('Please select a standby reason.');
+            return;
+        }
+        await updateQueueStatus(
+            standbySelection,
+            'standby',
+            Number(selectedStandbyId),
+        );
+        setStandbySelection(null);
+        setSelectedStandbyId('');
     };
     const openEntryDetails = async (entry: QueueEntry) => {
         setSelectedEntry(entry);
@@ -1095,6 +1160,7 @@ export default function QueueIndex({
                             setManualReason('');
                             setManualGuardUserId('');
                         }}
+                        onStandby={openStandbySelection}
                         servingId={servingId}
                         onStatus={(entry, status) =>
                             setStatusConfirmation({ entry, status })
@@ -1125,6 +1191,7 @@ export default function QueueIndex({
                             setManualReason('');
                             setManualGuardUserId('');
                         }}
+                        onStandby={openStandbySelection}
                         servingId={servingId}
                         onStatus={(entry, status) =>
                             setStatusConfirmation({ entry, status })
@@ -1164,6 +1231,66 @@ export default function QueueIndex({
                     />
                 </div>
             </div>
+            <Dialog
+                open={standbySelection !== null}
+                onOpenChange={(open) => {
+                    if (!open && statusId === null) {
+                        setStandbySelection(null);
+                        setSelectedStandbyId('');
+                    }
+                }}
+            >
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Set Truck on Standby</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 py-2">
+                        <p className="text-sm text-gray-600">
+                            Select the reason for placing{' '}
+                            {standbySelection?.plate_no ?? 'this truck'} on
+                            standby.
+                        </p>
+                        <Select
+                            value={selectedStandbyId}
+                            onValueChange={setSelectedStandbyId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select standby reason" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {standbyStatuses.map((status) => (
+                                    <SelectItem
+                                        key={status.id}
+                                        value={String(status.id)}
+                                    >
+                                        {status.code} - {status.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setStandbySelection(null);
+                                setSelectedStandbyId('');
+                            }}
+                            className="rounded-lg bg-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!selectedStandbyId || statusId !== null}
+                            onClick={confirmStandbySelection}
+                            className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                        >
+                            Set Standby
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <ModernConfirmDialog
                 open={serveConfirmation !== null}
                 onOpenChange={(open) => {
