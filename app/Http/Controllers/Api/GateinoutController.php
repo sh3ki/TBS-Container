@@ -352,6 +352,24 @@ class GateinoutController extends Controller
             $fromStatus = $entry->status;
             $context = $validated['context'] ?? 'admin';
 
+            if ($validated['status'] === 'standby') {
+                $standbyCode = (string) DB::table('queue_standby_status')
+                    ->where('id', $validated['standby_id'])
+                    ->value('code');
+                $requiredSize = match ($standbyCode) {
+                    'S1' => '40',
+                    'S2' => '20',
+                    default => null,
+                };
+                if ($requiredSize !== null) {
+                    $entrySize = DB::table('pre_inventory')
+                        ->leftJoin('container_size_type', 'container_size_type.s_id', '=', 'pre_inventory.size_type')
+                        ->where('pre_inventory.p_id', $entry->pre_inventory_id)
+                        ->value('container_size_type.size');
+                    abort_unless((string) $entrySize === $requiredSize, 409, sprintf('Standby code %s only accepts size %s containers.', $standbyCode, $requiredSize));
+                }
+            }
+
             $allowedPreviousStatus = match ($validated['status']) {
                 'calling' => ['waiting', 'standby'],
                 'floating' => ['calling'],
@@ -467,14 +485,27 @@ class GateinoutController extends Controller
         ]);
 
         $result = DB::transaction(function () use ($validated, $request, $user) {
-            $entries = DB::table('queue_entries')
-                ->where('direction', $validated['direction'])
-                ->where('status', 'waiting')
-                ->whereNull('completed_at')
-                ->orderBy('waiting_number')
-                ->orderBy('id')
+            $standbyCode = (string) DB::table('queue_standby_status')
+                ->where('id', $validated['standby_id'])
+                ->value('code');
+            $requiredSize = match ($standbyCode) {
+                'S1' => '40',
+                'S2' => '20',
+                default => null,
+            };
+
+            $entriesQuery = DB::table('queue_entries')
+                ->leftJoin('pre_inventory', 'pre_inventory.p_id', '=', 'queue_entries.pre_inventory_id')
+                ->leftJoin('container_size_type', 'container_size_type.s_id', '=', 'pre_inventory.size_type')
+                ->where('queue_entries.direction', $validated['direction'])
+                ->where('queue_entries.status', 'waiting')
+                ->whereNull('queue_entries.completed_at')
+                ->when($requiredSize !== null, fn ($query) => $query->where('container_size_type.size', $requiredSize))
+                ->orderBy('queue_entries.waiting_number')
+                ->orderBy('queue_entries.id')
                 ->lockForUpdate()
-                ->get(['id', 'plate_no']);
+                ->get(['queue_entries.id', 'queue_entries.plate_no']);
+            $entries = $entriesQuery;
 
             $selected = (int) $validated['quantity'] === 0
                 ? $entries
@@ -491,9 +522,6 @@ class GateinoutController extends Controller
                 ]);
             }
 
-            $standbyCode = DB::table('queue_standby_status')
-                ->where('id', $validated['standby_id'])
-                ->value('code');
             $plates = $selected->pluck('plate_no')->implode(', ');
             DB::table('audit_logs')->insert([
                 'action' => 'EDIT',
