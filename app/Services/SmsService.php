@@ -29,8 +29,9 @@ class SmsService
      * @param string|null $port SMS gateway port
      * @return array
      */
-    public function send(string $mobile, string $message, ?string $port = null): array
+    public function send(string $mobile, string $message, ?string $port = null, ?int $queueEntryId = null, ?string $queueStatus = null, ?int $standbyStatusId = null): array
     {
+        $logId = null;
         try {
             // Format mobile number
             $formattedMobile = $this->formatMobileNumber($mobile);
@@ -43,13 +44,18 @@ class SmsService
             }
 
             $smsSettings = $this->getSmsSettings();
+            $logId = $this->createSmsDeliveryLog($formattedMobile, $message, $smsSettings['driver'], $queueEntryId, $queueStatus, $standbyStatusId);
 
             if ($smsSettings['driver'] === 'smsgate') {
-                return $this->sendViaSmsGate($formattedMobile, $message, $smsSettings['smsgate']);
+                $result = $this->sendViaSmsGate($formattedMobile, $message, $smsSettings['smsgate']);
+                $this->finishSmsDeliveryLog($logId, $result);
+                return $result;
             }
 
             if ($smsSettings['driver'] === 'philsms') {
-                return $this->sendViaPhilSms($formattedMobile, $message);
+                $result = $this->sendViaPhilSms($formattedMobile, $message);
+                $this->finishSmsDeliveryLog($logId, $result);
+                return $result;
             }
 
             // Prepare legacy SMS gateway request
@@ -68,10 +74,12 @@ class SmsService
                     'message' => $message,
                 ]);
 
-                return [
+                $result = [
                     'success' => true,
                     'response' => $response->json(),
                 ];
+                $this->finishSmsDeliveryLog($logId, $result);
+                return $result;
             }
 
             Log::error('SMS sending failed', [
@@ -80,28 +88,70 @@ class SmsService
                 'error' => $response->body(),
             ]);
 
-            return [
+            $result = [
                 'success' => false,
                 'error' => 'SMS gateway returned error: ' . $response->status(),
             ];
+            $this->finishSmsDeliveryLog($logId, $result);
+            return $result;
         } catch (\Exception $e) {
             Log::error('SMS sending exception', [
                 'mobile' => $mobile,
                 'error' => $e->getMessage(),
             ]);
 
-            return [
+            $result = [
                 'success' => false,
                 'error' => $e->getMessage(),
             ];
+            $this->finishSmsDeliveryLog($logId, $result);
+            return $result;
         }
+    }
+
+    protected function createSmsDeliveryLog(string $recipient, string $message, string $provider, ?int $queueEntryId = null, ?string $queueStatus = null, ?int $standbyStatusId = null): ?int
+    {
+        try {
+            return (int) DB::table('sms_delivery_logs')->insertGetId([
+                'provider' => $provider,
+                'queue_entry_id' => $queueEntryId,
+                'queue_status' => $queueStatus,
+                'standby_status_id' => $standbyStatusId,
+                'recipient' => $recipient,
+                'message' => $message,
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('SMS delivery log could not be created.', ['error' => $exception->getMessage()]);
+            return null;
+        }
+    }
+
+    protected function finishSmsDeliveryLog(?int $logId, array $result): void
+    {
+        if (!$logId) return;
+        $response = $result['response'] ?? null;
+        $providerMessageId = is_array($response)
+            ? ($response['messageId'] ?? $response['message_id'] ?? $response['id'] ?? null)
+            : null;
+        DB::table('sms_delivery_logs')->where('id', $logId)->update([
+            'provider_message_id' => $providerMessageId,
+            'status' => ($result['success'] ?? false) ? 'sent' : 'failed',
+            'provider_response' => $response ? json_encode($response) : null,
+            'error_message' => ($result['success'] ?? false) ? null : ($result['error'] ?? 'SMS failed.'),
+            'sent_at' => ($result['success'] ?? false) ? now() : null,
+            'failed_at' => ($result['success'] ?? false) ? null : now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /**
      * Send a queue-status SMS using the configured header, status message,
      * and footer. Standby uses its selected standby-status message.
      */
-    public function sendQueueStatus(string $mobile, string $status, ?int $standbyStatusId = null, ?string $port = null): array
+    public function sendQueueStatus(string $mobile, string $status, ?int $standbyStatusId = null, ?string $port = null, ?int $queueEntryId = null): array
     {
         $settings = $this->getSmsSettings();
         $configuredMessage = $status === 'standby' && $standbyStatusId
@@ -121,7 +171,38 @@ class SmsService
             trim((string) ($settings['footer'] ?? '')),
         ], static fn (string $part): bool => $part !== '');
 
-        return $this->send($mobile, implode("\n\n", $parts), $port);
+        return $this->send($mobile, implode("\n\n", $parts), $port, $queueEntryId, $status, $standbyStatusId);
+    }
+
+    /** Send the configured destination-status message for a queue entry. */
+    public function sendQueueStatusForEntry(int $queueEntryId, string $status): array
+    {
+        try {
+            $entry = DB::table('queue_entries')
+                ->leftJoin('pre_inventory', 'pre_inventory.p_id', '=', 'queue_entries.pre_inventory_id')
+                ->where('queue_entries.id', $queueEntryId)
+                ->first(['pre_inventory.phone_number', 'queue_entries.standby_id']);
+
+            if (!$entry || !filled($entry->phone_number)) {
+                return ['success' => false, 'skipped' => true, 'error' => 'Queue entry has no phone number.'];
+            }
+
+            return $this->sendQueueStatus(
+                (string) $entry->phone_number,
+                $status,
+                $entry->standby_id ? (int) $entry->standby_id : null,
+            null,
+            $queueEntryId,
+            );
+        } catch (\Throwable $exception) {
+            Log::error('Queue status SMS could not be sent.', [
+                'queue_entry_id' => $queueEntryId,
+                'status' => $status,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return ['success' => false, 'error' => $exception->getMessage()];
+        }
     }
 
     /**
@@ -157,6 +238,7 @@ class SmsService
         $payload = [
             'textMessage' => ['text' => $message],
             'phoneNumbers' => [$this->toInternationalNumber($mobile)],
+            'withDeliveryReport' => true,
         ];
 
         if ($settings['sim_number'] !== null && $settings['sim_number'] !== '') {
