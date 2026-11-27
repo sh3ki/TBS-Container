@@ -81,13 +81,13 @@ class GateinoutController extends Controller
                 ->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')
                 ->leftJoin('queue_standby_status as queue_standby', 'queue_standby.id', '=', 'queue_entries.standby_id')
                 ->where('queue_entries.direction', 'IN')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')
-                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', DB::raw('COALESCE(queue_entries.standby_at, queue_entries.updated_at) as standby_at'), 'queue_standby.code as standby_code', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
+                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', DB::raw('COALESCE(' . $this->prefix . 'queue_entries.standby_at, ' . $this->prefix . 'queue_entries.updated_at) as standby_at'), 'queue_standby.code as standby_code', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
             $waitingOut = DB::table('queue_entries')
                 ->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')
                 ->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')
                 ->leftJoin('queue_standby_status as queue_standby', 'queue_standby.id', '=', 'queue_entries.standby_id')
                 ->where('queue_entries.direction', 'OUT')->whereIn('queue_entries.status', $activeStatuses)->whereNull('queue_entries.completed_at')
-                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', DB::raw('COALESCE(queue_entries.standby_at, queue_entries.updated_at) as standby_at'), 'queue_standby.code as standby_code', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
+                ->orderBy('queue_entries.waiting_number')->get(['queue_entries.id', 'queue_entries.plate_no', 'queue_entries.status', 'queue_entries.waiting_number', 'queue_entries.booking_time', 'queue_entries.manual_reason', 'queue_entries.manual_guard_user_id', 'queue_entries.calling_at', 'queue_entries.floating_at', DB::raw('COALESCE(' . $this->prefix . 'queue_entries.standby_at, ' . $this->prefix . 'queue_entries.updated_at) as standby_at'), 'queue_standby.code as standby_code', 'queue_size.size as size_type_size', 'queue_size.type as size_type_type']);
             $serving = DB::table('queue_entries')
                 ->leftJoin('pre_inventory as queue_pre', 'queue_pre.p_id', '=', 'queue_entries.pre_inventory_id')
                 ->leftJoin('container_size_type as queue_size', 'queue_size.s_id', '=', 'queue_pre.size_type')
@@ -104,6 +104,16 @@ class GateinoutController extends Controller
             Log::error('Queue display error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Unable to load queue.'], 500);
         }
+    }
+
+    public function getQueueStandbyStatuses()
+    {
+        return response()->json([
+            'success' => true,
+            'data' => DB::table('queue_standby_status')
+                ->orderBy('code')
+                ->get(['id', 'code', 'name', 'message']),
+        ]);
     }
 
     public function reorderQueue(Request $request)
@@ -330,6 +340,7 @@ class GateinoutController extends Controller
         $validated = $request->validate([
             'id' => ['required', 'integer'],
             'status' => ['required', 'in:calling,floating,forfeited,standby'],
+            'standby_id' => ['nullable', 'integer', 'exists:queue_standby_status,id'],
         ]);
 
         $transition = DB::transaction(function () use ($validated) {
@@ -338,19 +349,26 @@ class GateinoutController extends Controller
             $fromStatus = $entry->status;
 
             $allowedPreviousStatus = match ($validated['status']) {
-                'calling' => ['waiting'],
+                'calling' => ['waiting', 'standby'],
                 'floating' => ['calling'],
                 'forfeited' => ['floating'],
                 'standby' => ['waiting'],
             };
             abort_unless(in_array($entry->status, $allowedPreviousStatus, true), 409, 'This queue status transition is not allowed.');
 
+            $transitionAt = now();
             $timestampColumn = $validated['status'] . '_at';
-            DB::table('queue_entries')->where('id', $entry->id)->update([
+
+            // Keep the complete queue history. Only the timestamp belonging
+            // to the new status is written; all previous *_at values remain
+            // untouched.
+            $statusUpdate = [
                 'status' => $validated['status'],
-                $timestampColumn => now(),
-                'updated_at' => now(),
-            ]);
+                'standby_id' => $validated['status'] === 'standby' ? ($validated['standby_id'] ?? null) : null,
+                $timestampColumn => $transitionAt,
+                'updated_at' => $transitionAt,
+            ];
+            DB::table('queue_entries')->where('id', $entry->id)->update($statusUpdate);
 
             return [
                 'entry' => DB::table('queue_entries')->where('id', $entry->id)->first(),
