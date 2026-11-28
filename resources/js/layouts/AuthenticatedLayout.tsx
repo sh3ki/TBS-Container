@@ -24,6 +24,7 @@ import {
     Smartphone,
     Settings,
     List,
+    Truck,
 } from 'lucide-react';
 import { ModernConfirmDialog } from '@/components/modern/ModernConfirmDialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -64,6 +65,7 @@ const iconMap: Record<string, React.ReactNode> = {
     bancon: <Ban className="h-5 w-5" />,
     bancontainers: <Ban className="h-5 w-5" />,
     containerimages: <Images className="h-5 w-5" />,
+    truckplateimages: <Truck className="h-5 w-5" />,
     edi: <FileCode2 className="h-5 w-5" />,
     'mobile-settings': <Smartphone className="h-5 w-5" />,
     'app-settings': <Settings className="h-5 w-5" />,
