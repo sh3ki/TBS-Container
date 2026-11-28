@@ -144,6 +144,10 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('Audit/Index');
     })->name('audit.index');
 
+    Route::get('/database', function () {
+        return Inertia::render('Database/Index');
+    })->middleware('page.access:database')->name('database.index');
+
     // Booking
     Route::get('/booking', function () {
         return Inertia::render('Bookings/Index');
