@@ -295,42 +295,19 @@ const Index: React.FC = () => {
         setLoading(true);
 
         try {
-            const response = await axios.post('/api/reports/docs-fee/export', 
-                { date: singleDate },
-                { responseType: 'blob' }
-            );
-            
-            // Create download link from blob
-            const contentType = response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
-            const link = document.createElement('a');
-            link.href = url;
-            
-            // Get filename from content-disposition header
-            let filename = '';
-            const contentDisposition = response.headers['content-disposition'];
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename="?(.+?)"?$/);
-                if (filenameMatch && filenameMatch[1]) {
-                    filename = filenameMatch[1];
-                }
+            const response = await axios.post('/api/reports/docs-fee/export', { date: singleDate });
+            for (const download of response.data.downloads ?? []) {
+                const fileResponse = await axios.get(download.url, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(fileResponse.data);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = download.filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+                await new Promise((resolve) => window.setTimeout(resolve, 250));
             }
-            
-            // If filename not found, generate one
-            if (!filename) {
-                const dateStr = new Date(singleDate).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: '2-digit' 
-                }).replace(/,/g, '').replace(/ /g, '_');
-                filename = `DOCS_FEE_${dateStr}.xlsx`;
-            }
-            
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
             
             success('Docs Fee report exported successfully');
         } catch (error_caught: unknown) {
