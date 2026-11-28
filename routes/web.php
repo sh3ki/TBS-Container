@@ -204,6 +204,7 @@ Route::middleware(['auth'])->group(function () {
                 'incoming_rate' => (float) ($settings?->incoming_rate ?? 0),
                 'outgoing_rate' => (float) ($settings?->outgoing_rate ?? 0),
                 'hauler_exceptions' => (string) ($settings?->hauler_exceptions ?? ''),
+                'docs_fee_client_ids' => json_decode((string) ($settings?->docs_fee_client_ids ?? '[]'), true) ?: [],
                 'preout_hauler_exceptions' => (string) ($settings?->preout_hauler_exceptions ?? ''),
                 'prein_hauler_exceptions' => (string) ($settings?->prein_hauler_exceptions ?? ''),
                 'prein_scraping_client_ids' => json_decode((string) ($settings?->prein_scraping_client_ids ?? '[]'), true) ?: [],
@@ -260,6 +261,8 @@ Route::middleware(['auth'])->group(function () {
         $rules = [
             'section' => ['required', 'string', 'in:docs_fee,queue,booking_credentials,dmr,utilization,smtp,sms'],
             'hauler_exceptions' => ['nullable', 'string', 'max:5000'],
+            'docs_fee_client_ids' => ['sometimes', 'array'],
+            'docs_fee_client_ids.*' => ['integer', 'exists:clients,c_id'],
             'preout_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_hauler_exceptions' => ['nullable', 'string', 'max:5000'],
             'prein_scraping_client_ids' => ['sometimes', 'array'],
@@ -495,6 +498,11 @@ Route::middleware(['auth'])->group(function () {
             ->filter()
             ->unique()
             ->implode(', ');
+        $docsFeeClientIds = collect($validated['docs_fee_client_ids'] ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
         DB::table('app_settings')->updateOrInsert(
             ['setting_id' => 1],
@@ -502,6 +510,7 @@ Route::middleware(['auth'])->group(function () {
                 'incoming_rate' => $incomingRate,
                 'outgoing_rate' => $outgoingRate,
                 'hauler_exceptions' => $haulerExceptions !== '' ? $haulerExceptions : null,
+                'docs_fee_client_ids' => json_encode($docsFeeClientIds),
                 'updated_at' => now(),
                 'created_at' => $currentSettings?->created_at ?? now(),
             ],
@@ -516,6 +525,9 @@ Route::middleware(['auth'])->group(function () {
             }
             if ((string) ($currentSettings?->hauler_exceptions ?? '') !== $haulerExceptions) {
                 $auditService->log('UPDATE', 'Updated Docs Fee hauler exceptions', 'APP SETTINGS');
+            }
+            if (json_decode((string) ($currentSettings?->docs_fee_client_ids ?? '[]'), true) !== $docsFeeClientIds) {
+                $auditService->log('UPDATE', 'Updated Docs Fee client exceptions', 'APP SETTINGS');
             }
         } catch (\Throwable $exception) {
             report($exception);
