@@ -1762,7 +1762,6 @@ class ReportsController extends Controller
         $outgoingRate = (float) ($appSettings?->outgoing_rate ?? 0);
         $incomingRateSql = number_format($incomingRate, 2, '.', '');
         $outgoingRateSql = number_format($outgoingRate, 2, '.', '');
-        $inventoryAlias = DB::getTablePrefix() . 'inv';
         $haulerExceptions = collect(explode(',', (string) ($appSettings?->hauler_exceptions ?? '')))
             ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
             ->filter()
@@ -1771,12 +1770,22 @@ class ReportsController extends Controller
         $exceptionSql = $haulerExceptions->isEmpty()
             ? null
             : $haulerExceptions->map(fn (string $hauler): string => DB::getPdo()->quote($hauler))->implode(', ');
-        $incomingAmountSql = $exceptionSql === null
+        $docsFeeClientIds = collect(json_decode((string) ($appSettings?->docs_fee_client_ids ?? '[]'), true) ?: [])
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+        $clientExceptionSql = $docsFeeClientIds->isEmpty() ? null : $docsFeeClientIds->implode(', ');
+        $zeroAmountCondition = collect([
+            $exceptionSql === null ? null : "UPPER(TRIM(COALESCE(inv.hauler, ''))) IN ({$exceptionSql})",
+            $clientExceptionSql === null ? null : "inv.client_id IN ({$clientExceptionSql})",
+        ])->filter()->implode(' OR ');
+        $incomingAmountSql = $zeroAmountCondition === ''
             ? $incomingRateSql . ' as amount'
-            : "CASE WHEN UPPER(TRIM(COALESCE({$inventoryAlias}.hauler, ''))) IN ({$exceptionSql}) THEN 0.00 ELSE {$incomingRateSql} END as amount";
-        $outgoingAmountSql = $exceptionSql === null
+            : "CASE WHEN {$zeroAmountCondition} THEN 0.00 ELSE {$incomingRateSql} END as amount";
+        $outgoingAmountSql = $zeroAmountCondition === ''
             ? $outgoingRateSql . ' as amount'
-            : "CASE WHEN UPPER(TRIM(COALESCE({$inventoryAlias}.hauler, ''))) IN ({$exceptionSql}) THEN 0.00 ELSE {$outgoingRateSql} END as amount";
+            : "CASE WHEN {$zeroAmountCondition} THEN 0.00 ELSE {$outgoingRateSql} END as amount";
 
         // Get incoming containers with the configured fee.
         $incoming = DB::table('inventory as inv')
@@ -1786,14 +1795,14 @@ class ReportsController extends Controller
             ->whereDate('inv.date_added', $date)
             ->where('c.archived', 0)
             ->select(
-                DB::raw('CONCAT(fjp_inv.i_id, "I") as eir_no'),
-                DB::raw('TIME(fjp_inv.date_added) as time'),
+                DB::raw('CONCAT(inv.i_id, "I") as eir_no'),
+                DB::raw('TIME(inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                DB::raw('CONCAT(st.size, st.type) as size_type'),
                 'inv.hauler',
                 'inv.plate_no',
                 DB::raw($incomingAmountSql),
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
+                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client_name'),
                 'st.size'
             )
             ->orderBy('inv.date_added')
@@ -1808,14 +1817,14 @@ class ReportsController extends Controller
             ->whereDate('inv.date_added', $date)
             ->where('c.archived', 0)
             ->select(
-                DB::raw('CONCAT(fjp_inv.i_id, "O") as eir_no'),
-                DB::raw('TIME(fjp_inv.date_added) as time'),
+                DB::raw('CONCAT(inv.i_id, "O") as eir_no'),
+                DB::raw('TIME(inv.date_added) as time'),
                 'inv.container_no',
-                DB::raw('CONCAT(fjp_st.size, fjp_st.type) as size_type'),
+                DB::raw('CONCAT(st.size, st.type) as size_type'),
                 'inv.hauler',
                 'inv.plate_no',
                 DB::raw($outgoingAmountSql),
-                DB::raw('CASE WHEN fjp_c.client_code IS NOT NULL AND fjp_c.client_code <> "" THEN fjp_c.client_code ELSE fjp_c.client_name END as client_name'),
+                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client_name'),
                 'st.size'
             )
             ->orderBy('inv.date_added')
