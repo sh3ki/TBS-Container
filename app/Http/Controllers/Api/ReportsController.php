@@ -1762,6 +1762,9 @@ class ReportsController extends Controller
         $outgoingRate = (float) ($appSettings?->outgoing_rate ?? 0);
         $incomingRateSql = number_format($incomingRate, 2, '.', '');
         $outgoingRateSql = number_format($outgoingRate, 2, '.', '');
+        $inventoryAlias = DB::getTablePrefix() . 'inv';
+        $clientAlias = DB::getTablePrefix() . 'c';
+        $sizeAlias = DB::getTablePrefix() . 'st';
         $haulerExceptions = collect(explode(',', (string) ($appSettings?->hauler_exceptions ?? '')))
             ->map(fn (string $hauler): string => strtoupper(trim($hauler)))
             ->filter()
@@ -1777,8 +1780,8 @@ class ReportsController extends Controller
             ->values();
         $clientExceptionSql = $docsFeeClientIds->isEmpty() ? null : $docsFeeClientIds->implode(', ');
         $zeroAmountCondition = collect([
-            $exceptionSql === null ? null : "UPPER(TRIM(COALESCE(inv.hauler, ''))) IN ({$exceptionSql})",
-            $clientExceptionSql === null ? null : "inv.client_id IN ({$clientExceptionSql})",
+            $exceptionSql === null ? null : "UPPER(TRIM(COALESCE({$inventoryAlias}.hauler, ''))) IN ({$exceptionSql})",
+            $clientExceptionSql === null ? null : "{$inventoryAlias}.client_id IN ({$clientExceptionSql})",
         ])->filter()->implode(' OR ');
         $incomingAmountSql = $zeroAmountCondition === ''
             ? $incomingRateSql . ' as amount'
@@ -1795,14 +1798,14 @@ class ReportsController extends Controller
             ->whereDate('inv.date_added', $date)
             ->where('c.archived', 0)
             ->select(
-                DB::raw('CONCAT(inv.i_id, "I") as eir_no'),
-                DB::raw('TIME(inv.date_added) as time'),
+                DB::raw("CONCAT({$inventoryAlias}.i_id, 'I') as eir_no"),
+                DB::raw("TIME({$inventoryAlias}.date_added) as time"),
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, st.type) as size_type'),
+                DB::raw("CONCAT({$sizeAlias}.size, {$sizeAlias}.type) as size_type"),
                 'inv.hauler',
                 'inv.plate_no',
                 DB::raw($incomingAmountSql),
-                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client_name'),
+                DB::raw("CASE WHEN {$clientAlias}.client_code IS NOT NULL AND {$clientAlias}.client_code <> '' THEN {$clientAlias}.client_code ELSE {$clientAlias}.client_name END as client_name"),
                 'st.size'
             )
             ->orderBy('inv.date_added')
@@ -1817,14 +1820,14 @@ class ReportsController extends Controller
             ->whereDate('inv.date_added', $date)
             ->where('c.archived', 0)
             ->select(
-                DB::raw('CONCAT(inv.i_id, "O") as eir_no'),
-                DB::raw('TIME(inv.date_added) as time'),
+                DB::raw("CONCAT({$inventoryAlias}.i_id, 'O') as eir_no"),
+                DB::raw("TIME({$inventoryAlias}.date_added) as time"),
                 'inv.container_no',
-                DB::raw('CONCAT(st.size, st.type) as size_type'),
+                DB::raw("CONCAT({$sizeAlias}.size, {$sizeAlias}.type) as size_type"),
                 'inv.hauler',
                 'inv.plate_no',
                 DB::raw($outgoingAmountSql),
-                DB::raw('CASE WHEN c.client_code IS NOT NULL AND c.client_code <> "" THEN c.client_code ELSE c.client_name END as client_name'),
+                DB::raw("CASE WHEN {$clientAlias}.client_code IS NOT NULL AND {$clientAlias}.client_code <> '' THEN {$clientAlias}.client_code ELSE {$clientAlias}.client_name END as client_name"),
                 'st.size'
             )
             ->orderBy('inv.date_added')
@@ -1839,6 +1842,64 @@ class ReportsController extends Controller
         // Generate Excel file
         $exportService = new ReportExportService();
         $filepath = $exportService->exportDocsFeeReport($incoming, $outgoing, $date);
+        $downloads = [[
+            'filename' => basename($filepath),
+            'url' => url('/api/reports/docs-fee/download/' . rawurlencode(basename($filepath))),
+        ]];
+
+        $clientRates = collect(json_decode((string) ($appSettings?->docs_fee_client_rates ?? '[]'), true) ?: [])
+            ->keyBy(fn (array $rate): string => (string) ($rate['client_id'] ?? ''));
+        $exceptionClientIds = collect(json_decode((string) ($appSettings?->docs_fee_client_ids ?? '[]'), true) ?: [])
+            ->map(fn ($id): int => (int) $id)->filter()->unique()->values();
+        $exceptionClients = DB::table('clients')->whereIn('c_id', $exceptionClientIds)->get(['c_id', 'client_name', 'client_code']);
+        $prefix = DB::getTablePrefix();
+        foreach ($exceptionClients as $client) {
+            $rateConfig = $clientRates->get((string) $client->c_id, []);
+            $makeRows = function (string $direction) use ($client, $date, $rateConfig, $prefix): array {
+                $query = DB::table('inventory as inv')
+                    ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
+                    ->leftJoin('inventory as in_inv', 'inv.out_id', '=', 'in_inv.i_id')
+                    ->where('inv.client_id', $client->c_id)
+                    ->where('inv.gate_status', $direction)
+                    ->whereDate('inv.date_added', $date)
+                    ->select('inv.date_added', 'in_inv.date_added as in_date', 'inv.container_no', 'inv.hauler', 'inv.plate_no', 'st.size', DB::raw("CONCAT({$prefix}st.size, {$prefix}st.type) as size_type"))
+                    ->orderBy('inv.date_added')->get();
+                return $query->map(function ($record) use ($direction, $rateConfig): object {
+                    $size = in_array((int) $record->size, [20, 22], true) ? '20' : '40';
+                    $fees = data_get($rateConfig, ($direction === 'IN' ? 'incoming' : 'outgoing') . '.' . $size, []);
+                    $storageDays = 1;
+                    if ($direction === 'OUT') {
+                        $storageDays = $record->in_date ? max(0, \Carbon\Carbon::parse($record->in_date)->startOfDay()->diffInDays(\Carbon\Carbon::parse($record->date_added)->startOfDay(), false)) : 0;
+                    }
+                    $storage = (float) ($fees['storage_fee'] ?? 0) * $storageDays;
+                    $handling = (float) ($fees['handling_fee'] ?? 0);
+                    $docs = (float) ($fees['docs_fee'] ?? 0);
+                    return (object) [
+                        'record_date' => \Carbon\Carbon::parse($record->date_added)->format('Y-m-d'),
+                        'time' => \Carbon\Carbon::parse($record->date_added)->format('H:i:s'),
+                        'container_no' => $record->container_no,
+                        'size_type' => $record->size_type,
+                        'hauler' => $record->hauler,
+                        'plate_no' => $record->plate_no,
+                        'docs_fee' => $docs,
+                        'handling_fee' => $handling,
+                        'storage_fee' => $storage,
+                        'total' => $docs + $handling + $storage,
+                    ];
+                })->all();
+            };
+            $clientPath = $exportService->exportDocsFeeClientReport(
+                $makeRows('IN'),
+                $makeRows('OUT'),
+                (string) $client->client_name,
+                (string) ($client->client_code ?: $client->client_name),
+                $date,
+            );
+            $downloads[] = [
+                'filename' => basename($clientPath),
+                'url' => url('/api/reports/docs-fee/download/' . rawurlencode(basename($clientPath))),
+            ];
+        }
 
         // Log audit - REPORTS action
         $filename = basename($filepath);
@@ -1850,12 +1911,19 @@ class ReportsController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        // Download the file
-        return response()
-            ->download($filepath, $filename, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            ])
-            ->deleteFileAfterSend(true);
+        return response()->json(['downloads' => $downloads]);
+    }
+
+    public function downloadDocsFeeFile(string $filename)
+    {
+        $safeFilename = basename(rawurldecode($filename));
+        abort_unless(str_ends_with(strtolower($safeFilename), '.xlsx'), 404);
+        $path = storage_path('app/public/exports/' . $safeFilename);
+        abort_unless(is_file($path), 404);
+
+        return response()->download($path, $safeFilename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }
 
