@@ -386,4 +386,36 @@
         height: 0;
         width: 0;
     }
+
+    /* The Database table picker sits on a white card, so it needs a dark
+     * scrollbar thumb instead of the white navigation-sidebar thumb. */
+    .database-table-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #9ca3af #f3f4f6;
+        scrollbar-gutter: stable;
+    }
+
+    .database-table-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .database-table-scrollbar::-webkit-scrollbar-track {
+        background: #f3f4f6;
+        border-radius: 999px;
+    }
+
+    .database-table-scrollbar::-webkit-scrollbar-thumb {
+        background: #9ca3af;
+        border-radius: 999px;
+    }
+
+    .database-table-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+    }
+
+    .database-table-scrollbar::-webkit-scrollbar-button {
+        display: none;
+        height: 0;
+        width: 0;
+    }
 }
