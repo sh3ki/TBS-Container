@@ -57,6 +57,13 @@ interface StandbyStatusMessage {
     enabled: boolean;
 }
 
+type DocsFeeRate = { storage_fee: number; handling_fee: number; docs_fee: number };
+type DocsFeeClientRate = {
+    client_id: number | string;
+    incoming: Record<'20' | '40', DocsFeeRate>;
+    outgoing: Record<'20' | '40', DocsFeeRate>;
+};
+
 interface AppSettingsProps {
     clients: Array<{ c_id: number; client_name: string; client_code: string }>;
     settings: {
@@ -64,6 +71,7 @@ interface AppSettingsProps {
         outgoing_rate: number;
         hauler_exceptions: string;
         docs_fee_client_ids: number[];
+        docs_fee_client_rates: DocsFeeClientRate[];
         preout_hauler_exceptions: string;
         prein_hauler_exceptions: string;
         prein_scraping_client_ids: number[];
@@ -134,6 +142,29 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     const [docsFeeClientIds, setDocsFeeClientIds] = useState<string[]>(
         settings.docs_fee_client_ids.map(String),
     );
+    const emptyDocsFeeRate = (): DocsFeeRate => ({ storage_fee: 0, handling_fee: 0, docs_fee: 0 });
+    const emptyDocsFeeClientRate = (clientId: string): DocsFeeClientRate => ({
+        client_id: clientId,
+        incoming: { '20': emptyDocsFeeRate(), '40': emptyDocsFeeRate() },
+        outgoing: { '20': emptyDocsFeeRate(), '40': emptyDocsFeeRate() },
+    });
+    const [docsFeeClientRates, setDocsFeeClientRates] = useState<DocsFeeClientRate[]>(() =>
+        settings.docs_fee_client_ids.map((clientId) => {
+            const rate = settings.docs_fee_client_rates.find(
+                (item) => String(item.client_id) === String(clientId),
+            );
+            const defaults = emptyDocsFeeClientRate(String(clientId));
+            return rate
+                ? {
+                      ...defaults,
+                      ...rate,
+                      incoming: { ...defaults.incoming, ...rate.incoming },
+                      outgoing: { ...defaults.outgoing, ...rate.outgoing },
+                  }
+                : defaults;
+        }),
+    );
+    const [collapsedDocsFeeClients, setCollapsedDocsFeeClients] = useState<Record<string, boolean>>({});
     const [preoutHaulerExceptions, setPreoutHaulerExceptions] = useState(
         settings.preout_hauler_exceptions,
     );
@@ -309,6 +340,9 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 outgoing_rate: Number(outgoingRate),
                 hauler_exceptions: haulerExceptions,
                 docs_fee_client_ids: docsFeeClientIds,
+                docs_fee_client_rates: docsFeeClientRates.filter((rate) =>
+                    docsFeeClientIds.includes(String(rate.client_id)),
+                ),
             });
             success(
                 response.data.message ||
@@ -1991,15 +2025,74 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                             label: `${client.client_name}${client.client_code ? ` (${client.client_code})` : ''}`,
                                         }))}
                                         value={docsFeeClientIds}
-                                        onChange={setDocsFeeClientIds}
+                                        onChange={(values) => {
+                                            setDocsFeeClientIds(values);
+                                            setDocsFeeClientRates((current) => [
+                                                ...current.filter((rate) => values.includes(String(rate.client_id))),
+                                                ...values
+                                                    .filter((id) => !current.some((rate) => String(rate.client_id) === id))
+                                                    .map(emptyDocsFeeClientRate),
+                                            ]);
+                                        }}
                                         placeholder="Select clients"
                                         searchPlaceholder="Search clients..."
+                                        openUpward
                                     />
                                 </div>
                                 <p className="mt-1 text-xs text-gray-500">
                                     Selected clients receive a 0 Docs Fee rate.
                                 </p>
                             </div>
+
+                            {docsFeeClientIds.map((clientId) => {
+                                const client = clients.find((item) => String(item.c_id) === clientId);
+                                const config = docsFeeClientRates.find((rate) => String(rate.client_id) === clientId);
+                                if (!client || !config) return null;
+                                return (
+                                    <div key={clientId} className="md:col-span-3 rounded-lg border border-gray-200 p-4 text-gray-900">
+                                        <button type="button" className="flex w-full items-center justify-between text-left font-semibold text-gray-900" onClick={() => setCollapsedDocsFeeClients((current) => ({ ...current, [clientId]: current[clientId] === false }))} aria-expanded={collapsedDocsFeeClients[clientId] === false}>
+                                            <span>{client.client_name} - EXCEPTION FEES</span>
+                                            {collapsedDocsFeeClients[clientId] !== false ? <ChevronDown className="h-5 w-5 text-gray-900" /> : <ChevronUp className="h-5 w-5 text-gray-900" />}
+                                        </button>
+                                        {collapsedDocsFeeClients[clientId] === false && <div className="mt-4">{(['incoming', 'outgoing'] as const).map((direction) => (
+                                            <div key={direction} className="mb-3 last:mb-0">
+                                                <p className="mb-2 text-xs font-bold uppercase text-gray-900">{direction}</p>
+                                                <div className="grid gap-3 md:grid-cols-2">
+                                                    {(['20', '40'] as const).map((size) => (
+                                                        <div key={size} className="rounded border border-gray-200 p-3">
+                                                            <p className="mb-2 text-xs font-semibold text-gray-900">SIZE {size}</p>
+                                                            <div className="grid gap-2 md:grid-cols-3">
+                                                                {(['storage_fee', 'handling_fee', 'docs_fee'] as const).map((field) => (
+                                                                    <div key={field}>
+                                                                        <Label className="mb-1 block text-xs font-semibold text-gray-900">
+                                                                            {field === 'storage_fee' ? 'STORAGE FEE' : field === 'handling_fee' ? 'HANDLING FEE' : 'DOCS FEE'}
+                                                                        </Label>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            step="0.01"
+                                                                            value={config[direction][size][field]}
+                                                                            aria-label={`${direction} ${size} ${field}`}
+                                                                            className="text-gray-900 placeholder:text-gray-900"
+                                                                            onChange={(event) => setDocsFeeClientRates((current) => current.map((rate) => String(rate.client_id) === clientId ? {
+                                                                                ...rate,
+                                                                                [direction]: {
+                                                                                    ...rate[direction],
+                                                                                    [size]: { ...rate[direction][size], [field]: Number(event.target.value) },
+                                                                                },
+                                                                            } : rate))}
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}</div>}
+                                    </div>
+                                );
+                            })}
 
                             <div className="flex items-center gap-3 md:col-span-3">
                                 <ModernButton
