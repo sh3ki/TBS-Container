@@ -40,7 +40,7 @@ class Privilege extends Model
      */
     public function users()
     {
-        return $this->hasMany(User::class, 'priv_id', 'p_id');
+        return $this->hasMany(User::class, 'priv_id', 'p_code');
     }
 
     /**
