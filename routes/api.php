@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\GuardScanController;
 use App\Http\Controllers\Api\QueueInternalController;
 use App\Http\Controllers\Api\QueueDisplayController;
+use App\Http\Controllers\Api\TruckPlateImagesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -448,16 +449,16 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
 
     // Truck Plate Images - same explorer functionality, rooted at public/truck_plates
     Route::prefix('truckplateimages')->group(function () {
-        Route::get('/page-record-access', [ContainerImagesController::class, 'getPageRecordAccess']);
-        Route::get('/list', [ContainerImagesController::class, 'list']);
-        Route::get('/file', [ContainerImagesController::class, 'viewFile']);
-        Route::post('/upload', [ContainerImagesController::class, 'upload']);
-        Route::post('/folders', [ContainerImagesController::class, 'createFolder']);
-        Route::get('/download', [ContainerImagesController::class, 'download']);
-        Route::post('/download-bulk', [ContainerImagesController::class, 'downloadBulk']);
-        Route::post('/rename', [ContainerImagesController::class, 'rename']);
-        Route::post('/delete-item', [ContainerImagesController::class, 'deleteItem']);
-        Route::post('/delete-bulk', [ContainerImagesController::class, 'deleteBulk']);
+        Route::get('/page-record-access', [TruckPlateImagesController::class, 'getPageRecordAccess']);
+        Route::get('/list', [TruckPlateImagesController::class, 'list']);
+        Route::get('/file', [TruckPlateImagesController::class, 'viewFile']);
+        Route::post('/upload', [TruckPlateImagesController::class, 'upload']);
+        Route::post('/folders', [TruckPlateImagesController::class, 'createFolder']);
+        Route::get('/download', [TruckPlateImagesController::class, 'download']);
+        Route::post('/download-bulk', [TruckPlateImagesController::class, 'downloadBulk']);
+        Route::post('/rename', [TruckPlateImagesController::class, 'rename']);
+        Route::post('/delete-item', [TruckPlateImagesController::class, 'deleteItem']);
+        Route::post('/delete-bulk', [TruckPlateImagesController::class, 'deleteBulk']);
     });
 
     // Audit Logs
