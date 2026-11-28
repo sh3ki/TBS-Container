@@ -171,7 +171,12 @@ class GuardScanController extends Controller
                 return DB::table('queue_entries')->where('id', $locked->id)->first();
             });
 
-            $this->saveSuccessfulScanImage($imagePath, $servedEntry->direction, $servedEntry->plate_no);
+            $platePath = $this->saveSuccessfulScanImage($imagePath, $servedEntry->direction, $servedEntry->plate_no);
+            DB::table('queue_entries')->where('id', $servedEntry->id)->update([
+                'plate_path' => $platePath,
+                'is_manual' => true,
+                'updated_at' => now(),
+            ]);
             DB::table('audit_logs')->insert([
                 'action' => 'SCAN',
                 'description' => sprintf('[MANUAL SCAN %s] Captured plate "%s" and moved to serving.', $servedEntry->direction, $servedEntry->plate_no),
@@ -444,7 +449,12 @@ class GuardScanController extends Controller
         $queueUpdated = (bool) $queue['entry'];
         if ($queueUpdated) {
             try {
-                $this->saveSuccessfulScanImage($imagePath, $direction, $plateNo);
+                $platePath = $this->saveSuccessfulScanImage($imagePath, $direction, $plateNo);
+                DB::table('queue_entries')->where('id', $queue['entry']->id)->update([
+                    'plate_path' => $platePath,
+                    'is_manual' => false,
+                    'updated_at' => now(),
+                ]);
             } catch (\Throwable $exception) {
                 \Log::error('Guard successful scan image could not be saved', [
                     'plate_no' => $plateNo,
@@ -472,7 +482,7 @@ class GuardScanController extends Controller
         return response()->json(['success' => true, 'plate_no' => $plateNo, 'queue_updated' => $queueUpdated]);
     }
 
-    private function saveSuccessfulScanImage(string $sourcePath, string $direction, string $plateNo): void
+    private function saveSuccessfulScanImage(string $sourcePath, string $direction, string $plateNo): string
     {
         $directory = public_path('truck_plates');
         if (! is_dir($directory)) {
@@ -499,5 +509,7 @@ class GuardScanController extends Controller
             throw new \RuntimeException('Unable to save the successful scan image.');
         }
         imagedestroy($image);
+
+        return 'truck_plates/' . $filename;
     }
 }
