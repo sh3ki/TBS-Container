@@ -1858,7 +1858,7 @@ class ReportsController extends Controller
             $makeRows = function (string $direction) use ($client, $date, $rateConfig, $prefix): array {
                 $query = DB::table('inventory as inv')
                     ->leftJoin('container_size_type as st', 'inv.size_type', '=', 'st.s_id')
-                    ->leftJoin('inventory as in_inv', 'inv.out_id', '=', 'in_inv.i_id')
+                    ->leftJoin('inventory as in_inv', 'in_inv.out_id', '=', 'inv.i_id')
                     ->where('inv.client_id', $client->c_id)
                     ->where('inv.gate_status', $direction)
                     ->whereDate('inv.date_added', $date)
