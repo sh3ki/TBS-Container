@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\GuardScanController;
 use App\Http\Controllers\Api\QueueInternalController;
 use App\Http\Controllers\Api\QueueDisplayController;
+use App\Http\Controllers\Api\TruckPlateImagesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -188,6 +189,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-inactive', [AuthController::class, 'logoutInactive']);
+    Route::get('/truck-plate-images', [TruckPlateImagesController::class, 'list']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
 
