@@ -15,6 +15,7 @@ interface MultiSelectProps {
     placeholder?: string;
     searchPlaceholder?: string;
     className?: string;
+    openUpward?: boolean;
 }
 
 export function MultiSelect({
@@ -24,6 +25,7 @@ export function MultiSelect({
     placeholder = 'Select options',
     searchPlaceholder = 'Search options...',
     className,
+    openUpward = false,
 }: MultiSelectProps) {
     const [open, setOpen] = React.useState(false);
     const [search, setSearch] = React.useState('');
@@ -38,12 +40,13 @@ export function MultiSelect({
         const rect = trigger.getBoundingClientRect();
         setPopoverStyle({
             position: 'fixed',
-            top: rect.bottom + 4,
+            top: openUpward ? undefined : rect.bottom + 4,
+            bottom: openUpward ? window.innerHeight - rect.top + 4 : undefined,
             left: rect.left,
             width: rect.width,
-            maxHeight: Math.max(220, window.innerHeight - rect.bottom - 12),
+            maxHeight: Math.max(160, openUpward ? rect.top - 12 : window.innerHeight - rect.bottom - 12),
         });
-    }, []);
+    }, [openUpward]);
 
     React.useEffect(() => {
         const handleOutsideClick = (event: MouseEvent) => {
