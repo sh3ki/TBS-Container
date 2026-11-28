@@ -402,7 +402,7 @@ class ContainerImagesController extends Controller
             return response()->json(['success' => false, 'message' => 'ZipArchive is not available on the server. Please enable the php-zip extension.'], 500);
         }
 
-        $base = rtrim(self::BASE_DIRECTORY, '/');
+        $base = rtrim($this->baseDirectory(), '/');
         $zipPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'containerimages_bulk_' . md5(implode('|', $validated['paths']) . microtime(true)) . '.zip';
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
@@ -489,7 +489,7 @@ class ContainerImagesController extends Controller
 
         try {
             File::move($fullPath, $targetPath);
-            $this->logAudit('EDIT', '[CONTAINER IMAGES] Renamed "' . $relativePath . '" to "' . ltrim(str_replace(rtrim(self::BASE_DIRECTORY, '/') . '/', '', $targetPath), '/') . '"');
+            $this->logAudit('EDIT', '[' . $this->auditLabel() . '] Renamed "' . $relativePath . '" to "' . ltrim(str_replace(rtrim($this->baseDirectory(), '/') . '/', '', $targetPath), '/') . '"');
             return response()->json(['success' => true, 'message' => 'Renamed successfully.']);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => 'Rename failed.'], 500);
@@ -522,7 +522,7 @@ class ContainerImagesController extends Controller
         }
 
         $page = DB::selectOne(
-            "SELECT p_id FROM {$this->prefix}pages WHERE page = 'containerimages' LIMIT 1"
+            "SELECT p_id FROM {$this->prefix}pages WHERE page = '" . $this->pageKey() . "' LIMIT 1"
         );
 
         if (!$page) {
@@ -589,13 +589,35 @@ class ContainerImagesController extends Controller
 
     private function toFullPath(string $relativePath): string
     {
-        $base = rtrim(self::BASE_DIRECTORY, '/');
+        $base = rtrim($this->baseDirectory(), '/');
 
         if ($relativePath === '') {
             return $base;
         }
 
         return $base . '/' . $relativePath;
+    }
+
+    private function isTruckPlateImagesRequest(): bool
+    {
+        return request()->is('api/truckplateimages', 'api/truckplateimages/*');
+    }
+
+    private function pageKey(): string
+    {
+        return $this->isTruckPlateImagesRequest() ? 'truckplateimages' : 'containerimages';
+    }
+
+    private function baseDirectory(): string
+    {
+        return $this->isTruckPlateImagesRequest()
+            ? public_path('truck_plates')
+            : self::BASE_DIRECTORY;
+    }
+
+    private function auditLabel(): string
+    {
+        return $this->isTruckPlateImagesRequest() ? 'TRUCK PLATE IMAGES' : 'CONTAINER IMAGES';
     }
 
     private function sanitizeFolderName(string $name): string
