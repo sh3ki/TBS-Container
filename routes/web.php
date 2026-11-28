@@ -129,6 +129,11 @@ Route::middleware(['auth'])->group(function () {
         return Inertia::render('ContainerImages/Index');
     })->name('containerimages.index');
 
+    // Truck Plate Images
+    Route::get('/truckplateimages', function () {
+        return Inertia::render('TruckPlateImages/Index');
+    })->middleware('page.access:truckplateimages')->name('truckplateimages.index');
+
     // Users
     Route::get('/users', function () {
         return Inertia::render('Users/Index');
