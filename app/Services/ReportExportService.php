@@ -738,170 +738,129 @@ class ReportExportService
      */
     public function exportDocsFeeReport(array $incoming, array $outgoing, string $date): string
     {
-        // Create fresh spreadsheet
         $this->spreadsheet = new Spreadsheet();
         $sheet = $this->spreadsheet->getActiveSheet();
 
-        // Define styles matching old system
         $normalStyle = [
             'font' => ['name' => 'Calibri', 'size' => 9, 'color' => ['rgb' => '333333']],
             'borders' => ['bottom' => ['style' => Border::BORDER_THIN]],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ];
-
-        $fhead = [
+        $headerStyle = [
             'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => ['rgb' => '333333']],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'FFFFFF']],
-            'alignment' => [
-                'wrap' => true,
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical' => Alignment::VERTICAL_CENTER,
-            ],
-            'borders' => [
-                'outline' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '333333']],
-            ],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
         ];
-
-        $bold = [
-            'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true, 'color' => ['rgb' => '333333']],
+        $titleStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 10, 'bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
         ];
-
-        $cfont = [
+        $sectionStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ];
+        $totalStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true],
+            'borders' => [
+                'top' => ['style' => Border::BORDER_THICK, 'color' => ['rgb' => '000000']],
+                'bottom' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
+            ],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ];
+        $summaryLabelStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_LEFT],
+        ];
+        $summaryAmountStyle = [
+            'font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
+        ];
+        $formattedDate = \Carbon\Carbon::parse($date)->format('d-M-Y');
+        $headers = ['EIR', 'Time', 'Container No.', 'Size/Type', 'Hauler', 'Plate No.', 'Amount', 'Client'];
 
-        $count = 1;
-        $formattedDate = \Carbon\Carbon::parse($date)->format('d-M-y');
+        $writeSection = function (array $rows, string $reportTitle, int $row) use ($sheet, $headers, $normalStyle, $headerStyle, $titleStyle, $sectionStyle, $totalStyle, $formattedDate): array {
+            $sheet->setCellValue("A{$row}", 'TBS CONTAINER YARD OPC');
+            $sheet->mergeCells("A{$row}:I{$row}");
+            $sheet->getStyle("A{$row}:I{$row}")->applyFromArray($titleStyle);
+            $row++;
 
-        // ========== INCOMING SECTION ==========
-        // Header
-        $sheet->setCellValue('B' . $count, 'TBS INCOMING & OUTGOING REPORT');
-        $sheet->mergeCells('B' . $count . ':G' . $count);
-        $sheet->getStyle('B' . $count . ':G' . $count)->applyFromArray($cfont);
-        $count++;
-        $count++;
+            $sheet->setCellValue("A{$row}", $reportTitle);
+            $sheet->mergeCells("A{$row}:I{$row}");
+            $sheet->getStyle("A{$row}:I{$row}")->applyFromArray($sectionStyle);
+            $row++;
 
-        $sheet->setCellValue('B' . $count, 'INCOMING');
-        $sheet->mergeCells('B' . $count . ':G' . $count);
-        $sheet->getStyle('B' . $count . ':G' . $count)->applyFromArray($cfont);
-        $count++;
-        $sheet->setCellValue('D' . $count, 'DATE:');
-        $sheet->setCellValue('E' . $count, $formattedDate);
-        $sheet->getStyle('E' . $count)->applyFromArray($cfont);
-        $count += 3;
+            $sheet->setCellValue("D{$row}", 'DATE:');
+            $sheet->setCellValue("E{$row}", $formattedDate);
+            $sheet->getStyle("D{$row}:E{$row}")->applyFromArray($sectionStyle);
+            $row += 2;
 
-        // Column headers
-        $headerRow = $count;
-        $sheet->setCellValue('A' . $headerRow, 'EIR')->getStyle('A' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('B' . $headerRow, 'Time')->getStyle('B' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('C' . $headerRow, 'Container No.')->getStyle('C' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('D' . $headerRow, 'Size/Type')->getStyle('D' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('E' . $headerRow, 'Hauler')->getStyle('E' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('F' . $headerRow, 'Plate No.')->getStyle('F' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('G' . $headerRow, 'Amount')->getStyle('G' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('H' . $headerRow, 'Client')->getStyle('H' . $headerRow)->applyFromArray($bold);
-        $count++;
+            foreach ($headers as $column => $header) {
+                $cell = chr(ord('A') + $column) . $row;
+                $sheet->setCellValue($cell, $header);
+                $sheet->getStyle($cell)->applyFromArray($headerStyle);
+            }
+            $row++;
+            $firstDataRow = $row;
 
-        // Incoming data rows
-        $incomingTotal = 0;
-        $incomingCount = 0;
-        foreach ($incoming as $row) {
-            $sheet->setCellValue('A' . $count, $row->eir_no ?? '')->getStyle('A' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('B' . $count, $row->time ?? '')->getStyle('B' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('C' . $count, $row->container_no ?? '')->getStyle('C' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('D' . $count, $row->size_type ?? '')->getStyle('D' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('E' . $count, $row->hauler ?? '')->getStyle('E' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('F' . $count, $row->plate_no ?? '')->getStyle('F' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('G' . $count, $row->amount ?? 0)->getStyle('G' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('H' . $count, $row->client_name ?? '')->getStyle('H' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('I' . $count, '1')->getStyle('I' . $count)->applyFromArray($normalStyle);
+            foreach ($rows as $item) {
+                $values = [
+                    $item->eir_no ?? '',
+                    $item->time ?? '',
+                    $item->container_no ?? '',
+                    $item->size_type ?? '',
+                    $item->hauler ?? '',
+                    $item->plate_no ?? '',
+                    $item->amount ?? 0,
+                    $item->client_name ?? '',
+                    1,
+                ];
+                foreach ($values as $column => $value) {
+                    $cell = chr(ord('A') + $column) . $row;
+                    $sheet->setCellValue($cell, $value);
+                    $sheet->getStyle($cell)->applyFromArray($normalStyle);
+                }
+                $row++;
+            }
 
-            $incomingTotal += (float)($row->amount ?? 0);
-            $incomingCount++;
-            $count++;
+            $lastDataRow = $row - 1;
+            $sumStart = $firstDataRow;
+            $sumEnd = max($lastDataRow, $firstDataRow);
+            $sheet->setCellValue("G{$row}", "=SUM(G{$sumStart}:G{$sumEnd})");
+            $sheet->setCellValue("I{$row}", "=SUM(I{$sumStart}:I{$sumEnd})");
+            $sheet->getStyle("G{$row}")->applyFromArray($totalStyle);
+            $sheet->getStyle("I{$row}")->applyFromArray($totalStyle);
+
+            return ['sumRow' => $row, 'nextRow' => $row + 1];
+        };
+
+        $incomingSection = $writeSection($incoming, 'INCOMING REPORT (WHOLESHIFT)', 1);
+        $outgoingSection = $writeSection($outgoing, 'OUTGOING REPORT (WHOLESHIFT)', $incomingSection['nextRow']);
+
+        $summaryRow = $outgoingSection['sumRow'] + 1;
+        $sheet->setCellValue("B{$summaryRow}", 'REGULAR (DAY)');
+        $sheet->mergeCells("B{$summaryRow}:C{$summaryRow}");
+        $sheet->getStyle("B{$summaryRow}:C{$summaryRow}")->applyFromArray($summaryLabelStyle);
+        $summaryRow++;
+        $sheet->setCellValue("B{$summaryRow}", 'IN');
+        $sheet->setCellValue("C{$summaryRow}", "=G{$incomingSection['sumRow']}");
+        $sheet->getStyle("B{$summaryRow}")->applyFromArray($summaryLabelStyle);
+        $sheet->getStyle("C{$summaryRow}")->applyFromArray($summaryAmountStyle);
+        $summaryRow++;
+        $sheet->setCellValue("B{$summaryRow}", 'OUT');
+        $sheet->setCellValue("C{$summaryRow}", "=G{$outgoingSection['sumRow']}");
+        $sheet->getStyle("B{$summaryRow}")->applyFromArray($summaryLabelStyle);
+        $sheet->getStyle("C{$summaryRow}")->applyFromArray($summaryAmountStyle);
+        $summaryRow++;
+        $sheet->setCellValue("B{$summaryRow}", 'TOTAL');
+        $sheet->setCellValue("C{$summaryRow}", "=SUM(C" . ($summaryRow - 2) . ":C" . ($summaryRow - 1) . ")");
+        $sheet->getStyle("B{$summaryRow}")->applyFromArray($totalStyle);
+        $sheet->getStyle("B{$summaryRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle("C{$summaryRow}")->applyFromArray($totalStyle);
+        $sheet->getStyle("C{$summaryRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+        $widths = ['A' => 15, 'B' => 12, 'C' => 18, 'D' => 12, 'E' => 18, 'F' => 12, 'G' => 12, 'H' => 15, 'I' => 5];
+        foreach ($widths as $column => $width) {
+            $sheet->getColumnDimension($column)->setWidth($width);
         }
-
-        // Incoming totals row
-        $sheet->setCellValue('G' . $count, $incomingTotal)->getStyle('G' . $count)->applyFromArray($cfont);
-        $sheet->setCellValue('I' . $count, $incomingCount)->getStyle('I' . $count)->applyFromArray($cfont);
-        $count += 2;
-
-        // ========== OUTGOING SECTION ==========
-        // Header
-        $sheet->setCellValue('B' . $count, 'TBS');
-        $sheet->mergeCells('B' . $count . ':G' . $count);
-        $sheet->getStyle('B' . $count . ':G' . $count)->applyFromArray($cfont);
-        $count++;
-
-        $sheet->setCellValue('B' . $count, 'OUTGOING');
-        $sheet->mergeCells('B' . $count . ':G' . $count);
-        $sheet->getStyle('B' . $count . ':G' . $count)->applyFromArray($cfont);
-        $count++;
-
-        $sheet->setCellValue('D' . $count, 'DATE:');
-        $sheet->setCellValue('E' . $count, $formattedDate);
-        $sheet->getStyle('E' . $count)->applyFromArray($cfont);
-        $count += 3;
-
-        // Column headers
-        $headerRow = $count;
-        $sheet->setCellValue('A' . $headerRow, 'EIR')->getStyle('A' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('B' . $headerRow, 'Time')->getStyle('B' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('C' . $headerRow, 'Container No.')->getStyle('C' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('D' . $headerRow, 'Size/Type')->getStyle('D' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('E' . $headerRow, 'Hauler')->getStyle('E' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('F' . $headerRow, 'Plate No.')->getStyle('F' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('G' . $headerRow, 'Amount')->getStyle('G' . $headerRow)->applyFromArray($bold);
-        $sheet->setCellValue('H' . $headerRow, 'Client')->getStyle('H' . $headerRow)->applyFromArray($bold);
-        $count++;
-
-        // Outgoing data rows
-        $outgoingTotal = 0;
-        $outgoingCount = 0;
-        foreach ($outgoing as $row) {
-            $sheet->setCellValue('A' . $count, $row->eir_no ?? '')->getStyle('A' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('B' . $count, $row->time ?? '')->getStyle('B' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('C' . $count, $row->container_no ?? '')->getStyle('C' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('D' . $count, $row->size_type ?? '')->getStyle('D' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('E' . $count, $row->hauler ?? '')->getStyle('E' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('F' . $count, $row->plate_no ?? '')->getStyle('F' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('G' . $count, $row->amount ?? 0)->getStyle('G' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('H' . $count, $row->client_name ?? '')->getStyle('H' . $count)->applyFromArray($normalStyle);
-            $sheet->setCellValue('I' . $count, '1')->getStyle('I' . $count)->applyFromArray($normalStyle);
-
-            $outgoingTotal += (float)($row->amount ?? 0);
-            $outgoingCount++;
-            $count++;
-        }
-
-        // Outgoing totals row
-        $sheet->setCellValue('G' . $count, $outgoingTotal)->getStyle('G' . $count)->applyFromArray($cfont);
-        $sheet->setCellValue('I' . $count, $outgoingCount)->getStyle('I' . $count)->applyFromArray($cfont);
-        $count += 3;
-
-        // ========== SUMMARY SECTION ==========
-        $sheet->setCellValue('A' . $count, 'REGULAR')->getStyle('A' . $count)->applyFromArray($bold);
-        $count++;
-
-        $sheet->setCellValue('A' . $count, 'INCOMING: ' . number_format($incomingTotal, 2))->getStyle('A' . $count)->applyFromArray($cfont);
-        $count++;
-
-        $sheet->setCellValue('A' . $count, 'OUTGOING: ' . number_format($outgoingTotal, 2))->getStyle('A' . $count)->applyFromArray($cfont);
-        $count++;
-
-        $grandTotal = $incomingTotal + $outgoingTotal;
-        $sheet->setCellValue('A' . $count, 'TOTAL: ' . number_format($grandTotal, 2))->getStyle('A' . $count)->applyFromArray($bold);
-
-        // ========== SET COLUMN WIDTHS ==========
-        $sheet->getColumnDimension('A')->setWidth(15);
-        $sheet->getColumnDimension('B')->setWidth(12);
-        $sheet->getColumnDimension('C')->setWidth(18);
-        $sheet->getColumnDimension('D')->setWidth(12);
-        $sheet->getColumnDimension('E')->setWidth(15);
-        $sheet->getColumnDimension('F')->setWidth(12);
-        $sheet->getColumnDimension('G')->setWidth(12);
-        $sheet->getColumnDimension('H')->setWidth(15);
-        $sheet->getColumnDimension('I')->setWidth(5);
 
         // ========== SAVE FILE ==========
         $filename = 'DOCS_FEE ' . $formattedDate . '.xlsx';
@@ -914,6 +873,70 @@ class ReportExportService
         $writer = new Xlsx($this->spreadsheet);
         $writer->save($filepath);
 
+        return $filepath;
+    }
+
+    /**
+     * Export the detailed fee worksheet for one Docs Fee client exception.
+     */
+    public function exportDocsFeeClientReport(array $incoming, array $outgoing, string $clientName, string $clientCode, string $date): string
+    {
+        $this->spreadsheet = new Spreadsheet();
+        $sheet = $this->spreadsheet->getActiveSheet();
+        $normal = ['font' => ['name' => 'Calibri', 'size' => 9], 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
+        $title = ['font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true], 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
+        $header = ['font' => ['name' => 'Calibri', 'size' => 9, 'bold' => true], 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]];
+        $total = ['font' => ['name' => 'Calibri', 'size' => 11, 'bold' => true], 'borders' => ['top' => ['style' => Border::BORDER_THICK, 'color' => ['rgb' => '000000']], 'bottom' => ['style' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']]]];
+        $dateText = Carbon::parse($date)->format('d-M-Y');
+        $headers = ['Date', 'Time', 'Container No.', 'Size/Type', 'Hauler', 'Plate No.', 'Docs Fee', 'Handling Fee', 'Storage Fee', 'Total'];
+        $row = 1;
+        $write = function (array $records, string $label) use (&$row, $sheet, $clientName, $dateText, $headers, $normal, $title, $header, $total): int {
+            $sheet->setCellValue("A{$row}", strtoupper($clientName));
+            $sheet->mergeCells("A{$row}:J{$row}");
+            $sheet->getStyle("A{$row}:J{$row}")->applyFromArray($title);
+            $row++;
+            $sheet->setCellValue("A{$row}", $label);
+            $sheet->mergeCells("A{$row}:J{$row}");
+            $sheet->getStyle("A{$row}:J{$row}")->applyFromArray($header);
+            $row += 2;
+            foreach ($headers as $index => $value) {
+                $cell = chr(ord('A') + $index) . $row;
+                $sheet->setCellValue($cell, $value);
+                $sheet->getStyle($cell)->applyFromArray($header);
+            }
+            $row++;
+            $first = $row;
+            foreach ($records as $record) {
+                $values = [$record->record_date, $record->time, $record->container_no, $record->size_type, $record->hauler, $record->plate_no, $record->docs_fee, $record->handling_fee, $record->storage_fee, $record->total];
+                foreach ($values as $index => $value) {
+                    $cell = chr(ord('A') + $index) . $row;
+                    $sheet->setCellValue($cell, $value);
+                    $sheet->getStyle($cell)->applyFromArray($normal);
+                }
+                $row++;
+            }
+            $last = max($first, $row - 1);
+            $sheet->setCellValue("J{$row}", "=SUM(J{$first}:J{$last})");
+            $sheet->getStyle("J{$row}")->applyFromArray($total);
+            return $row++;
+        };
+        $incomingTotalRow = $write($incoming, 'INCOMING REPORT (WHOLESHIFT)');
+        $outgoingTotalRow = $write($outgoing, 'OUTGOING REPORT (WHOLESHIFT)');
+        $sheet->setCellValue("B{$row}", 'IN');
+        $sheet->setCellValue("C{$row}", "=J{$incomingTotalRow}");
+        $row++;
+        $sheet->setCellValue("B{$row}", 'OUT');
+        $sheet->setCellValue("C{$row}", "=J{$outgoingTotalRow}");
+        $row++;
+        $sheet->setCellValue("B{$row}", 'TOTAL');
+        $sheet->setCellValue("C{$row}", "=SUM(C" . ($row - 2) . ":C" . ($row - 1) . ")");
+        $sheet->getStyle("B{$row}:C{$row}")->applyFromArray($total);
+        $widths = ['A' => 13, 'B' => 11, 'C' => 18, 'D' => 12, 'E' => 18, 'F' => 12, 'G' => 12, 'H' => 14, 'I' => 14, 'J' => 12];
+        foreach ($widths as $column => $width) $sheet->getColumnDimension($column)->setWidth($width);
+        $filename = $clientCode . ' - DOCS_FEE_' . Carbon::parse($date)->format('d-M-y') . '.xlsx';
+        $filepath = storage_path('app/public/exports/' . $filename);
+        if (!file_exists(dirname($filepath))) mkdir(dirname($filepath), 0755, true);
+        (new Xlsx($this->spreadsheet))->save($filepath);
         return $filepath;
     }
 
