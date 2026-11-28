@@ -747,6 +747,15 @@ export default function Index({ imageModule = 'container' }: { imageModule?: 'co
                         onClick={() => setViewMode('large')}
                         title="View Extra Large Icons"
                       />
+                      {viewMode === 'large' && displayItems.length > 0 && (
+                        <ModernButton
+                          variant="secondary"
+                          size="sm"
+                          onClick={toggleAllDisplayed}
+                        >
+                          {allDisplayedSelected ? 'Clear All' : 'Select All'}
+                        </ModernButton>
+                      )}
                     </div>
                   </div>
                 </div>
