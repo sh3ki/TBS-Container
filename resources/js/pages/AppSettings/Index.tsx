@@ -63,6 +63,7 @@ interface AppSettingsProps {
         incoming_rate: number;
         outgoing_rate: number;
         hauler_exceptions: string;
+        docs_fee_client_ids: number[];
         preout_hauler_exceptions: string;
         prein_hauler_exceptions: string;
         prein_scraping_client_ids: number[];
@@ -129,6 +130,9 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
     );
     const [haulerExceptions, setHaulerExceptions] = useState(
         settings.hauler_exceptions,
+    );
+    const [docsFeeClientIds, setDocsFeeClientIds] = useState<string[]>(
+        settings.docs_fee_client_ids.map(String),
     );
     const [preoutHaulerExceptions, setPreoutHaulerExceptions] = useState(
         settings.preout_hauler_exceptions,
@@ -304,6 +308,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                 incoming_rate: Number(incomingRate),
                 outgoing_rate: Number(outgoingRate),
                 hauler_exceptions: haulerExceptions,
+                docs_fee_client_ids: docsFeeClientIds,
             });
             success(
                 response.data.message ||
@@ -631,6 +636,7 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                         : 'Booking checks are disabled for both queue entry modals.'}
                                 </p>
                             </div>
+
                             <ModernButton
                                 type="button"
                                 variant={
@@ -1968,6 +1974,30 @@ export default function AppSettings({ settings, clients }: AppSettingsProps) {
                                 <p className="mt-1 text-xs text-gray-500">
                                     Separate haulers with commas. These haulers
                                     receive a 0 Docs Fee rate.
+                                </p>
+                            </div>
+
+                            <div className="md:col-span-3">
+                                <Label
+                                    htmlFor="docs-fee-client-exceptions"
+                                    className="text-sm font-semibold text-gray-900"
+                                >
+                                    CLIENT EXCEPTIONS
+                                </Label>
+                                <div className="mt-2">
+                                    <MultiSelect
+                                        options={clients.map((client) => ({
+                                            value: String(client.c_id),
+                                            label: `${client.client_name}${client.client_code ? ` (${client.client_code})` : ''}`,
+                                        }))}
+                                        value={docsFeeClientIds}
+                                        onChange={setDocsFeeClientIds}
+                                        placeholder="Select clients"
+                                        searchPlaceholder="Search clients..."
+                                    />
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Selected clients receive a 0 Docs Fee rate.
                                 </p>
                             </div>
 
