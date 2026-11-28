@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\GuardScanController;
 use App\Http\Controllers\Api\QueueInternalController;
 use App\Http\Controllers\Api\QueueDisplayController;
 use App\Http\Controllers\Api\TruckPlateImagesController;
+use App\Http\Controllers\Api\DatabaseController;
 
 /*
 |--------------------------------------------------------------------------
@@ -191,6 +192,14 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::post('/logout-inactive', [AuthController::class, 'logoutInactive']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
+
+    Route::prefix('database')->middleware('page.access:database')->group(function () {
+        Route::get('/tables', [DatabaseController::class, 'tables']);
+        Route::get('/rows', [DatabaseController::class, 'rows']);
+        Route::post('/row', [DatabaseController::class, 'store']);
+        Route::put('/row', [DatabaseController::class, 'update']);
+        Route::delete('/rows', [DatabaseController::class, 'destroy']);
+    });
 
     // Dashboard
     Route::middleware('page.access:dashboard,1')->prefix('dashboard')->group(function () {
