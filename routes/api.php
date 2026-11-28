@@ -30,7 +30,6 @@ use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\GuardScanController;
 use App\Http\Controllers\Api\QueueInternalController;
 use App\Http\Controllers\Api\QueueDisplayController;
-use App\Http\Controllers\Api\TruckPlateImagesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -189,7 +188,6 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/logout-inactive', [AuthController::class, 'logoutInactive']);
-    Route::get('/truck-plate-images', [TruckPlateImagesController::class, 'list']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
 
@@ -436,6 +434,20 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
 
     // Container Images - Explorer-style file and folder management
     Route::prefix('containerimages')->group(function () {
+        Route::get('/page-record-access', [ContainerImagesController::class, 'getPageRecordAccess']);
+        Route::get('/list', [ContainerImagesController::class, 'list']);
+        Route::get('/file', [ContainerImagesController::class, 'viewFile']);
+        Route::post('/upload', [ContainerImagesController::class, 'upload']);
+        Route::post('/folders', [ContainerImagesController::class, 'createFolder']);
+        Route::get('/download', [ContainerImagesController::class, 'download']);
+        Route::post('/download-bulk', [ContainerImagesController::class, 'downloadBulk']);
+        Route::post('/rename', [ContainerImagesController::class, 'rename']);
+        Route::post('/delete-item', [ContainerImagesController::class, 'deleteItem']);
+        Route::post('/delete-bulk', [ContainerImagesController::class, 'deleteBulk']);
+    });
+
+    // Truck Plate Images - same explorer functionality, rooted at public/truck_plates
+    Route::prefix('truckplateimages')->group(function () {
         Route::get('/page-record-access', [ContainerImagesController::class, 'getPageRecordAccess']);
         Route::get('/list', [ContainerImagesController::class, 'list']);
         Route::get('/file', [ContainerImagesController::class, 'viewFile']);
