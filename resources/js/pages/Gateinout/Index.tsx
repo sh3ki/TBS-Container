@@ -215,10 +215,10 @@ export default function Index() {
   const [sizeTypeOptions, setSizeTypeOptions] = useState<Array<{ s_id: number; size: string; type: string; iso_code?: string | null }>>([]);
   const [loadOptions, setLoadOptions] = useState<Array<{ l_id: number; type: string }>>([]);
 
-  const [pageAccess, setPageAccess] = useState<{ can_view: boolean; module_edit: boolean; module_delete: boolean }>({
+  const [pageAccess, setPageAccess] = useState<{ can_view: boolean; acs_edit: number; acs_delete: number }>({
     can_view: false,
-    module_edit: false,
-    module_delete: false,
+    acs_edit: 0,
+    acs_delete: 0,
   });
 
   const fetchPageAccess = async () => {
@@ -227,8 +227,8 @@ export default function Index() {
       if (resp.data.success) {
         setPageAccess({
           can_view: Boolean(resp.data.can_view),
-          module_edit: Boolean(resp.data.module_edit),
-          module_delete: Boolean(resp.data.module_delete),
+          acs_edit: Number(resp.data.acs_edit ?? 0),
+          acs_delete: Number(resp.data.acs_delete ?? 0),
         });
       }
     } catch {
@@ -788,11 +788,11 @@ export default function Index() {
   };
 
   const canEdit = (record: PreInventoryRecord): boolean => {
-    return record.status.toLowerCase() === 'pending' && pageAccess.module_edit;
+    return record.status.toLowerCase() === 'pending' && pageAccess.acs_edit === 1;
   };
 
   const canDelete = (record: PreInventoryRecord): boolean => {
-    return record.status.toLowerCase() === 'pending' && pageAccess.module_delete;
+    return record.status.toLowerCase() === 'pending' && pageAccess.acs_delete === 1;
   };
 
   const formatDateTime = (dateString: string) => {
