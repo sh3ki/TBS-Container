@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,14 +29,30 @@ class TruckPlateImagesController extends Controller
     public function list(Request $request)
     {
         $access = $this->access(); abort_unless($access['can_view'], 403);
-        $path = $this->clean($request->query('path', '')); $full = $this->path($path);
-        $items = [];
-        if (File::isDirectory($full)) {
-            foreach (File::directories($full) as $dir) $items[] = ['name' => basename($dir), 'relative_path' => trim($path . '/' . basename($dir), '/'), 'type' => 'directory', 'size' => null, 'modified_at' => date('Y-m-d H:i:s', filemtime($dir)), 'is_image' => false];
-            foreach (File::files($full) as $file) $items[] = ['name' => $file->getFilename(), 'relative_path' => trim($path . '/' . $file->getFilename(), '/'), 'type' => 'file', 'size' => $file->getSize(), 'modified_at' => date('Y-m-d H:i:s', $file->getMTime()), 'is_image' => $this->isImage($file->getFilename())];
+        $dateFrom = (string) $request->query('date_from', Carbon::now('Asia/Manila')->format('Y-m-d'));
+        $dateTo = (string) $request->query('date_to', $dateFrom);
+        abort_unless((bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) && (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo), 422, 'Invalid date range.');
+        abort_if($dateTo < $dateFrom, 422, 'Date to cannot be earlier than date from.');
+        $prefixFrom = Carbon::createFromFormat('Y-m-d', $dateFrom, 'Asia/Manila')->format('Ymd');
+        $prefixTo = Carbon::createFromFormat('Y-m-d', $dateTo, 'Asia/Manila')->format('Ymd');
+        $images = ['in' => [], 'out' => []];
+        if (File::isDirectory($this->base())) {
+            foreach (File::files($this->base()) as $file) {
+                if (!preg_match('/^(\d{8})_\d{6}_(in|out)_/i', $file->getFilename(), $match)) continue;
+                if ($match[1] < $prefixFrom || $match[1] > $prefixTo) continue;
+                $direction = strtolower($match[2]);
+                $images[$direction][] = [
+                    'name' => $file->getFilename(),
+                    'relative_path' => $file->getFilename(),
+                    'type' => 'file',
+                    'size' => $file->getSize(),
+                    'modified_at' => date('Y-m-d H:i:s', $file->getMTime()),
+                    'is_image' => $this->isImage($file->getFilename()),
+                ];
+            }
         }
-        usort($items, fn ($a, $b) => strnatcasecmp($a['name'], $b['name']));
-        return response()->json(['success' => true, 'data' => ['current_path' => $path, 'items' => $items, ...$access]]);
+        foreach ($images as &$directionImages) usort($directionImages, fn ($a, $b) => strnatcasecmp($b['name'], $a['name']));
+        return response()->json(['success' => true, 'data' => ['date_from' => $dateFrom, 'date_to' => $dateTo, 'in' => $images['in'], 'out' => $images['out'], ...$access]]);
     }
 
     public function viewFile(Request $request) { abort_unless($this->access()['can_view'], 403); $file = $this->path($this->clean($request->query('path', ''))); abort_unless(File::isFile($file), 404); return response()->file($file); }
