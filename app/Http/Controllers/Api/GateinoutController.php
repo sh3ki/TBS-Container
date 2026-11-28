@@ -72,6 +72,20 @@ class GateinoutController extends Controller
         $this->prefix = env('DB_PREFIX', 'fjp_');
     }
 
+    private function hasGateinoutAccess($user, string $permission): bool
+    {
+        if (!$user || !in_array($permission, ['acs_edit', 'acs_delete'], true)) {
+            return false;
+        }
+
+        return DB::table('pages_access')
+            ->join('pages', 'pages_access.page_id', '=', 'pages.p_id')
+            ->where('pages.page', 'gateinout')
+            ->where('pages_access.privilege', $user->priv_id)
+            ->where('pages_access.' . $permission, 1)
+            ->exists();
+    }
+
     public function getQueueDisplay()
     {
         try {
@@ -1255,6 +1269,12 @@ class GateinoutController extends Controller
     public function updatePreIn(Request $request)
     {
         try {
+            if (!$this->hasGateinoutAccess(Auth::user(), 'acs_edit')) {
+                return response()->json([
+                    'message' => ['danger', '<strong>Error!</strong> You do not have edit permission for Gate In/Out records.']
+                ], 403);
+            }
+
             $hashedId = $request->input('id');
             $containerNo = strtoupper(trim($request->input('cno')));
             $clientId = $request->input('cid');
@@ -1398,6 +1418,12 @@ class GateinoutController extends Controller
     public function updatePreOut(Request $request)
     {
         try {
+            if (!$this->hasGateinoutAccess(Auth::user(), 'acs_edit')) {
+                return response()->json([
+                    'message' => ['danger', '<strong>Error!</strong> You do not have edit permission for Gate In/Out records.']
+                ], 403);
+            }
+
             $hashedId = $request->input('id');
             $plateNo = trim($request->input('pno'));
             $hauler = trim($request->input('hauler'));
@@ -1482,6 +1508,12 @@ class GateinoutController extends Controller
     public function deletePre(Request $request)
     {
         try {
+            if (!$this->hasGateinoutAccess(Auth::user(), 'acs_delete')) {
+                return response()->json([
+                    'message' => ['danger', '<strong>Error!</strong> You do not have delete permission for Gate In/Out records.']
+                ], 403);
+            }
+
             $hashedId = $request->input('id');
             
             // Find the real ID from both IN and OUT records
@@ -1615,15 +1647,6 @@ class GateinoutController extends Controller
             $user = Auth::user();
             $privId = $user->priv_id ?? 0;
             
-            // Admin (priv_id = 1) has all permissions
-            if ($privId == 1) {
-                return response()->json([
-                    'success' => true,
-                    'module_edit' => true,
-                    'module_delete' => true
-                ]);
-            }
-            
             // Get page ID for gateinout
             $page = DB::selectOne(
                 "SELECT p_id FROM {$this->prefix}pages WHERE page = 'gateinout' LIMIT 1"
@@ -1632,8 +1655,8 @@ class GateinoutController extends Controller
             if (!$page) {
                 return response()->json([
                     'success' => true,
-                    'module_edit' => false,
-                    'module_delete' => false
+                    'acs_edit' => 0,
+                    'acs_delete' => 0
                 ]);
             }
             
@@ -1648,22 +1671,22 @@ class GateinoutController extends Controller
             if (!$access) {
                 return response()->json([
                     'success' => true,
-                    'module_edit' => false,
-                    'module_delete' => false
+                    'acs_edit' => 0,
+                    'acs_delete' => 0
                 ]);
             }
             
             return response()->json([
                 'success' => true,
-                'module_edit' => (bool)($access->acs_edit ?? 0),
-                'module_delete' => (bool)($access->acs_delete ?? 0)
+                'acs_edit' => (int)($access->acs_edit ?? 0),
+                'acs_delete' => (int)($access->acs_delete ?? 0)
             ]);
             
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'module_edit' => false,
-                'module_delete' => false,
+                'acs_edit' => 0,
+                'acs_delete' => 0,
                 'message' => $e->getMessage()
             ], 500);
         }
