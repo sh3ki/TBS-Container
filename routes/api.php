@@ -465,6 +465,7 @@ Route::middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
         Route::get('/dcr', [ReportsController::class, 'dcrReport']);
         Route::post('/dcr/export', [ReportsController::class, 'exportDcrReport']);
         Route::post('/docs-fee/export', [ReportsController::class, 'exportDocsFeeReport']);
+        Route::get('/docs-fee/download/{filename}', [ReportsController::class, 'downloadDocsFeeFile'])->where('filename', '[^/]+');
         
         // Main reports
         Route::get('/daily-gate', [ReportsController::class, 'dailyGateReport']);
