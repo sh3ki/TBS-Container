@@ -24,7 +24,12 @@ interface PageAccessResponse {
   module_delete: boolean;
 }
 
-export default function Index() {
+export default function Index({ imageModule = 'container' }: { imageModule?: 'container' | 'truck' }) {
+  const apiRoot = imageModule === 'truck' ? '/api/truckplateimages' : '/api/containerimages';
+  const pageTitle = imageModule === 'truck' ? 'Truck Plate Images' : 'Container Images';
+  const pageDescription = imageModule === 'truck'
+    ? 'Explore and manage truck plate images in the server'
+    : 'Explore and manage container images in the server';
   const { toasts, removeToast, success, error } = useModernToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -137,7 +142,7 @@ export default function Index() {
 
   const fetchPageAccess = async () => {
     try {
-      const response = await axios.get('/api/containerimages/page-record-access');
+      const response = await axios.get(`${apiRoot}/page-record-access`);
       if (response.data.success) {
         setPageAccess({
           can_view: Boolean(response.data.can_view),
@@ -153,7 +158,7 @@ export default function Index() {
   const fetchItems = async (path: string) => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/containerimages/list', {
+      const response = await axios.get(`${apiRoot}/list`, {
         params: { path },
       });
 
@@ -194,7 +199,7 @@ export default function Index() {
       return;
     }
 
-    const fileUrl = `/api/containerimages/file?path=${encodeURIComponent(item.relative_path)}`;
+    const fileUrl = `${apiRoot}/file?path=${encodeURIComponent(item.relative_path)}`;
     window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -222,7 +227,7 @@ export default function Index() {
         formData.append('files[]', file);
       });
 
-      const response = await axios.post('/api/containerimages/upload', formData, {
+      const response = await axios.post(`${apiRoot}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -251,7 +256,7 @@ export default function Index() {
 
     setCreatingFolder(true);
     try {
-      const response = await axios.post('/api/containerimages/folders', {
+      const response = await axios.post(`${apiRoot}/folders`, {
         path: currentPath,
         folder_name: folderName,
       });
@@ -273,7 +278,7 @@ export default function Index() {
   const handleDownload = async (item: ExplorerItem) => {
     // For directories, let the browser handle the download (avoids saving JSON errors as text)
     if (item.type === 'directory') {
-      const href = `/api/containerimages/download?path=${encodeURIComponent(item.relative_path)}`;
+      const href = `${apiRoot}/download?path=${encodeURIComponent(item.relative_path)}`;
       const a = document.createElement('a');
       a.href = href;
       a.style.display = 'none';
@@ -285,7 +290,7 @@ export default function Index() {
 
     setDownloadingPaths((prev) => [...prev, item.relative_path]);
     try {
-      const response = await axios.get('/api/containerimages/download', {
+      const response = await axios.get(`${apiRoot}/download`, {
         params: { path: item.relative_path },
         responseType: 'blob',
       });
@@ -330,7 +335,7 @@ export default function Index() {
 
     setBulkDownloading(true);
     try {
-      const response = await axios.post('/api/containerimages/download-bulk', {
+      const response = await axios.post(`${apiRoot}/download-bulk`, {
         paths: selectedItems.map((item) => item.relative_path),
       }, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -354,7 +359,7 @@ export default function Index() {
     if (selectedItems.length === 0) return;
 
     try {
-      const response = await axios.post('/api/containerimages/delete-bulk', {
+      const response = await axios.post(`${apiRoot}/delete-bulk`, {
         paths: selectedItems.map((item) => item.relative_path),
       });
       if (response.data.success) {
@@ -384,7 +389,7 @@ export default function Index() {
 
     setRenaming(true);
     try {
-      const response = await axios.post('/api/containerimages/rename', {
+      const response = await axios.post(`${apiRoot}/rename`, {
         path: renameTarget.relative_path,
         new_name: renameName,
       });
@@ -415,7 +420,7 @@ export default function Index() {
     }
 
     try {
-      const response = await axios.post('/api/containerimages/delete-item', {
+      const response = await axios.post(`${apiRoot}/delete-item`, {
         path: itemToDelete.relative_path,
         type: itemToDelete.type,
       });
@@ -586,7 +591,7 @@ export default function Index() {
 
   return (
     <AuthenticatedLayout>
-      <Head title="Container Images" />
+      <Head title={pageTitle} />
 
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -595,8 +600,8 @@ export default function Index() {
               <Images className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Container Images</h1>
-              <p className="text-sm mt-1 text-gray-600">Explore and manage container images in the server</p>
+              <h1 className="text-3xl font-bold text-gray-900">{pageTitle}</h1>
+              <p className="text-sm mt-1 text-gray-600">{pageDescription}</p>
             </div>
           </div>
 
@@ -812,7 +817,7 @@ export default function Index() {
                         <div className="w-36 h-36 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
                           {item.is_image ? (
                             <img
-                              src={`/api/containerimages/file?path=${encodeURIComponent(item.relative_path)}`}
+                              src={`${apiRoot}/file?path=${encodeURIComponent(item.relative_path)}`}
                               alt={item.name}
                               className="object-cover w-full h-full"
                             />
@@ -949,7 +954,7 @@ export default function Index() {
         open={imageViewerOpen}
         onOpenChange={setImageViewerOpen}
         images={imageItems.map((image) => ({
-          src: `/api/containerimages/file?path=${encodeURIComponent(image.relative_path)}`,
+          src: `${apiRoot}/file?path=${encodeURIComponent(image.relative_path)}`,
           name: image.name,
           key: image.relative_path,
         }))}
